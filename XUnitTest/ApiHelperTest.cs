@@ -306,7 +306,7 @@ namespace XUnitTest.Remoting
         [InlineData("{errcode:0,errmsg:\"ok\",access_token:\"12345678\",\"expires_in\": 7200}")]
         public void ProcessResponse_Text(String content)
         {
-            var token = ApiHelper.ProcessResponse<MyToken>(content);
+            var token = ApiHelper.ProcessResponse<MyToken>(content, "errcode", "");
             Assert.Equal("12345678", token.AccessToken);
             Assert.Equal(7200, token.ExpiresIn);
         }
