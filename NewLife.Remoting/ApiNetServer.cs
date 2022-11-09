@@ -139,8 +139,15 @@ namespace NewLife.Remoting
 
                 ThreadPool.QueueUserWorkItem(m =>
                 {
-                    var rs = _Host.Process(this, m as IMessage);
-                    if (rs != null && Session != null && !Session.Disposed) Session?.SendMessage(rs);
+                    try
+                    {
+                        var rs = _Host.Process(this, m as IMessage);
+                        if (rs != null && Session != null && !Session.Disposed) Session?.SendMessage(rs);
+                    }
+                    catch (Exception ex)
+                    {
+                        XTrace.WriteException(ex);
+                    }
                 }, msg);
             }
             else
