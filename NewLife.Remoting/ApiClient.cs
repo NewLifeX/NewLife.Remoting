@@ -313,7 +313,8 @@ public class ApiClient : ApiHost, IApiClient
         {
             if (session is IApiSession ss)
                 return Cluster.Invoke(client => client.SendMessage(msg));
-            else return session is ISocketRemote client ? client.SendMessage(msg) : throw new InvalidOperationException();
+            else
+                return session is ISocketRemote client ? client.SendMessage(msg) : throw new InvalidOperationException();
         }
         catch (Exception ex)
         {
