@@ -59,7 +59,7 @@ public class HttpEncoder : EncoderBase, IEncoder
         WriteLog("{0}<={1}", action, str);
         if (str.IsNullOrEmpty()) return null;
 
-        var ctype = Array.Empty<String>();
+        var ctype = new String[0];
         if (msg is HttpMessage hmsg && str[0] == '{')
         {
             if (hmsg.ParseHeaders()) ctype = (hmsg.Headers["Content-type"] + "").Split(';');
