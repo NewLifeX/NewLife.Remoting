@@ -234,17 +234,35 @@ public class HttpEncoder : EncoderBase, IEncoder
         if (ss.Length < 3) return false;
 
         // 第二段是地址
-        var url = ss[1];
-        p = url.IndexOf('?');
-        if (p > 0)
+        var uri = new Uri(ss[1], UriKind.RelativeOrAbsolute);
+        if (!uri.IsAbsoluteUri)
         {
-            action = url[1..p];
-            value = url[(p + 1)..].GetBytes();
+            var url = ss[1];
+            p = url.IndexOf('?');
+            if (p > 0)
+            {
+                action = url[1..p];
+                value = url[(p + 1)..].GetBytes();
+            }
+            else
+            {
+                action = url[1..];
+                value = http.Payload;
+            }
         }
         else
         {
-            action = url[1..];
-            value = http.Payload;
+            if (!uri.Query.IsNullOrEmpty())
+            {
+                action = uri.AbsolutePath;
+                value = uri.Query.GetBytes();
+            }
+            else
+            {
+                action = uri.AbsolutePath;
+                value = http.Payload;
+            }
+            if (action.Length > 1) action = action[1..];
         }
 
         return true;
