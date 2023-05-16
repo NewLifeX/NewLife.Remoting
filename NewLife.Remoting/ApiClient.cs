@@ -132,8 +132,9 @@ public class ApiClient : ApiHost, IApiClient
     /// <typeparam name="TResult">返回类型</typeparam>
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
+    /// <param name="cancellationToken">取消通知</param>
     /// <returns></returns>
-    public virtual async Task<TResult> InvokeAsync<TResult>(String action, Object args = null)
+    public virtual async Task<TResult> InvokeAsync<TResult>(String action, Object args = null, CancellationToken cancellationToken = default)
     {
         // 让上层异步到这直接返回，后续代码在另一个线程执行
         //!!! Task.Yield会导致强制捕获上下文，虽然会在另一个线程执行，但在UI线程中可能无法抢占上下文导致死锁
@@ -145,7 +146,7 @@ public class ApiClient : ApiHost, IApiClient
 
         try
         {
-            return await InvokeWithClientAsync<TResult>(null, act, args).ConfigureAwait(false);
+            return await InvokeWithClientAsync<TResult>(null, act, args, 0, cancellationToken).ConfigureAwait(false);
         }
         catch (ApiException ex)
         {
@@ -154,7 +155,7 @@ public class ApiClient : ApiHost, IApiClient
             {
                 await Cluster.InvokeAsync(client => OnLoginAsync(client, true)).ConfigureAwait(false);
 
-                return await InvokeWithClientAsync<TResult>(null, act, args).ConfigureAwait(false);
+                return await InvokeWithClientAsync<TResult>(null, act, args, 0, cancellationToken).ConfigureAwait(false);
             }
 
             throw;
@@ -198,8 +199,9 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
     /// <param name="flag">标识</param>
+    /// <param name="cancellationToken">取消通知</param>
     /// <returns></returns>
-    public virtual async Task<TResult> InvokeWithClientAsync<TResult>(ISocketClient client, String action, Object args = null, Byte flag = 0)
+    public virtual async Task<TResult> InvokeWithClientAsync<TResult>(ISocketClient client, String action, Object args = null, Byte flag = 0, CancellationToken cancellationToken = default)
     {
         // 性能计数器，次数、TPS、平均耗时
         var st = StatInvoke;
@@ -228,11 +230,11 @@ public class ApiClient : ApiHost, IApiClient
         try
         {
             rs = client != null
-                ? (await client.SendMessageAsync(msg).ConfigureAwait(false)) as IMessage
+                ? (await client.SendMessageAsync(msg, cancellationToken).ConfigureAwait(false)) as IMessage
                 : (await Cluster.InvokeAsync(client =>
                 {
                     invoker = client.Remote + "";
-                    return client.SendMessageAsync(msg);
+                    return client.SendMessageAsync(msg, cancellationToken);
                 }).ConfigureAwait(false)) as IMessage;
 
             if (rs == null) return default;
