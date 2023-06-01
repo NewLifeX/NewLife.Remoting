@@ -28,7 +28,7 @@
     <RepositoryUrl>https://github.com/NewLifeX/NewLife.Remoting</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>新生命团队;X组件;NewLife;$(AssemblyName)</PackageTags>
-    <PackageReleaseNotes>恢复支持.NET4.5</PackageReleaseNotes>
+    <PackageReleaseNotes>支持CancellationToken取消通知</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -49,7 +49,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Core" Version="10.3.2023.516-beta0646" />
+    <PackageReference Include="NewLife.Core" Version="10.3.2023.601" />
   </ItemGroup>
 
   <ItemGroup>
