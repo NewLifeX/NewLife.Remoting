@@ -112,7 +112,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
 
         controller = _Host.ServiceProvider?.GetService(api.Type);
 
-        if (controller == null) controller = api.Type.CreateInstance();
+        controller ??= api.Type.CreateInstance();
 
         return controller;
     }

@@ -217,7 +217,7 @@ namespace NewLife.Remoting
                         ps[name] = Convert.FromBase64String(v + "");
                     else
                     {
-                        if (v == null) v = args;
+                        v ??= args;
                         //if (v is IDictionary<String, Object>)
                         ps[name] = encoder.Convert(v, pi.ParameterType);
                     }

@@ -143,9 +143,9 @@ namespace NewLife.Remoting
         {
             if (Active) return;
 
-            if (Encoder == null) Encoder = new JsonEncoder();
+            Encoder ??= new JsonEncoder();
             //if (Encoder == null) Encoder = new BinaryEncoder();
-            if (Handler == null) Handler = new ApiHandler { Host = this };
+            Handler ??= new ApiHandler { Host = this };
 
             Encoder.Log = EncoderLog;
 
@@ -165,7 +165,7 @@ namespace NewLife.Remoting
             if (ms > 0)
             {
                 //if (StatInvoke == null) StatInvoke = new PerfCounter();
-                if (StatProcess == null) StatProcess = new PerfCounter();
+                StatProcess ??= new PerfCounter();
 
                 _Timer = new TimerX(DoStat, null, ms, ms) { Async = true };
             }
