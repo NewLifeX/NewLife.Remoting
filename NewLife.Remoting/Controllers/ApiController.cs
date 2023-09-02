@@ -26,7 +26,7 @@ public class ApiController : IApi
         NetworkChange.NetworkAvailabilityChanged += (s, e) => RefreshLocalIP();
     }
 
-    static void RefreshLocalIP() { _LocalIP = NetHelper.GetIPs().Where(e => e.IsIPv4()).Join(); }
+    static void RefreshLocalIP() => _LocalIP = NetHelper.GetIPs().Where(e => e.IsIPv4()).Join();
 
     private String[] _all;
     /// <summary>获取所有接口</summary>

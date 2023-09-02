@@ -3,6 +3,7 @@ using System.Threading;
 using NewLife;
 using NewLife.Log;
 using NewLife.Messaging;
+using NewLife.Net;
 using NewLife.Remoting;
 using NewLife.Security;
 using NewLife.Serialization;
@@ -64,18 +65,18 @@ namespace XUnitTest.Remoting
             Assert.NotNull(msg);
 
             // 解码消息
-            var rs = _Client.Encoder.Decode(msg, out var action, out var code, out var packet);
-            Assert.True(rs);
-            Assert.Equal("CustomCommand", action);
-            Assert.Equal(0, code);
-            Assert.Equal(JsonHelper.ToJson(args), packet.ToStr());
+            var messge = _Client.Encoder.Decode(msg);
+            Assert.NotNull(messge);
+            Assert.Equal("CustomCommand", messge.Action);
+            Assert.Equal(0, messge.Code);
+            Assert.Equal(JsonHelper.ToJson(args), messge.Data.ToStr());
         }
 
         private class MyClient : ApiClient
         {
             public IMessage LastMessage { get; set; }
 
-            protected override void OnReceive(IMessage message) => LastMessage = message;
+            protected override void OnReceive(IMessage message, ApiReceivedEventArgs e) => LastMessage = message;
         }
     }
 }

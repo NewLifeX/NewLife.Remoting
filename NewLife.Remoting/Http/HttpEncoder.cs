@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
+﻿using System.Web;
 using NewLife.Collections;
 using NewLife.Data;
 using NewLife.Messaging;
@@ -212,26 +209,21 @@ public class HttpEncoder : EncoderBase, IEncoder
 
     /// <summary>解码 请求/响应</summary>
     /// <param name="msg">消息</param>
-    /// <param name="action">服务动作</param>
-    /// <param name="code">错误码</param>
-    /// <param name="value">参数或结果</param>
-    /// <returns></returns>
-    public override Boolean Decode(IMessage msg, out String action, out Int32 code, out Packet value)
+    /// <returns>请求响应报文</returns>
+    public override ApiMessage Decode(IMessage msg)
     {
-        action = null;
-        code = 0;
-        value = null;
-
-        if (msg is not HttpMessage http) return false;
+        if (msg is not HttpMessage http) return null;
 
         // 分析请求方法 GET / HTTP/1.1
         var p = http.Header.IndexOf(new[] { (Byte)'\r', (Byte)'\n' });
-        if (p <= 0) return false;
+        if (p <= 0) return null;
 
         var line = http.Header.ToStr(null, 0, p);
 
         var ss = line.Split(' ');
-        if (ss.Length < 3) return false;
+        if (ss.Length < 3) return null;
+
+        var message = new ApiMessage();
 
         // 第二段是地址
         var uri = new Uri(ss[1], UriKind.RelativeOrAbsolute);
@@ -241,31 +233,31 @@ public class HttpEncoder : EncoderBase, IEncoder
             p = url.IndexOf('?');
             if (p > 0)
             {
-                action = url[1..p];
-                value = url[(p + 1)..].GetBytes();
+                message.Action = url[1..p];
+                message.Data = url[(p + 1)..].GetBytes();
             }
             else
             {
-                action = url[1..];
-                value = http.Payload;
+                message.Action = url[1..];
+                message.Data = http.Payload;
             }
         }
         else
         {
             if (!uri.Query.IsNullOrEmpty())
             {
-                action = uri.AbsolutePath;
-                value = uri.Query.GetBytes();
+                message.Action = uri.AbsolutePath;
+                message.Data = uri.Query.GetBytes();
             }
             else
             {
-                action = uri.AbsolutePath;
-                value = http.Payload;
+                message.Action = uri.AbsolutePath;
+                message.Data = http.Payload;
             }
-            if (action.Length > 1) action = action[1..];
+            if (message.Action.Length > 1) message.Action = message.Action[1..];
         }
 
-        return true;
+        return message;
     }
     #endregion
 }

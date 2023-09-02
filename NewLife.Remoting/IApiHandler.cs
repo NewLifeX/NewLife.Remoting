@@ -48,13 +48,10 @@ namespace NewLife.Remoting
         {
             if (action.IsNullOrEmpty()) action = "Api/Info";
 
-            var api = session.FindAction(action);
-            if (api == null) throw new ApiException(404, $"无法找到名为[{action}]的服务！");
+            var api = session.FindAction(action) ?? throw new ApiException(404, $"无法找到名为[{action}]的服务！");
 
             // 全局共用控制器，或者每次创建对象实例
-            var controller = session.CreateController(api);
-            if (controller == null) throw new ApiException(403, $"无法创建名为[{api.Name}]的服务！");
-
+            var controller = session.CreateController(api) ?? throw new ApiException(403, $"无法创建名为[{api.Name}]的服务！");
             if (controller is IApi capi) capi.Session = session;
             if (session is INetSession ss)
                 api.LastSession = ss.Remote + "";
