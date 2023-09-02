@@ -29,6 +29,9 @@ public class ApiClient : ApiHost, IApiClient
     /// <summary>最后活跃时间</summary>
     public DateTime LastActive { get; set; }
 
+    /// <summary>收到服务端主动下发</summary>
+    public event EventHandler<ReceivedEventArgs> Received;
+
     /// <summary>调用统计</summary>
     public ICounter StatInvoke { get; set; }
 
@@ -343,6 +346,8 @@ public class ApiClient : ApiHost, IApiClient
     private void Client_Received(Object sender, ReceivedEventArgs e)
     {
         LastActive = DateTime.Now;
+
+        Received?.Invoke(this, e);
 
         // Api解码消息得到Action和参数
         if (e.Message is not IMessage msg || msg.Reply) return;
