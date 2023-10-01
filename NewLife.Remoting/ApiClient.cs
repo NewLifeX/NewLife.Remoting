@@ -24,7 +24,7 @@ public class ApiClient : ApiHost, IApiClient
     public Boolean UsePool { get; set; }
 
     /// <summary>令牌。每次请求携带</summary>
-    public String Token { get; set; }
+    public String? Token { get; set; }
 
     /// <summary>最后活跃时间</summary>
     public DateTime LastActive { get; set; }
@@ -36,7 +36,7 @@ public class ApiClient : ApiHost, IApiClient
     public ICounter StatInvoke { get; set; }
 
     /// <summary>性能跟踪器</summary>
-    public ITracer Tracer { get; set; } = DefaultTracer.Instance;
+    public ITracer? Tracer { get; set; } = DefaultTracer.Instance;
     #endregion
 
     #region 构造
@@ -137,7 +137,7 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="args">参数</param>
     /// <param name="cancellationToken">取消通知</param>
     /// <returns></returns>
-    public virtual async Task<TResult> InvokeAsync<TResult>(String action, Object args = null, CancellationToken cancellationToken = default)
+    public virtual async Task<TResult?> InvokeAsync<TResult>(String action, Object? args = null, CancellationToken cancellationToken = default)
     {
         // 让上层异步到这直接返回，后续代码在另一个线程执行
         //!!! Task.Yield会导致强制捕获上下文，虽然会在另一个线程执行，但在UI线程中可能无法抢占上下文导致死锁
@@ -174,14 +174,14 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
     /// <returns></returns>
-    public virtual TResult Invoke<TResult>(String action, Object args = null) => Task.Run(() => InvokeAsync<TResult>(action, args)).Result;
+    public virtual TResult Invoke<TResult>(String action, Object? args = null) => Task.Run(() => InvokeAsync<TResult>(action, args)).Result;
 
     /// <summary>单向发送。同步调用，不等待返回</summary>
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
     /// <param name="flag">标识</param>
     /// <returns></returns>
-    public virtual Int32 InvokeOneWay(String action, Object args = null, Byte flag = 0)
+    public virtual Int32 InvokeOneWay(String action, Object? args = null, Byte flag = 0)
     {
         if (!Open()) return -1;
 
@@ -204,7 +204,7 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="flag">标识</param>
     /// <param name="cancellationToken">取消通知</param>
     /// <returns></returns>
-    public virtual async Task<TResult> InvokeWithClientAsync<TResult>(ISocketClient client, String action, Object args = null, Byte flag = 0, CancellationToken cancellationToken = default)
+    public virtual async Task<TResult> InvokeWithClientAsync<TResult>(ISocketClient? client, String action, Object? args = null, Byte flag = 0, CancellationToken cancellationToken = default)
     {
         // 性能计数器，次数、TPS、平均耗时
         var st = StatInvoke;
@@ -221,7 +221,7 @@ public class ApiClient : ApiHost, IApiClient
         }
 
         var span = Tracer?.NewSpan("rpc:" + action, args);
-        args = span.Attach(args);
+        if (args != null) args = span.Attach(args);
 
         // 编码请求，构造消息
         var enc = Encoder;
@@ -408,7 +408,7 @@ public class ApiClient : ApiHost, IApiClient
     /// <summary>显示统计信息的周期。默认600秒，0表示不显示统计信息</summary>
     public Int32 StatPeriod { get; set; } = 600;
 
-    private void DoWork(Object state)
+    private void DoWork(Object? state)
     {
         var sb = Pool.StringBuilder.Get();
         var pf1 = StatInvoke;

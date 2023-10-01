@@ -14,7 +14,7 @@ public abstract class ApiHost : DisposeBase, IApiHost, IExtend, ILogFeature
     public String Name { get; set; }
 
     /// <summary>编码器</summary>
-    public IEncoder Encoder { get; set; }
+    public IEncoder? Encoder { get; set; }
 
     /// <summary>调用超时时间。请求发出后，等待响应的最大时间，默认15_000ms</summary>
     public Int32 Timeout { get; set; } = 15_000;
@@ -23,12 +23,12 @@ public abstract class ApiHost : DisposeBase, IApiHost, IExtend, ILogFeature
     public Int32 SlowTrace { get; set; } = 5_000;
 
     /// <summary>用户会话数据</summary>
-    public IDictionary<String, Object> Items { get; set; } = new NullableDictionary<String, Object>();
+    public IDictionary<String, Object?> Items { get; set; } = new NullableDictionary<String, Object?>();
 
     /// <summary>获取/设置 用户会话数据</summary>
     /// <param name="key"></param>
     /// <returns></returns>
-    public virtual Object this[String key] { get => Items[key]; set => Items[key] = value; }
+    public virtual Object? this[String key] { get => Items[key]; set => Items[key] = value; }
 
     /// <summary>启动时间</summary>
     public DateTime StartTime { get; set; } = DateTime.Now;
