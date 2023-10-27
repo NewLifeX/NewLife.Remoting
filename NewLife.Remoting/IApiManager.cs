@@ -22,7 +22,7 @@ public interface IApiManager
     /// <summary>查找服务</summary>
     /// <param name="action"></param>
     /// <returns></returns>
-    ApiAction Find(String action);
+    ApiAction? Find(String action);
 }
 
 class ApiManager : IApiManager
@@ -34,7 +34,7 @@ class ApiManager : IApiManager
 
     public ApiManager(ApiServer server) => _server = server;
 
-    private void RegisterAll(Object controller, Type type)
+    private void RegisterAll(Object? controller, Type type)
     {
         // 找到容器，注册控制器
         var container = _server?.ServiceProvider?.GetService<IObjectContainer>();
@@ -78,11 +78,11 @@ class ApiManager : IApiManager
     {
         if (controller == null) throw new ArgumentNullException(nameof(controller));
 
-        var type = controller is Type ? controller as Type : controller.GetType();
+        var type = controller is Type t ? t : controller.GetType();
 
         if (!method.IsNullOrEmpty())
         {
-            var mi = type.GetMethodEx(method);
+            var mi = type.GetMethodEx(method) ?? throw new ArgumentOutOfRangeException(nameof(method));
             var act = new ApiAction(mi, type)
             {
                 Controller = controller
@@ -99,7 +99,7 @@ class ApiManager : IApiManager
     /// <summary>查找服务</summary>
     /// <param name="action"></param>
     /// <returns></returns>
-    public ApiAction Find(String action)
+    public ApiAction? Find(String action)
     {
         if (Services.TryGetValue(action, out var mi)) return mi;
 

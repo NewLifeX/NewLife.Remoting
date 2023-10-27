@@ -46,7 +46,7 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <param name="data"></param>
     /// <param name="msg"></param>
     /// <returns></returns>
-    public virtual IDictionary<String, Object> DecodeParameters(String action, Packet data, IMessage msg)
+    public virtual IDictionary<String, Object?>? DecodeParameters(String action, Packet data, IMessage msg)
     {
         /*
          * 数据内容解析需要根据http数据类型来判定使用什么格式处理
@@ -65,7 +65,7 @@ public class HttpEncoder : EncoderBase, IEncoder
         if (ctype.Contains("application/json"))
         {
             var dic = new JsonParser(str).Decode().ToDictionary();
-            var rs = new Dictionary<String, Object>(StringComparer.OrdinalIgnoreCase);
+            var rs = new Dictionary<String, Object?>(StringComparer.OrdinalIgnoreCase);
             foreach (var item in dic)
             {
                 if (item.Value is String str2)
@@ -79,7 +79,7 @@ public class HttpEncoder : EncoderBase, IEncoder
         else
         {
             var dic = str.SplitAsDictionary("=", "&");
-            var rs = new Dictionary<String, Object>(StringComparer.OrdinalIgnoreCase);
+            var rs = new Dictionary<String, Object?>(StringComparer.OrdinalIgnoreCase);
             foreach (var item in dic)
             {
                 rs[item.Key] = HttpUtility.UrlDecode(item.Value);

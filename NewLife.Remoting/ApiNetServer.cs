@@ -1,21 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using NewLife.Http;
+﻿using NewLife.Http;
 using NewLife.Log;
 using NewLife.Messaging;
 using NewLife.Net;
 using NewLife.Reflection;
-using NewLife.Threading;
 
 namespace NewLife.Remoting;
 
 class ApiNetServer : NetServer<ApiNetSession>, IApiServer
 {
     /// <summary>主机</summary>
-    public IApiHost Host { get; set; }
+    public IApiHost? Host { get; set; }
 
     /// <summary>当前服务器所有会话</summary>
     public IApiSession[] AllSessions => Sessions.ToValueArray().Where(e => e is IApiSession).Cast<IApiSession>().ToArray();
@@ -34,7 +28,7 @@ class ApiNetServer : NetServer<ApiNetSession>, IApiServer
     {
         Host = host;
 
-        Local = config as NetUri;
+        if (config is NetUri uri) Local = uri;
         // 如果主机为空，监听所有端口
         if (Local.Host.IsNullOrEmpty() || Local.Host == "*") AddressFamily = System.Net.Sockets.AddressFamily.Unspecified;
 
@@ -100,7 +94,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
     /// <summary>查找Api动作</summary>
     /// <param name="action"></param>
     /// <returns></returns>
-    public virtual ApiAction FindAction(String action) => _Host.Manager.Find(action);
+    public virtual ApiAction? FindAction(String action) => _Host.Manager.Find(action);
 
     /// <summary>创建控制器实例</summary>
     /// <param name="api"></param>
@@ -113,6 +107,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
         controller = _Host.ServiceProvider?.GetService(api.Type);
 
         controller ??= api.Type.CreateInstance();
+        if (controller == null) throw new InvalidDataException($"无法创建[{api.Type.FullName}]的实例");
 
         return controller;
     }
