@@ -171,7 +171,7 @@ public class ApiHelperTest : DisposeBase
         Assert.Equal(msg, rs);
 
         // 捕获Api异常
-        var ex = await Assert.ThrowsAsync<ApiException>(async () => await ApiHelper.ProcessResponse<String>(msg));
+        var ex = await Assert.ThrowsAsync<ApiException>(() => ApiHelper.ProcessResponse<String>(msg));
 
         Assert.Equal(HttpStatusCode.BadRequest, (HttpStatusCode)ex.Code);
         if (!content.IsNullOrEmpty())
@@ -194,7 +194,7 @@ public class ApiHelperTest : DisposeBase
         Assert.Equal(msg, rs);
 
         // 捕获Api异常
-        var ex = await Assert.ThrowsAsync<ApiException>(async () => await ApiHelper.ProcessResponse<String>(msg));
+        var ex = await Assert.ThrowsAsync<ApiException>(() => ApiHelper.ProcessResponse<String>(msg));
 
         Assert.Equal(content.Substring("code:", ",").ToInt(), ex.Code);
 
@@ -326,7 +326,7 @@ public class ApiHelperTest : DisposeBase
         var msg = new HttpResponseMessage(HttpStatusCode.OK);
         if (!content.IsNullOrEmpty()) msg.Content = new StringContent(content);
 
-        var ex = await Assert.ThrowsAsync<ApiException>(async () => await ApiHelper.ProcessResponse<String>(msg, "access_token"));
+        var ex = await Assert.ThrowsAsync<ApiException>(() => ApiHelper.ProcessResponse<String>(msg, "access_token"));
         Assert.NotNull(ex);
         Assert.Equal(500, ex.Code);
         Assert.Equal("valid data", ex.Message);
