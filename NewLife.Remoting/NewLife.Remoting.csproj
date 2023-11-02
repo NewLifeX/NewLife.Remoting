@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net45;netstandard2.0</TargetFrameworks>
+    <TargetFrameworks>net45;net461;netstandard2.0;netstandard2.1</TargetFrameworks>
     <AssemblyTitle>RPC远程过程调用</AssemblyTitle>
     <Description>RPC远程过程调用，二进制封装，提供高吞吐低延迟的高性能RPC框架</Description>
     <Company>新生命开发团队</Company>
