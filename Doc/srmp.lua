@@ -38,7 +38,8 @@ do
         p = p + 1 + len
         local v_code
         local v_data
-        if (bit.band(flag, 0x80) == 0x80) then
+        -- 只有异常带有响应码
+        if (bit.band(flag, 0xC0) == 0xC0) then
             v_code = tvb(p, 4)
             p = p + 4
 
@@ -59,7 +60,7 @@ do
         local child, value = t:add_packet_field(f_action, v_action, ENC_UTF_8 + ENC_STRING)
         pkt.cols.info:append(" " .. v_action:string())
 
-        if (bit.band(flag, 0x80) == 0x80) then
+        if (bit.band(flag, 0xC0) == 0xC0) then
             t:add_le(f_code, v_code)
         end
 
