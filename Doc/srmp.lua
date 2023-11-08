@@ -26,9 +26,9 @@ do
         end
 
         local tvb = buf:range()
-        local v_flag = buf(0, 1)
-        local v_seq = buf(1, 1)
-        local v_length = buf(2, 2)
+        local v_flag = tvb(0, 1)
+        local v_seq = tvb(1, 1)
+        local v_length = tvb(2, 2)
         local flag = tvb(0, 1):uint()
 
         local p = 4
@@ -36,14 +36,18 @@ do
         local v_action = tvb(p + 1, len)
 
         p = p + 1 + len
-        local v_code = 0
-        -- if (flag & 0x80 == 0x80) then
-        --    v_code = buf(p, 4)
-        --    p = p + 4
-        -- end
+        local v_code
+        local v_data
+        if (bit.band(flag, 0x80) == 0x80) then
+            v_code = tvb(p, 4)
+            p = p + 4
 
-        len = tvb(p, 4):le_uint()
-        local v_data = buf(p + 4, len)
+            len = tvb:len() - p
+            v_data = tvb(p, len)
+        else
+            len = tvb(p, 4):le_uint()
+            v_data = tvb(p + 4, len)
+        end
 
         pkt.cols.protocol = "SRMP协议"
 
@@ -53,11 +57,11 @@ do
         t:add_le(f_length, v_length)
 
         local child, value = t:add_packet_field(f_action, v_action, ENC_UTF_8 + ENC_STRING)
-        pkt.cols.info:append(' ' + v_action:string())
+        pkt.cols.info:append(" " .. v_action:string())
 
-        -- if (flag & 0x80 == 0x80) then
-        --    t:add_le(f_code, v_code)
-        -- end
+        if (bit.band(flag, 0x80) == 0x80) then
+            t:add_le(f_code, v_code)
+        end
 
         t:add_packet_field(f_data, v_data, ENC_UTF_8 + ENC_STRING)
 
