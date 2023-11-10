@@ -1,6 +1,7 @@
 ﻿using NewLife.Log;
 using NewLife.Net;
 using NewLife.Remoting;
+using NewLife.Serialization;
 
 namespace Test;
 
@@ -27,6 +28,10 @@ class Program
     static ApiServer _Server;
     static void Test1()
     {
+        var obj = new { state = "abcd", state2 = 1234 };
+        var buf = Binary.FastWrite(obj);
+        var str = buf.ToHex();
+
         var server = new ApiServer(5500)
         {
             Log = XTrace.Log,
