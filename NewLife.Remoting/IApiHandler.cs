@@ -160,7 +160,7 @@ public class ApiHandler : IApiHandler
             if (dic != null)
             {
                 ctx.Parameters = dic;
-                session.Parameters = dic;
+                //session.Parameters = dic;
 
                 // 令牌，作为参数或者http头传递
                 if (dic.TryGetValue("Token", out var token)) session.Token = token + "";
@@ -234,8 +234,8 @@ public class ApiHandler : IApiHandler
 /// </remarks>
 public class TokenApiHandler : ApiHandler
 {
-    /// <summary>会话存储</summary>
-    public ICache Cache { get; set; } = new MemoryCache { Expire = 20 * 60 };
+    ///// <summary>会话存储</summary>
+    //public ICache Cache { get; set; } = new MemoryCache { Expire = 20 * 60 };
 
     /// <summary>准备上下文，可以借助Token重写Session会话集合</summary>
     /// <param name="session"></param>
@@ -254,9 +254,9 @@ public class TokenApiHandler : ApiHandler
             // 第一用户数据是本地字典，用于记录是否启用了第二数据
             if (session is ApiNetSession ns && ns.Items["Token"] + "" != token)
             {
-                var key = GetKey(token);
-                // 采用哈希结构。内存缓存用并行字段，Redis用Set
-                ns.Items2 = Cache.GetDictionary<Object>(key);
+                //var key = GetKey(token);
+                //// 采用哈希结构。内存缓存用并行字典，Redis用Set
+                //ns.Items2 = Cache.GetDictionary<Object>(key);
                 ns.Items["Token"] = token;
             }
         }

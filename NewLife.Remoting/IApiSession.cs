@@ -18,10 +18,10 @@ public interface IApiSession : IExtend
     IApiSession[] AllSessions { get; }
 
     /// <summary>令牌</summary>
-    String Token { get; set; }
+    String? Token { get; set; }
 
-    /// <summary>请求参数</summary>
-    IDictionary<String, Object?> Parameters { get; set; }
+    ///// <summary>请求参数</summary>
+    //IDictionary<String, Object?> Parameters { get; set; }
 
     ///// <summary>获取/设置 用户会话数据</summary>
     ///// <param name="key"></param>

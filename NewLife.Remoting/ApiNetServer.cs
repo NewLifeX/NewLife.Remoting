@@ -45,7 +45,7 @@ class ApiNetServer : NetServer<ApiNetSession>, IApiServer
 
 class ApiNetSession : NetSession<ApiNetServer>, IApiSession
 {
-    private ApiServer _Host;
+    private ApiServer _Host = null!;
     /// <summary>主机</summary>
     IApiHost IApiSession.Host => _Host;
 
@@ -56,37 +56,37 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
     public virtual IApiSession[] AllSessions => _Host.Server.AllSessions;
 
     /// <summary>令牌</summary>
-    public String Token { get; set; }
+    public String? Token { get; set; }
 
-    /// <summary>请求参数</summary>
-    public IDictionary<String, Object> Parameters { get; set; }
+    ///// <summary>请求参数</summary>
+    //public IDictionary<String, Object> Parameters { get; set; }
 
-    /// <summary>第二会话数据</summary>
-    public IDictionary<String, Object> Items2 { get; set; }
+    ///// <summary>第二会话数据</summary>
+    //public IDictionary<String, Object?> Items2 { get; set; }
 
-    /// <summary>获取/设置 用户会话数据。优先使用第二会话数据</summary>
-    /// <param name="key"></param>
-    /// <returns></returns>
-    public override Object this[String key]
-    {
-        get
-        {
-            var ms = Items2 ?? Items;
-            if (ms.TryGetValue(key, out var rs)) return rs;
+    ///// <summary>获取/设置 用户会话数据。优先使用第二会话数据</summary>
+    ///// <param name="key"></param>
+    ///// <returns></returns>
+    //public override Object? this[String key]
+    //{
+    //    get
+    //    {
+    //        var ms = Items2 ?? Items;
+    //        if (ms.TryGetValue(key, out var rs)) return rs;
 
-            return null;
-        }
-        set
-        {
-            var ms = Items2 ?? Items;
-            ms[key] = value;
-        }
-    }
+    //        return null;
+    //    }
+    //    set
+    //    {
+    //        var ms = Items2 ?? Items;
+    //        ms[key] = value;
+    //    }
+    //}
 
     /// <summary>开始会话处理</summary>
     public override void Start()
     {
-        _Host = Host.Host as ApiServer;
+        _Host = (Host!.Host as ApiServer)!;
 
         base.Start();
     }
