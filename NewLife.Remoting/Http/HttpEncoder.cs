@@ -92,11 +92,15 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <param name="action"></param>
     /// <param name="data"></param>
     /// <param name="msg">消息</param>
+    /// <param name="returnType">返回类型</param>
     /// <returns></returns>
-    public virtual Object DecodeResult(String action, Packet data, IMessage msg)
+    public virtual Object? DecodeResult(String action, Packet data, IMessage msg, Type returnType)
     {
         var json = data.ToStr();
         WriteLog("{0}<={1}", action, json);
+
+        // 支持基础类型
+        if (returnType != null && returnType.GetTypeCode() != TypeCode.Object) return json.ChangeType(returnType);
 
         return new JsonParser(json).Decode();
     }
@@ -105,14 +109,14 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <param name="obj"></param>
     /// <param name="targetType"></param>
     /// <returns></returns>
-    public virtual Object Convert(Object obj, Type targetType) => JsonHelper.Default.Convert(obj, targetType);
+    public virtual Object? Convert(Object obj, Type targetType) => JsonHelper.Default.Convert(obj, targetType);
 
     #region 编码/解码
     /// <summary>创建请求</summary>
     /// <param name="action"></param>
     /// <param name="args"></param>
     /// <returns></returns>
-    public virtual IMessage CreateRequest(String action, Object args)
+    public virtual IMessage CreateRequest(String action, Object? args)
     {
         // 请求方法 GET / HTTP/1.1
         var req = new HttpMessage();
@@ -121,29 +125,35 @@ public class HttpEncoder : EncoderBase, IEncoder
         sb.Append(action);
 
         // 准备参数，二进制优先
-        if (args is Packet pk)
+        Packet? pk = null;
+        if (args != null)
         {
-        }
-        // 支持IAccessor
-        else if (args is IAccessor acc)
-            pk = acc.ToPacket();
-        else if (args is Byte[] buf)
-            pk = new Packet(buf);
-        else
-        {
-            pk = null;
-
-            // url参数
-            sb.Append('?');
-            if (args.GetType().GetTypeCode() != TypeCode.Object)
-            {
-                sb.Append(args);
-            }
+            if (args is Packet pk2)
+                pk = pk2;
+            else if (args is IAccessor acc)
+                pk = acc.ToPacket();
+            else if (args is Byte[] buf)
+                pk = new Packet(buf);
+            else if (args is String str2)
+                pk = str2.GetBytes();
+            else if (args is DateTime dt)
+                pk = dt.ToFullString().GetBytes();
+            else if (args.GetType().GetTypeCode() != TypeCode.Object)
+                pk = (args + "").GetBytes();
             else
             {
-                foreach (var item in args.ToDictionary())
+                // url参数
+                sb.Append('?');
+                if (args.GetType().GetTypeCode() != TypeCode.Object)
                 {
-                    sb.AppendFormat("{0}={1}", item.Key, item.Value);
+                    sb.Append(args);
+                }
+                else
+                {
+                    foreach (var item in args.ToDictionary())
+                    {
+                        sb.AppendFormat("{0}={1}", item.Key, item.Value);
+                    }
                 }
             }
         }
@@ -167,7 +177,7 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <param name="code"></param>
     /// <param name="value"></param>
     /// <returns></returns>
-    public virtual IMessage CreateResponse(IMessage msg, String action, Int32 code, Object value)
+    public virtual IMessage CreateResponse(IMessage msg, String action, Int32 code, Object? value)
     {
         if (code <= 0 && UseHttpStatus) code = 200;
 
@@ -210,7 +220,7 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <summary>解码 请求/响应</summary>
     /// <param name="msg">消息</param>
     /// <returns>请求响应报文</returns>
-    public override ApiMessage Decode(IMessage msg)
+    public override ApiMessage? Decode(IMessage msg)
     {
         if (msg is not HttpMessage http) return null;
 

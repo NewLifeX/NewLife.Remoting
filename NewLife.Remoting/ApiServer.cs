@@ -195,12 +195,12 @@ public class ApiServer : ApiHost, IServer
     /// <param name="session">网络会话</param>
     /// <param name="msg">消息</param>
     /// <returns>要应答对方的消息，为空表示不应答</returns>
-    internal protected virtual IMessage Process(IApiSession session, IMessage msg)
+    internal protected virtual IMessage? Process(IApiSession session, IMessage msg)
     {
         if (msg.Reply) return null;
 
-        ApiMessage message = null;
-        ISpan span = null;
+        ApiMessage? message = null;
+        ISpan? span = null;
         var st = StatProcess;
         var sw = st.StartCount();
         try
@@ -208,7 +208,7 @@ public class ApiServer : ApiHost, IServer
             var enc = session["Encoder"] as IEncoder ?? Encoder;
 
             Object result;
-            Packet args = null;
+            Packet? args = null;
             try
             {
                 message = enc.Decode(msg);

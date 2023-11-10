@@ -11,10 +11,10 @@ public abstract class ApiHost : DisposeBase, IApiHost, IExtend, ILogFeature
 {
     #region 属性
     /// <summary>名称</summary>
-    public String Name { get; set; }
+    public String Name { get; set; } = null!;
 
     /// <summary>编码器</summary>
-    public IEncoder? Encoder { get; set; }
+    public IEncoder Encoder { get; set; } = null!;
 
     /// <summary>调用超时时间。请求发出后，等待响应的最大时间，默认15_000ms</summary>
     public Int32 Timeout { get; set; } = 15_000;

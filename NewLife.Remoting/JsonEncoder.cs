@@ -1,5 +1,6 @@
 ﻿using NewLife.Data;
 using NewLife.Messaging;
+using NewLife.Reflection;
 using NewLife.Serialization;
 
 namespace NewLife.Remoting;
@@ -12,7 +13,7 @@ public class JsonEncoder : EncoderBase, IEncoder
     /// <param name="code"></param>
     /// <param name="value"></param>
     /// <returns></returns>
-    public virtual Packet Encode(String action, Int32 code, Packet value)
+    public virtual Packet Encode(String action, Int32 code, Packet? value)
     {
         // 内存流，前面留空8字节用于协议头4字节（超长8字节）
         var ms = new MemoryStream();
@@ -23,10 +24,10 @@ public class JsonEncoder : EncoderBase, IEncoder
         var writer = new BinaryWriter(ms);
         writer.Write(action);
 
-        // 异常响应才有code
+        // 异常响应才有code。定长4字节
         if (code != 0) writer.Write(code);
 
-        // 参数或结果
+        // 参数或结果。长度部分定长4字节
         var pk = value;
         if (pk != null) writer.Write(pk.Total);
 
@@ -55,11 +56,15 @@ public class JsonEncoder : EncoderBase, IEncoder
     /// <param name="action"></param>
     /// <param name="data"></param>
     /// <param name="msg">消息</param>
+    /// <param name="returnType">返回类型</param>
     /// <returns></returns>
-    public Object? DecodeResult(String action, Packet data, IMessage msg)
+    public Object? DecodeResult(String action, Packet data, IMessage msg, Type returnType)
     {
         var json = data.ToStr();
         WriteLog("{0}[{2:X2}]<={1}", action, json, msg is DefaultMessage dm ? dm.Sequence : 0);
+
+        // 支持基础类型
+        if (returnType != null && returnType.GetTypeCode() != TypeCode.Object) return json.ChangeType(returnType);
 
         return new JsonParser(json).Decode();
     }
@@ -68,33 +73,16 @@ public class JsonEncoder : EncoderBase, IEncoder
     /// <param name="obj"></param>
     /// <param name="targetType"></param>
     /// <returns></returns>
-    public Object Convert(Object obj, Type targetType) => JsonHelper.Default.Convert(obj, targetType);
+    public Object? Convert(Object obj, Type targetType) => JsonHelper.Default.Convert(obj, targetType);
 
     /// <summary>创建请求</summary>
     /// <param name="action"></param>
     /// <param name="args"></param>
     /// <returns></returns>
-    public virtual IMessage CreateRequest(String action, Object args)
+    public virtual IMessage CreateRequest(String action, Object? args)
     {
         // 二进制优先
-        var str = "";
-        if (args is Packet pk)
-        {
-        }
-        else if (args is IAccessor acc)
-            pk = acc.ToPacket();
-        else if (args is Byte[] buf)
-            pk = new Packet(buf);
-        else if (args is String str2)
-            pk = str2.GetBytes();
-        else if (args != null)
-        {
-            str = args.ToJson(false, false, false);
-
-            pk = str.GetBytes();
-        }
-        else
-            pk = null;
+        var (pk, str) = EncodeValue(args);
 
         if (Log != null && str.IsNullOrEmpty() && pk != null) str = $"[{pk?.Total}]";
         WriteLog("{0}=>{1}", action, str);
@@ -110,30 +98,10 @@ public class JsonEncoder : EncoderBase, IEncoder
     /// <param name="code"></param>
     /// <param name="value"></param>
     /// <returns></returns>
-    public IMessage CreateResponse(IMessage msg, String action, Int32 code, Object value)
+    public IMessage CreateResponse(IMessage msg, String action, Int32 code, Object? value)
     {
         // 编码响应数据包，二进制优先
-        var str = "";
-        if (value is Packet pk)
-        {
-        }
-        else if (value is IAccessor acc)
-            pk = acc.ToPacket();
-        else if (value is Byte[] buf)
-            pk = new Packet(buf);
-        else if (value is String str2)
-            pk = str2.GetBytes();
-        else if (value != null)
-        {
-            // 不支持序列化异常
-            if (value is Exception ex) value = ex.GetTrue()?.Message;
-
-            str = value.ToJson(false, false, false);
-
-            pk = str.GetBytes();
-        }
-        else
-            pk = null;
+        var (pk, str) = EncodeValue(value);
 
         if (Log != null && str.IsNullOrEmpty() && pk != null) str = $"[{pk?.Total}]";
         WriteLog("{0}[{2:X2}]=>{1}", action, str, msg is DefaultMessage dm ? dm.Sequence : 0);
@@ -141,10 +109,43 @@ public class JsonEncoder : EncoderBase, IEncoder
         var payload = Encode(action, code, pk);
 
         // 构造响应消息
-        var rs = msg.CreateReply();
+        var rs = msg.CreateReply()!;
         rs.Payload = payload;
         if (code > 0) rs.Error = true;
 
         return rs;
+    }
+
+    private (Packet?, String) EncodeValue(Object? value)
+    {
+        var str = "";
+        Packet? pk = null;
+
+        if (value != null)
+        {
+            if (value is Packet pk2)
+                pk = pk2;
+            else if (value is IAccessor acc)
+                pk = acc.ToPacket();
+            else if (value is Byte[] buf)
+                pk = new Packet(buf);
+            else if (value is String str2)
+                pk = (str = str2).GetBytes();
+            else if (value is DateTime dt)
+                pk = (str = dt.ToFullString()).GetBytes();
+            else if (value.GetType().GetTypeCode() != TypeCode.Object)
+                pk = (str = value + "").GetBytes();
+            else
+            {
+                // 不支持序列化异常
+                if (value is Exception ex) value = ex.GetTrue().Message;
+
+                str = value.ToJson(false, false, false);
+
+                pk = str.GetBytes();
+            }
+        }
+
+        return (pk, str);
     }
 }

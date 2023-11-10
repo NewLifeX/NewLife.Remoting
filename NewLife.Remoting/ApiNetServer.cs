@@ -158,10 +158,10 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
     /// <param name="args">参数</param>
     /// <param name="flag">标识</param>
     /// <returns></returns>
-    public Int32 InvokeOneWay(String action, Object args = null, Byte flag = 0)
+    public Int32 InvokeOneWay(String action, Object? args = null, Byte flag = 0)
     {
         var span = Host.Tracer?.NewSpan("rpc:" + action, args);
-        args = span.Attach(args);
+        if (args != null && span != null) args = span?.Attach(args);
 
         // 编码请求
         var msg = Host.Host.Encoder.CreateRequest(action, args);

@@ -1,4 +1,5 @@
-﻿using NewLife.Collections;
+﻿using System.Diagnostics.CodeAnalysis;
+using NewLife.Collections;
 using NewLife.Data;
 using NewLife.Log;
 using NewLife.Messaging;
@@ -15,10 +16,10 @@ public class ApiClient : ApiHost, IApiClient
     public Boolean Active { get; protected set; }
 
     /// <summary>服务端地址集合。负载均衡</summary>
-    public String[] Servers { get; set; }
+    public String[]? Servers { get; set; }
 
     /// <summary>客户端连接集群</summary>
-    public ICluster<String, ISocketClient> Cluster { get; set; }
+    public ICluster<String, ISocketClient>? Cluster { get; set; }
 
     /// <summary>是否使用连接池。true时建立多个到服务端的连接（高吞吐），默认false使用单一连接（低延迟）</summary>
     public Boolean UsePool { get; set; }
@@ -30,10 +31,10 @@ public class ApiClient : ApiHost, IApiClient
     public DateTime LastActive { get; set; }
 
     /// <summary>收到请求或响应时</summary>
-    public event EventHandler<ApiReceivedEventArgs> Received;
+    public event EventHandler<ApiReceivedEventArgs>? Received;
 
     /// <summary>调用统计</summary>
-    public ICounter StatInvoke { get; set; }
+    public ICounter? StatInvoke { get; set; }
 
     /// <summary>性能跟踪器</summary>
     public ITracer? Tracer { get; set; } = DefaultTracer.Instance;
@@ -67,12 +68,11 @@ public class ApiClient : ApiHost, IApiClient
     #endregion
 
     #region 打开关闭
-    private readonly Object Root = new();
     /// <summary>打开客户端</summary>
     public virtual Boolean Open()
     {
         if (Active) return true;
-        lock (Root)
+        lock (this)
         {
             if (Active) return true;
 
@@ -123,7 +123,7 @@ public class ApiClient : ApiHost, IApiClient
         if (cluster is ClientSingleCluster sc && sc.OnCreate == null) sc.OnCreate = OnCreate;
         if (cluster is ClientPoolCluster pc && pc.OnCreate == null) pc.OnCreate = OnCreate;
 
-        cluster.GetItems ??= () => Servers;
+        cluster.GetItems ??= () => Servers ?? new String[0];
         cluster.Open();
 
         return cluster;
@@ -144,6 +144,8 @@ public class ApiClient : ApiHost, IApiClient
         //await Task.Yield();
 
         Open();
+
+        if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
 
         var act = action;
 
@@ -174,7 +176,7 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
     /// <returns></returns>
-    public virtual TResult Invoke<TResult>(String action, Object? args = null) => Task.Run(() => InvokeAsync<TResult>(action, args)).Result;
+    public virtual TResult? Invoke<TResult>(String action, Object? args = null) => Task.Run(() => InvokeAsync<TResult>(action, args)).Result;
 
     /// <summary>单向发送。同步调用，不等待返回</summary>
     /// <param name="action">服务操作</param>
@@ -184,6 +186,7 @@ public class ApiClient : ApiHost, IApiClient
     public virtual Int32 InvokeOneWay(String action, Object? args = null, Byte flag = 0)
     {
         if (!Open()) return -1;
+        if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
 
         var act = action;
 
@@ -204,8 +207,10 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="flag">标识</param>
     /// <param name="cancellationToken">取消通知</param>
     /// <returns></returns>
-    public virtual async Task<TResult> InvokeWithClientAsync<TResult>(ISocketClient? client, String action, Object? args = null, Byte flag = 0, CancellationToken cancellationToken = default)
+    public virtual async Task<TResult?> InvokeWithClientAsync<TResult>(ISocketClient? client, String action, Object? args = null, Byte flag = 0, CancellationToken cancellationToken = default)
     {
+        if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
+
         // 性能计数器，次数、TPS、平均耗时
         var st = StatInvoke;
         var sw = st.StartCount();
@@ -213,7 +218,7 @@ public class ApiClient : ApiHost, IApiClient
         LastActive = DateTime.Now;
 
         // 令牌
-        if (!Token.IsNullOrEmpty())
+        if (!Token.IsNullOrEmpty() && args != null)
         {
             var dic = args.ToDictionary();
             if (!dic.ContainsKey("Token")) dic["Token"] = Token;
@@ -221,7 +226,7 @@ public class ApiClient : ApiHost, IApiClient
         }
 
         var span = Tracer?.NewSpan("rpc:" + action, args);
-        if (args != null) args = span.Attach(args);
+        if (args != null && span != null) args = span?.Attach(args);
 
         // 编码请求，构造消息
         var enc = Encoder;
@@ -229,7 +234,7 @@ public class ApiClient : ApiHost, IApiClient
         if (flag > 0 && msg is DefaultMessage dm) dm.Flag = flag;
 
         var invoker = client != null ? (client + "") : ToString();
-        IMessage rs = null;
+        IMessage? rs = null;
         try
         {
             rs = client != null
@@ -275,17 +280,19 @@ public class ApiClient : ApiHost, IApiClient
         var message = enc.Decode(rs) ?? throw new InvalidOperationException();
 
         // 是否成功
-        if (message.Code is not 0 and not 200) throw new ApiException(message.Code, message.Data.ToStr()?.Trim('\"')) { Source = invoker + "/" + action };
+        if (message.Code is not 0 and not 200)
+            throw new ApiException(message.Code, message.Data.ToStr().Trim('\"')) { Source = invoker + "/" + action };
 
         if (message.Data == null) return default;
         if (resultType == typeof(Packet)) return (TResult)(Object)message.Data;
 
         // 解码结果
-        var result = enc.DecodeResult(action, message.Data, rs);
+        var result = enc.DecodeResult(action, message.Data, rs, resultType);
+        if (result == null) return default;
         if (resultType == typeof(Object)) return (TResult)result;
 
         // 返回
-        return (TResult)enc.Convert(result, resultType);
+        return (TResult?)enc.Convert(result, resultType);
     }
 
     /// <summary>调用</summary>
@@ -294,15 +301,16 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="args">参数</param>
     /// <param name="flag">标识</param>
     /// <returns></returns>
-    private Int32 Invoke(Object session, String action, Object args, Byte flag = 0)
+    private Int32 Invoke(Object session, String action, Object? args, Byte flag = 0)
     {
         if (session == null) return -1;
+        if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
 
         // 性能计数器，次数、TPS、平均耗时
         var st = StatInvoke;
 
         var span = Tracer?.NewSpan("rpc:" + action, args);
-        args = span.Attach(args);
+        if (args != null && span != null) args = span?.Attach(args);
 
         // 编码请求
         var msg = Encoder.CreateRequest(action, args);
@@ -342,10 +350,7 @@ public class ApiClient : ApiHost, IApiClient
     /// <summary>客户端收到服务端主动下发消息</summary>
     /// <param name="message"></param>
     /// <param name="e"></param>
-    protected virtual void OnReceive(IMessage message, ApiReceivedEventArgs e)
-    {
-        Received?.Invoke(this, e);
-    }
+    protected virtual void OnReceive(IMessage message, ApiReceivedEventArgs e) => Received?.Invoke(this, e);
 
     private void Client_Received(Object sender, ReceivedEventArgs e)
     {
@@ -375,11 +380,16 @@ public class ApiClient : ApiHost, IApiClient
     /// <summary>连接后自动登录</summary>
     /// <param name="client">客户端</param>
     /// <param name="force">强制登录</param>
-    protected virtual Task<Object> OnLoginAsync(ISocketClient client, Boolean force) => Task.FromResult<Object>(null);
+    protected virtual Task<Object> OnLoginAsync(ISocketClient client, Boolean force) => Task.FromResult<Object>(0);
 
     /// <summary>登录</summary>
     /// <returns></returns>
-    public virtual async Task<Object> LoginAsync() => await Cluster.InvokeAsync(client => OnLoginAsync(client, false)).ConfigureAwait(false);
+    public virtual async Task<Object> LoginAsync()
+    {
+        if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
+
+        return await Cluster.InvokeAsync(client => OnLoginAsync(client, false)).ConfigureAwait(false);
+    }
     #endregion
 
     #region 连接池
@@ -394,7 +404,7 @@ public class ApiClient : ApiHost, IApiClient
 
         client.Add(GetMessageCodec());
 
-        client.Opened += (s, e) => OnNewSession(s as ISocketClient);
+        client.Opened += (s, e) => OnNewSession((s as ISocketClient)!);
         client.Received += Client_Received;
 
         return client;
@@ -402,8 +412,8 @@ public class ApiClient : ApiHost, IApiClient
     #endregion
 
     #region 统计
-    private TimerX _Timer;
-    private String _Last;
+    private TimerX? _Timer;
+    private String? _Last;
 
     /// <summary>显示统计信息的周期。默认600秒，0表示不显示统计信息</summary>
     public Int32 StatPeriod { get; set; } = 600;

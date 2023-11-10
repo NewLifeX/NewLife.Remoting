@@ -44,10 +44,9 @@ namespace NewLife.Collections
         /// <returns></returns>
         public static TResult Invoke<TKey, TValue, TResult>(this ICluster<TKey, TValue> cluster, Func<TValue, TResult> func)
         {
-            var item = default(TValue);
+            var item = cluster.Get();
             try
             {
-                item = cluster.Get();
                 return func(item);
             }
             finally
@@ -65,10 +64,9 @@ namespace NewLife.Collections
         /// <returns></returns>
         public static async Task<TResult> InvokeAsync<TKey, TValue, TResult>(this ICluster<TKey, TValue> cluster, Func<TValue, Task<TResult>> func)
         {
-            var item = default(TValue);
+            var item = cluster.Get();
             try
             {
-                item = cluster.Get();
                 return await func(item).ConfigureAwait(false);
             }
             finally

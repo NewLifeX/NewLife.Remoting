@@ -53,5 +53,5 @@ public interface IApiSession : IExtend
     /// <param name="args">参数</param>
     /// <param name="flag">标识</param>
     /// <returns></returns>
-    Int32 InvokeOneWay(String action, Object args = null, Byte flag = 0);
+    Int32 InvokeOneWay(String action, Object? args = null, Byte flag = 0);
 }
