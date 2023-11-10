@@ -9,7 +9,7 @@ namespace NewLife.Remoting;
 class ApiNetServer : NetServer<ApiNetSession>, IApiServer
 {
     /// <summary>主机</summary>
-    public IApiHost? Host { get; set; }
+    public IApiHost Host { get; set; } = null!;
 
     /// <summary>当前服务器所有会话</summary>
     public IApiSession[] AllSessions => Sessions.ToValueArray().Where(e => e is IApiSession).Cast<IApiSession>().ToArray();

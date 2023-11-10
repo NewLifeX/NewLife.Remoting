@@ -41,7 +41,7 @@ public class ApiServer : ApiHost, IServer
     public ICounter StatProcess { get; set; }
 
     /// <summary>性能跟踪器</summary>
-    public ITracer Tracer { get; set; } = DefaultTracer.Instance;
+    public ITracer Tracer { get; set; } = DefaultTracer.Instance!;
     #endregion
 
     #region 构造
@@ -176,7 +176,7 @@ public class ApiServer : ApiHost, IServer
 
     /// <summary>停止服务</summary>
     /// <param name="reason">关闭原因。便于日志分析</param>
-    public virtual void Stop(String reason)
+    public virtual void Stop(String? reason)
     {
         if (!Active) return;
 
@@ -267,6 +267,25 @@ public class ApiServer : ApiHost, IServer
     /// <param name="msg">消息</param>
     /// <returns></returns>
     protected virtual Object OnProcess(IApiSession session, String action, Packet args, IMessage msg) => Handler.Execute(session, action, args, msg);
+    #endregion
+
+    #region 广播
+    /// <summary>广播消息给所有会话客户端</summary>
+    /// <param name="action"></param>
+    /// <param name="args"></param>
+    /// <returns></returns>
+    public virtual Int32 InvokeAll(String action, Object? args = null)
+    {
+        var count = 0;
+        foreach (var item in Server.AllSessions)
+        {
+            item.InvokeOneWay(action, args);
+
+            count++;
+        }
+
+        return count;
+    }
     #endregion
 
     #region 统计
