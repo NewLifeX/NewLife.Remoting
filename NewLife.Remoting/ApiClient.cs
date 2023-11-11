@@ -1,5 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using NewLife.Collections;
+﻿using NewLife.Collections;
 using NewLife.Data;
 using NewLife.Log;
 using NewLife.Messaging;
@@ -9,6 +8,10 @@ using NewLife.Threading;
 namespace NewLife.Remoting;
 
 /// <summary>应用接口客户端</summary>
+/// <remarks>
+/// 保持到服务端直接的长连接RPC通信。
+/// 常用于向服务端发送请求并接收应答，也可以接收服务端主动发送的单向消息。
+/// </remarks>
 public class ApiClient : ApiHost, IApiClient
 {
     #region 属性
@@ -35,9 +38,6 @@ public class ApiClient : ApiHost, IApiClient
 
     /// <summary>调用统计</summary>
     public ICounter? StatInvoke { get; set; }
-
-    /// <summary>性能跟踪器</summary>
-    public ITracer? Tracer { get; set; } = DefaultTracer.Instance;
     #endregion
 
     #region 构造
@@ -80,8 +80,6 @@ public class ApiClient : ApiHost, IApiClient
             if (ss == null || ss.Length == 0) throw new ArgumentNullException(nameof(Servers), "未指定服务端地址");
 
             Encoder ??= new JsonEncoder();
-            //if (Encoder == null) Encoder = new BinaryEncoder();
-            //if (Handler == null) Handler = new ApiHandler { Host = this };
 
             // 集群
             Cluster = InitCluster();
@@ -148,19 +146,20 @@ public class ApiClient : ApiHost, IApiClient
         if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
 
         var act = action;
-
+        var client = Cluster.Get();
         try
         {
-            return await InvokeWithClientAsync<TResult>(null, act, args, 0, cancellationToken).ConfigureAwait(false);
+            return await InvokeWithClientAsync<TResult>(client, act, args, 0, cancellationToken).ConfigureAwait(false);
         }
         catch (ApiException ex)
         {
-            // 重新登录后再次调用
+            // 这个连接没有鉴权，重新登录后再次调用
             if (ex.Code == 401)
             {
-                await Cluster.InvokeAsync(client => OnLoginAsync(client, true)).ConfigureAwait(false);
+                //await Cluster.InvokeAsync(client => OnLoginAsync(client, true)).ConfigureAwait(false);
+                await OnLoginAsync(client, true).ConfigureAwait(false);
 
-                return await InvokeWithClientAsync<TResult>(null, act, args, 0, cancellationToken).ConfigureAwait(false);
+                return await InvokeWithClientAsync<TResult>(client, act, args, 0, cancellationToken).ConfigureAwait(false);
             }
 
             throw;
@@ -169,6 +168,10 @@ public class ApiClient : ApiHost, IApiClient
         catch (TaskCanceledException)
         {
             throw new TaskCanceledException($"[{act}]超时[{Timeout:n0}ms]取消");
+        }
+        finally
+        {
+            Cluster.Put(client);
         }
     }
 
@@ -188,14 +191,7 @@ public class ApiClient : ApiHost, IApiClient
         if (!Open()) return -1;
         if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
 
-        var act = action;
-
-        var rs = Cluster.Invoke(client =>
-        {
-            return Invoke(client, act, args, flag);
-        });
-        return rs;
-        //return Invoke(this, act, args, flag);//这里的参数是否是传错了? 本类没有实现 IApiSession 接口  ,修改如上
+        return Cluster.Invoke(client => InvokeWithClient(client, action, args, flag));
     }
 
     /// <summary>指定客户端的异步调用，等待返回结果</summary>
@@ -207,10 +203,8 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="flag">标识</param>
     /// <param name="cancellationToken">取消通知</param>
     /// <returns></returns>
-    public virtual async Task<TResult?> InvokeWithClientAsync<TResult>(ISocketClient? client, String action, Object? args = null, Byte flag = 0, CancellationToken cancellationToken = default)
+    public virtual async Task<TResult?> InvokeWithClientAsync<TResult>(ISocketClient client, String action, Object? args = null, Byte flag = 0, CancellationToken cancellationToken = default)
     {
-        if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
-
         // 性能计数器，次数、TPS、平均耗时
         var st = StatInvoke;
         var sw = st.StartCount();
@@ -225,25 +219,21 @@ public class ApiClient : ApiHost, IApiClient
             args = dic;
         }
 
+        // 埋点，注入traceParent到参数集合
         var span = Tracer?.NewSpan("rpc:" + action, args);
-        if (args != null && span != null) args = span?.Attach(args);
+        if (args != null && span != null) args = span.Attach(args);
 
         // 编码请求，构造消息
         var enc = Encoder;
         var msg = enc.CreateRequest(action, args);
         if (flag > 0 && msg is DefaultMessage dm) dm.Flag = flag;
 
-        var invoker = client != null ? (client + "") : ToString();
+        var invoker = client.Remote + "";
         IMessage? rs = null;
         try
         {
-            rs = client != null
-                ? (await client.SendMessageAsync(msg, cancellationToken).ConfigureAwait(false)) as IMessage
-                : (await Cluster.InvokeAsync(client =>
-                {
-                    invoker = client.Remote + "";
-                    return client.SendMessageAsync(msg, cancellationToken);
-                }).ConfigureAwait(false)) as IMessage;
+            // 发起异步请求，等待返回
+            rs = (await client.SendMessageAsync(msg, cancellationToken).ConfigureAwait(false)) as IMessage;
 
             if (rs == null) return default;
         }
@@ -262,7 +252,13 @@ public class ApiClient : ApiHost, IApiClient
         }
         catch (TaskCanceledException ex)
         {
+            span?.SetError(ex, args);
             throw new TimeoutException($"请求[{action}]超时({msg})！", ex);
+        }
+        catch (Exception ex)
+        {
+            span?.SetError(ex, args);
+            throw;
         }
         finally
         {
@@ -276,7 +272,9 @@ public class ApiClient : ApiHost, IApiClient
         var resultType = typeof(TResult);
         if (resultType == typeof(IMessage)) return (TResult)rs;
         //if (resultType == typeof(Packet)) return rs.Payload;
+        if (rs.Payload == null) return default;
 
+        // 解码响应得到SRMP报文
         var message = enc.Decode(rs) ?? throw new InvalidOperationException();
 
         // 是否成功
@@ -295,22 +293,21 @@ public class ApiClient : ApiHost, IApiClient
         return (TResult?)enc.Convert(result, resultType);
     }
 
-    /// <summary>调用</summary>
-    /// <param name="session"></param>
+    /// <summary>单向调用，不等待返回</summary>
+    /// <param name="client"></param>
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
     /// <param name="flag">标识</param>
     /// <returns></returns>
-    private Int32 Invoke(Object session, String action, Object? args, Byte flag = 0)
+    public Int32 InvokeWithClient(ISocketClient client, String action, Object? args, Byte flag = 0)
     {
-        if (session == null) return -1;
-        if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
+        if (client == null) return -1;
 
         // 性能计数器，次数、TPS、平均耗时
         var st = StatInvoke;
 
-        var span = Tracer?.NewSpan("rpc:" + action, args);
-        if (args != null && span != null) args = span?.Attach(args);
+        using var span = Tracer?.NewSpan("rpc:" + action, args);
+        if (args != null && span != null) args = span.Attach(args);
 
         // 编码请求
         var msg = Encoder.CreateRequest(action, args);
@@ -324,10 +321,7 @@ public class ApiClient : ApiHost, IApiClient
         var sw = st.StartCount();
         try
         {
-            if (session is IApiSession ss)
-                return Cluster.Invoke(client => client.SendMessage(msg));
-            else
-                return session is ISocketRemote client ? client.SendMessage(msg) : throw new InvalidOperationException();
+            return client.SendMessage(msg);
         }
         catch (Exception ex)
         {
@@ -340,8 +334,6 @@ public class ApiClient : ApiHost, IApiClient
         {
             var msCost = st.StopCount(sw) / 1000;
             if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢调用[{action}]，耗时{msCost:n0}ms");
-
-            span?.Dispose();
         }
     }
     #endregion

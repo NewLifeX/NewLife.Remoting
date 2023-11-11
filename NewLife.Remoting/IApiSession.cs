@@ -20,33 +20,15 @@ public interface IApiSession : IExtend
     /// <summary>令牌</summary>
     String? Token { get; set; }
 
-    ///// <summary>请求参数</summary>
-    //IDictionary<String, Object?> Parameters { get; set; }
-
-    ///// <summary>获取/设置 用户会话数据</summary>
-    ///// <param name="key"></param>
+    ///// <summary>查找Api动作</summary>
+    ///// <param name="action"></param>
     ///// <returns></returns>
-    //Object this[String key] { get; set; }
+    //ApiAction? FindAction(String action);
 
-    /// <summary>查找Api动作</summary>
-    /// <param name="action"></param>
-    /// <returns></returns>
-    ApiAction? FindAction(String action);
-
-    /// <summary>创建控制器实例</summary>
-    /// <param name="api"></param>
-    /// <returns></returns>
-    Object CreateController(ApiAction api);
-
-    ///// <summary>发送消息。低级接口，由框架使用</summary>
-    ///// <param name="msg"></param>
+    ///// <summary>创建控制器实例</summary>
+    ///// <param name="api"></param>
     ///// <returns></returns>
-    //Task<IMessage> SendAsync(IMessage msg);
-
-    ///// <summary>发送消息。低级接口，由框架使用</summary>
-    ///// <param name="msg"></param>
-    ///// <returns></returns>
-    //Boolean Send(IMessage msg);
+    //Object CreateController(ApiAction api);
 
     /// <summary>单向远程调用，无需等待返回</summary>
     /// <param name="action">服务操作</param>

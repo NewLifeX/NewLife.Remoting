@@ -31,7 +31,7 @@ public class ApiServer : ApiHost, IServer
     /// <summary>是否使用Http状态。默认false，使用json包装响应码</summary>
     public Boolean UseHttpStatus { get; set; }
 
-    /// <summary>收到请求或响应时</summary>
+    /// <summary>收到请求或响应时触发。优先于内部处理</summary>
     public event EventHandler<ApiReceivedEventArgs>? Received;
 
     /// <summary>服务提供者。创建控制器实例时使用，可实现依赖注入。务必在注册控制器之前设置该属性</summary>
@@ -39,9 +39,6 @@ public class ApiServer : ApiHost, IServer
 
     /// <summary>处理统计</summary>
     public ICounter? StatProcess { get; set; }
-
-    /// <summary>性能跟踪器</summary>
-    public ITracer Tracer { get; set; } = DefaultTracer.Instance!;
     #endregion
 
     #region 构造
@@ -145,7 +142,6 @@ public class ApiServer : ApiHost, IServer
         if (Active) return;
 
         Encoder ??= new JsonEncoder();
-        //if (Encoder == null) Encoder = new BinaryEncoder();
         Handler ??= new ApiHandler { Host = this };
 
         Encoder.Log = EncoderLog;
@@ -165,7 +161,6 @@ public class ApiServer : ApiHost, IServer
         var ms = StatPeriod * 1000;
         if (ms > 0)
         {
-            //if (StatInvoke == null) StatInvoke = new PerfCounter();
             StatProcess ??= new PerfCounter();
 
             _Timer = new TimerX(DoStat, null, ms, ms) { Async = true };
@@ -179,6 +174,8 @@ public class ApiServer : ApiHost, IServer
     public virtual void Stop(String? reason)
     {
         if (!Active) return;
+
+        _Timer.TryDispose();
 
         Log.Info("停止{0} {1}", GetType().Name, reason);
         Server.Stop(reason ?? (GetType().Name + "Stop"));
@@ -195,32 +192,29 @@ public class ApiServer : ApiHost, IServer
     /// <param name="session">网络会话</param>
     /// <param name="msg">消息</param>
     /// <returns>要应答对方的消息，为空表示不应答</returns>
-    internal protected virtual IMessage? Process(IApiSession session, IMessage msg)
+    public virtual IMessage? Process(IApiSession session, IMessage msg)
     {
         if (msg.Reply) return null;
 
-        ApiMessage? request = null;
+        var enc = session["Encoder"] as IEncoder ?? Encoder;
+        var request = enc.Decode(msg);
+        if (request == null) return null;
+
+        // 根据动作名，开始跟踪
+        using var span = Tracer?.NewSpan("rps:" + request.Action, request.Data);
+
         var code = 0;
-        ISpan? span = null;
         var st = StatProcess;
         var sw = st.StartCount();
         try
         {
-            var enc = session["Encoder"] as IEncoder ?? Encoder;
-            request = enc.Decode(msg);
-            if (request == null) return null;
-
             Object? result;
-            Packet? args = null;
             try
             {
-                args = request.Data;
-                // 根据动作名，开始跟踪
-                span = Tracer?.NewSpan("rps:" + request.Action, args);
-
                 Received?.Invoke(this, new ApiReceivedEventArgs { Session = session, Message = msg, ApiMessage = request });
 
-                result = OnProcess(session, request.Action, args, msg);
+                // 执行请求
+                result = OnProcess(session, request.Action, request.Data, msg);
             }
             catch (Exception ex)
             {
@@ -241,7 +235,7 @@ public class ApiServer : ApiHost, IServer
                 }
 
                 // 跟踪异常
-                span?.SetError(ex, args?.ToStr());
+                span?.SetError(ex, request.Data?.ToStr());
             }
 
             // 单向请求无需响应
@@ -250,6 +244,7 @@ public class ApiServer : ApiHost, IServer
             // 处理http封包方式
             if (enc is HttpEncoder httpEncoder) httpEncoder.UseHttpStatus = UseHttpStatus;
 
+            // 编码响应
             return enc.CreateResponse(msg, request.Action, code, result);
         }
         catch (Exception ex)
@@ -261,8 +256,6 @@ public class ApiServer : ApiHost, IServer
         {
             var msCost = st.StopCount(sw) / 1000;
             if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢处理[{request?.Action}]，Code={code}，耗时{msCost:n0}ms");
-
-            span?.Dispose();
         }
     }
 

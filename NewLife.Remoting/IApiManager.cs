@@ -23,6 +23,11 @@ public interface IApiManager
     /// <param name="action"></param>
     /// <returns></returns>
     ApiAction? Find(String action);
+
+    /// <summary>创建控制器实例</summary>
+    /// <param name="api"></param>
+    /// <returns></returns>
+    Object CreateController(ApiAction api);
 }
 
 class ApiManager : IApiManager
@@ -114,5 +119,21 @@ class ApiManager : IApiManager
         if (Services.TryGetValue("*", out mi)) return mi;
 
         return null;
+    }
+
+    /// <summary>创建控制器实例</summary>
+    /// <param name="api"></param>
+    /// <returns></returns>
+    public virtual Object CreateController(ApiAction api)
+    {
+        var controller = api.Controller;
+        if (controller != null) return controller;
+
+        controller = _server.ServiceProvider?.GetService(api.Type);
+
+        controller ??= api.Type.CreateInstance();
+        if (controller == null) throw new InvalidDataException($"无法创建[{api.Type.FullName}]的实例");
+
+        return controller;
     }
 }
