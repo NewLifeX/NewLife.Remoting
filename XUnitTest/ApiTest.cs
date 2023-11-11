@@ -219,4 +219,36 @@ public class ApiTest : DisposeBase
 
         public Int64 Test(String key) => _cache.Increment(key, 123);
     }
+
+    [Fact]
+    public async void SimpleType()
+    {
+        using var server = new ApiServer(12377);
+        server.Log = XTrace.Log;
+        server.EncoderLog = XTrace.Log;
+        server.Register<SimpleController>();
+        server.Start();
+
+        using var client = new ApiClient($"tcp://127.0.0.1:{server.Port}");
+
+        var rs = await client.InvokeAsync<String>("Simple/Say", "Hello NewLife!");
+        Assert.Equal("Say: Hello NewLife!", rs);
+
+        var time = DateTime.Now;
+        rs = await client.InvokeAsync<String>("Simple/Login", time);
+        Assert.Equal($"Login: {time.ToFullString()}", rs);
+
+        rs = await client.InvokeAsync<String>("Simple/Login", time.ToFullString());
+        Assert.Equal($"Login: {time.ToFullString()}", rs);
+
+        rs = await client.InvokeAsync<String>("Simple/Login", time.ToString());
+        Assert.Equal($"Login: {time.ToFullString()}", rs);
+    }
+
+    class SimpleController
+    {
+        public String Say(String text) => $"Say: {text}";
+
+        public String Login(DateTime time) => $"Login: {time.ToFullString()}";
+    }
 }

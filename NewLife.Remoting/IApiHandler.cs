@@ -198,8 +198,9 @@ public class ApiHandler : IApiHandler
         var pis = method.GetParameters();
         if (pis == null || pis.Length <= 0) return ps;
 
-        // 接口只有一个入参时，客户端可能用基础类型封包传递
-        if (pis.Length == 1 && dic == null && args != null)
+        // 接口只有一个基础类型入参时，客户端可能用基础类型封包传递（字符串）。
+        // 例如接口 Say(String text)，客户端可用 InvokeAsync<Object>("Say", "Hello NewLife!")
+        if (pis.Length == 1 && pis[0].ParameterType.GetTypeCode() != TypeCode.Object && dic.Count == 0 && args != null)
         {
             var pi = pis[0];
             ps[pi.Name] = args.ToStr().ChangeType(pi.ParameterType);
