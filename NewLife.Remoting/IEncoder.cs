@@ -45,7 +45,7 @@ public interface IEncoder
     /// <param name="data">数据</param>
     /// <param name="msg">消息</param>
     /// <returns></returns>
-    IDictionary<String, Object?>? DecodeParameters(String action, Packet data, IMessage msg);
+    IDictionary<String, Object?>? DecodeParameters(String action, Packet? data, IMessage msg);
 
     /// <summary>解码结果</summary>
     /// <param name="action"></param>
@@ -105,6 +105,6 @@ public abstract class EncoderBase
     /// <summary>写日志</summary>
     /// <param name="format"></param>
     /// <param name="args"></param>
-    public virtual void WriteLog(String format, params Object[] args) => Log?.Info(format, args);
+    public virtual void WriteLog(String format, params Object?[] args) => Log?.Info(format, args);
     #endregion
 }

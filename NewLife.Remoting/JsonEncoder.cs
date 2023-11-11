@@ -44,10 +44,15 @@ public class JsonEncoder : EncoderBase, IEncoder
     /// <param name="data">数据</param>
     /// <param name="msg">消息</param>
     /// <returns></returns>
-    public IDictionary<String, Object?>? DecodeParameters(String action, Packet data, IMessage msg)
+    public IDictionary<String, Object?>? DecodeParameters(String action, Packet? data, IMessage msg)
     {
-        var json = data.ToStr();
+        if (data == null || data.Total == 0) return null;
+
+        var json = data.ToStr().Trim();
         WriteLog("{0}[{2:X2}]<={1}", action, json, msg is DefaultMessage dm ? dm.Sequence : 0);
+
+        // 接口只有一个入参时，客户端可能用基础类型封包传递
+        if (json.IsNullOrEmpty() || json[0] != '{' && json[1] != '[') return null;
 
         return JsonParser.Decode(json);
     }

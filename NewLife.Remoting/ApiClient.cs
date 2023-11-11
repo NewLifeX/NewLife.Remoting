@@ -11,6 +11,8 @@ namespace NewLife.Remoting;
 /// <remarks>
 /// 保持到服务端直接的长连接RPC通信。
 /// 常用于向服务端发送请求并接收应答，也可以接收服务端主动发送的单向消息。
+/// 
+/// 文档 https://newlifex.com/core/srmp
 /// </remarks>
 public class ApiClient : ApiHost, IApiClient
 {

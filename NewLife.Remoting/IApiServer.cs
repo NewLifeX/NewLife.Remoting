@@ -3,6 +3,9 @@
 namespace NewLife.Remoting;
 
 /// <summary>应用接口服务器接口</summary>
+/// <remarks>
+/// 文档 https://newlifex.com/core/srmp
+/// </remarks>
 public interface IApiServer
 {
     /// <summary>主机</summary>

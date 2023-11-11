@@ -93,8 +93,7 @@ public class ApiHandler : IApiHandler
                 }
                 else
                 {
-                    var ps = ctx.ActionParameters;
-                    rs = controller.InvokeWithParams(api.Method, ps as IDictionary);
+                    rs = controller.InvokeWithParams(api.Method, ctx.ActionParameters as IDictionary);
                 }
                 ctx.Result = rs;
             }
@@ -155,32 +154,31 @@ public class ApiHandler : IApiHandler
         ctx.Request = args;
 
         // 如果服务只有一个二进制参数，则走快速通道
-        if (!api.IsPacketParameter)
+        if (api.IsPacketParameter) return ctx;
+
+        // 不允许参数字典为空。接口只有一个入参时，客户端可能用基础类型封包传递
+        IDictionary<String, Object?>? dic = null;
+        if (args != null && args.Total > 0) dic = enc.DecodeParameters(action, args, msg);
+        dic ??= new NullableDictionary<String, Object?>(StringComparer.OrdinalIgnoreCase);
+        if (dic != null)
         {
-            // 不允许参数字典为空
-            var dic = args == null || args.Total == 0 ?
-                new NullableDictionary<String, Object?>(StringComparer.OrdinalIgnoreCase) :
-                enc.DecodeParameters(action, args, msg);
-            if (dic != null)
+            ctx.Parameters = dic;
+            //session.Parameters = dic;
+
+            // 令牌，作为参数或者http头传递
+            if (dic.TryGetValue("Token", out var token)) session.Token = token + "";
+            if (session.Token.IsNullOrEmpty() && msg is HttpMessage hmsg && hmsg.Headers != null)
             {
-                ctx.Parameters = dic;
-                //session.Parameters = dic;
-
-                // 令牌，作为参数或者http头传递
-                if (dic.TryGetValue("Token", out var token)) session.Token = token + "";
-                if (session.Token.IsNullOrEmpty() && msg is HttpMessage hmsg && hmsg.Headers != null)
-                {
-                    // post、package、byte三种情况将token 写入请求头
-                    if (hmsg.Headers.TryGetValue("x-token", out var token2))
-                        session.Token = token2;
-                    else if (hmsg.Headers.TryGetValue("Authorization", out token2))
-                        session.Token = token2.TrimStart("Bearer ");
-                }
-
-                // 准备好参数
-                var ps = GetParams(api.Method, dic, enc);
-                ctx.ActionParameters = ps;
+                // post、package、byte三种情况将token 写入请求头
+                if (hmsg.Headers.TryGetValue("x-token", out var token2))
+                    session.Token = token2;
+                else if (hmsg.Headers.TryGetValue("Authorization", out token2))
+                    session.Token = token2.TrimStart("Bearer ");
             }
+
+            // 准备好参数
+            var ps = GetParams(api.Method, dic, args, enc);
+            ctx.ActionParameters = ps;
         }
 
         return ctx;
@@ -188,10 +186,11 @@ public class ApiHandler : IApiHandler
 
     /// <summary>获取参数</summary>
     /// <param name="method"></param>
+    /// <param name="dic"></param>
     /// <param name="args"></param>
     /// <param name="encoder"></param>
     /// <returns></returns>
-    protected virtual IDictionary<String, Object?> GetParams(MethodInfo method, IDictionary<String, Object?> args, IEncoder encoder)
+    protected virtual IDictionary<String, Object?> GetParams(MethodInfo method, IDictionary<String, Object?> dic, Packet? args, IEncoder encoder)
     {
         var ps = new Dictionary<String, Object?>();
 
@@ -199,12 +198,21 @@ public class ApiHandler : IApiHandler
         var pis = method.GetParameters();
         if (pis == null || pis.Length <= 0) return ps;
 
+        // 接口只有一个入参时，客户端可能用基础类型封包传递
+        if (pis.Length == 1 && dic == null && args != null)
+        {
+            var pi = pis[0];
+            ps[pi.Name] = args.ToStr().ChangeType(pi.ParameterType);
+
+            return ps;
+        }
+
         foreach (var pi in pis)
         {
             var name = pi.Name;
 
             Object? v = null;
-            if (args != null && args.ContainsKey(name)) v = args[name];
+            if (dic != null && dic.TryGetValue(name, out var v2)) v = v2;
 
             // 基本类型
             if (pi.ParameterType.GetTypeCode() != TypeCode.Object)
@@ -219,7 +227,7 @@ public class ApiHandler : IApiHandler
                     ps[name] = Convert.FromBase64String(v + "");
                 else
                 {
-                    v ??= args;
+                    v ??= dic;
                     if (v != null)
                         ps[name] = encoder.Convert(v, pi.ParameterType);
                 }
