@@ -3,11 +3,11 @@ using System.Reflection;
 using NewLife.Caching;
 using NewLife.Collections;
 using NewLife.Data;
-using NewLife.Http;
 using NewLife.Log;
 using NewLife.Messaging;
 using NewLife.Net;
 using NewLife.Reflection;
+using NewLife.Remoting.Http;
 
 namespace NewLife.Remoting;
 
@@ -20,7 +20,7 @@ public interface IApiHandler
     /// <param name="args">参数</param>
     /// <param name="msg">消息</param>
     /// <returns></returns>
-    Object Execute(IApiSession session, String action, Packet args, IMessage msg);
+    Object? Execute(IApiSession session, String action, Packet? args, IMessage msg);
 }
 
 /// <summary>默认处理器</summary>
@@ -41,7 +41,7 @@ public class ApiHandler : IApiHandler
     /// <param name="args">参数</param>
     /// <param name="msg">消息</param>
     /// <returns></returns>
-    public virtual Object Execute(IApiSession session, String action, Packet args, IMessage msg)
+    public virtual Object? Execute(IApiSession session, String action, Packet? args, IMessage msg)
     {
         if (action.IsNullOrEmpty()) action = "Api/Info";
 
@@ -62,7 +62,7 @@ public class ApiHandler : IApiHandler
         ctx.Controller = controller;
 
         // 释放参数到跟踪片段
-        DefaultSpan.Current?.Detach(ctx.Parameters);
+        if (ctx.Parameters != null) DefaultSpan.Current?.Detach(ctx.Parameters);
 
         Object? rs = null;
         try
@@ -80,7 +80,9 @@ public class ApiHandler : IApiHandler
                 // 特殊处理参数和返回类型都是Packet的服务
                 if (api.IsPacketParameter && api.IsPacketReturn)
                 {
-                    var func = api.Method.As<Func<Packet, Packet>>(controller);
+                    var func = api.Method.As<Func<Packet?, Packet?>>(controller);
+                    if (func == null) throw new ArgumentOutOfRangeException(nameof(api.Method));
+
                     rs = func(args);
                 }
                 else if (api.IsPacketParameter)
@@ -133,7 +135,7 @@ public class ApiHandler : IApiHandler
     /// <param name="api"></param>
     /// <param name="msg">消息内容，辅助数据解析</param>
     /// <returns></returns>
-    public virtual ControllerContext Prepare(IApiSession session, String action, Packet args, ApiAction api, IMessage msg)
+    public virtual ControllerContext Prepare(IApiSession session, String action, Packet? args, ApiAction api, IMessage msg)
     {
         //var enc = Host.Encoder;
         var enc = session["Encoder"] as IEncoder ?? Host.Encoder;
@@ -244,7 +246,7 @@ public class TokenApiHandler : ApiHandler
     /// <param name="api"></param>
     /// <param name="msg"></param>
     /// <returns></returns>
-    public override ControllerContext Prepare(IApiSession session, String action, Packet args, ApiAction api, IMessage msg)
+    public override ControllerContext Prepare(IApiSession session, String action, Packet? args, ApiAction api, IMessage msg)
     {
         var ctx = base.Prepare(session, action, args, api, msg);
 

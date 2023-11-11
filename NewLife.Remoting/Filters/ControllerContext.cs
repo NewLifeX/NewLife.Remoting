@@ -4,31 +4,31 @@
 public class ControllerContext
 {
     /// <summary>控制器实例</summary>
-    public Object Controller { get; set; }
+    public Object? Controller { get; set; }
 
     /// <summary>处理动作</summary>
-    public ApiAction Action { get; set; }
+    public ApiAction? Action { get; set; }
 
     /// <summary>真实动作名称</summary>
-    public String ActionName { get; set; }
+    public String? ActionName { get; set; }
 
     /// <summary>会话</summary>
-    public IApiSession Session { get; set; }
+    public IApiSession? Session { get; set; }
 
     /// <summary>请求</summary>
-    public Object Request { get; set; }
+    public Object? Request { get; set; }
 
     /// <summary>请求参数</summary>
-    public IDictionary<String, Object?> Parameters { get; set; }
+    public IDictionary<String, Object?>? Parameters { get; set; }
 
     /// <summary>获取或设置操作方法参数。</summary>
-    public virtual IDictionary<String, Object?> ActionParameters { get; set; }
+    public virtual IDictionary<String, Object?>? ActionParameters { get; set; }
 
     /// <summary>获取或设置由操作方法返回的结果。</summary>
-    public Object Result { get; set; }
+    public Object? Result { get; set; }
 
     /// <summary>获取或设置在操作方法的执行过程中发生的异常（如果有）。</summary>
-    public virtual Exception Exception { get; set; }
+    public virtual Exception? Exception { get; set; }
 
     /// <summary>获取或设置一个值，该值指示是否处理异常。</summary>
     public Boolean ExceptionHandled { get; set; }
@@ -49,9 +49,9 @@ public class ControllerContext
     //}
 
     [ThreadStatic]
-    private static ControllerContext _Current;
+    private static ControllerContext? _Current;
     /// <summary>当前线程上下文</summary>
-    public static ControllerContext Current { get => _Current; set => _Current = value; }
+    public static ControllerContext? Current { get => _Current; set => _Current = value; }
 
     /// <summary>重置为默认状态</summary>
     public void Reset()

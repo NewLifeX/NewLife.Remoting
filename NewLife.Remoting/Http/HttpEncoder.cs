@@ -4,6 +4,7 @@ using NewLife.Data;
 using NewLife.Messaging;
 using NewLife.Reflection;
 using NewLife.Remoting;
+using NewLife.Remoting.Http;
 using NewLife.Serialization;
 
 namespace NewLife.Http;
@@ -21,7 +22,7 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <param name="code"></param>
     /// <param name="value"></param>
     /// <returns></returns>
-    public virtual Packet Encode(String action, Int32 code, Object value)
+    public virtual Packet? Encode(String action, Int32 code, Object? value)
     {
         //if (value == null) return null;
 
@@ -29,7 +30,9 @@ public class HttpEncoder : EncoderBase, IEncoder
         if (value is IAccessor acc) return acc.ToPacket();
 
         // 不支持序列化异常
-        if (value is Exception ex) value = ex.GetTrue()?.Message;
+        if (value is Exception ex) value = ex.GetTrue().Message;
+
+        if (value == null) return null;
 
         String json;
         if (UseHttpStatus)
@@ -64,14 +67,17 @@ public class HttpEncoder : EncoderBase, IEncoder
 
         if (ctype.Contains("application/json"))
         {
-            var dic = new JsonParser(str).Decode().ToDictionary();
             var rs = new Dictionary<String, Object?>(StringComparer.OrdinalIgnoreCase);
-            foreach (var item in dic)
+            var dic = JsonParser.Decode(str);
+            if (dic != null)
             {
-                if (item.Value is String str2)
-                    rs[item.Key] = HttpUtility.UrlDecode(str2);
-                else
-                    rs[item.Key] = item.Value;
+                foreach (var item in dic)
+                {
+                    if (item.Value is String str2)
+                        rs[item.Key] = HttpUtility.UrlDecode(str2);
+                    else
+                        rs[item.Key] = item.Value;
+                }
             }
 
             return rs;
@@ -222,7 +228,7 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <returns>请求响应报文</returns>
     public override ApiMessage? Decode(IMessage msg)
     {
-        if (msg is not HttpMessage http) return null;
+        if (msg is not HttpMessage http || http.Header == null) return null;
 
         // 分析请求方法 GET / HTTP/1.1
         var p = http.Header.IndexOf(new[] { (Byte)'\r', (Byte)'\n' });

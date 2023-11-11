@@ -1,8 +1,8 @@
-﻿using NewLife.Http;
-using NewLife.Log;
+﻿using NewLife.Log;
 using NewLife.Messaging;
 using NewLife.Net;
 using NewLife.Reflection;
+using NewLife.Remoting.Http;
 
 namespace NewLife.Remoting;
 
@@ -137,7 +137,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
             {
                 try
                 {
-                    var rs = _Host.Process(this, m as IMessage);
+                    var rs = _Host.Process(this, (m as IMessage)!);
                     if (rs != null && Session != null && !Session.Disposed) Session?.SendMessage(rs);
                 }
                 catch (Exception ex)
@@ -160,7 +160,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
     /// <returns></returns>
     public Int32 InvokeOneWay(String action, Object? args = null, Byte flag = 0)
     {
-        var span = Host.Tracer?.NewSpan("rpc:" + action, args);
+        var span = Host!.Tracer?.NewSpan("rpc:" + action, args);
         if (args != null && span != null) args = span?.Attach(args);
 
         // 编码请求

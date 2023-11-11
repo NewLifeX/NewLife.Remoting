@@ -281,7 +281,7 @@ public class ApiClient : ApiHost, IApiClient
 
         // 是否成功
         if (message.Code is not 0 and not 200)
-            throw new ApiException(message.Code, message.Data.ToStr().Trim('\"')) { Source = invoker + "/" + action };
+            throw new ApiException(message.Code, message.Data?.ToStr().Trim('\"') ?? "") { Source = invoker + "/" + action };
 
         if (message.Data == null) return default;
         if (resultType == typeof(Packet)) return (TResult)(Object)message.Data;

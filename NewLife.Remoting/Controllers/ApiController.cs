@@ -2,7 +2,6 @@
 using System.Net.NetworkInformation;
 using System.Reflection;
 using NewLife.Collections;
-using NewLife.Data;
 using NewLife.Http;
 using NewLife.Net;
 using NewLife.Reflection;
@@ -13,10 +12,10 @@ namespace NewLife.Remoting;
 public class ApiController : IApi
 {
     /// <summary>主机</summary>
-    public IApiHost Host { get; set; }
+    public IApiHost? Host { get; set; }
 
     /// <summary>会话</summary>
-    public IApiSession Session { get; set; }
+    public IApiSession Session { get; set; } = null!;
 
     static ApiController()
     {
@@ -28,7 +27,7 @@ public class ApiController : IApi
 
     static void RefreshLocalIP() => _LocalIP = NetHelper.GetIPs().Where(e => e.IsIPv4()).Join();
 
-    private String[] _all;
+    private String[]? _all;
     /// <summary>获取所有接口</summary>
     /// <returns></returns>
     public String[] All()
@@ -39,7 +38,7 @@ public class ApiController : IApi
 
         var svc = Host as ApiServer;
         var list = new List<String>();
-        foreach (var item in svc.Manager.Services)
+        foreach (var item in svc!.Manager.Services)
         {
             var act = item.Value;
 
@@ -71,7 +70,7 @@ public class ApiController : IApi
     //private readonly static String _OS = Environment.OSVersion + "";
     private static readonly String _MachineName = Environment.MachineName;
     //private readonly static String _UserName = Environment.UserName;
-    private static String _LocalIP;
+    private static String? _LocalIP;
     /// <summary>服务器信息，用户健康检测</summary>
     /// <param name="state">状态信息</param>
     /// <returns></returns>
@@ -141,7 +140,7 @@ public class ApiController : IApi
         return dic;
     }
 
-    private Object GetStat()
+    private Object? GetStat()
     {
         if (Host is not ApiServer svc) return null;
 

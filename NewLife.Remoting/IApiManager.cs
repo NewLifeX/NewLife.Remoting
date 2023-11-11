@@ -17,7 +17,7 @@ public interface IApiManager
     /// <summary>注册服务</summary>
     /// <param name="controller">控制器对象</param>
     /// <param name="method">动作名称。为空时遍历控制器所有公有成员方法</param>
-    void Register(Object controller, String method);
+    void Register(Object controller, String? method);
 
     /// <summary>查找服务</summary>
     /// <param name="action"></param>
@@ -74,7 +74,7 @@ class ApiManager : IApiManager
     /// <summary>注册服务</summary>
     /// <param name="controller">控制器对象</param>
     /// <param name="method">动作名称。为空时遍历控制器所有公有成员方法</param>
-    public void Register(Object controller, String method)
+    public void Register(Object controller, String? method)
     {
         if (controller == null) throw new ArgumentNullException(nameof(controller));
 

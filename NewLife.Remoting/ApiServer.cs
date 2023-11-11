@@ -20,10 +20,10 @@ public class ApiServer : ApiHost, IServer
     public Int32 Port { get; set; }
 
     /// <summary>处理器</summary>
-    public IApiHandler Handler { get; set; }
+    public IApiHandler? Handler { get; set; }
 
     /// <summary>服务器</summary>
-    public IApiServer Server { get; set; }
+    public IApiServer Server { get; set; } = null!;
 
     /// <summary>连接复用。默认true，单个Tcp连接在处理某个请求未完成时，可以接收并处理新的请求</summary>
     public Boolean Multiplex { get; set; } = true;
@@ -32,13 +32,13 @@ public class ApiServer : ApiHost, IServer
     public Boolean UseHttpStatus { get; set; }
 
     /// <summary>收到请求或响应时</summary>
-    public event EventHandler<ApiReceivedEventArgs> Received;
+    public event EventHandler<ApiReceivedEventArgs>? Received;
 
     /// <summary>服务提供者。创建控制器实例时使用，可实现依赖注入。务必在注册控制器之前设置该属性</summary>
     public IServiceProvider ServiceProvider { get; set; } = ObjectContainer.Provider;
 
     /// <summary>处理统计</summary>
-    public ICounter StatProcess { get; set; }
+    public ICounter? StatProcess { get; set; }
 
     /// <summary>性能跟踪器</summary>
     public ITracer Tracer { get; set; } = DefaultTracer.Instance!;
@@ -88,7 +88,7 @@ public class ApiServer : ApiHost, IServer
     /// <summary>注册服务</summary>
     /// <param name="controller">控制器对象</param>
     /// <param name="method">动作名称。为空时遍历控制器所有公有成员方法</param>
-    public void Register(Object controller, String method) => Manager.Register(controller, method);
+    public void Register(Object controller, String? method) => Manager.Register(controller, method);
 
     /// <summary>显示可用服务</summary>
     protected virtual void ShowService()
@@ -109,7 +109,7 @@ public class ApiServer : ApiHost, IServer
     #region 启动停止
     /// <summary>添加服务器</summary>
     /// <param name="uri"></param>
-    public IApiServer Use(NetUri uri)
+    public IApiServer? Use(NetUri uri)
     {
         var svr = uri.Type == NetType.Http ? new ApiHttpServer() : new ApiNetServer();
 
@@ -199,27 +199,28 @@ public class ApiServer : ApiHost, IServer
     {
         if (msg.Reply) return null;
 
-        ApiMessage? message = null;
+        ApiMessage? request = null;
+        var code = 0;
         ISpan? span = null;
         var st = StatProcess;
         var sw = st.StartCount();
         try
         {
             var enc = session["Encoder"] as IEncoder ?? Encoder;
+            request = enc.Decode(msg);
+            if (request == null) return null;
 
-            Object result;
+            Object? result;
             Packet? args = null;
             try
             {
-                message = enc.Decode(msg);
-                if (message == null) return null;
-                args = message.Data;
+                args = request.Data;
                 // 根据动作名，开始跟踪
-                span = Tracer?.NewSpan("rps:" + message.Action, args);
+                span = Tracer?.NewSpan("rps:" + request.Action, args);
 
-                Received?.Invoke(this, new ApiReceivedEventArgs { Session = session, Message = msg, ApiMessage = message });
+                Received?.Invoke(this, new ApiReceivedEventArgs { Session = session, Message = msg, ApiMessage = request });
 
-                result = OnProcess(session, message.Action, args, msg);
+                result = OnProcess(session, request.Action, args, msg);
             }
             catch (Exception ex)
             {
@@ -230,13 +231,13 @@ public class ApiServer : ApiHost, IServer
                 // 支持自定义错误
                 if (ex is ApiException aex)
                 {
-                    message.Code = aex.Code;
-                    result = ex?.Message;
+                    code = aex.Code;
+                    result = ex.Message;
                 }
                 else
                 {
-                    message.Code = 500;
-                    result = ex?.Message;
+                    code = 500;
+                    result = ex.Message;
                 }
 
                 // 跟踪异常
@@ -249,12 +250,17 @@ public class ApiServer : ApiHost, IServer
             // 处理http封包方式
             if (enc is HttpEncoder httpEncoder) httpEncoder.UseHttpStatus = UseHttpStatus;
 
-            return enc.CreateResponse(msg, message.Action, message.Code, result);
+            return enc.CreateResponse(msg, request.Action, code, result);
+        }
+        catch (Exception ex)
+        {
+            span?.SetError(ex, null);
+            throw;
         }
         finally
         {
             var msCost = st.StopCount(sw) / 1000;
-            if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢处理[{message.Action}]，Code={message.Code}，耗时{msCost:n0}ms");
+            if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢处理[{request?.Action}]，Code={code}，耗时{msCost:n0}ms");
 
             span?.Dispose();
         }
@@ -266,7 +272,7 @@ public class ApiServer : ApiHost, IServer
     /// <param name="args">参数</param>
     /// <param name="msg">消息</param>
     /// <returns></returns>
-    protected virtual Object OnProcess(IApiSession session, String action, Packet args, IMessage msg) => Handler.Execute(session, action, args, msg);
+    protected virtual Object? OnProcess(IApiSession session, String action, Packet? args, IMessage msg) => Handler?.Execute(session, action, args, msg);
     #endregion
 
     #region 广播
@@ -289,8 +295,8 @@ public class ApiServer : ApiHost, IServer
     #endregion
 
     #region 统计
-    private TimerX _Timer;
-    private String _Last;
+    private TimerX? _Timer;
+    private String? _Last;
 
     /// <summary>显示统计信息的周期。默认600秒，0表示不显示统计信息</summary>
     public Int32 StatPeriod { get; set; } = 600;
