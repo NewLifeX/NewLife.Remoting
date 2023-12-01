@@ -5,7 +5,7 @@
     <Description>RPC远程过程调用，二进制封装，提供高吞吐低延迟的高性能RPC框架</Description>
     <Company>新生命开发团队</Company>
     <Copyright>©2002-2023 新生命开发团队</Copyright>
-    <VersionPrefix>2.6</VersionPrefix>
+    <VersionPrefix>2.7</VersionPrefix>
     <VersionSuffix>$([System.DateTime]::Now.ToString(`yyyy.MMdd`))</VersionSuffix>
     <Version>$(VersionPrefix).$(VersionSuffix)</Version>
     <FileVersion>$(Version)</FileVersion>
@@ -49,7 +49,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Core" Version="10.6.2023.1115" />
+    <PackageReference Include="NewLife.Core" Version="10.6.2023.1201" />
   </ItemGroup>
 
   <ItemGroup>
