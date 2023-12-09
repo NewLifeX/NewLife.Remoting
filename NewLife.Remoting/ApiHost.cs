@@ -1,4 +1,4 @@
-﻿using NewLife.Collections;
+﻿using System.Collections.Concurrent;
 using NewLife.Data;
 using NewLife.Log;
 using NewLife.Model;
@@ -22,13 +22,14 @@ public abstract class ApiHost : DisposeBase, IApiHost, IExtend, ILogFeature, ITr
     /// <summary>慢追踪。远程调用或处理时间超过该值时，输出慢调用日志，默认5000ms</summary>
     public Int32 SlowTrace { get; set; } = 5_000;
 
-    /// <summary>用户会话数据</summary>
-    public IDictionary<String, Object?> Items { get; set; } = new NullableDictionary<String, Object?>();
+    private ConcurrentDictionary<String, Object?>? _items;
+    /// <summary>数据项</summary>
+    public IDictionary<String, Object?> Items => _items ??= new();
 
     /// <summary>获取/设置 用户会话数据</summary>
     /// <param name="key"></param>
     /// <returns></returns>
-    public virtual Object? this[String key] { get => Items[key]; set => Items[key] = value; }
+    public virtual Object? this[String key] { get => _items != null && _items.TryGetValue(key, out var obj) ? obj : null; set => Items[key] = value; }
 
     /// <summary>启动时间</summary>
     public DateTime StartTime { get; set; } = DateTime.Now;
