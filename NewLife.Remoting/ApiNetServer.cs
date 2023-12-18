@@ -28,8 +28,8 @@ class ApiNetServer : NetServer<ApiNetSession>, IApiServer
         Host = host;
 
         if (config is NetUri uri) Local = uri;
-        // 如果主机为空，监听所有端口
-        if (Local.Host.IsNullOrEmpty() || Local.Host == "*") AddressFamily = System.Net.Sockets.AddressFamily.Unspecified;
+        //// 如果主机为空，监听所有端口
+        //if (Local.Host.IsNullOrEmpty() || Local.Host == "*") AddressFamily = System.Net.Sockets.AddressFamily.Unspecified;
 
         // Http封包协议
         //Add<HttpCodec>();
