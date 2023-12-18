@@ -265,12 +265,12 @@ public class TokenApiHandler : ApiHandler
         if (!token.IsNullOrEmpty())
         {
             // 第一用户数据是本地字典，用于记录是否启用了第二数据
-            if (session is ApiNetSession ns && ns.Items["Token"] + "" != token)
+            if (session is IExtend ns && ns["Token"] + "" != token)
             {
                 //var key = GetKey(token);
                 //// 采用哈希结构。内存缓存用并行字典，Redis用Set
                 //ns.Items2 = Cache.GetDictionary<Object>(key);
-                ns.Items["Token"] = token;
+                ns["Token"] = token;
             }
         }
 
