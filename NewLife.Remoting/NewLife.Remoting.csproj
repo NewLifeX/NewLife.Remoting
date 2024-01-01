@@ -4,7 +4,7 @@
     <AssemblyTitle>RPC远程过程调用</AssemblyTitle>
     <Description>RPC远程过程调用，二进制封装，提供高吞吐低延迟的高性能RPC框架</Description>
     <Company>新生命开发团队</Company>
-    <Copyright>©2002-2023 新生命开发团队</Copyright>
+    <Copyright>©2002-2024 新生命开发团队</Copyright>
     <VersionPrefix>2.7</VersionPrefix>
     <VersionSuffix>$([System.DateTime]::Now.ToString(`yyyy.MMdd`))</VersionSuffix>
     <Version>$(VersionPrefix).$(VersionSuffix)</Version>
@@ -28,7 +28,7 @@
     <RepositoryUrl>https://github.com/NewLifeX/NewLife.Remoting</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>新生命团队;X组件;NewLife;$(AssemblyName)</PackageTags>
-    <PackageReleaseNotes>支持CancellationToken取消通知</PackageReleaseNotes>
+    <PackageReleaseNotes>修正扩展字典相关问题</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -49,7 +49,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Core" Version="10.6.2023.1209-beta1625" />
+    <PackageReference Include="NewLife.Core" Version="10.6.2024.101" />
   </ItemGroup>
 
   <ItemGroup>
