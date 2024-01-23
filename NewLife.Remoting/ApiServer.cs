@@ -35,7 +35,7 @@ public class ApiServer : ApiHost, IServer
     public event EventHandler<ApiReceivedEventArgs>? Received;
 
     /// <summary>服务提供者。创建控制器实例时使用，可实现依赖注入。务必在注册控制器之前设置该属性</summary>
-    public IServiceProvider ServiceProvider { get; set; } = ObjectContainer.Provider;
+    public IServiceProvider? ServiceProvider { get; set; } //= ObjectContainer.Provider;
 
     /// <summary>处理统计</summary>
     public ICounter? StatProcess { get; set; }
@@ -71,6 +71,12 @@ public class ApiServer : ApiHost, IServer
         _Timer.TryDispose();
 
         Stop(GetType().Name + (disposing ? "Dispose" : "GC"));
+
+        Server.TryDispose();
+
+        // ApiController可能注册在容器里面，这里需要解耦，避免当前ApiServer对象无法回收
+        var controller = Manager?.Services.Values.FirstOrDefault(e => e.Type == typeof(ApiController))?.Controller as ApiController;
+        if (controller != null) controller.Host = null;
     }
     #endregion
 
