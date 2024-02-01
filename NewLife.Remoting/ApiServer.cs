@@ -28,6 +28,15 @@ public class ApiServer : ApiHost, IServer
     /// <summary>连接复用。默认true，单个Tcp连接在处理某个请求未完成时，可以接收并处理新的请求</summary>
     public Boolean Multiplex { get; set; } = true;
 
+    /// <summary>地址重用，主要应用于网络服务器重启交替。默认false</summary>
+    /// <remarks>
+    /// 一个端口释放后会等待两分钟之后才能再被使用，SO_REUSEADDR是让端口释放后立即就可以被再次使用。
+    /// SO_REUSEADDR用于对TCP套接字处于TIME_WAIT状态下的socket(TCP连接中, 先调用close() 的一方会进入TIME_WAIT状态)，才可以重复绑定使用。
+    /// 
+    /// 如果启用，多进程可以共同监听一个端口，都能收到数据，星尘代理多进程监听5500端口测试通过。
+    /// </remarks>
+    public Boolean ReuseAddress { get; set; }
+
     /// <summary>是否使用Http状态。默认false，使用json包装响应码</summary>
     public Boolean UseHttpStatus { get; set; }
 
