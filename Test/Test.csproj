@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Core" Version="10.6.2024.101" />
+    <PackageReference Include="NewLife.Core" Version="10.7.2024.201" />
   </ItemGroup>
 
   <ItemGroup>

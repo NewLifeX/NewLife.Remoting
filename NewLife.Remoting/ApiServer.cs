@@ -5,6 +5,7 @@ using NewLife.Log;
 using NewLife.Messaging;
 using NewLife.Model;
 using NewLife.Net;
+using NewLife.Reflection;
 using NewLife.Threading;
 
 namespace NewLife.Remoting;
@@ -147,6 +148,10 @@ public class ApiServer : ApiHost, IServer
             Tracer = Tracer,
         };
         svr.Init(new NetUri(NetType.Unknown, "*", Port), this);
+
+        // 升级核心库以后不需要反射
+        //svr.ReuseAddress = ReuseAddress;
+        svr.SetValue("ReuseAddress", ReuseAddress);
 
         return Server = svr;
     }
