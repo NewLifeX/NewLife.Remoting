@@ -142,18 +142,18 @@ public class ApiServer : ApiHost, IServer
 
         if (Port <= 0) throw new ArgumentNullException(nameof(Server), "未指定服务器Server，且未指定端口Port！");
 
-        svr = new ApiNetServer
+        var server = new ApiNetServer
         {
             Host = this,
             Tracer = Tracer,
         };
-        svr.Init(new NetUri(NetType.Unknown, "*", Port), this);
+        server.Init(new NetUri(NetType.Unknown, "*", Port), this);
 
         // 升级核心库以后不需要反射
-        //svr.ReuseAddress = ReuseAddress;
-        svr.SetValue("ReuseAddress", ReuseAddress);
+        server.ReuseAddress = ReuseAddress;
+        //server.SetValue("ReuseAddress", ReuseAddress);
 
-        return Server = svr;
+        return Server = server;
     }
 
     /// <summary>开始服务</summary>
