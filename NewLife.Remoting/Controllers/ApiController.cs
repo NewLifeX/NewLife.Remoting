@@ -25,7 +25,7 @@ public class ApiController : IApi
         NetworkChange.NetworkAvailabilityChanged += (s, e) => RefreshLocalIP();
     }
 
-    static void RefreshLocalIP() => _LocalIP = NetHelper.GetIPs().Where(e => e.IsIPv4()).Join();
+    static void RefreshLocalIP() => _LocalIP = null;
 
     private String[]? _all;
     /// <summary>获取所有接口</summary>
@@ -88,6 +88,13 @@ public class ApiController : IApi
         var asmx = AssemblyX.Entry;
         var asmx2 = AssemblyX.Create(Assembly.GetExecutingAssembly());
         var mi = MachineInfo.Current;
+
+        // 尝试获取本地IP，如果网卡变动，可能会有问题
+        try
+        {
+            _LocalIP ??= NetHelper.GetIPs().Where(e => e.IsIPv4()).Join();
+        }
+        catch { }
 
         var rs = new
         {
