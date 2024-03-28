@@ -49,7 +49,7 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <param name="data"></param>
     /// <param name="msg"></param>
     /// <returns></returns>
-    public virtual IDictionary<String, Object?>? DecodeParameters(String action, Packet? data, IMessage msg)
+    public virtual Object? DecodeParameters(String action, Packet? data, IMessage msg)
     {
         if (data == null || data.Total == 0) return null;
 

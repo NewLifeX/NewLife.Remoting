@@ -44,7 +44,7 @@ public class JsonEncoder : EncoderBase, IEncoder
     /// <param name="data">数据</param>
     /// <param name="msg">消息</param>
     /// <returns></returns>
-    public IDictionary<String, Object?>? DecodeParameters(String action, Packet? data, IMessage msg)
+    public Object? DecodeParameters(String action, Packet? data, IMessage msg)
     {
         if (data == null || data.Total == 0) return null;
 
@@ -52,9 +52,10 @@ public class JsonEncoder : EncoderBase, IEncoder
         WriteLog("{0}[{2:X2}]<={1}", action, json, msg is DefaultMessage dm ? dm.Sequence : 0);
 
         // 接口只有一个入参时，客户端可能用基础类型封包传递
-        if (json.IsNullOrEmpty() || json[0] != '{' && json[1] != '[') return null;
+        if (json.IsNullOrEmpty() || json[0] != '{' && json[0] != '[') return json;
 
-        return JsonParser.Decode(json);
+        //return JsonParser.Decode(json);
+        return new JsonParser(json).Decode();
     }
 
     /// <summary>解码结果</summary>

@@ -45,7 +45,7 @@ public interface IEncoder
     /// <param name="data">数据</param>
     /// <param name="msg">消息</param>
     /// <returns></returns>
-    IDictionary<String, Object?>? DecodeParameters(String action, Packet? data, IMessage msg);
+    Object? DecodeParameters(String action, Packet? data, IMessage msg);
 
     /// <summary>解码结果</summary>
     /// <param name="action"></param>

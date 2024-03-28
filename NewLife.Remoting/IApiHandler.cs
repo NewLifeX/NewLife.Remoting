@@ -1,6 +1,5 @@
 ﻿using System.Collections;
 using System.Reflection;
-using NewLife.Caching;
 using NewLife.Collections;
 using NewLife.Data;
 using NewLife.Log;
@@ -158,7 +157,14 @@ public class ApiHandler : IApiHandler
 
         // 不允许参数字典为空。接口只有一个入参时，客户端可能用基础类型封包传递
         IDictionary<String, Object?>? dic = null;
-        if (args != null && args.Total > 0) dic = enc.DecodeParameters(action, args, msg);
+        Object? raw = null;
+        if (args != null && args.Total > 0)
+        {
+            raw = enc.DecodeParameters(action, args, msg);
+            if (raw is IDictionary<String, Object?> dic2)
+                dic = dic2;
+        }
+
         dic ??= new NullableDictionary<String, Object?>(StringComparer.OrdinalIgnoreCase);
         if (dic != null)
         {
@@ -177,7 +183,7 @@ public class ApiHandler : IApiHandler
             }
 
             // 准备好参数
-            var ps = GetParams(api.Method, dic, args, enc);
+            var ps = GetParams(api.Method, dic, raw, args, enc);
             ctx.ActionParameters = ps;
         }
 
@@ -190,7 +196,7 @@ public class ApiHandler : IApiHandler
     /// <param name="args"></param>
     /// <param name="encoder"></param>
     /// <returns></returns>
-    protected virtual IDictionary<String, Object?> GetParams(MethodInfo method, IDictionary<String, Object?> dic, Packet? args, IEncoder encoder)
+    protected virtual IDictionary<String, Object?> GetParams(MethodInfo method, IDictionary<String, Object?> dic, Object? raw, Packet? args, IEncoder encoder)
     {
         var ps = new Dictionary<String, Object?>();
 
@@ -198,14 +204,25 @@ public class ApiHandler : IApiHandler
         var pis = method.GetParameters();
         if (pis == null || pis.Length <= 0) return ps;
 
-        // 接口只有一个基础类型入参时，客户端可能用基础类型封包传递（字符串）。
-        // 例如接口 Say(String text)，客户端可用 InvokeAsync<Object>("Say", "Hello NewLife!")
-        if (pis.Length == 1 && pis[0].ParameterType.GetTypeCode() != TypeCode.Object && dic.Count == 0 && args != null)
+        if (pis.Length == 1 && dic.Count == 0)
         {
             var pi = pis[0];
-            ps[pi.Name] = args.ToStr().ChangeType(pi.ParameterType);
+            // 唯一参数，客户端直传数组而没有传字典
+            if (pi.ParameterType.GetTypeCode() == TypeCode.Object)
+            {
+                //ps[pi.Name] = raw.ChangeType(pi.ParameterType);
+                ps[pi.Name] = raw == null ? null : encoder.Convert(raw, pi.ParameterType);
 
-            return ps;
+                return ps;
+            }
+            // 接口只有一个基础类型入参时，客户端可能用基础类型封包传递（字符串）。
+            // 例如接口 Say(String text)，客户端可用 InvokeAsync<Object>("Say", "Hello NewLife!")
+            else if (args != null)
+            {
+                ps[pi.Name] = args.ToStr().ChangeType(pi.ParameterType);
+
+                return ps;
+            }
         }
 
         foreach (var pi in pis)
@@ -218,7 +235,8 @@ public class ApiHandler : IApiHandler
             // 基本类型
             if (pi.ParameterType.GetTypeCode() != TypeCode.Object)
             {
-                ps[name] = v.ChangeType(pi.ParameterType);
+                //ps[name] = v.ChangeType(pi.ParameterType);
+                ps[name] = encoder.Convert(v, pi.ParameterType);
             }
             // 复杂对象填充，各个参数填充到一个模型参数里面去
             else
