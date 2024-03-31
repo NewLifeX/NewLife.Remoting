@@ -7,6 +7,7 @@ using NewLife.Messaging;
 using NewLife.Net;
 using NewLife.Reflection;
 using NewLife.Remoting.Http;
+using NewLife.Serialization;
 
 namespace NewLife.Remoting;
 
@@ -81,9 +82,8 @@ public class ApiHandler : IApiHandler
                 // 特殊处理参数和返回类型都是Packet的服务
                 if (api.IsPacketParameter && api.IsPacketReturn)
                 {
-                    var func = api.Method.As<Func<Packet?, Packet?>>(controller);
-                    if (func == null) throw new ArgumentOutOfRangeException(nameof(api.Method));
-
+                    var func = api.Method.As<Func<Packet?, Packet?>>(controller)
+                        ?? throw new ArgumentOutOfRangeException(nameof(api.Method));
                     rs = func(args);
                 }
                 else if (api.IsPacketParameter)
@@ -94,6 +94,7 @@ public class ApiHandler : IApiHandler
                 {
                     rs = controller.InvokeWithParams(api.Method, ctx.ActionParameters as IDictionary);
                 }
+
                 ctx.Result = rs;
             }
 
@@ -103,6 +104,9 @@ public class ApiHandler : IApiHandler
                 filter2.OnActionExecuted(ctx);
                 rs = ctx.Result;
             }
+
+            // 特殊处理IAccessor返回值，直接进行二进制序列化
+            if (rs is IAccessor accessor) rs = accessor.ToPacket();
         }
         catch (ThreadAbortException) { throw; }
         catch (Exception ex)
@@ -155,6 +159,27 @@ public class ApiHandler : IApiHandler
         // 如果服务只有一个二进制参数，则走快速通道
         if (api.IsPacketParameter) return ctx;
 
+        // IAccessor参数，直接进行二进制反序列化
+        if (api.IsAccessorParameter)
+        {
+            if (args == null) return ctx;
+
+            var pi = api.Method.GetParameters()[0];
+            var value = pi.ParameterType.CreateInstance();
+            if (value is IAccessor accessor)
+            {
+                if (accessor.Read(args.GetStream(), args))
+                {
+                    ctx.ActionParameters = new NullableDictionary<String, Object?>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        [pi.Name] = value
+                    };
+                }
+
+                return ctx;
+            }
+        }
+
         // 不允许参数字典为空。接口只有一个入参时，客户端可能用基础类型封包传递
         IDictionary<String, Object?>? dic = null;
         Object? raw = null;
@@ -193,6 +218,7 @@ public class ApiHandler : IApiHandler
     /// <summary>获取参数</summary>
     /// <param name="method"></param>
     /// <param name="dic"></param>
+    /// <param name="raw"></param>
     /// <param name="args"></param>
     /// <param name="encoder"></param>
     /// <returns></returns>

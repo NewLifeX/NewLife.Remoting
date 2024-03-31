@@ -2,6 +2,7 @@
 using NewLife.Data;
 using NewLife.Log;
 using NewLife.Reflection;
+using NewLife.Serialization;
 
 namespace NewLife.Remoting;
 
@@ -27,6 +28,12 @@ public class ApiAction
     /// <summary>是否二进制返回</summary>
     public Boolean IsPacketReturn { get; }
 
+    /// <summary>是否Accessor参数</summary>
+    public Boolean IsAccessorParameter { get; }
+
+    /// <summary>是否Accessor返回</summary>
+    public Boolean IsAccessorReturn { get; }
+
     /// <summary>处理统计</summary>
     public ICounter StatProcess { get; set; } = new PerfCounter();
 
@@ -44,9 +51,14 @@ public class ApiAction
         Method = method;
 
         var ps = method.GetParameters();
-        if (ps != null && ps.Length == 1 && ps[0].ParameterType == typeof(Packet)) IsPacketParameter = true;
+        if (ps != null && ps.Length == 1)
+        {
+            if (ps[0].ParameterType == typeof(Packet)) IsPacketParameter = true;
+            if (ps[0].ParameterType.As<IAccessor>()) IsAccessorParameter = true;
+        }
 
         if (method.ReturnType == typeof(Packet)) IsPacketReturn = true;
+        if (method.ReturnType.As<IAccessor>()) IsAccessorReturn = true;
     }
 
     /// <summary>获取名称</summary>
