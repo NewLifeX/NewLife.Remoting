@@ -13,7 +13,7 @@ public class JsonEncoder : EncoderBase, IEncoder
     /// <param name="code"></param>
     /// <param name="value"></param>
     /// <returns></returns>
-    public virtual Packet Encode(String action, Int32 code, Packet? value)
+    public virtual Packet Encode(String action, Int32? code, Packet? value)
     {
         // 内存流，前面留空8字节用于协议头4字节（超长8字节）
         var ms = new MemoryStream();
@@ -25,7 +25,7 @@ public class JsonEncoder : EncoderBase, IEncoder
         writer.Write(action);
 
         // 异常响应才有code。定长4字节
-        if (code != 0) writer.Write(code);
+        if (code != null && code.Value is not ApiCode.Ok and not 200) writer.Write(code.Value);
 
         // 参数或结果。长度部分定长4字节
         var pk = value;
@@ -66,13 +66,20 @@ public class JsonEncoder : EncoderBase, IEncoder
     /// <returns></returns>
     public Object? DecodeResult(String action, Packet data, IMessage msg, Type returnType)
     {
-        var json = data.ToStr();
+        var json = data?.ToStr();
         WriteLog("{0}[{2:X2}]<={1}", action, json, msg is DefaultMessage dm ? dm.Sequence : 0);
 
         // 支持基础类型
         if (returnType != null && returnType.GetTypeCode() != TypeCode.Object) return json.ChangeType(returnType);
 
-        return new JsonParser(json).Decode();
+        if (json.IsNullOrEmpty()) return null;
+        if (returnType == null || returnType == typeof(String)) return json;
+
+        var rs = new JsonParser(json).Decode();
+        if (rs == null) return null;
+        if (returnType == typeof(Object)) return rs;
+
+        return Convert(rs, returnType);
     }
 
     /// <summary>转换为目标类型</summary>
@@ -93,7 +100,7 @@ public class JsonEncoder : EncoderBase, IEncoder
         if (Log != null && str.IsNullOrEmpty() && pk != null) str = $"[{pk?.Total}]";
         WriteLog("{0}=>{1}", action, str);
 
-        var payload = Encode(action, 0, pk);
+        var payload = Encode(action, null, pk);
 
         return new DefaultMessage { Payload = payload, };
     }
@@ -117,12 +124,12 @@ public class JsonEncoder : EncoderBase, IEncoder
         // 构造响应消息
         var rs = msg.CreateReply()!;
         rs.Payload = payload;
-        if (code > 0) rs.Error = true;
+        if (code is not ApiCode.Ok and not 200) rs.Error = true;
 
         return rs;
     }
 
-    private (Packet?, String) EncodeValue(Object? value)
+    internal (Packet?, String) EncodeValue(Object? value)
     {
         var str = "";
         Packet? pk = null;
@@ -144,9 +151,10 @@ public class JsonEncoder : EncoderBase, IEncoder
             else
             {
                 // 不支持序列化异常
-                if (value is Exception ex) value = ex.GetTrue().Message;
-
-                str = value.ToJson(false, false, false);
+                if (value is Exception ex)
+                    value = str = ex.GetTrue().Message;
+                else
+                    str = value.ToJson(false, false, false);
 
                 pk = str.GetBytes();
             }

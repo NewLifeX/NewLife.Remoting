@@ -280,7 +280,7 @@ public class ApiClient : ApiHost, IApiClient
         var message = enc.Decode(rs) ?? throw new InvalidOperationException();
 
         // 是否成功
-        if (message.Code is not 0 and not 200)
+        if (message.Code is not ApiCode.Ok and not 200)
             throw new ApiException(message.Code, message.Data?.ToStr().Trim('\"') ?? "") { Source = invoker + "/" + action };
 
         if (message.Data == null) return default;
@@ -292,7 +292,8 @@ public class ApiClient : ApiHost, IApiClient
         if (resultType == typeof(Object)) return (TResult)result;
 
         // 返回
-        return (TResult?)enc.Convert(result, resultType);
+        //return (TResult?)enc.Convert(result, resultType);
+        return (TResult?)result;
     }
 
     /// <summary>单向调用，不等待返回</summary>

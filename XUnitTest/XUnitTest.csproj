@@ -3,7 +3,8 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <OutputPath>..\Bin\UnitTest</OutputPath>
-
+    <SignAssembly>True</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\Doc\newlife.snk</AssemblyOriginatorKeyFile>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 

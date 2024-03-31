@@ -104,13 +104,20 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <returns></returns>
     public virtual Object? DecodeResult(String action, Packet data, IMessage msg, Type returnType)
     {
-        var json = data.ToStr();
+        var json = data?.ToStr();
         WriteLog("{0}<={1}", action, json);
 
         // 支持基础类型
         if (returnType != null && returnType.GetTypeCode() != TypeCode.Object) return json.ChangeType(returnType);
 
-        return new JsonParser(json).Decode();
+        if (json.IsNullOrEmpty()) return null;
+        if (returnType == null || returnType == typeof(String)) return json;
+
+        var rs = new JsonParser(json).Decode();
+        if (rs == null) return null;
+        if (returnType == typeof(Object)) return rs;
+
+        return Convert(rs, returnType);
     }
 
     /// <summary>转换为目标类型</summary>
