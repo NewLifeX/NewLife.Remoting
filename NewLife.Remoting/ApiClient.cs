@@ -156,7 +156,7 @@ public class ApiClient : ApiHost, IApiClient
         catch (ApiException ex)
         {
             // 这个连接没有鉴权，重新登录后再次调用
-            if (ex.Code == 401)
+            if (ex.Code == ApiCode.Unauthorized)
             {
                 //await Cluster.InvokeAsync(client => OnLoginAsync(client, true)).ConfigureAwait(false);
                 await OnLoginAsync(client, true).ConfigureAwait(false);
@@ -280,7 +280,7 @@ public class ApiClient : ApiHost, IApiClient
         var message = enc.Decode(rs) ?? throw new InvalidOperationException();
 
         // 是否成功
-        if (message.Code is not ApiCode.Ok and not 200)
+        if (message.Code is not ApiCode.Ok and not ApiCode.Ok200)
             throw new ApiException(message.Code, message.Data?.ToStr().Trim('\"') ?? "") { Source = invoker + "/" + action };
 
         if (message.Data == null) return default;
@@ -347,7 +347,7 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="e"></param>
     protected virtual void OnReceive(IMessage message, ApiReceivedEventArgs e) => Received?.Invoke(this, e);
 
-    private void Client_Received(Object sender, ReceivedEventArgs e)
+    private void Client_Received(Object? sender, ReceivedEventArgs e)
     {
         LastActive = DateTime.Now;
 
@@ -375,11 +375,11 @@ public class ApiClient : ApiHost, IApiClient
     /// <summary>连接后自动登录</summary>
     /// <param name="client">客户端</param>
     /// <param name="force">强制登录</param>
-    protected virtual Task<Object> OnLoginAsync(ISocketClient client, Boolean force) => Task.FromResult<Object>(0);
+    protected virtual Task<Object?> OnLoginAsync(ISocketClient client, Boolean force) => Task.FromResult<Object?>(null);
 
     /// <summary>登录</summary>
     /// <returns></returns>
-    public virtual async Task<Object> LoginAsync()
+    public virtual async Task<Object?> LoginAsync()
     {
         if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
 

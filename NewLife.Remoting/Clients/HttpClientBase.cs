@@ -1,11 +1,12 @@
-﻿using System.Collections.Concurrent;
-using System.Net.NetworkInformation;
-using NewLife;
-using NewLife.Caching;
+﻿using NewLife.Caching;
 using NewLife.Log;
 using NewLife.Remoting;
 using NewLife.Remoting.Models;
 using NewLife.Threading;
+using NewLife.Serialization;
+using System.Net.Http;
+using System.Diagnostics.CodeAnalysis;
+
 
 #if NETCOREAPP
 using System.Net.WebSockets;
@@ -18,9 +19,6 @@ namespace NewLife.Remoting.Clients;
 public class HttpClientBase : ClientBase
 {
     #region 属性
-    /// <summary>命令前缀</summary>
-    public String Prefix { get; set; } = "Device/";
-
     /// <summary>
     /// Http客户端，可用于给其它服务提供通信链路，自带令牌
     /// </summary>
@@ -49,60 +47,33 @@ public class HttpClientBase : ClientBase
         {
             var ss = urls.Split(",");
             for (var i = 0; i < ss.Length; i++)
+            {
                 _client.Add("service" + (i + 1), new Uri(ss[i]));
+            }
         }
     }
     #endregion
 
     #region 方法
-    public override async Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken)
+    /// <summary>异步调用</summary>
+    /// <param name="action">动作</param>
+    /// <param name="args">参数</param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    [return: MaybeNull]
+    public override Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken)
     {
-        var method = HttpMethod.Post;
-        if (action.StartsWithIgnoreCase("Get") || action.Contains("Get"))
-            method = HttpMethod.Get;
-
-        return await _client.InvokeAsync<TResult>(method, action, args);
+        if (action.StartsWithIgnoreCase("Get") || action.Contains("/Get"))
+            return _client.GetAsync<TResult>(action, args);
+        else
+            return _client.PostAsync<TResult>(action, args);
     }
 
     class MyHttpClient : ApiHttpClient
     {
-        public ClientBase Client { get; set; }
+        public HttpClientBase Client { get; set; } = null!;
 
-        public Service Current { get; private set; }
-
-        /// <summary>远程调用拦截，支持重新登录</summary>
-        /// <typeparam name="TResult"></typeparam>
-        /// <param name="method"></param>
-        /// <param name="action"></param>
-        /// <param name="args"></param>
-        /// <param name="onRequest"></param>
-        /// <param name="cancellationToken">取消通知</param>
-        /// <returns></returns>
-        public override async Task<TResult> InvokeAsync<TResult>(HttpMethod method, String action, Object args = null, Action<HttpRequestMessage> onRequest = null, CancellationToken cancellationToken = default)
-        {
-            var needLogin = !Client.Logined && !action.EqualIgnoreCase(Prefix + "Login", "Node/Logout");
-            if (needLogin)
-                await Client.Login();
-
-            try
-            {
-                return await base.InvokeAsync<TResult>(method, action, args, onRequest, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                var ex2 = ex.GetTrue();
-                if (ex2 is ApiException aex && (aex.Code == 402 || aex.Code == 403) && !action.EqualIgnoreCase(Prefix + "Login", "Device/Logout"))
-                {
-                    XTrace.WriteException(ex);
-                    XTrace.WriteLine("重新登录！");
-                    await Client.Login();
-
-                    return await base.InvokeAsync<TResult>(method, action, args, onRequest, cancellationToken);
-                }
-
-                throw;
-            }
-        }
+        public Service? Current { get; private set; }
 
         protected override Service GetService() => Current = base.GetService();
     }
@@ -131,7 +102,7 @@ public class HttpClientBase : ClientBase
         // 登录前清空令牌，避免服务端使用上一次信息
         _client.Token = null;
 
-        var rs = await _client.PostAsync<LoginResponse>(Prefix + "Login", request);
+        var rs = await base.LoginAsync(request);
 
         // 登录后设置用于用户认证的token
         _client.Token = rs?.Token;
@@ -143,7 +114,7 @@ public class HttpClientBase : ClientBase
     /// <returns></returns>
     protected override async Task<LogoutResponse?> LogoutAsync(String reason)
     {
-        var rs = await _client.GetAsync<LogoutResponse>(Prefix + "Logout", new { reason });
+        var rs = await base.LogoutAsync(reason);
 
         // 更新令牌
         _client.Token = rs?.Token;
@@ -220,11 +191,6 @@ public class HttpClientBase : ClientBase
             Log?.Debug("{0}", ex);
         }
     }
-
-    /// <summary>心跳</summary>
-    /// <param name="inf"></param>
-    /// <returns></returns>
-    protected override async Task<PingResponse?> PingAsync(PingRequest inf) => await _client.PostAsync<PingResponse>(Prefix + "Ping", inf);
     #endregion
 
     #region 长连接
@@ -247,8 +213,8 @@ public class HttpClientBase : ClientBase
     }
 
 #if NETCOREAPP
-    private WebSocket _websocket;
-    private CancellationTokenSource _source;
+    private WebSocket? _websocket;
+    private CancellationTokenSource? _source;
     private async Task DoPull(WebSocket socket, CancellationToken cancellationToken)
     {
         DefaultSpan.Current = null;
@@ -264,7 +230,7 @@ public class HttpClientBase : ClientBase
                 }
                 else
                 {
-                    var model = txt.ToJsonEntity<ServiceModel>();
+                    var model = txt.ToJsonEntity<CommandModel>();
                     if (model != null) await ReceiveCommand(model);
                 }
             }
@@ -278,7 +244,7 @@ public class HttpClientBase : ClientBase
     }
 #endif
 
-    async Task ReceiveCommand(ServiceModel model)
+    async Task ReceiveCommand(CommandModel model)
     {
         if (model == null) return;
 
@@ -286,8 +252,8 @@ public class HttpClientBase : ClientBase
         if (!_cache.Add($"cmd:{model.Id}", model, 3600)) return;
 
         // 建立追踪链路
-        using var span = Tracer?.NewSpan("service:" + model.Name, model);
-        span?.Detach(model.TraceId);
+        using var span = Tracer?.NewSpan("cmd:" + model.Command, model);
+        if (model.TraceId != null) span?.Detach(model.TraceId);
         try
         {
             //todo 有效期判断可能有隐患，现在只是假设服务器和客户端在同一个时区，如果不同，可能会出现问题
@@ -304,21 +270,21 @@ public class HttpClientBase : ClientBase
                         _ = OnReceiveCommand(model);
                     }, (Int32)ts.TotalMilliseconds);
 
-                    var reply = new ServiceReplyModel
+                    var reply = new CommandReplyModel
                     {
                         Id = model.Id,
-                        Status = ServiceStatus.处理中,
+                        Status = CommandStatus.处理中,
                         Data = $"已安排计划执行 {model.StartTime.ToFullString()}"
                     };
-                    await ServiceReply(reply);
+                    await CommandReply(reply);
                 }
                 else
                     await OnReceiveCommand(model);
             }
             else
             {
-                var rs = new ServiceReplyModel { Id = model.Id, Status = ServiceStatus.取消 };
-                await ServiceReply(rs);
+                var rs = new CommandReplyModel { Id = model.Id, Status = CommandStatus.取消 };
+                await CommandReply(rs);
             }
         }
         catch (Exception ex)
@@ -326,26 +292,5 @@ public class HttpClientBase : ClientBase
             span?.SetError(ex, null);
         }
     }
-    #endregion
-
-    #region 上报
-    /// <summary>批量上报事件</summary>
-    /// <param name="events"></param>
-    /// <returns></returns>
-    public override async Task<Int32> PostEvents(params EventModel[] events) => await _client.PostAsync<Int32>(Prefix + "PostEvents", events);
-
-    /// <summary>上报服务调用结果</summary>
-    /// <param name="model"></param>
-    /// <returns></returns>
-    public override async Task<Object?> CommandReply(CommandReplyModel model) => await _client.PostAsync<Object>(Prefix + "CommandReply", model);
-    #endregion
-
-    #region 更新
-    /// <summary>更新</summary>
-    /// <returns></returns>
-    protected override async Task<UpgradeInfo> UpgradeAsync() => await _client.GetAsync<UpgradeInfo>(Prefix + "Upgrade");
-    #endregion
-
-    #region 辅助
     #endregion
 }

@@ -1,13 +1,10 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Net;
 using System.Net.NetworkInformation;
 using System.Reflection;
-using NewLife;
 using NewLife.Caching;
 using NewLife.Log;
-using NewLife.Reflection;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
@@ -48,6 +45,9 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <summary>收到命令时触发</summary>
     public event EventHandler<CommandEventArgs>? Received;
 
+    /// <summary>命令前缀</summary>
+    public String Prefix { get; set; } = "Device/";
+
     /// <summary>协议版本</summary>
     private String _version;
     private TimeSpan _span;
@@ -82,6 +82,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <param name="args">参数</param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
+    [return: MaybeNull]
     public abstract Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken);
 
     /// <summary>远程调用拦截，支持重新登录</summary>
@@ -90,10 +91,9 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <param name="args"></param>
     /// <param name="cancellationToken">取消通知</param>
     /// <returns></returns>
-    [return: MaybeNull]
-    public virtual async Task<TResult> InvokeAsync<TResult>(String action, Object? args = null, CancellationToken cancellationToken = default)
+    public virtual async Task<TResult?> InvokeAsync<TResult>(String action, Object? args = null, CancellationToken cancellationToken = default)
     {
-        var needLogin = !Logined && !action.EqualIgnoreCase("Node/Login", "Node/Logout");
+        var needLogin = !Logined && !action.EndsWithIgnoreCase("/Login", "/Logout");
         if (needLogin)
             await Login();
 
@@ -104,7 +104,8 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         catch (Exception ex)
         {
             var ex2 = ex.GetTrue();
-            if (Logined && ex2 is ApiException aex && (aex.Code == 401 || aex.Code == 403) && !action.EqualIgnoreCase("Node/Login", "Node/Logout"))
+            if (Logined && ex2 is ApiException aex && (aex.Code == ApiCode.Unauthorized || aex.Code == ApiCode.Forbidden) &&
+                !action.EndsWithIgnoreCase("/Login", "/Logout"))
             {
                 Log?.Debug("{0}", ex);
                 WriteLog("重新登录！");
@@ -229,11 +230,11 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <summary>登录</summary>
     /// <param name="request">登录信息</param>
     /// <returns></returns>
-    protected abstract Task<LoginResponse?> LoginAsync(LoginRequest request);
+    protected virtual Task<LoginResponse?> LoginAsync(LoginRequest request) => InvokeAsync<LoginResponse>(Prefix + "Login", request);
 
     /// <summary>注销</summary>
     /// <returns></returns>
-    protected abstract Task<LogoutResponse?> LogoutAsync(String reason);
+    protected virtual Task<LogoutResponse?> LogoutAsync(String reason) => InvokeAsync<LogoutResponse>(Prefix + "Logout", new { reason });
     #endregion
 
     #region 心跳
@@ -295,9 +296,9 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     }
 
     /// <summary>心跳</summary>
-    /// <param name="inf"></param>
+    /// <param name="request"></param>
     /// <returns></returns>
-    protected abstract Task<PingResponse?> PingAsync(PingRequest inf);
+    protected virtual Task<PingResponse?> PingAsync(PingRequest request) => InvokeAsync<PingResponse>(Prefix + "Ping", request);
 
     private TimerX? _timer;
     private TimerX? _timerUpgrade;
@@ -312,6 +313,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
                 {
                     _timer = new TimerX(OnPing, null, 3_000, 60_000, "Device") { Async = true };
                     _timerUpgrade = new TimerX(s => Upgrade(), null, 5_000, 600_000, "Device") { Async = true };
+                    _eventTimer = new TimerX(DoPostEvent, null, 3_000, 60_000, "Device") { Async = true };
                 }
             }
         }
@@ -324,6 +326,8 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         _timer = null;
         _timerUpgrade.TryDispose();
         _timerUpgrade = null;
+        _eventTimer.TryDispose();
+        _eventTimer = null;
     }
 
     /// <summary>定时心跳</summary>
@@ -360,7 +364,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <summary>批量上报事件</summary>
     /// <param name="events"></param>
     /// <returns></returns>
-    public abstract Task<Int32> PostEvents(params EventModel[] events);
+    public virtual Task<Int32> PostEvents(params EventModel[] events) => InvokeAsync<Int32>(Prefix + "PostEvents", events);
 
     async Task DoPostEvent(Object state)
     {
@@ -431,14 +435,14 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <summary>上报命令调用结果</summary>
     /// <param name="model"></param>
     /// <returns></returns>
-    public abstract Task<Object?> CommandReply(CommandReplyModel model);
+    public virtual Task<Object?> CommandReply(CommandReplyModel model) => InvokeAsync<Object>(Prefix + "CommandReply", model);
     #endregion
 
     #region 更新
-    private String _lastVersion;
+    private String? _lastVersion;
     /// <summary>获取更新信息</summary>
     /// <returns></returns>
-    public async Task<UpgradeInfo> Upgrade()
+    public async Task<UpgradeInfo?> Upgrade()
     {
         using var span = Tracer?.NewSpan(nameof(Upgrade));
         WriteLog("检查更新");
@@ -479,7 +483,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
 
     /// <summary>更新</summary>
     /// <returns></returns>
-    protected abstract Task<UpgradeInfo> UpgradeAsync();
+    protected virtual Task<UpgradeInfo?> UpgradeAsync() => InvokeAsync<UpgradeInfo>(Prefix + "GetUpgrade");
     #endregion
 
     #region 日志

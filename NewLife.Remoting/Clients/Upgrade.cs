@@ -23,10 +23,10 @@ public class Upgrade
     public String DestinationPath { get; set; } = ".";
 
     /// <summary>源文件下载地址</summary>
-    public String Url { get; set; }
+    public String? Url { get; set; }
 
     /// <summary>更新源文件</summary>
-    public String SourceFile { get; set; }
+    public String? SourceFile { get; set; }
     #endregion
 
     #region 构造
@@ -34,7 +34,7 @@ public class Upgrade
     public Upgrade()
     {
         var asm = Assembly.GetEntryAssembly();
-        Name = asm.GetName().Name;
+        Name = asm?.GetName().Name ?? GetType().Name;
     }
     #endregion
 
@@ -76,8 +76,8 @@ public class Upgrade
     {
         if (hash.IsNullOrEmpty()) return false;
 
-        var fi = SourceFile.AsFile();
-        if (!fi.Exists) return false;
+        var fi = SourceFile?.AsFile();
+        if (fi == null || !fi.Exists) return false;
 
         var md5 = fi.MD5().ToHex();
         return md5.EqualIgnoreCase(hash);
@@ -92,14 +92,14 @@ public class Upgrade
         DeleteBackup(dest);
 
         var file = SourceFile;
-        if (!File.Exists(file)) return false;
+        if (file.IsNullOrEmpty() || !File.Exists(file)) return false;
 
         WriteLog("发现更新包 {0}", file);
 
         // 解压更新程序包
         if (!file.EndsWithIgnoreCase(".zip", ".7z")) return false;
 
-        var tmp = Path.GetTempPath().CombinePath(Path.GetFileNameWithoutExtension(file));
+        var tmp = Path.GetTempPath().CombinePath(Path.GetFileNameWithoutExtension(file)!);
         WriteLog("解压缩到临时目录 {0}", tmp);
         file.AsFile().Extract(tmp, true);
 
@@ -155,10 +155,10 @@ public class Upgrade
             RunShell(file, args);
 
         // 如果进程在指定时间退出，说明启动失败
-        return !p.WaitForExit(1000);
+        return p != null && !p.WaitForExit(1000);
     }
 
-    static Process RunShell(String fileName, String args) => Process.Start(new ProcessStartInfo(fileName, args) { UseShellExecute = true });
+    static Process? RunShell(String fileName, String args) => Process.Start(new ProcessStartInfo(fileName, args) { UseShellExecute = true });
 
     /// <summary>
     /// 自杀
@@ -215,7 +215,7 @@ public class Upgrade
     #endregion
 
     #region 辅助
-    private HttpClient _Client;
+    private HttpClient? _Client;
     private HttpClient CreateClient()
     {
         if (_Client != null) return _Client;
@@ -326,6 +326,6 @@ public class Upgrade
     /// <summary>输出日志</summary>
     /// <param name="format"></param>
     /// <param name="args"></param>
-    public void WriteLog(String format, params Object[] args) => Log?.Info($"[{Name}]{format}", args);
+    public void WriteLog(String format, params Object?[] args) => Log?.Info($"[{Name}]{format}", args);
     #endregion
 }

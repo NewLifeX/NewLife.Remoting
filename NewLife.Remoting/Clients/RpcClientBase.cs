@@ -1,7 +1,7 @@
-﻿using NewLife;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Net.Http;
 using NewLife.Log;
 using NewLife.Net;
-using NewLife.Remoting;
 using NewLife.Remoting.Models;
 
 namespace NewLife.Remoting.Clients;
@@ -10,9 +10,6 @@ namespace NewLife.Remoting.Clients;
 public class RpcClientBase : ClientBase
 {
     #region 属性
-    /// <summary>命令前缀</summary>
-    public String Prefix { get; set; } = "Device/";
-
     private ApiClient _client = null!;
     #endregion
 
@@ -40,20 +37,19 @@ public class RpcClientBase : ClientBase
     /// <summary>异步调用</summary>
     /// <param name="action">动作</param>
     /// <param name="args">参数</param>
+    /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    protected override async Task<TResult> OnPostAsync<TResult>(String action, Object args) => await _client.InvokeAsync<TResult>(action, args);
-
-    /// <summary>异步获取</summary>
-    /// <param name="action">动作</param>
-    /// <param name="args">参数</param>
-    /// <returns></returns>
-    protected override async Task<TResult> OnGetAsync<TResult>(String action, Object args) => await _client.InvokeAsync<TResult>(action, args);
+    [return: MaybeNull]
+    public override async Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken)
+    {
+        return await _client.InvokeAsync<TResult>(action, args, cancellationToken);
+    }
 
     class MyApiClient : ApiClient
     {
-        public ClientBase Client { get; set; }
+        public ClientBase Client { get; set; } = null!;
 
-        protected override async Task<Object> OnLoginAsync(ISocketClient client, Boolean force) => await InvokeWithClientAsync<Object>(client, "Device/Login", Client.BuildLoginRequest());
+        protected override async Task<Object?> OnLoginAsync(ISocketClient client, Boolean force) => await InvokeWithClientAsync<Object>(client, Client.Prefix + "/Login", Client.BuildLoginRequest());
     }
     #endregion
 
@@ -79,7 +75,7 @@ public class RpcClientBase : ClientBase
         // 登录前清空令牌，避免服务端使用上一次信息
         _client.Token = null;
 
-        var rs = await _client.InvokeAsync<LoginResponse>(Prefix + "Login", request);
+        var rs = await base.LoginAsync(request);
 
         // 登录后设置用于用户认证的token
         _client.Token = rs?.Token;
@@ -91,7 +87,7 @@ public class RpcClientBase : ClientBase
     /// <returns></returns>
     protected override async Task<LogoutResponse?> LogoutAsync(String reason)
     {
-        var rs = await _client.InvokeAsync<LogoutResponse>(Prefix + "Logout", new { reason });
+        var rs = await base.LogoutAsync(reason);
 
         // 更新令牌
         _client.Token = rs?.Token;
@@ -113,21 +109,5 @@ public class RpcClientBase : ClientBase
 
         return rs;
     }
-    /// <summary>心跳</summary>
-    /// <param name="inf"></param>
-    /// <returns></returns>
-    protected override async Task<PingResponse?> PingAsync(PingRequest inf) => await _client.InvokeAsync<PingResponse>(Prefix + "Ping", inf);
-    #endregion
-
-    #region 长连接
-    #endregion
-
-    #region 更新
-    /// <summary>更新</summary>
-    /// <returns></returns>
-    protected override async Task<UpgradeInfo> UpgradeAsync() => await _client.InvokeAsync<UpgradeInfo>(Prefix + "Upgrade");
-    #endregion
-
-    #region 辅助
     #endregion
 }
