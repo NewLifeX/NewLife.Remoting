@@ -1,4 +1,6 @@
-﻿using NewLife.Collections;
+﻿using System;
+using System.Net.WebSockets;
+using NewLife.Collections;
 using NewLife.Data;
 using NewLife.Log;
 using NewLife.Messaging;
@@ -7,14 +9,14 @@ using NewLife.Threading;
 
 namespace NewLife.Remoting;
 
-/// <summary>应用接口客户端</summary>
+/// <summary>Websocket版应用接口客户端</summary>
 /// <remarks>
 /// 保持到服务端直接的长连接RPC通信。
 /// 常用于向服务端发送请求并接收应答，也可以接收服务端主动发送的单向消息。
 /// 
 /// 文档 https://newlifex.com/core/srmp
 /// </remarks>
-public class ApiClient : ApiHost, IApiClient
+public class WsClient : ApiHost, IApiClient
 {
     #region 属性
     /// <summary>是否已打开</summary>
@@ -24,7 +26,7 @@ public class ApiClient : ApiHost, IApiClient
     public String[]? Servers { get; set; }
 
     /// <summary>客户端连接集群</summary>
-    public ICluster<String, ISocketClient>? Cluster { get; set; }
+    public ICluster<String, WebSocket>? Cluster { get; set; }
 
     /// <summary>是否使用连接池。true时建立多个到服务端的连接（高吞吐），默认false使用单一连接（低延迟）</summary>
     public Boolean UsePool { get; set; }
@@ -44,7 +46,7 @@ public class ApiClient : ApiHost, IApiClient
 
     #region 构造
     /// <summary>实例化应用接口客户端</summary>
-    public ApiClient()
+    public WsClient()
     {
         var type = GetType();
         Name = type.GetDisplayName() ?? type.Name.TrimEnd("Client");
@@ -52,7 +54,7 @@ public class ApiClient : ApiHost, IApiClient
 
     /// <summary>实例化应用接口客户端</summary>
     /// <param name="uris">服务端地址集合，逗号分隔</param>
-    public ApiClient(String uris) : this()
+    public WsClient(String uris) : this()
     {
         if (!uris.IsNullOrEmpty()) Servers = uris.Split(",", ";");
     }
@@ -113,15 +115,15 @@ public class ApiClient : ApiHost, IApiClient
     }
 
     /// <summary>初始化集群</summary>
-    protected virtual ICluster<String, ISocketClient> InitCluster()
+    protected virtual ICluster<String, WebSocket> InitCluster()
     {
         var cluster = Cluster;
         cluster ??= UsePool ?
-                new ClientPoolCluster<ISocketClient> { Log = Log } :
-                new ClientSingleCluster<ISocketClient> { Log = Log };
+                new ClientPoolCluster<WebSocket> { Log = Log } :
+                new ClientSingleCluster<WebSocket> { Log = Log };
 
-        if (cluster is ClientSingleCluster<ISocketClient> sc && sc.OnCreate == null) sc.OnCreate = OnCreate;
-        if (cluster is ClientPoolCluster<ISocketClient> pc && pc.OnCreate == null) pc.OnCreate = OnCreate;
+        if (cluster is ClientSingleCluster<WebSocket> sc && sc.OnCreate == null) sc.OnCreate = OnCreate;
+        if (cluster is ClientPoolCluster<WebSocket> pc && pc.OnCreate == null) pc.OnCreate = OnCreate;
 
         cluster.GetItems ??= () => Servers ?? [];
         cluster.Open();
@@ -205,7 +207,7 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="flag">标识</param>
     /// <param name="cancellationToken">取消通知</param>
     /// <returns></returns>
-    public virtual async Task<TResult?> InvokeWithClientAsync<TResult>(ISocketClient client, String action, Object? args = null, Byte flag = 0, CancellationToken cancellationToken = default)
+    public virtual async Task<TResult?> InvokeWithClientAsync<TResult>(WebSocket client, String action, Object? args = null, Byte flag = 0, CancellationToken cancellationToken = default)
     {
         // 性能计数器，次数、TPS、平均耗时
         var st = StatInvoke;
@@ -230,12 +232,21 @@ public class ApiClient : ApiHost, IApiClient
         var msg = enc.CreateRequest(action, args);
         if (flag > 0 && msg is DefaultMessage dm) dm.Flag = flag;
 
-        var invoker = client.Remote + "";
+        var invoker = client.State + "";
         IMessage? rs = null;
         try
         {
             // 发起异步请求，等待返回
-            rs = (await client.SendMessageAsync(msg, cancellationToken).ConfigureAwait(false)) as IMessage;
+            //rs = (await client.SendMessageAsync(msg, cancellationToken).ConfigureAwait(false)) as IMessage;
+
+            //todo 通过websocket收发数据
+            var codec = GetMessageCodec();
+            var pk = codec.Write(null, msg) as Packet;
+            await client.SendAsync(pk.ToSegment(), WebSocketMessageType.Binary, true, default);
+
+            var buf = new Byte[4 * 1024];
+            var data = await client.ReceiveAsync(new ArraySegment<Byte>(buf), default);
+            rs = codec.Read(null, data) as IMessage;
 
             if (rs == null) return default;
         }
@@ -302,7 +313,7 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="args">参数</param>
     /// <param name="flag">标识</param>
     /// <returns></returns>
-    public Int32 InvokeWithClient(ISocketClient client, String action, Object? args, Byte flag = 0)
+    public Int32 InvokeWithClient(WebSocket client, String action, Object? args, Byte flag = 0)
     {
         if (client == null) return -1;
 
@@ -324,7 +335,12 @@ public class ApiClient : ApiHost, IApiClient
         var sw = st.StartCount();
         try
         {
-            return client.SendMessage(msg);
+            //return client.SendMessage(msg);
+            var codec = GetMessageCodec();
+            var pk = codec.Write(null, msg) as Packet;
+            client.SendAsync(pk.ToSegment(), WebSocketMessageType.Binary, true, default).Wait();
+
+            return pk.Total;
         }
         catch (Exception ex)
         {
@@ -370,12 +386,12 @@ public class ApiClient : ApiHost, IApiClient
     #region 登录
     /// <summary>新会话。客户端每次连接或断线重连后，可用InvokeWithClientAsync做登录</summary>
     /// <param name="client">会话</param>
-    public virtual void OnNewSession(ISocketClient client) => OnLoginAsync(client, true)?.Wait();
+    public virtual void OnNewSession(WebSocket client) => OnLoginAsync(client, true)?.Wait();
 
     /// <summary>连接后自动登录</summary>
     /// <param name="client">客户端</param>
     /// <param name="force">强制登录</param>
-    protected virtual Task<Object?> OnLoginAsync(ISocketClient client, Boolean force) => Task.FromResult<Object?>(null);
+    protected virtual Task<Object?> OnLoginAsync(WebSocket client, Boolean force) => Task.FromResult<Object?>(null);
 
     /// <summary>登录</summary>
     /// <returns></returns>
@@ -390,19 +406,18 @@ public class ApiClient : ApiHost, IApiClient
     #region 连接池
     /// <summary>创建客户端之后，打开连接之前</summary>
     /// <param name="svr"></param>
-    protected virtual ISocketClient OnCreate(String svr)
+    protected virtual WebSocket OnCreate(String svr)
     {
-        var client = new NetUri(svr).CreateRemote();
-        // 网络层采用消息层超时
-        client.Timeout = Timeout;
-        client.Tracer = Tracer;
+        var url = svr.Replace("http://", "ws://").Replace("https://", "wss://");
+        var uri = new Uri(new Uri(url), "/Device/Notify");
 
-        client.Add(GetMessageCodec());
+        using var span2 = Tracer?.NewSpan("WebSocketConnect", uri + "");
 
-        client.Opened += (s, e) => OnNewSession((s as ISocketClient)!);
-        client.Received += Client_Received;
+        var client = new ClientWebSocket();
+        client.Options.SetRequestHeader("Authorization", "Bearer " + Token);
 
-        client.Open();
+        DefaultSpan.Current?.AppendTag($"WebSocket.Connect {uri}");
+        client.ConnectAsync(uri, default);
 
         return client;
     }

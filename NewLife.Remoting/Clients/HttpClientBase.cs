@@ -1,12 +1,10 @@
 ﻿using NewLife.Caching;
 using NewLife.Log;
-using NewLife.Remoting;
 using NewLife.Remoting.Models;
 using NewLife.Threading;
 using NewLife.Serialization;
 using System.Net.Http;
 using System.Diagnostics.CodeAnalysis;
-
 
 #if NETCOREAPP
 using System.Net.WebSockets;
@@ -15,7 +13,7 @@ using WebSocket = System.Net.WebSockets.WebSocket;
 
 namespace NewLife.Remoting.Clients;
 
-/// <summary>Http版设备客户端。每个设备节点有一个客户端连接服务端</summary>
+/// <summary>Http版应用客户端基类</summary>
 public class HttpClientBase : ClientBase
 {
     #region 属性

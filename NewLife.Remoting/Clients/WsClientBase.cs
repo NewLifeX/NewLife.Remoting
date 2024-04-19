@@ -1,21 +1,21 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using System.Net.Http;
+﻿#if NETCOREAPP
+using System.Diagnostics.CodeAnalysis;
+using System.Net.WebSockets;
 using NewLife.Log;
-using NewLife.Net;
 using NewLife.Remoting.Models;
 
 namespace NewLife.Remoting.Clients;
 
-/// <summary>Rpc版应用客户端基类</summary>
-public class RpcClientBase : ClientBase
+/// <summary>Websocket版应用客户端基类</summary>
+public class WsClientBase : ClientBase
 {
     #region 属性
-    private ApiClient _client = null!;
+    private WsClient _client = null!;
     #endregion
 
     #region 构造
     /// <summary>实例化</summary>
-    public RpcClientBase() : base()
+    public WsClientBase() : base()
     {
         _client = new MyApiClient
         {
@@ -26,7 +26,7 @@ public class RpcClientBase : ClientBase
 
     /// <summary>实例化</summary>
     /// <param name="urls"></param>
-    public RpcClientBase(String urls) : this()
+    public WsClientBase(String urls) : this()
     {
         if (!urls.IsNullOrEmpty())
             _client.Servers = urls.Split(",");
@@ -45,11 +45,11 @@ public class RpcClientBase : ClientBase
         return await _client.InvokeAsync<TResult>(action, args, cancellationToken);
     }
 
-    class MyApiClient : ApiClient
+    class MyApiClient : WsClient
     {
         public ClientBase Client { get; set; } = null!;
 
-        protected override async Task<Object?> OnLoginAsync(ISocketClient client, Boolean force) => await InvokeWithClientAsync<Object>(client, Client.Prefix + "/Login", Client.BuildLoginRequest());
+        protected override async Task<Object?> OnLoginAsync(WebSocket client, Boolean force) => await InvokeWithClientAsync<Object>(client, Client.Prefix + "/Login", Client.BuildLoginRequest());
     }
     #endregion
 
@@ -111,3 +111,4 @@ public class RpcClientBase : ClientBase
     }
     #endregion
 }
+#endif

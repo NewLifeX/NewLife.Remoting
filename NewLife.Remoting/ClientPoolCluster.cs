@@ -5,19 +5,19 @@ using NewLife.Net;
 namespace NewLife.Remoting;
 
 /// <summary>客户端连接池负载均衡集群</summary>
-public class ClientPoolCluster : ICluster<String, ISocketClient>
+public class ClientPoolCluster<T> : ICluster<String, T>
 {
     /// <summary>最后使用资源</summary>
-    public KeyValuePair<String, ISocketClient> Current { get; private set; }
+    public KeyValuePair<String, T> Current { get; private set; }
 
     /// <summary>服务器地址列表</summary>
     public Func<IEnumerable<String>>? GetItems { get; set; }
 
     /// <summary>创建回调</summary>
-    public Func<String, ISocketClient>? OnCreate { get; set; }
+    public Func<String, T>? OnCreate { get; set; }
 
     /// <summary>连接池</summary>
-    public IPool<ISocketClient> Pool { get; private set; }
+    public IPool<T> Pool { get; private set; }
 
     /// <summary>实例化连接池集群</summary>
     public ClientPoolCluster() => Pool = new MyPool(this);
@@ -32,11 +32,11 @@ public class ClientPoolCluster : ICluster<String, ISocketClient>
 
     /// <summary>从集群中获取资源</summary>
     /// <returns></returns>
-    public virtual ISocketClient Get() => Pool.Get();
+    public virtual T Get() => Pool.Get();
 
     /// <summary>归还</summary>
     /// <param name="value"></param>
-    public virtual Boolean Put(ISocketClient value)
+    public virtual Boolean Put(T value)
     {
         if (value == null) return false;
 
@@ -48,7 +48,7 @@ public class ClientPoolCluster : ICluster<String, ISocketClient>
 
     /// <summary>为连接池创建连接</summary>
     /// <returns></returns>
-    protected virtual ISocketClient CreateClient()
+    protected virtual T CreateClient()
     {
         if (GetItems == null) throw new ArgumentNullException(nameof(GetItems));
         if (OnCreate == null) throw new ArgumentNullException(nameof(OnCreate));
@@ -69,10 +69,10 @@ public class ClientPoolCluster : ICluster<String, ISocketClient>
                 WriteLog("集群均衡：{0}", svr);
 
                 var client = OnCreate(svr);
-                client.Open();
+                //client.Open();
 
                 // 设置当前资源
-                Current = new KeyValuePair<String, ISocketClient>(svr, client);
+                Current = new KeyValuePair<String, T>(svr, client);
 
                 return client;
             }
@@ -85,11 +85,11 @@ public class ClientPoolCluster : ICluster<String, ISocketClient>
         throw last ?? new NullReferenceException();
     }
 
-    class MyPool : ObjectPool<ISocketClient>
+    class MyPool : ObjectPool<T>
     {
-        public ClientPoolCluster Host { get; set; }
+        public ClientPoolCluster<T> Host { get; set; }
 
-        public MyPool(ClientPoolCluster cluster)
+        public MyPool(ClientPoolCluster<T> cluster)
         {
             // 最小值为0，连接池不再使用栈，只使用队列
             Min = 0;
@@ -98,11 +98,11 @@ public class ClientPoolCluster : ICluster<String, ISocketClient>
             Host = cluster;
         }
 
-        protected override ISocketClient OnCreate() => Host.CreateClient();
+        protected override T OnCreate() => Host.CreateClient();
 
         /// <summary>释放时，返回是否有效。无效对象将会被抛弃</summary>
         /// <param name="value"></param>
-        protected override Boolean OnPut(ISocketClient value) => value != null && !value.Disposed /*&& value.Client != null*/;
+        protected override Boolean OnPut(T value) => value != null && (value is not IDisposable2 ds || !ds.Disposed);
     }
 
     #region 日志

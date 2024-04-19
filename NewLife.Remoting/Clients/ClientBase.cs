@@ -13,7 +13,7 @@ using NewLife.Threading;
 
 namespace NewLife.Remoting.Clients;
 
-/// <summary>设备客户端。每个设备节点有一个客户端连接服务端</summary>
+/// <summary>应用客户端基类。实现对接目标平台的登录、注销和心跳等场景操作</summary>
 public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, ITracerFeature, ILogFeature
 {
     #region 属性

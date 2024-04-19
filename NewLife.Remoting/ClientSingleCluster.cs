@@ -4,16 +4,16 @@ using NewLife.Net;
 namespace NewLife.Remoting;
 
 /// <summary>客户端单连接故障转移集群</summary>
-public class ClientSingleCluster : ICluster<String, ISocketClient>
+public class ClientSingleCluster<T> : ICluster<String, T>
 {
     /// <summary>最后使用资源</summary>
-    public KeyValuePair<String, ISocketClient> Current { get; private set; }
+    public KeyValuePair<String, T> Current { get; private set; }
 
     /// <summary>服务器地址列表</summary>
     public Func<IEnumerable<String>>? GetItems { get; set; }
 
     /// <summary>创建回调</summary>
-    public Func<String, ISocketClient>? OnCreate { get; set; }
+    public Func<String, T>? OnCreate { get; set; }
 
     /// <summary>打开</summary>
     public virtual Boolean Open() => true;
@@ -21,19 +21,28 @@ public class ClientSingleCluster : ICluster<String, ISocketClient>
     /// <summary>关闭</summary>
     /// <param name="reason">关闭原因。便于日志分析</param>
     /// <returns>是否成功</returns>
-    public virtual Boolean Close(String reason) => _Client == null ? false : _Client.Close(reason);
+    public virtual Boolean Close(String reason)
+    {
+        if (_Client == null) return false;
 
-    private ISocketClient? _Client;
+        if (_Client is ISocketClient client) return client.Close(reason);
+
+        _Client.TryDispose();
+
+        return true;
+    }
+
+    private T? _Client;
     /// <summary>从集群中获取资源</summary>
     /// <returns></returns>
-    public virtual ISocketClient Get()
+    public virtual T Get()
     {
         var tc = _Client;
-        if (tc != null && tc.Active && !tc.Disposed) return tc;
+        if (tc != null && (tc is not DisposeBase ds || !ds.Disposed)) return tc;
         lock (this)
         {
             tc = _Client;
-            if (tc != null && tc.Active && !tc.Disposed) return tc;
+            if (tc != null && (tc is not DisposeBase ds2 || !ds2.Disposed)) return tc;
 
             // 释放旧对象
             tc.TryDispose();
@@ -44,14 +53,14 @@ public class ClientSingleCluster : ICluster<String, ISocketClient>
 
     /// <summary>归还</summary>
     /// <param name="value"></param>
-    public virtual Boolean Put(ISocketClient value) => true;
+    public virtual Boolean Put(T value) => true;
 
     /// <summary>Round-Robin 负载均衡</summary>
     private Int32 _index = -1;
 
     /// <summary>为连接池创建连接</summary>
     /// <returns></returns>
-    protected virtual ISocketClient CreateClient()
+    protected virtual T CreateClient()
     {
         if (GetItems == null) throw new ArgumentNullException(nameof(GetItems));
         if (OnCreate == null) throw new ArgumentNullException(nameof(OnCreate));
@@ -72,10 +81,10 @@ public class ClientSingleCluster : ICluster<String, ISocketClient>
                 WriteLog("集群转移：{0}", svr);
 
                 var client = OnCreate(svr);
-                client.Open();
+                //client.Open();
 
                 // 设置当前资源
-                Current = new KeyValuePair<String, ISocketClient>(svr, client);
+                Current = new KeyValuePair<String, T>(svr, client);
 
                 return client;
             }
