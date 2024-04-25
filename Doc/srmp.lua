@@ -3,12 +3,16 @@ do
 
     -- https://www.wireshark.org/docs/wsdg_html_chunked/lua_module_Proto.html#lua_class_ProtoField
     local FF_flag = {
-        [7] = "[Reply]",
-        [6] = "[Error/Oneway]"
-    }
+        [0x80] = "[Reply]",
+        [0x81] = "[Reply]",
+        [8] = "[Reply]",
+        [7] = "[Error/Oneway]",
+        [2] = "[Json]",
+        [1] = "[Binary]"
+   }
 
-    -- local f_flag = ProtoField.uint8("SRMP.flag", "标记", base.HEX, FF_flag, 0xFF)
-    local f_flag = ProtoField.uint8("SRMP.flag", "标记", base.HEX)
+    local f_flag = ProtoField.uint8("SRMP.flag", "标记", base.HEX, FF_flag, 0xFF)
+    -- local f_flag = ProtoField.uint8("SRMP.flag", "标记", base.HEX)
     local f_seq = ProtoField.uint8("SRMP.seq", "序列号", base.DEC)
     local f_length = ProtoField.uint16("SRMP.length", "长度", base.DEC)
     local f_action = ProtoField.string("SRMP.action", "动作", base.ASCII)
@@ -77,7 +81,7 @@ do
         end
     end
 
-    local udp_encap_table = DissectorTable.get("udp.port")
+    local udp_encap_table = DissectorTable.get("newlife")
     udp_encap_table:add(5500, p_srmp)
     udp_encap_table:add(9999, p_srmp)
     udp_encap_table:add(3500, p_srmp)

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Net.Http;
 using System.Net.NetworkInformation;
 using NewLife;
 using NewLife.Caching;

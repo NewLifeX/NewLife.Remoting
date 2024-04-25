@@ -23,6 +23,9 @@ public class ApiClient : ApiHost, IApiClient
     /// <summary>服务端地址集合。负载均衡</summary>
     public String[]? Servers { get; set; }
 
+    /// <summary>本地地址。在本地有多个IP时，可以指定使用哪一个IP地址</summary>
+    public NetUri Local { get; set; }
+
     /// <summary>客户端连接集群</summary>
     public ICluster<String, ISocketClient>? Cluster { get; set; }
 
@@ -396,6 +399,8 @@ public class ApiClient : ApiHost, IApiClient
         // 网络层采用消息层超时
         client.Timeout = Timeout;
         client.Tracer = Tracer;
+
+        if (Local != null) client.Local = Local;
 
         client.Add(GetMessageCodec());
 
