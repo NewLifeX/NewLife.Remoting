@@ -315,7 +315,7 @@ public class ApiServer : ApiHost, IServer
     /// <summary>显示统计信息的周期。默认600秒，0表示不显示统计信息</summary>
     public Int32 StatPeriod { get; set; } = 600;
 
-    private void DoStat(Object state)
+    private void DoStat(Object? state)
     {
         var sb = Pool.StringBuilder.Get();
         var pf2 = StatProcess;

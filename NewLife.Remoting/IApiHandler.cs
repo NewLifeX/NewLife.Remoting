@@ -164,19 +164,22 @@ public class ApiHandler : IApiHandler
         {
             if (args == null) return ctx;
 
-            var pi = api.Method.GetParameters()[0];
-            var value = pi.ParameterType.CreateInstance();
-            if (value is IAccessor accessor)
+            var pi = api.Method.GetParameters().FirstOrDefault();
+            if (pi != null && !pi.Name.IsNullOrEmpty())
             {
-                if (accessor.Read(args.GetStream(), args))
+                var value = pi.ParameterType.CreateInstance();
+                if (value is IAccessor accessor)
                 {
-                    ctx.ActionParameters = new NullableDictionary<String, Object?>(StringComparer.OrdinalIgnoreCase)
+                    if (accessor.Read(args.GetStream(), args))
                     {
-                        [pi.Name] = value
-                    };
-                }
+                        ctx.ActionParameters = new NullableDictionary<String, Object?>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            [pi.Name] = value
+                        };
+                    }
 
-                return ctx;
+                    return ctx;
+                }
             }
         }
 
@@ -233,27 +236,31 @@ public class ApiHandler : IApiHandler
         if (pis.Length == 1 && dic.Count == 0)
         {
             var pi = pis[0];
-            // 唯一参数，客户端直传数组而没有传字典
-            if (pi.ParameterType.GetTypeCode() == TypeCode.Object)
+            if (!pi.Name.IsNullOrEmpty())
             {
-                //ps[pi.Name] = raw.ChangeType(pi.ParameterType);
-                ps[pi.Name] = raw == null ? null : encoder.Convert(raw, pi.ParameterType);
+                // 唯一参数，客户端直传数组而没有传字典
+                if (pi.ParameterType.GetTypeCode() == TypeCode.Object)
+                {
+                    //ps[pi.Name] = raw.ChangeType(pi.ParameterType);
+                    ps[pi.Name] = raw == null ? null : encoder.Convert(raw, pi.ParameterType);
 
-                return ps;
-            }
-            // 接口只有一个基础类型入参时，客户端可能用基础类型封包传递（字符串）。
-            // 例如接口 Say(String text)，客户端可用 InvokeAsync<Object>("Say", "Hello NewLife!")
-            else if (args != null)
-            {
-                ps[pi.Name] = args.ToStr().ChangeType(pi.ParameterType);
+                    return ps;
+                }
+                // 接口只有一个基础类型入参时，客户端可能用基础类型封包传递（字符串）。
+                // 例如接口 Say(String text)，客户端可用 InvokeAsync<Object>("Say", "Hello NewLife!")
+                else if (args != null)
+                {
+                    ps[pi.Name] = args.ToStr().ChangeType(pi.ParameterType);
 
-                return ps;
+                    return ps;
+                }
             }
         }
 
         foreach (var pi in pis)
         {
             var name = pi.Name;
+            if (name.IsNullOrEmpty()) continue;
 
             Object? v = null;
             if (dic != null && dic.TryGetValue(name, out var v2)) v = v2;
@@ -262,7 +269,7 @@ public class ApiHandler : IApiHandler
             if (pi.ParameterType.GetTypeCode() != TypeCode.Object)
             {
                 //ps[name] = v.ChangeType(pi.ParameterType);
-                ps[name] = encoder.Convert(v, pi.ParameterType);
+                ps[name] = v == null ? null : encoder.Convert(v, pi.ParameterType);
             }
             // 复杂对象填充，各个参数填充到一个模型参数里面去
             else
@@ -273,8 +280,7 @@ public class ApiHandler : IApiHandler
                 else
                 {
                     v ??= dic;
-                    if (v != null)
-                        ps[name] = encoder.Convert(v, pi.ParameterType);
+                    ps[name] = v == null ? null : encoder.Convert(v, pi.ParameterType);
                 }
             }
         }

@@ -43,7 +43,7 @@ public class ApiAction
     /// <summary>实例化</summary>
     public ApiAction(MethodInfo method, Type type)
     {
-        if (type == null) type = method.DeclaringType;
+        if (type == null) type = method.DeclaringType!;
         Name = GetName(type, method);
 
         // 必须同时记录类型和方法，因为有些方法位于继承的不同层次，那样会导致实例化的对象不一致
@@ -67,7 +67,7 @@ public class ApiAction
     /// <returns></returns>
     public static String GetName(Type? type, MethodInfo method)
     {
-        if (type == null) type = method.DeclaringType;
+        if (type == null) type = method.DeclaringType!;
         //if (type == null) return null;
 
         var typeName = type.Name.TrimEnd("Controller", "Service");
