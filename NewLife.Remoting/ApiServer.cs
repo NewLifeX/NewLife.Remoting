@@ -5,7 +5,6 @@ using NewLife.Log;
 using NewLife.Messaging;
 using NewLife.Model;
 using NewLife.Net;
-using NewLife.Reflection;
 using NewLife.Threading;
 
 namespace NewLife.Remoting;
@@ -146,6 +145,9 @@ public class ApiServer : ApiHost, IServer
         {
             Name = Name,
             Host = this,
+
+            Log = Log,
+            SessionLog = Log,
             Tracer = Tracer,
         };
         server.Init(new NetUri(NetType.Unknown, "*", Port), this);
@@ -167,7 +169,7 @@ public class ApiServer : ApiHost, IServer
 
         Encoder.Log = EncoderLog;
 
-        Log.Info("启动{0}，服务器 {1}", GetType().Name, Server);
+        Log.Info("启动[{0}]", Name);
         Log.Info("编码：{0}", Encoder);
         Log.Info("处理：{0}", Handler);
 

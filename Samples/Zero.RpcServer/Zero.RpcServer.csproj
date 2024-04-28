@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyTitle>RPC服务端</AssemblyTitle>
+    <Description>高性能，长连接，数据接口</Description>
+    <Company>新生命开发团队</Company>
+    <Copyright>©2002-2024 NewLife</Copyright>
+    <VersionPrefix>1.0</VersionPrefix>
+    <VersionSuffix>$([System.DateTime]::Now.ToString(`yyyy.MMdd`))</VersionSuffix>
+    <Version>$(VersionPrefix).$(VersionSuffix)</Version>
+    <FileVersion>$(Version)</FileVersion>
+    <AssemblyVersion>$(VersionPrefix).*</AssemblyVersion>
+    <Deterministic>false</Deterministic>
+    <OutputPath>..\..\Bin\RpcServer</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NewLife.Redis" Version="5.6.2024.101" />
+    <PackageReference Include="NewLife.Stardust" Version="2.9.2024.101" />
+    <PackageReference Include="NewLife.XCode" Version="11.11.2024.402" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\NewLife.Remoting\NewLife.Remoting.csproj" />
+  </ItemGroup>
+
+</Project>
