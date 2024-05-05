@@ -75,6 +75,15 @@ public class HttpClientBase : ClientBase
 
         protected override Service GetService() => Current = base.GetService();
     }
+
+    /// <summary>设置令牌。派生类可重定义逻辑</summary>
+    /// <param name="token"></param>
+    protected override void SetToken(String? token)
+    {
+        base.SetToken(token);
+
+        if (_client != null) _client.Token = token;
+    }
     #endregion
 
     #region 登录

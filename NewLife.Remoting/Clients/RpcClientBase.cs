@@ -51,6 +51,15 @@ public class RpcClientBase : ClientBase
 
         protected override async Task<Object?> OnLoginAsync(ISocketClient client, Boolean force) => await InvokeWithClientAsync<Object>(client, Client.Prefix + "/Login", Client.BuildLoginRequest());
     }
+
+    /// <summary>设置令牌。派生类可重定义逻辑</summary>
+    /// <param name="token"></param>
+    protected override void SetToken(String? token)
+    {
+        base.SetToken(token);
+
+        if (_client != null) _client.Token = token;
+    }
     #endregion
 
     #region 登录

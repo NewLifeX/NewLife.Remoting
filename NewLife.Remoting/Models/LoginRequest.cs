@@ -9,5 +9,11 @@ public class LoginRequest
 
     /// <summary>密钥</summary>
     public String? Secret { get; set; }
+
+    /// <summary>实例。应用可能多实例部署，ip@proccessid</summary>
+    public String? ClientId { get; set; }
+
+    /// <summary>版本</summary>
+    public String? Version { get; set; }
     #endregion
 }

@@ -38,6 +38,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Clients\WsClientBase.cs" />
     <Compile Remove="IpHelper.cs" />
   </ItemGroup>
 
@@ -49,7 +50,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Core" Version="10.10.2024.427-beta2349" />
+    <PackageReference Include="NewLife.Core" Version="10.10.2024.501" />
   </ItemGroup>
 
   <ItemGroup>

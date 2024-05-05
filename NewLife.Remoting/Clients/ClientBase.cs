@@ -5,6 +5,7 @@ using System.Net.NetworkInformation;
 using System.Reflection;
 using NewLife.Caching;
 using NewLife.Log;
+using NewLife.Reflection;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
@@ -36,7 +37,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     public Int32 Delay { get; set; }
 
     /// <summary>最大失败数。超过该数时，新的数据将被抛弃，默认120</summary>
-    public Int32 MaxFails { get; set; } = 120;
+    public Int32 MaxFails { get; set; } = 1 * 24 * 60;
 
     private readonly ConcurrentDictionary<String, Delegate> _commands = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>命令集合</summary>
@@ -118,6 +119,10 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         }
     }
 
+    /// <summary>设置令牌。派生类可重定义逻辑</summary>
+    /// <param name="token"></param>
+    protected virtual void SetToken(String? token) { }
+
     /// <summary>获取相对于服务器的当前时间，避免两端时间差</summary>
     /// <returns></returns>
     public DateTime GetNow() => DateTime.Now.Add(_span);
@@ -134,6 +139,8 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         {
             var request = BuildLoginRequest();
 
+            // 登录前清空令牌，避免服务端使用上一次信息
+            SetToken(null);
             Logined = false;
 
             var rs = await LoginAsync(request);
@@ -148,9 +155,11 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
 
             FixTime(rs.Time, rs.Time);
 
+            // 登录后设置用于用户认证的token
+            SetToken(rs.Token);
             Logined = true;
 
-            OnLogined?.Invoke(this, new LoginEventArgs { Request = request, Response = rs });
+            OnLogined?.Invoke(this, new(request, rs));
 
             StartTimer();
 
@@ -189,10 +198,13 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <returns></returns>
     public virtual LoginRequest BuildLoginRequest()
     {
+        var asm = AssemblyX.Entry ?? AssemblyX.Create(Assembly.GetExecutingAssembly());
         var info = new LoginRequest
         {
             Code = Code,
             Secret = Secret.IsNullOrEmpty() ? null : PasswordProvider.Hash(Secret),
+            ClientId = $"{NetHelper.MyIP()}@{Process.GetCurrentProcess().Id}",
+            Version = asm?.FileVersion,
         };
 
         return info;
@@ -211,6 +223,9 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         try
         {
             var rs = await LogoutAsync(reason);
+
+            // 更新令牌
+            SetToken(rs?.Token);
 
             StopTimer();
 
@@ -248,13 +263,48 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         {
             var request = BuildPingRequest();
 
-            var rs = await PingAsync(request);
-            if (rs != null)
+            // 如果网络不可用，直接保存到队列
+            if (!NetworkInterface.GetIsNetworkAvailable())
             {
-                // 由服务器改变采样频率
-                if (rs.Period > 0 && _timer != null) _timer.Period = rs.Period * 1000;
+                if (_fails.Count < MaxFails) _fails.Enqueue(request);
+                return null;
+            }
 
-                FixTime(rs.Time, rs.ServerTime);
+            PingResponse? rs = null;
+            try
+            {
+                rs = await PingAsync(request);
+                if (rs != null)
+                {
+                    // 由服务器改变采样频率
+                    if (rs.Period > 0 && _timer != null) _timer.Period = rs.Period * 1000;
+
+                    FixTime(rs.Time, rs.ServerTime);
+
+                    // 更新令牌。即将过期时，服务端会返回新令牌
+                    if (!rs.Token.IsNullOrEmpty()) SetToken(rs.Token);
+
+                    // 推队列
+                    if (rs.Commands != null && rs.Commands.Length > 0)
+                    {
+                        foreach (var model in rs.Commands)
+                        {
+                            await ReceiveCommand(model);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                if (_fails.Count < MaxFails) _fails.Enqueue(request);
+
+                throw;
+            }
+
+            // 上报正常，处理历史，失败则丢弃
+            while (_fails.TryDequeue(out var info))
+            {
+                await PingAsync(info);
             }
 
             return rs;
@@ -264,7 +314,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
             span?.SetError(ex, null);
 
             var ex2 = ex.GetTrue();
-            if (ex2 is ApiException aex && (aex.Code == 402 || aex.Code == 403))
+            if (ex2 is ApiException aex && (aex.Code == ApiCode.Unauthorized || aex.Code == ApiCode.Forbidden))
             {
                 WriteLog("重新登录");
                 await Login();
@@ -311,9 +361,9 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
             {
                 if (_timer == null)
                 {
-                    _timer = new TimerX(OnPing, null, 3_000, 60_000, "Device") { Async = true };
-                    _timerUpgrade = new TimerX(s => Upgrade(), null, 5_000, 600_000, "Device") { Async = true };
-                    _eventTimer = new TimerX(DoPostEvent, null, 3_000, 60_000, "Device") { Async = true };
+                    _timer = new TimerX(OnPing, null, 3_000, 60_000, "Client") { Async = true };
+                    _timerUpgrade = new TimerX(s => Upgrade(), null, 5_000, 600_000, "Client") { Async = true };
+                    _eventTimer = new TimerX(DoPostEvent, null, 3_000, 60_000, "Client") { Async = true };
                 }
             }
         }
@@ -334,6 +384,55 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <param name="state"></param>
     /// <returns></returns>
     protected virtual Task OnPing(Object state) => Ping();
+
+    async Task ReceiveCommand(CommandModel model)
+    {
+        if (model == null) return;
+
+        // 去重，避免命令被重复执行
+        if (!_cache.Add($"cmd:{model.Id}", model, 3600)) return;
+
+        // 埋点，建立调用链
+        using var span = Tracer?.NewSpan("cmd:" + model.Command, model);
+        if (!model.TraceId.IsNullOrEmpty()) span?.Detach(model.TraceId);
+        try
+        {
+            //todo 有效期判断可能有隐患，现在只是假设服务器和客户端在同一个时区，如果不同，可能会出现问题
+            var now = GetNow();
+            XTrace.WriteLine("Got Command: {0}", model.ToJson());
+            if (model.Expire.Year < 2000 || model.Expire > now)
+            {
+                // 延迟执行
+                var ts = model.StartTime - now;
+                if (ts.TotalMilliseconds > 0)
+                {
+                    TimerX.Delay(s =>
+                    {
+                        _ = OnReceiveCommand(model);
+                    }, (Int32)ts.TotalMilliseconds);
+
+                    var reply = new CommandReplyModel
+                    {
+                        Id = model.Id,
+                        Status = CommandStatus.处理中,
+                        Data = $"已安排计划执行 {model.StartTime.ToFullString()}"
+                    };
+                    await CommandReply(reply);
+                }
+                else
+                    await OnReceiveCommand(model);
+            }
+            else
+            {
+                var reply = new CommandReplyModel { Id = model.Id, Status = CommandStatus.取消 };
+                await CommandReply(reply);
+            }
+        }
+        catch (Exception ex)
+        {
+            span?.SetError(ex, null);
+        }
+    }
 
     /// <summary>触发收到命令的动作</summary>
     /// <param name="model"></param>
