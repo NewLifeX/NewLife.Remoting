@@ -18,6 +18,7 @@ jobs:
     - name: Build
       run: |
         dotnet pack -c Release -o out NewLife.Remoting/NewLife.Remoting.csproj
+        dotnet pack -c Release -o out NewLife.Remoting.Extensions/NewLife.Remoting.Extensions.csproj
 
     - name: Publish
       run: |

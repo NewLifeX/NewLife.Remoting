@@ -5,10 +5,12 @@ on:
     branches: [ master ]
     paths:
         - 'NewLife.Remoting/**'
+        - 'NewLife.Remoting.Extensions/**'
   pull_request:
     branches: [ master ]
     paths:
         - 'NewLife.Remoting/**'
+        - 'NewLife.Remoting.Extensions/**'
   workflow_dispatch:
 
 jobs:
@@ -24,6 +26,7 @@ jobs:
     - name: Build
       run: |
         dotnet pack --version-suffix $(date "+%Y.%m%d-beta%H%M") -c Release -o out NewLife.Remoting/NewLife.Remoting.csproj
+        dotnet pack --version-suffix $(date "+%Y.%m%d-beta%H%M") -c Release -o out NewLife.Remoting.Extensions/NewLife.Remoting.Extensions.csproj
 
     - name: Publish
       run: |

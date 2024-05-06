@@ -24,6 +24,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Samples", "Samples", "{8DB8
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Zero.RpcServer", "Samples\Zero.RpcServer\Zero.RpcServer.csproj", "{8351AC88-1955-48AD-B6F4-26959E1A0C4C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NewLife.Remoting.Extensions", "NewLife.Remoting.Extensions\NewLife.Remoting.Extensions.csproj", "{8A9D4116-66D8-48B5-B997-CAD182304F96}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -50,6 +52,10 @@ Global
 		{8351AC88-1955-48AD-B6F4-26959E1A0C4C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8351AC88-1955-48AD-B6F4-26959E1A0C4C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8351AC88-1955-48AD-B6F4-26959E1A0C4C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8A9D4116-66D8-48B5-B997-CAD182304F96}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8A9D4116-66D8-48B5-B997-CAD182304F96}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8A9D4116-66D8-48B5-B997-CAD182304F96}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8A9D4116-66D8-48B5-B997-CAD182304F96}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
