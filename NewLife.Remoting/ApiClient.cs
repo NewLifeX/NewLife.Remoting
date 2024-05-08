@@ -2,7 +2,9 @@
 using NewLife.Data;
 using NewLife.Log;
 using NewLife.Messaging;
+using NewLife.Model;
 using NewLife.Net;
+using NewLife.Remoting.Http;
 using NewLife.Threading;
 
 namespace NewLife.Remoting;
@@ -395,10 +397,21 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="svr"></param>
     protected virtual ISocketClient OnCreate(String svr)
     {
-        var client = new NetUri(svr).CreateRemote();
+        var uri = new NetUri(svr);
+        var client = uri.Type == NetType.WebSocket ?
+            new Uri(svr).CreateRemote() :
+            uri.CreateRemote();
+
+        if (uri.Type == NetType.WebSocket && client.Pipeline is Pipeline pipe)
+        {
+            pipe.Handlers.Clear();
+            client.Add<WebSocketClientCodec>();
+        }
+
         // 网络层采用消息层超时
         client.Timeout = Timeout;
         client.Tracer = Tracer;
+        client.Log = SocketLog;
 
         if (Local != null) client.Local = Local;
 
@@ -432,5 +445,10 @@ public class ApiClient : ApiHost, IApiClient
 
         WriteLog(msg);
     }
+    #endregion
+
+    #region 日志
+    /// <summary>Socket层日志</summary>
+    public ILog SocketLog { get; set; } = Logger.Null;
     #endregion
 }

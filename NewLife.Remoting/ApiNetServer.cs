@@ -1,6 +1,8 @@
-﻿using NewLife.Log;
+﻿using NewLife.Http;
+using NewLife.Log;
 using NewLife.Messaging;
 using NewLife.Net;
+using NewLife.Net.Handlers;
 using NewLife.Remoting.Http;
 
 namespace NewLife.Remoting;
@@ -32,14 +34,19 @@ class ApiNetServer : NetServer<ApiNetSession>, IApiServer
         //if (Local.Host.IsNullOrEmpty() || Local.Host == "*") AddressFamily = System.Net.Sockets.AddressFamily.Unspecified;
 
         // Http封包协议
-        //Add<HttpCodec>();
-        Add(new HttpCodec { AllowParseHeader = true });
+        //Add(new HttpCodec { AllowParseHeader = true });
+        Add<WebSocketServerCodec>();
 
         // 新生命标准网络封包协议
         Add(Host.GetMessageCodec());
 
         return true;
     }
+
+    /// <summary>为会话创建网络数据处理器。可作为业务处理实现，也可以作为前置协议解析</summary>
+    /// <param name="session"></param> 
+    /// <returns></returns>
+    public override INetHandler? CreateHandler(INetSession session) => new HttpSession();
 }
 
 class ApiNetSession : NetSession<ApiNetServer>, IApiSession
@@ -64,27 +71,6 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
 
         base.Start();
     }
-
-    ///// <summary>查找Api动作</summary>
-    ///// <param name="action"></param>
-    ///// <returns></returns>
-    //public virtual ApiAction? FindAction(String action) => _Host.Manager.Find(action);
-
-    ///// <summary>创建控制器实例</summary>
-    ///// <param name="api"></param>
-    ///// <returns></returns>
-    //public virtual Object CreateController(ApiAction api)
-    //{
-    //    var controller = api.Controller;
-    //    if (controller != null) return controller;
-
-    //    controller = _Host.ServiceProvider?.GetService(api.Type);
-
-    //    controller ??= api.Type.CreateInstance();
-    //    if (controller == null) throw new InvalidDataException($"无法创建[{api.Type.FullName}]的实例");
-
-    //    return controller;
-    //}
 
     protected override void OnReceive(ReceivedEventArgs e)
     {

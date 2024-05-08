@@ -57,7 +57,7 @@ public abstract class ApiHost : DisposeBase, IApiHost, IExtend, ILogFeature, ITr
     /// <summary>写日志</summary>
     /// <param name="format"></param>
     /// <param name="args"></param>
-    public void WriteLog(String format, params Object[] args) => Log?.Info(Name + " " + format, args);
+    public void WriteLog(String format, params Object[] args) => Log?.Info($"[{Name}]{format}", args);
 
     /// <summary>已重载。返回具有本类特征的字符串</summary>
     /// <returns>String</returns>
