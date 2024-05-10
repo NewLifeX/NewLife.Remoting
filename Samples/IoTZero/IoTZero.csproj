@@ -40,6 +40,8 @@
     <Compile Include="..\ZeroIoT\IoTCore\Models\PingResponse.cs" Link="Models\PingResponse.cs" />
     <Compile Include="..\ZeroIoT\IoTCore\Models\ThingSpecModel.cs" Link="Models\ThingSpecModel.cs" />
     <Compile Include="..\ZeroIoT\IoTCore\Models\UpgradeInfo.cs" Link="Models\UpgradeInfo.cs" />
+    <Compile Include="..\ZeroIoT\IoTEdge\ClientSetting.cs" Link="Clients\ClientSetting.cs" />
+    <Compile Include="..\ZeroIoT\IoTEdge\HttpDevice.cs" Link="Clients\HttpDevice.cs" />
     <Compile Include="..\ZeroIoT\IoTZero\Areas\IoT\Controllers\DeviceController.cs" Link="Areas\IoT\Controllers\DeviceController.cs" />
     <Compile Include="..\ZeroIoT\IoTZero\Areas\IoT\Controllers\DeviceDataController.cs" Link="Areas\IoT\Controllers\DeviceDataController.cs" />
     <Compile Include="..\ZeroIoT\IoTZero\Areas\IoT\Controllers\DeviceGroupController.cs" Link="Areas\IoT\Controllers\DeviceGroupController.cs" />
@@ -48,9 +50,7 @@
     <Compile Include="..\ZeroIoT\IoTZero\Areas\IoT\Controllers\DevicePropertyController.cs" Link="Areas\IoT\Controllers\DevicePropertyController.cs" />
     <Compile Include="..\ZeroIoT\IoTZero\Areas\IoT\Controllers\ProductController.cs" Link="Areas\IoT\Controllers\ProductController.cs" />
     <Compile Include="..\ZeroIoT\IoTZero\Areas\IoT\IoTArea.cs" Link="Areas\IoT\IoTArea.cs" />
-    <Compile Include="..\ZeroIoT\IoTZero\Common\ApiFilterAttribute.cs" Link="Common\ApiFilterAttribute.cs" />
     <Compile Include="..\ZeroIoT\IoTZero\Controllers\AppController.cs" Link="Controllers\AppController.cs" />
-    <Compile Include="..\ZeroIoT\IoTZero\Controllers\BaseController.cs" Link="Controllers\BaseController.cs" />
     <Compile Include="..\ZeroIoT\IoTZero\Controllers\DeviceController.cs" Link="Controllers\DeviceController.cs" />
     <Compile Include="..\ZeroIoT\IoTZero\Controllers\ThingController.cs" Link="Controllers\ThingController.cs" />
     <Compile Include="..\ZeroIoT\IoTZero\IoTSetting.cs" Link="IoTSetting.cs" />
@@ -66,8 +66,9 @@
   <ItemGroup>
     <Content Include="..\ZeroIoT\IoT.Data\Entity\IoT.htm" Link="Entity\IoT.htm" />
     <Content Include="..\ZeroIoT\IoT.Data\Entity\Model.xml" Link="Entity\Model.xml" />
-    <Content Include="..\ZeroIoT\IoTZero\appsettings.Development.json" Link="appsettings.Development.json" />
-    <Content Include="..\ZeroIoT\IoTZero\appsettings.json" Link="appsettings.json" />
+    <Content Include="..\ZeroIoT\IoTZero\appsettings.json" Link="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

@@ -8,6 +8,7 @@ using NewLife.Remoting.Extensions.Models;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Serialization;
 using NewLife.Web;
+using static NewLife.Remoting.ApiHttpClient;
 using IWebFilter = Microsoft.AspNetCore.Mvc.Filters.IActionFilter;
 
 namespace NewLife.Remoting.Extensions;
@@ -57,10 +58,11 @@ public abstract class BaseController : ControllerBase, IWebFilter
 
         try
         {
-            if (context.ActionDescriptor is ControllerActionDescriptor act && !act.MethodInfo.IsDefined(typeof(AllowAnonymousAttribute)))
+            var rs = !token.IsNullOrEmpty() && OnAuthorize(token);
+
+            if (!rs && context.ActionDescriptor is ControllerActionDescriptor act && !act.MethodInfo.IsDefined(typeof(AllowAnonymousAttribute)))
             {
-                var rs = !token.IsNullOrEmpty() && OnAuthorize(token);
-                if (!rs) throw new ApiException(ApiCode.Forbidden, "认证失败");
+                throw new ApiException(ApiCode.Forbidden, "认证失败");
             }
         }
         catch (Exception ex)
