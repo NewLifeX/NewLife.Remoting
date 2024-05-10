@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "IoTZero": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "http://localhost:1880"
+    }
+  }
+}
