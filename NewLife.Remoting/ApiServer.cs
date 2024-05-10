@@ -37,6 +37,9 @@ public class ApiServer : ApiHost, IServer
     /// </remarks>
     public Boolean ReuseAddress { get; set; }
 
+    ///// <summary>启用WebSocket。普通Tcp/Udp版服务端，默认支持Http请求，启用WebSocket后将不再支持Http请求，默认false</summary>
+    //public Boolean UseWebSocket { get; set; }
+
     /// <summary>是否使用Http状态。默认false，使用json包装响应码</summary>
     public Boolean UseHttpStatus { get; set; }
 

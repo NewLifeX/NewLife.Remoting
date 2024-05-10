@@ -23,3 +23,4 @@ bld/
 *.nupkg
 /BinTest
 /BinUnitTest
+/NewLife.Remoting.Extensions/Properties

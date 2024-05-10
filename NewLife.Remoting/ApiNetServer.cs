@@ -2,7 +2,6 @@
 using NewLife.Log;
 using NewLife.Messaging;
 using NewLife.Net;
-using NewLife.Net.Handlers;
 using NewLife.Remoting.Http;
 
 namespace NewLife.Remoting;
@@ -33,9 +32,14 @@ class ApiNetServer : NetServer<ApiNetSession>, IApiServer
         //// 如果主机为空，监听所有端口
         //if (Local.Host.IsNullOrEmpty() || Local.Host == "*") AddressFamily = System.Net.Sockets.AddressFamily.Unspecified;
 
-        // Http封包协议
-        //Add(new HttpCodec { AllowParseHeader = true });
+        //// Http封包协议
+        //if (host is ApiServer server && server.UseWebSocket)
+        //    Add<WebSocketServerCodec>();
+        //else
+        //    Add(new HttpCodec { AllowParseHeader = true });
+      
         Add<WebSocketServerCodec>();
+        Add(new HttpCodec { AllowParseHeader = true });
 
         // 新生命标准网络封包协议
         Add(Host.GetMessageCodec());
@@ -43,10 +47,10 @@ class ApiNetServer : NetServer<ApiNetSession>, IApiServer
         return true;
     }
 
-    /// <summary>为会话创建网络数据处理器。可作为业务处理实现，也可以作为前置协议解析</summary>
-    /// <param name="session"></param> 
-    /// <returns></returns>
-    public override INetHandler? CreateHandler(INetSession session) => new HttpSession();
+    ///// <summary>为会话创建网络数据处理器。可作为业务处理实现，也可以作为前置协议解析</summary>
+    ///// <param name="session"></param> 
+    ///// <returns></returns>
+    //public override INetHandler? CreateHandler(INetSession session) => new HttpSession();
 }
 
 class ApiNetSession : NetSession<ApiNetServer>, IApiSession
