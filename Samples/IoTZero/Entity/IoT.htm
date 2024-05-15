@@ -1,0 +1,1299 @@
+﻿<style>
+    table {
+        border-collapse: collapse;
+        border: 1px solid;
+        border-color: rgb(211, 202, 221);
+    }
+
+    table thead,
+    table tr {
+        border-top-width: 1px;
+        border-top-style: solid;
+        border-top-color: rgb(211, 202, 221);
+    }
+
+    table {
+        border-bottom-width: 1px;
+        border-bottom-style: solid;
+        border-bottom-color: rgb(211, 202, 221);
+    }
+
+    table td,
+    table th {
+        padding: 5px 10px;
+        font-size: 14px;
+        font-family: Verdana;
+        color: rgb(95, 74, 121);
+    }
+
+    table tr:nth-child(even) {
+        background: rgb(223, 216, 232)
+    }
+
+    table tr:nth-child(odd) {
+        background: #FFF
+    }
+</style>
+<h3>产品（Product）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td title="自增">AI</td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Name</td>
+            <td>名称</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Code</td>
+            <td>编码</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td title="唯一索引">UQ</td>
+            <td></td>
+            <td>ProductKey</td>
+        </tr>
+
+        <tr>
+            <td>Enable</td>
+            <td>启用</td>
+            <td>Boolean</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td>开发中/已发布</td>
+        </tr>
+
+        <tr>
+            <td>DeviceCount</td>
+            <td>设备数量</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateUser</td>
+            <td>创建人</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateUserId</td>
+            <td>创建者</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateIP</td>
+            <td>创建地址</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateUser</td>
+            <td>更新人</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateUserId</td>
+            <td>更新者</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateTime</td>
+            <td>更新时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateIP</td>
+            <td>更新地址</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Remark</td>
+            <td>描述</td>
+            <td>String</td>
+            <td>500</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
+<h3>设备（Device）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td title="自增">AI</td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Name</td>
+            <td>名称</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Code</td>
+            <td>编码</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td title="唯一索引">UQ</td>
+            <td></td>
+            <td>设备唯一证书DeviceName，用于设备认证，在注册时由系统生成</td>
+        </tr>
+
+        <tr>
+            <td>Secret</td>
+            <td>密钥</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>设备密钥DeviceSecret，用于设备认证，注册时由系统生成</td>
+        </tr>
+
+        <tr>
+            <td>ProductId</td>
+            <td>产品</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>GroupId</td>
+            <td>分组</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Enable</td>
+            <td>启用</td>
+            <td>Boolean</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Online</td>
+            <td>在线</td>
+            <td>Boolean</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Version</td>
+            <td>版本</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>IP</td>
+            <td>本地IP</td>
+            <td>String</td>
+            <td>200</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Uuid</td>
+            <td>唯一标识</td>
+            <td>String</td>
+            <td>200</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>硬件标识，或其它能够唯一区分设备的标记</td>
+        </tr>
+
+        <tr>
+            <td>Location</td>
+            <td>位置</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>场地安装位置，或者经纬度</td>
+        </tr>
+
+        <tr>
+            <td>Period</td>
+            <td>心跳周期</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td>默认60秒</td>
+        </tr>
+
+        <tr>
+            <td>PollingTime</td>
+            <td>采集间隔</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td>默认1000ms</td>
+        </tr>
+
+        <tr>
+            <td>Logins</td>
+            <td>登录次数</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>LastLogin</td>
+            <td>最后登录</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>LastLoginIP</td>
+            <td>最后IP</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>最后的公网IP地址</td>
+        </tr>
+
+        <tr>
+            <td>OnlineTime</td>
+            <td>在线时长</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td>总时长，每次下线后累加，单位，秒</td>
+        </tr>
+
+        <tr>
+            <td>RegisterTime</td>
+            <td>激活时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateUserId</td>
+            <td>创建者</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateIP</td>
+            <td>创建地址</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateUserId</td>
+            <td>更新者</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateTime</td>
+            <td>更新时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateIP</td>
+            <td>更新地址</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Remark</td>
+            <td>描述</td>
+            <td>String</td>
+            <td>500</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
+<h3>设备分组（DeviceGroup）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td title="自增">AI</td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Name</td>
+            <td>名称</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>ParentId</td>
+            <td>父级</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Sort</td>
+            <td>排序</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Devices</td>
+            <td>设备总数</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Activations</td>
+            <td>激活设备</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Onlines</td>
+            <td>当前在线</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateUserId</td>
+            <td>创建者</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateIP</td>
+            <td>创建地址</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateUserId</td>
+            <td>更新者</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateTime</td>
+            <td>更新时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateIP</td>
+            <td>更新地址</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Remark</td>
+            <td>描述</td>
+            <td>String</td>
+            <td>500</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
+<h3>设备在线（DeviceOnline）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td title="自增">AI</td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>SessionId</td>
+            <td>会话</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td title="唯一索引">UQ</td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>ProductId</td>
+            <td>产品</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>DeviceId</td>
+            <td>设备</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Name</td>
+            <td>名称</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>IP</td>
+            <td>本地IP</td>
+            <td>String</td>
+            <td>200</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>GroupPath</td>
+            <td>分组</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Pings</td>
+            <td>心跳</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Delay</td>
+            <td>延迟</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td>网络延迟，单位ms</td>
+        </tr>
+
+        <tr>
+            <td>Offset</td>
+            <td>偏移</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td>客户端时间减服务端时间，单位s</td>
+        </tr>
+
+        <tr>
+            <td>LocalTime</td>
+            <td>本地时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Token</td>
+            <td>令牌</td>
+            <td>String</td>
+            <td>200</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Creator</td>
+            <td>创建者</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>服务端设备</td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateIP</td>
+            <td>创建地址</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateTime</td>
+            <td>更新时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Remark</td>
+            <td>备注</td>
+            <td>String</td>
+            <td>500</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
+<h3>设备历史（DeviceHistory）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int64</td>
+            <td></td>
+            <td></td>
+            <td title="主键">PK</td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>DeviceId</td>
+            <td>设备</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Name</td>
+            <td>名称</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Action</td>
+            <td>操作</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Success</td>
+            <td>成功</td>
+            <td>Boolean</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>TraceId</td>
+            <td>追踪</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>用于记录调用链追踪标识，在APM查找调用链</td>
+        </tr>
+
+        <tr>
+            <td>Creator</td>
+            <td>创建者</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>服务端设备</td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateIP</td>
+            <td>创建地址</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Remark</td>
+            <td>内容</td>
+            <td>String</td>
+            <td>2000</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
+<h3>设备属性（DeviceProperty）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td title="自增">AI</td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>DeviceId</td>
+            <td>设备</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Name</td>
+            <td>名称</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>NickName</td>
+            <td>昵称</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Type</td>
+            <td>类型</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Value</td>
+            <td>数值</td>
+            <td>String</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>设备上报数值</td>
+        </tr>
+
+        <tr>
+            <td>Unit</td>
+            <td>单位</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Enable</td>
+            <td>启用</td>
+            <td>Boolean</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>TraceId</td>
+            <td>追踪</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>用于记录调用链追踪标识，在APM查找调用链</td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateIP</td>
+            <td>创建地址</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateTime</td>
+            <td>更新时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>UpdateIP</td>
+            <td>更新地址</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
+<h3>设备数据（DeviceData）</h3>
+<table>
+    <thead>
+        <tr>
+            <th>名称</th>
+            <th>显示名</th>
+            <th>类型</th>
+            <th>长度</th>
+            <th>精度</th>
+            <th>主键</th>
+            <th>允许空</th>
+            <th>备注</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Id</td>
+            <td>编号</td>
+            <td>Int64</td>
+            <td></td>
+            <td></td>
+            <td title="主键">PK</td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>DeviceId</td>
+            <td>设备</td>
+            <td>Int32</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Name</td>
+            <td>名称</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>MQTT的Topic，或者属性名</td>
+        </tr>
+
+        <tr>
+            <td>Kind</td>
+            <td>类型</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>数据来源，如PostProperty/PostData/MqttPostData</td>
+        </tr>
+
+        <tr>
+            <td>Value</td>
+            <td>数值</td>
+            <td>String</td>
+            <td>2000</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>Timestamp</td>
+            <td>时间戳</td>
+            <td>Int64</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>N</td>
+            <td>设备生成数据时的UTC毫秒</td>
+        </tr>
+
+        <tr>
+            <td>TraceId</td>
+            <td>追踪标识</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>用于记录调用链追踪标识，在APM查找调用链</td>
+        </tr>
+
+        <tr>
+            <td>Creator</td>
+            <td>创建者</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>服务端设备</td>
+        </tr>
+
+        <tr>
+            <td>CreateTime</td>
+            <td>创建时间</td>
+            <td>DateTime</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+
+        <tr>
+            <td>CreateIP</td>
+            <td>创建地址</td>
+            <td>String</td>
+            <td>50</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+<br></br>
