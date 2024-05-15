@@ -4,6 +4,8 @@ using NewLife.Caching;
 using NewLife.Cube;
 using NewLife.Log;
 using NewLife.Reflection;
+using NewLife.Remoting.Extensions.Models;
+using NewLife.Remoting.Extensions.Services;
 using NewLife.Security;
 using XCode;
 
@@ -13,44 +15,27 @@ XTrace.UseConsole();
 var builder = WebApplication.CreateBuilder(args);
 var services = builder.Services;
 
+InitConfig();
+
 // 配置星尘。借助StarAgent，或者读取配置文件 config/star.config 中的服务器地址、应用标识、密钥
 var star = services.AddStardust(null);
 
-// 把数据目录指向上层，例如部署到 /root/iot/edge/，这些目录放在 /root/iot/
-var set = NewLife.Setting.Current;
-if (set.IsNew)
-{
-    set.LogPath = "../Log";
-    set.DataPath = "../Data";
-    set.BackupPath = "../Backup";
-    set.Save();
-}
-var set2 = CubeSetting.Current;
-if (set2.IsNew)
-{
-    set2.AvatarPath = "../Avatars";
-    set2.UploadPath = "../Uploads";
-    set2.Save();
-}
-var set3 = XCodeSetting.Current;
-if (set3.IsNew)
-{
-    set3.ShowSQL = false;
-    set3.EntityCacheExpire = 60;
-    set3.SingleCacheExpire = 60;
-    set3.Save();
-}
-
 // 系统设置
-services.AddSingleton(IoTSetting.Current);
+var set = IoTSetting.Current;
+services.AddSingleton(set);
 
 // 逐个注册每一个用到的服务，必须做到清晰明了
-services.AddSingleton<IPasswordProvider>(new SaltPasswordProvider { Algorithm = "md5" });
-
 services.AddSingleton<ThingService>();
 services.AddSingleton<DataService>();
 services.AddSingleton<QueueService>();
 services.AddSingleton<MyDeviceService>();
+
+// 注册Remoting所必须的服务
+services.AddSingleton<TokenService>();
+services.AddSingleton<ITokenSetting>(set);
+
+// 注册密码提供者，用于通信过程中保护密钥，避免明文传输
+services.AddSingleton<IPasswordProvider>(new SaltPasswordProvider { Algorithm = "md5", SaltTime = 60 });
 
 services.AddHttpClient("hc", e => e.Timeout = TimeSpan.FromSeconds(5));
 
@@ -70,19 +55,14 @@ services.AddCube();
 
 var app = builder.Build();
 
-// 预热数据层，执行反向工程建表等操作
-EntityFactory.InitConnection("Membership");
-EntityFactory.InitConnection("Log");
-EntityFactory.InitConnection("Cube");
-EntityFactory.InitConnection("IoT");
-
 // 使用Cube前添加自己的管道
 if (app.Environment.IsDevelopment())
     app.UseDeveloperExceptionPage();
 else
     app.UseExceptionHandler("/CubeHome/Error");
 
-app.UseResponseCompression();
+if (Environment.GetEnvironmentVariable("__ASPNETCORE_BROWSER_TOOLS") is null)
+    app.UseResponseCompression();
 
 app.UseWebSockets(new WebSocketOptions()
 {
@@ -106,3 +86,31 @@ var test = clientType?.GetMethodEx("Main").As<Func<IServiceProvider, Task>>();
 if (test != null) _ = Task.Run(() => test(app.Services));
 
 app.Run();
+
+void InitConfig()
+{
+    // 把数据目录指向上层，例如部署到 /root/iot/edge/，这些目录放在 /root/iot/
+    var set = NewLife.Setting.Current;
+    if (set.IsNew)
+    {
+        set.LogPath = "../Log";
+        set.DataPath = "../Data";
+        set.BackupPath = "../Backup";
+        set.Save();
+    }
+    var set2 = CubeSetting.Current;
+    if (set2.IsNew)
+    {
+        set2.AvatarPath = "../Avatars";
+        set2.UploadPath = "../Uploads";
+        set2.Save();
+    }
+    var set3 = XCodeSetting.Current;
+    if (set3.IsNew)
+    {
+        set3.ShowSQL = false;
+        set3.EntityCacheExpire = 60;
+        set3.SingleCacheExpire = 60;
+        set3.Save();
+    }
+}

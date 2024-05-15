@@ -20,7 +20,7 @@ namespace IoTZero.Controllers;
 public class DeviceController : BaseController
 {
     /// <summary>当前设备</summary>
-    public Device Device => App as Device;
+    public Device Device { get; set; }
 
     private readonly QueueService _queue;
     private readonly MyDeviceService _deviceService;
@@ -42,6 +42,17 @@ public class DeviceController : BaseController
         _tracer = tracer;
     }
 
+    protected override Boolean OnAuthorize(String token)
+    {
+        if (!base.OnAuthorize(token) || Jwt == null) return false;
+
+        var dv = Device.FindByCode(Jwt.Subject);
+        if (dv == null || !dv.Enable) throw new ApiException(ApiCode.Forbidden, "无效设备！");
+
+        Device = dv;
+
+        return true;
+    }
     #endregion
 
     #region 登录

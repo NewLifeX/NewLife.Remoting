@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using NewLife;
 using NewLife.Configuration;
+using NewLife.Remoting.Extensions.Models;
 using NewLife.Security;
 using XCode.Configuration;
 
@@ -8,7 +9,7 @@ namespace IoTZero;
 
 /// <summary>配置</summary>
 [Config("IoTZero")]
-public class IoTSetting : Config<IoTSetting>
+public class IoTSetting : Config<IoTSetting>, ITokenSetting
 {
     #region 静态
     static IoTSetting() => Provider = new DbConfigProvider { UserId = 0, Category = "IoTServer" };

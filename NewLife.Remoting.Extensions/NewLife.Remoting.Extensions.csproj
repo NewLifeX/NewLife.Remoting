@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <TargetFrameworks>net5.0;net6.0;net7.0;net8.0</TargetFrameworks>
+    <TargetFrameworks>net6.0;net7.0;net8.0</TargetFrameworks>
     <AssemblyTitle>RPC服务扩展</AssemblyTitle>
     <Description>RPC远程过程调用，二进制封装，提供高吞吐低延迟的高性能RPC框架</Description>
     <Company>新生命开发团队</Company>

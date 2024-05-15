@@ -5,6 +5,7 @@ using NewLife;
 using NewLife.IoT.Models;
 using NewLife.IoT.ThingModels;
 using NewLife.IoT.ThingSpecification;
+using NewLife.Remoting;
 using NewLife.Remoting.Extensions;
 
 namespace IoTZero.Controllers;
@@ -16,7 +17,7 @@ namespace IoTZero.Controllers;
 public class ThingController : BaseController
 {
     /// <summary>当前设备</summary>
-    public Device Device => App as Device;
+    public Device Device { get; set; }
 
     private readonly QueueService _queue;
     private readonly ThingService _thingService;
@@ -32,6 +33,17 @@ public class ThingController : BaseController
         _thingService = thingService;
     }
 
+    protected override Boolean OnAuthorize(String token)
+    {
+        if (!base.OnAuthorize(token) || Jwt == null) return false;
+
+        var dv = Device.FindByCode(Jwt.Subject);
+        if (dv == null || !dv.Enable) throw new ApiException(ApiCode.Forbidden, "无效设备！");
+
+        Device = dv;
+
+        return true;
+    }
     #endregion
 
     #region 设备属性
