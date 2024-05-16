@@ -71,8 +71,10 @@ public class WebSocketServerCodec : Handler
             var msg = new WebSocketMessage();
             if (msg.Read(pk)) message = msg.Payload;
         }
-
-        ss["isWs"] = false;
+        else
+        {
+            ss["isWs"] = false;
+        }
 
         return base.Read(context, message);
     }
