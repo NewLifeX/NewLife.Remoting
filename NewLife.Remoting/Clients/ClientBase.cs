@@ -329,7 +329,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     }
 
     /// <summary>获取心跳信息</summary>
-    public PingRequest BuildPingRequest()
+    public virtual PingRequest BuildPingRequest()
     {
         var request = new PingRequest
         {

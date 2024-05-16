@@ -133,7 +133,8 @@ public static class CommandClientHelper
     {
         //WriteLog("OnCommand {0}", model.ToJson());
 
-        if (!client.Commands.TryGetValue(model.Command, out var d)) throw new ApiException(400, $"找不到服务[{model.Command}]");
+        if (!client.Commands.TryGetValue(model.Command, out var d))
+            throw new ApiException(ApiCode.NotFound, $"找不到服务[{model.Command}]");
 
         if (d is Func<String?, Task<String?>> func1) return await func1(model.Argument);
         //if (d is Func<String, Task<Object>> func2) return await func2(model.Argument);

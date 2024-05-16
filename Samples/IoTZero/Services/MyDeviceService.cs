@@ -60,14 +60,14 @@ public class MyDeviceService
         var autoReg = false;
         if (dv == null)
         {
-            if (inf.ProductKey.IsNullOrEmpty()) throw new ApiException(98, "找不到设备，且产品证书为空，无法登录");
+            if (inf.ProductKey.IsNullOrEmpty()) throw new ApiException(ApiCode.NotFound, "找不到设备，且产品证书为空，无法登录");
 
             dv = AutoRegister(null, inf, ip);
             autoReg = true;
         }
         else
         {
-            if (!dv.Enable) throw new ApiException(99, "禁止登录");
+            if (!dv.Enable) throw new ApiException(ApiCode.Forbidden, "禁止登录");
 
             // 校验唯一编码，防止客户端拷贝配置
             var uuid = inf.UUID;
@@ -78,7 +78,7 @@ public class MyDeviceService
             if (dv == null || !dv.Secret.IsNullOrEmpty()
                 && (secret.IsNullOrEmpty() || !_passwordProvider.Verify(dv.Secret, secret)))
             {
-                if (inf.ProductKey.IsNullOrEmpty()) throw new ApiException(98, "设备验证失败，且产品证书为空，无法登录");
+                if (inf.ProductKey.IsNullOrEmpty()) throw new ApiException(ApiCode.Unauthorized, "设备验证失败，且产品证书为空，无法登录");
 
                 dv = AutoRegister(dv, inf, ip);
                 autoReg = true;
@@ -344,7 +344,7 @@ public class MyDeviceService
     public Device DecodeToken(String token, String tokenSecret)
     {
         //if (token.IsNullOrEmpty()) throw new ArgumentNullException(nameof(token));
-        if (token.IsNullOrEmpty()) throw new ApiException(402, "节点未登录");
+        if (token.IsNullOrEmpty()) throw new ApiException(ApiCode.Unauthorized, "节点未登录");
 
         // 解码令牌
         var ss = tokenSecret.Split(':');
@@ -357,7 +357,7 @@ public class MyDeviceService
         var rs = jwt.TryDecode(token, out var message);
         var node = Device.FindByCode(jwt.Subject);
         Current = node;
-        if (!rs) throw new ApiException(403, $"非法访问 {message}");
+        if (!rs) throw new ApiException(ApiCode.Forbidden, $"非法访问 {message}");
 
         return node;
     }

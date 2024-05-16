@@ -1,10 +1,9 @@
-﻿using NewLife.Caching;
+﻿using System.Diagnostics.CodeAnalysis;
+using NewLife.Caching;
 using NewLife.Log;
 using NewLife.Remoting.Models;
 using NewLife.Threading;
 using NewLife.Serialization;
-using System.Net.Http;
-using System.Diagnostics.CodeAnalysis;
 
 #if NETCOREAPP
 using System.Net.WebSockets;
@@ -50,6 +49,11 @@ public class HttpClientBase : ClientBase
             }
         }
     }
+
+    /// <summary>新增服务点</summary>
+    /// <param name="name"></param>
+    /// <param name="url"></param>
+    public void AddService(String name, String url) => _client.Add(name, new Uri(url));
     #endregion
 
     #region 方法
@@ -232,14 +236,7 @@ public class HttpClientBase : ClientBase
             {
                 var data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), cancellationToken);
                 var txt = buf.ToStr(null, 0, data.Count);
-                if (txt.StartsWithIgnoreCase("Pong"))
-                {
-                }
-                else
-                {
-                    var model = txt.ToJsonEntity<CommandModel>();
-                    if (model != null) await ReceiveCommand(model);
-                }
+                await OnReceive(txt);
             }
         }
         catch (Exception ex)
@@ -250,6 +247,21 @@ public class HttpClientBase : ClientBase
         if (socket.State == WebSocketState.Open) await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default);
     }
 #endif
+
+    /// <summary>收到服务端主动下发消息。默认转为CommandModel命令处理</summary>
+    /// <param name="message"></param>
+    /// <returns></returns>
+    protected virtual async Task OnReceive(String message)
+    {
+        if (message.StartsWithIgnoreCase("Pong"))
+        {
+        }
+        else
+        {
+            var model = message.ToJsonEntity<CommandModel>();
+            if (model != null) await ReceiveCommand(model);
+        }
+    }
 
     async Task ReceiveCommand(CommandModel model)
     {

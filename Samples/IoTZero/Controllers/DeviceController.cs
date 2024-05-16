@@ -124,7 +124,7 @@ public class DeviceController : BaseController
     [HttpGet(nameof(Upgrade))]
     public UpgradeInfo Upgrade()
     {
-        var device = Device ?? throw new ApiException(402, "节点未登录");
+        var device = Device ?? throw new ApiException(ApiCode.Unauthorized, "节点未登录");
 
         throw new NotImplementedException();
     }
