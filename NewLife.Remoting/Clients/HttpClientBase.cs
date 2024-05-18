@@ -2,7 +2,6 @@
 using NewLife.Caching;
 using NewLife.Log;
 using NewLife.Remoting.Models;
-using NewLife.Threading;
 using NewLife.Serialization;
 
 #if NETCOREAPP
@@ -259,56 +258,7 @@ public class HttpClientBase : ClientBase
         else
         {
             var model = message.ToJsonEntity<CommandModel>();
-            if (model != null) await ReceiveCommand(model);
-        }
-    }
-
-    async Task ReceiveCommand(CommandModel model)
-    {
-        if (model == null) return;
-
-        // 去重，避免命令被重复执行
-        if (!_cache.Add($"cmd:{model.Id}", model, 3600)) return;
-
-        // 建立追踪链路
-        using var span = Tracer?.NewSpan("cmd:" + model.Command, model);
-        if (model.TraceId != null) span?.Detach(model.TraceId);
-        try
-        {
-            //todo 有效期判断可能有隐患，现在只是假设服务器和客户端在同一个时区，如果不同，可能会出现问题
-            //WriteLog("Got Service: {0}", model.ToJson());
-            var now = GetNow();
-            if (model.Expire.Year < 2000 || model.Expire > now)
-            {
-                // 延迟执行
-                var ts = model.StartTime - now;
-                if (ts.TotalMilliseconds > 0)
-                {
-                    TimerX.Delay(s =>
-                    {
-                        _ = OnReceiveCommand(model);
-                    }, (Int32)ts.TotalMilliseconds);
-
-                    var reply = new CommandReplyModel
-                    {
-                        Id = model.Id,
-                        Status = CommandStatus.处理中,
-                        Data = $"已安排计划执行 {model.StartTime.ToFullString()}"
-                    };
-                    await CommandReply(reply);
-                }
-                else
-                    await OnReceiveCommand(model);
-            }
-            else
-            {
-                var rs = new CommandReplyModel { Id = model.Id, Status = CommandStatus.取消 };
-                await CommandReply(rs);
-            }
-        }
-        catch (Exception ex)
-        {
-            span?.SetError(ex, null);
+            if (model != null) await ReceiveCommand(model, "WebSocket");
         }
     }
     #endregion
