@@ -8,7 +8,6 @@ using NewLife.Remoting.Extensions.Models;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Serialization;
 using NewLife.Web;
-using static NewLife.Remoting.ApiHttpClient;
 using IWebFilter = Microsoft.AspNetCore.Mvc.Filters.IActionFilter;
 
 namespace NewLife.Remoting.Extensions;
@@ -25,16 +24,13 @@ public abstract class BaseController : ControllerBase, IWebFilter
     /// <summary>令牌</summary>
     public String? Token { get; private set; }
 
-    /// <summary>应用信息</summary>
-    public IAppInfo App { get; set; } = null!;
-
     /// <summary>令牌对象</summary>
     public JwtBuilder Jwt { get; set; } = null!;
 
     /// <summary>用户主机</summary>
     public String UserHost => HttpContext.GetUserHost();
 
-    private IDictionary<String, Object>? _args;
+    private IDictionary<String, Object?>? _args;
     private readonly TokenService _tokenService;
     private readonly ITokenSetting _setting;
     #endregion
@@ -81,11 +77,10 @@ public abstract class BaseController : ControllerBase, IWebFilter
     /// <returns></returns>
     protected virtual Boolean OnAuthorize(String token)
     {
-        var (jwt, app) = _tokenService.DecodeToken(token, _setting.TokenSecret);
-        App = app;
+        var jwt = _tokenService.DecodeToken(token, _setting.TokenSecret);
         Jwt = jwt;
 
-        return app != null;
+        return jwt != null;
     }
 
     void IWebFilter.OnActionExecuted(ActionExecutedContext context)
@@ -113,6 +108,6 @@ public abstract class BaseController : ControllerBase, IWebFilter
     /// <param name="action"></param>
     /// <param name="success"></param>
     /// <param name="message"></param>
-    protected virtual void WriteLog(String action, Boolean success, String message) => App.WriteLog(action, success, message, UserHost, Jwt?.Id);
+    protected virtual void WriteLog(String action, Boolean success, String message) => XTrace.WriteLine($"[{action}]{message}");
     #endregion
 }

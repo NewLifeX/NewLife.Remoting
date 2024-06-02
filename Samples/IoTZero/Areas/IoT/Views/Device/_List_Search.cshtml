@@ -1,0 +1,14 @@
+﻿@using NewLife;
+@using NewLife.Web;
+@using NewLife.Cube;
+@using XCode;
+@using IoT.Data;
+@{
+    var fact = ViewBag.Factory as IEntityFactory;
+    var page = ViewBag.Page as Pager;
+}
+<div class="form-group">
+    <label for="productId" class="control-label">产品：</label>
+    @Html.ForDropDownList("productId", Product.FindAllWithCache(), page["productId"], "全部", true)
+</div>
+@await Html.PartialAsync("_DateRange")

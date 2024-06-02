@@ -1,8 +1,5 @@
-﻿using System.Diagnostics;
-using NewLife;
-using NewLife.Caching;
+﻿using NewLife.Caching;
 using NewLife.Caching.Services;
-using NewLife.Configuration;
 using NewLife.Log;
 using NewLife.Model;
 using NewLife.Remoting;
@@ -23,7 +20,7 @@ services.AddSingleton<ICacheProvider, RedisCacheProvider>();
 // 引入Redis，用于消息队列和缓存，单例，带性能跟踪。一般使用上面的ICacheProvider替代
 //services.AddRedis("127.0.0.1:6379", "123456", 3, 5000);
 
-var port = 12345;
+var port = 8080;
 
 // 实例化RPC服务端，指定端口，同时在Tcp/Udp/IPv4/IPv6上监听
 var server = new ApiServer(port)

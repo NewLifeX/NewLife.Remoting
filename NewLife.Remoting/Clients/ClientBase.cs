@@ -289,7 +289,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
                     {
                         foreach (var model in rs.Commands)
                         {
-                            await ReceiveCommand(model);
+                            await ReceiveCommand(model, "Pong");
                         }
                     }
                 }
@@ -329,7 +329,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     }
 
     /// <summary>获取心跳信息</summary>
-    public PingRequest BuildPingRequest()
+    public virtual PingRequest BuildPingRequest()
     {
         var request = new PingRequest
         {
@@ -385,7 +385,11 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <returns></returns>
     protected virtual Task OnPing(Object state) => Ping();
 
-    async Task ReceiveCommand(CommandModel model)
+    /// <summary>收到命令</summary>
+    /// <param name="model"></param>
+    /// <param name="source"></param>
+    /// <returns></returns>
+    protected async Task ReceiveCommand(CommandModel model, String source)
     {
         if (model == null) return;
 
@@ -399,7 +403,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         {
             //todo 有效期判断可能有隐患，现在只是假设服务器和客户端在同一个时区，如果不同，可能会出现问题
             var now = GetNow();
-            XTrace.WriteLine("Got Command: {0}", model.ToJson());
+            XTrace.WriteLine("[{0}] Got Command: {1}", source, model.ToJson());
             if (model.Expire.Year < 2000 || model.Expire > now)
             {
                 // 延迟执行

@@ -8,13 +8,14 @@ namespace NewLife.Remoting.Extensions;
 
 /// <summary>OAuth服务。向应用提供验证服务</summary>
 [Route("[controller]/[action]")]
-public class OAuthController : ControllerBase
+public abstract class OAuthController<TApp> : ControllerBase where TApp : IAppInfo
 {
     private readonly TokenService _tokenService;
     private readonly ITokenSetting _setting;
 
     /// <summary>实例化</summary>
     /// <param name="tokenService"></param>
+    /// <param name="setting"></param>
     public OAuthController(TokenService tokenService, ITokenSetting setting)
     {
         _tokenService = tokenService;
@@ -40,7 +41,9 @@ public class OAuthController : ControllerBase
             // 密码模式
             if (model.grant_type == "password")
             {
-                var app = _tokenService.Authorize(model.UserName, model.Password, set.AutoRegister, ip);
+                if (model.UserName.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.UserName));
+
+                var app = Authorize(model.UserName, model.Password, set.AutoRegister, ip);
 
                 var tokenModel = _tokenService.IssueToken(app.Name, set.TokenSecret, set.TokenExpire, clientId);
 
@@ -51,12 +54,14 @@ public class OAuthController : ControllerBase
             // 刷新令牌
             else if (model.grant_type == "refresh_token")
             {
+                if (model.refresh_token.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.refresh_token));
+
                 var (jwt, ex) = _tokenService.DecodeTokenWithError(model.refresh_token, set.TokenSecret);
 
                 // 验证应用
-                var app = _tokenService.Provider.FindByName(jwt?.Subject);
+                var app = FindByName(jwt?.Subject);
                 if (app == null || !app.Enable)
-                    ex ??= new ApiException(403, $"无效应用[{jwt.Subject}]");
+                    ex ??= new ApiException(ApiCode.Forbidden, $"无效应用[{jwt.Subject}]");
 
                 if (clientId.IsNullOrEmpty()) clientId = jwt.Id;
 
@@ -77,12 +82,47 @@ public class OAuthController : ControllerBase
         }
         catch (Exception ex)
         {
-            var app = _tokenService.Provider.FindByName(model.UserName);
+            var app = FindByName(model.UserName!);
             app?.WriteLog("Authorize", false, ex.ToString(), ip, clientId);
 
             throw;
         }
     }
+
+    /// <summary>验证应用密码，不存在时新增</summary>
+    /// <param name="username"></param>
+    /// <param name="password"></param>
+    /// <param name="autoRegister"></param>
+    /// <param name="ip"></param>
+    /// <returns></returns>
+    protected TApp Authorize(String username, String? password, Boolean autoRegister, String? ip = null)
+    {
+        if (username.IsNullOrEmpty()) throw new ArgumentNullException(nameof(username));
+        //if (password.IsNullOrEmpty()) throw new ArgumentNullException(nameof(password));
+
+        // 查找应用
+        var app = FindByName(username);
+        // 查找或创建应用，避免多线程创建冲突
+        app ??= Register(username, password, autoRegister, ip);
+        if (app == null) throw new ApiException(ApiCode.NotFound, $"[{username}]无效！");
+
+        //// 检查黑白名单
+        //if (!app.ValidSource(ip))
+        //    throw new ApiException(ApiCode.Forbidden, $"应用[{username}]禁止{ip}访问！");
+
+        // 检查应用有效性
+        if (!app.Enable) throw new ApiException(ApiCode.Forbidden, $"[{username}]已禁用！");
+        //if (!app.Secret.IsNullOrEmpty() && password != app.Secret) throw new ApiException(401, $"非法访问应用[{username}]！");
+        if (!OnAuthorize(app, password, ip)) throw new ApiException(ApiCode.Unauthorized, $"非法访问[{username}]！");
+
+        return app;
+    }
+
+    protected abstract TApp FindByName(String username);
+
+    protected abstract TApp Register(String username, String? password, Boolean autoRegister, String? ip = null);
+
+    protected abstract Boolean OnAuthorize(TApp app, String? password, String? ip = null);
 
     /// <summary>根据令牌获取应用信息，同时也是验证令牌是否有效</summary>
     /// <param name="token"></param>
@@ -91,19 +131,21 @@ public class OAuthController : ControllerBase
     public Object Info(String token)
     {
         var set = _setting;
-        var (_, app) = _tokenService.DecodeToken(token, set.TokenSecret);
+        var jwt = _tokenService.DecodeToken(token, set.TokenSecret);
+        var name = jwt?.Subject;
+        var app = name.IsNullOrEmpty() ? default : FindByName(name);
         if (app is IModel model)
             return new
             {
                 Id = model["Id"],
-                app.Name,
+                Name = name,
                 DisplayName = model["DisplayName"],
                 Category = model["Category"],
             };
         else
             return new
             {
-                app.Name,
+                Name = name,
             };
     }
 }

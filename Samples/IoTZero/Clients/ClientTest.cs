@@ -26,7 +26,7 @@ public static class ClientTest
             Log = XTrace.Log,
         };
 
-        await device.LoginAsync();
+        await device.Login();
 
         _device = device;
     }
