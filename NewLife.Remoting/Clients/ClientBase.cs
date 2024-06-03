@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.NetworkInformation;
 using System.Reflection;
+using System.Security.Cryptography;
 using NewLife.Caching;
 using NewLife.Log;
 using NewLife.Reflection;
@@ -94,9 +95,8 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <returns></returns>
     public virtual async Task<TResult?> InvokeAsync<TResult>(String action, Object? args = null, CancellationToken cancellationToken = default)
     {
-        var needLogin = !Logined && !action.EndsWithIgnoreCase("/Login", "/Logout");
-        if (needLogin)
-            await Login();
+        var needLogin = !action.EndsWithIgnoreCase("/Login", "/Logout");
+        if (!Logined && needLogin) await Login();
 
         try
         {
@@ -105,14 +105,18 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         catch (Exception ex)
         {
             var ex2 = ex.GetTrue();
-            if (Logined && ex2 is ApiException aex && (aex.Code == ApiCode.Unauthorized || aex.Code == ApiCode.Forbidden) &&
-                !action.EndsWithIgnoreCase("/Login", "/Logout"))
+            if (ex2 is ApiException aex)
             {
-                Log?.Debug("{0}", ex);
-                WriteLog("重新登录！");
-                await Login();
+                if (Logined && aex.Code == ApiCode.Unauthorized && needLogin)
+                {
+                    Log?.Debug("{0}", ex);
+                    WriteLog("重新登录！");
+                    await Login();
 
-                return await OnInvokeAsync<TResult>(action, args, cancellationToken);
+                    return await OnInvokeAsync<TResult>(action, args, cancellationToken);
+                }
+
+                throw new ApiException(aex.Code, $"[{action}]{aex.Message}");
             }
 
             throw;
@@ -586,7 +590,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
 
     /// <summary>更新</summary>
     /// <returns></returns>
-    protected virtual Task<UpgradeInfo?> UpgradeAsync() => InvokeAsync<UpgradeInfo>(Prefix + "GetUpgrade");
+    protected virtual Task<UpgradeInfo?> UpgradeAsync() => InvokeAsync<UpgradeInfo>(Prefix + "Upgrade");
     #endregion
 
     #region 日志

@@ -126,7 +126,8 @@ public class DeviceController : BaseController
     {
         var device = Device ?? throw new ApiException(ApiCode.Unauthorized, "节点未登录");
 
-        throw new NotImplementedException();
+        //throw new NotImplementedException();
+        return new UpgradeInfo { };
     }
     #endregion
 

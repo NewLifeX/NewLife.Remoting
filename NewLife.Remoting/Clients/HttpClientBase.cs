@@ -64,7 +64,7 @@ public class HttpClientBase : ClientBase
     [return: MaybeNull]
     public override Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken)
     {
-        if (action.StartsWithIgnoreCase("Get") || action.Contains("/Get"))
+        if (args == null || action.StartsWithIgnoreCase("Get") || action.Contains("/Get"))
             return _client.GetAsync<TResult>(action, args);
         else
             return _client.PostAsync<TResult>(action, args);
