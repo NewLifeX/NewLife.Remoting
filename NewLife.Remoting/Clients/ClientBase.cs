@@ -47,7 +47,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <summary>收到命令时触发</summary>
     public event EventHandler<CommandEventArgs>? Received;
 
-    /// <summary>命令前缀</summary>
+    /// <summary>命令前缀。默认Device/</summary>
     public String Prefix { get; set; } = "Device/";
 
     /// <summary>协议版本</summary>
@@ -84,7 +84,6 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <param name="args">参数</param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    [return: MaybeNull]
     public abstract Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken);
 
     /// <summary>远程调用拦截，支持重新登录</summary>

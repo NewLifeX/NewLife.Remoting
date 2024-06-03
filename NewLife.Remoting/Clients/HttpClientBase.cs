@@ -1,5 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using NewLife.Caching;
+﻿using NewLife.Caching;
 using NewLife.Log;
 using NewLife.Remoting.Models;
 using NewLife.Serialization;
@@ -20,24 +19,32 @@ public class HttpClientBase : ClientBase
     /// </summary>
     public ApiHttpClient Client => _client;
 
-    private MyHttpClient _client = null!;
-    private ICache _cache = new MemoryCache();
+    private readonly ApiHttpClient _client;
+    private readonly ICache _cache = new MemoryCache();
     #endregion
 
     #region 构造
     /// <summary>实例化</summary>
     public HttpClientBase() : base()
     {
-        _client = new MyHttpClient
+        _client = new ApiHttpClient
         {
-            Client = this,
             Log = XTrace.Log
         };
     }
 
     /// <summary>实例化</summary>
     /// <param name="urls"></param>
-    public HttpClientBase(String urls) : this()
+    public HttpClientBase(String urls) : this() => AddServices(urls);
+
+    /// <summary>新增服务点</summary>
+    /// <param name="name"></param>
+    /// <param name="url"></param>
+    public void AddService(String name, String url) => _client.Add(name, new Uri(url));
+
+    /// <summary>根据服务端地址列表新增服务点集合</summary>
+    /// <param name="urls"></param>
+    public void AddServices(String urls)
     {
         if (!urls.IsNullOrEmpty())
         {
@@ -48,11 +55,6 @@ public class HttpClientBase : ClientBase
             }
         }
     }
-
-    /// <summary>新增服务点</summary>
-    /// <param name="name"></param>
-    /// <param name="url"></param>
-    public void AddService(String name, String url) => _client.Add(name, new Uri(url));
     #endregion
 
     #region 方法
@@ -61,22 +63,12 @@ public class HttpClientBase : ClientBase
     /// <param name="args">参数</param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    [return: MaybeNull]
     public override Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken)
     {
         if (args == null || action.StartsWithIgnoreCase("Get") || action.Contains("/Get"))
             return _client.GetAsync<TResult>(action, args);
         else
             return _client.PostAsync<TResult>(action, args);
-    }
-
-    class MyHttpClient : ApiHttpClient
-    {
-        public HttpClientBase Client { get; set; } = null!;
-
-        public Service? Current { get; private set; }
-
-        protected override Service GetService() => Current = base.GetService();
     }
 
     /// <summary>设置令牌。派生类可重定义逻辑</summary>

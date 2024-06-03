@@ -22,13 +22,13 @@ public class HttpDevice : HttpClientBase
     #region 构造
     public HttpDevice() => Prefix = "Device/";
 
-    public HttpDevice(ClientSetting setting) : base(setting.Server)
+    public HttpDevice(ClientSetting setting) : this()
     {
-        Prefix = "Device/";
-
         _setting = setting;
 
         ProductKey = setting.ProductKey;
+
+        AddServices(setting.Server);
     }
     #endregion
 

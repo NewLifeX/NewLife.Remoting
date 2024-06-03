@@ -39,7 +39,6 @@ public class RpcClientBase : ClientBase
     /// <param name="args">参数</param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    [return: MaybeNull]
     public override async Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken)
     {
         return await _client.InvokeAsync<TResult>(action, args, cancellationToken);
