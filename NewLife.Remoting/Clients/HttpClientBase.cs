@@ -65,6 +65,9 @@ public class HttpClientBase : ClientBase
     /// <returns></returns>
     public override Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken)
     {
+        _client.Tracer = Tracer;
+        _client.Log = Log;
+
         if (args == null || action.StartsWithIgnoreCase("Get") || action.Contains("/Get"))
             return _client.GetAsync<TResult>(action, args);
         else
@@ -82,20 +85,6 @@ public class HttpClientBase : ClientBase
     #endregion
 
     #region 登录
-    /// <summary>登录</summary>
-    /// <returns></returns>
-    public override async Task<LoginResponse?> Login()
-    {
-        _client.Tracer = Tracer;
-        _client.Token = null;
-
-        var rs = await base.Login();
-
-        _client.Token = rs?.Token;
-
-        return rs;
-    }
-
     /// <summary>登录</summary>
     /// <param name="request">登录信息</param>
     /// <returns></returns>
