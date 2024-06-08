@@ -1,9 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Net.NetworkInformation;
 using System.Reflection;
-using System.Security.Cryptography;
 using NewLife.Caching;
 using NewLife.Log;
 using NewLife.Reflection;
@@ -50,6 +48,9 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <summary>命令前缀。默认Device/</summary>
     public String Prefix { get; set; } = "Device/";
 
+    /// <summary>客户端设置</summary>
+    public IClientSetting? Setting { get; set; }
+
     /// <summary>协议版本</summary>
     private String _version;
     private TimeSpan _span;
@@ -62,6 +63,16 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     public ClientBase()
     {
         _version = Assembly.GetExecutingAssembly().GetName().Version + "";
+    }
+
+    /// <summary>通过客户端设置实例化</summary>
+    /// <param name="setting"></param>
+    public ClientBase(IClientSetting setting) : this()
+    {
+        Setting = setting;
+
+        Code = setting.DeviceCode;
+        Secret = setting.DeviceSecret;
     }
 
     /// <summary>销毁</summary>
@@ -163,6 +174,14 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
             Logined = true;
 
             OnLogined?.Invoke(this, new(request, rs));
+
+            var set = Setting;
+            if (set != null && !rs.Code.IsNullOrEmpty())
+            {
+                set.DeviceCode = rs.Code;
+                set.DeviceSecret = rs.Secret;
+                set.Save();
+            }
 
             StartTimer();
 

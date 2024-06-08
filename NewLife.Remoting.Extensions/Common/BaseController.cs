@@ -103,6 +103,16 @@ public abstract class BaseController : ControllerBase, IWebFilter
     protected virtual void OnWriteError(String action, String message) => WriteLog(action, false, message);
     #endregion
 
+    #region 方法
+    ///// <summary>设备登录</summary>
+    ///// <param name="model"></param>
+    ///// <returns></returns>
+    //[AllowAnonymous]
+    //[HttpPost(nameof(Login))]
+    //public LoginResponse Login(NewLife.Remoting.Models.LoginRequest model) => _deviceService.Login(model as LoginInfo, "Http", UserHost);
+
+    #endregion
+
     #region 辅助
     /// <summary>写日志</summary>
     /// <param name="action"></param>

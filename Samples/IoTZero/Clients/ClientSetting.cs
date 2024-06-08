@@ -1,11 +1,12 @@
 ﻿using System.ComponentModel;
 using NewLife.Configuration;
+using NewLife.Remoting.Clients;
 
 namespace IoTEdge;
 
 /// <summary>配置</summary>
 [Config("IoTClient")]
-public class ClientSetting : Config<ClientSetting>
+public class ClientSetting : Config<ClientSetting>, IClientSetting
 {
     #region 属性
     /// <summary>服务端地址。IoT服务平台地址</summary>

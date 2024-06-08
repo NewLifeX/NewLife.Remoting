@@ -37,6 +37,8 @@ public class HttpClientBase : ClientBase
     /// <param name="urls"></param>
     public HttpClientBase(String urls) : this() => AddServices(urls);
 
+    public HttpClientBase(IClientSetting setting) : base(setting) => AddServices(setting.Server);
+
     /// <summary>新增服务点</summary>
     /// <param name="name"></param>
     /// <param name="url"></param>

@@ -2,11 +2,11 @@
 using IoTZero.Services;
 using NewLife.Caching;
 using NewLife.Cube;
+using NewLife.IoT.Models;
 using NewLife.Log;
 using NewLife.Reflection;
-using NewLife.Remoting.Extensions.Models;
-using NewLife.Remoting.Extensions.Services;
-using NewLife.Security;
+using NewLife.Remoting.Extensions;
+using NewLife.Remoting.Models;
 using XCode;
 
 // 日志输出到控制台，并拦截全局异常
@@ -30,12 +30,10 @@ services.AddSingleton<DataService>();
 services.AddSingleton<QueueService>();
 services.AddSingleton<MyDeviceService>();
 
-// 注册Remoting所必须的服务
-services.AddSingleton<TokenService>();
-services.AddSingleton<ITokenSetting>(set);
+services.AddTransient<LoginRequest, LoginInfo>();
 
-// 注册密码提供者，用于通信过程中保护密钥，避免明文传输
-services.AddSingleton<IPasswordProvider>(new SaltPasswordProvider { Algorithm = "md5", SaltTime = 60 });
+// 注册Remoting所必须的服务
+services.AddRemoting(set);
 
 services.AddHttpClient("hc", e => e.Timeout = TimeSpan.FromSeconds(5));
 

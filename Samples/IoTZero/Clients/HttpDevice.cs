@@ -22,7 +22,7 @@ public class HttpDevice : HttpClientBase
     #region 构造
     public HttpDevice() => Prefix = "Device/";
 
-    public HttpDevice(ClientSetting setting) : this()
+    public HttpDevice(ClientSetting setting) : base(setting)
     {
         _setting = setting;
 
@@ -47,20 +47,6 @@ public class HttpDevice : HttpClientBase
             ProductKey = ProductKey,
             //ProductSecret = _setting.DeviceSecret,
         };
-    }
-
-    public override async Task<LoginResponse> Login()
-    {
-        var rs = await base.Login();
-
-        if (Logined && !rs.Secret.IsNullOrEmpty())
-        {
-            _setting.DeviceCode = rs.Code;
-            _setting.DeviceSecret = rs.Secret;
-            _setting.Save();
-        }
-
-        return rs;
     }
     #endregion
 
