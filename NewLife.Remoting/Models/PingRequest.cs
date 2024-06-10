@@ -1,7 +1,20 @@
 ﻿namespace NewLife.Remoting.Models;
 
 /// <summary>心跳请求</summary>
-public class PingRequest
+public interface IPingRequest
+{
+    /// <summary>开机时间，单位s</summary>
+    Int32 Uptime { get; set; }
+
+    /// <summary>本地UTC时间。Unix毫秒（UTC）</summary>
+    Int64 Time { get; set; }
+
+    /// <summary>延迟。请求到服务端并返回的延迟时间。单位ms</summary>
+    Int32 Delay { get; set; }
+}
+
+/// <summary>心跳请求</summary>
+public class PingRequest : IPingRequest
 {
     #region 属性
     /// <summary>可用内存大小</summary>

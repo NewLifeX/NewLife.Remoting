@@ -4,6 +4,7 @@ using System.Net.NetworkInformation;
 using System.Reflection;
 using NewLife.Caching;
 using NewLife.Log;
+using NewLife.Model;
 using NewLife.Reflection;
 using NewLife.Remoting.Models;
 using NewLife.Security;
@@ -23,7 +24,10 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     public String? Secret { get; set; }
 
     /// <summary>密码提供者</summary>
-    public IPasswordProvider PasswordProvider { get; set; } = new SaltPasswordProvider { Algorithm = "md5" };
+    public IPasswordProvider? PasswordProvider { get; set; }
+
+    /// <summary>服务提供者</summary>
+    public IServiceProvider? ServiceProvider { get; set; }
 
     /// <summary>是否已登录</summary>
     public Boolean Logined { get; set; }
@@ -51,18 +55,21 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     public IClientSetting? Setting { get; set; }
 
     /// <summary>协议版本</summary>
-    private String _version;
+    private readonly static String _version;
     private TimeSpan _span;
-    private readonly ConcurrentQueue<PingRequest> _fails = new();
+    private readonly ConcurrentQueue<IPingRequest> _fails = new();
     private readonly ICache _cache = new MemoryCache();
     #endregion
 
     #region 构造
-    /// <summary>实例化</summary>
-    public ClientBase()
+    static ClientBase()
     {
-        _version = Assembly.GetExecutingAssembly().GetName().Version + "";
+        var asm = AssemblyX.Entry ?? AssemblyX.Create(Assembly.GetExecutingAssembly());
+        _version = asm?.FileVersion + "";
     }
+
+    /// <summary>实例化</summary>
+    public ClientBase() { }
 
     /// <summary>通过客户端设置实例化</summary>
     /// <param name="setting"></param>
@@ -89,6 +96,35 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     #endregion
 
     #region 方法
+    private Int32 _inited;
+    /// <summary>初始化</summary>
+    private void Init()
+    {
+        if (Interlocked.CompareExchange(ref _inited, 1, 0) != 0) return;
+
+        OnInit();
+    }
+
+    /// <summary>初始化</summary>
+    protected virtual void OnInit()
+    {
+        var provider = ServiceProvider ??= ObjectContainer.Provider;
+
+        // 找到容器，注册默认的模型实现，供后续InvokeAsync时自动创建正确的模型对象
+        var container = provider?.GetService<IObjectContainer>() ?? ObjectContainer.Current;
+        if (container != null)
+        {
+            container.TryAddTransient<ILoginRequest, LoginRequest>();
+            container.TryAddTransient<ILoginResponse, LoginResponse>();
+            container.TryAddTransient<ILogoutResponse, LogoutResponse>();
+            container.TryAddTransient<IPingRequest, PingRequest>();
+            container.TryAddTransient<IPingResponse, PingResponse>();
+            container.TryAddTransient<IUpgradeInfo, UpgradeInfo>();
+        }
+
+        PasswordProvider ??= GetService<IPasswordProvider>() ?? new SaltPasswordProvider { Algorithm = "md5" };
+    }
+
     /// <summary>异步调用</summary>
     /// <param name="action">动作</param>
     /// <param name="args">参数</param>
@@ -144,8 +180,10 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     #region 登录
     /// <summary>登录</summary>
     /// <returns></returns>
-    public virtual async Task<LoginResponse?> Login()
+    public virtual async Task<ILoginResponse?> Login()
     {
+        Init();
+
         using var span = Tracer?.NewSpan(nameof(Login), Code);
         WriteLog("登录：{0}", Code);
         try
@@ -217,16 +255,15 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
 
     /// <summary>获取登录信息</summary>
     /// <returns></returns>
-    public virtual LoginRequest BuildLoginRequest()
+    public virtual ILoginRequest BuildLoginRequest()
     {
-        var asm = AssemblyX.Entry ?? AssemblyX.Create(Assembly.GetExecutingAssembly());
-        var info = new LoginRequest
-        {
-            Code = Code,
-            Secret = Secret.IsNullOrEmpty() ? null : PasswordProvider.Hash(Secret),
-            ClientId = $"{NetHelper.MyIP()}@{Process.GetCurrentProcess().Id}",
-            Version = asm?.FileVersion,
-        };
+        Init();
+
+        var info = GetService<ILoginRequest>() ?? new LoginRequest();
+        info.Code = Code;
+        info.Secret = Secret;
+        info.ClientId = $"{NetHelper.MyIP()}@{Process.GetCurrentProcess().Id}";
+        info.Version = _version;
 
         return info;
     }
@@ -234,7 +271,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <summary>注销</summary>
     /// <param name="reason"></param>
     /// <returns></returns>
-    public virtual async Task<LogoutResponse?> Logout(String reason)
+    public virtual async Task<ILogoutResponse?> Logout(String reason)
     {
         if (!Logined) return null;
 
@@ -266,18 +303,20 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <summary>登录</summary>
     /// <param name="request">登录信息</param>
     /// <returns></returns>
-    protected virtual Task<LoginResponse?> LoginAsync(LoginRequest request) => InvokeAsync<LoginResponse>(Prefix + "Login", request);
+    protected virtual Task<ILoginResponse?> LoginAsync(ILoginRequest request) => InvokeAsync<ILoginResponse>(Prefix + "Login", request);
 
     /// <summary>注销</summary>
     /// <returns></returns>
-    protected virtual Task<LogoutResponse?> LogoutAsync(String reason) => InvokeAsync<LogoutResponse>(Prefix + "Logout", new { reason });
+    protected virtual Task<ILogoutResponse?> LogoutAsync(String reason) => InvokeAsync<ILogoutResponse>(Prefix + "Logout", new { reason });
     #endregion
 
     #region 心跳
     /// <summary>心跳</summary>
     /// <returns></returns>
-    public virtual async Task<PingResponse?> Ping()
+    public virtual async Task<IPingResponse?> Ping()
     {
+        Init();
+
         if (Tracer != null) DefaultSpan.Current = null;
         using var span = Tracer?.NewSpan(nameof(Ping));
         try
@@ -291,7 +330,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
                 return null;
             }
 
-            PingResponse? rs = null;
+            IPingResponse? rs = null;
             try
             {
                 rs = await PingAsync(request);
@@ -350,14 +389,15 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     }
 
     /// <summary>获取心跳信息</summary>
-    public virtual PingRequest BuildPingRequest()
+    public virtual IPingRequest BuildPingRequest()
     {
-        var request = new PingRequest
-        {
-            Uptime = Environment.TickCount / 1000,
-            Time = DateTime.UtcNow.ToLong(),
-            Delay = Delay,
-        };
+        Init();
+
+        var request = GetService<IPingRequest>() ?? new PingRequest();
+        request.Uptime = Environment.TickCount / 1000;
+        request.Time = DateTime.UtcNow.ToLong();
+        request.Delay = Delay;
+
         // 开始时间 Environment.TickCount 很容易溢出，导致开机24天后变成负数。
         // 后来在 netcore3.0 增加了Environment.TickCount64
         // 现在借助 Stopwatch 来解决
@@ -369,7 +409,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <summary>心跳</summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    protected virtual Task<PingResponse?> PingAsync(PingRequest request) => InvokeAsync<PingResponse>(Prefix + "Ping", request);
+    protected virtual Task<IPingResponse?> PingAsync(IPingRequest request) => InvokeAsync<IPingResponse>(Prefix + "Ping", request);
 
     private TimerX? _timer;
     private TimerX? _timerUpgrade;
@@ -568,7 +608,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     private String? _lastVersion;
     /// <summary>获取更新信息</summary>
     /// <returns></returns>
-    public async Task<UpgradeInfo?> Upgrade()
+    public async Task<IUpgradeInfo?> Upgrade()
     {
         using var span = Tracer?.NewSpan(nameof(Upgrade));
         WriteLog("检查更新");
@@ -577,24 +617,24 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         var ug = new Upgrade { Log = XTrace.Log };
         ug.DeleteBackup(".");
 
-        var ur = await UpgradeAsync();
-        if (ur != null && ur.Version != _lastVersion)
+        var info = await UpgradeAsync();
+        if (info != null && info.Version != _lastVersion)
         {
-            WriteLog("发现更新：{0}", ur.ToJson(true));
+            WriteLog("发现更新：{0}", info.ToJson(true));
 
-            ug.Url = ur.Source;
+            ug.Url = info.Source;
             await ug.Download();
 
             // 检查文件完整性
-            if (ur.FileHash.IsNullOrEmpty() || ug.CheckFileHash(ur.FileHash))
+            if (info.FileHash.IsNullOrEmpty() || ug.CheckFileHash(info.FileHash))
             {
                 // 执行更新，解压缩覆盖文件
                 var rs = ug.Update();
-                if (rs && !ur.Executor.IsNullOrEmpty()) ug.Run(ur.Executor);
-                _lastVersion = ur.Version;
+                if (rs && !info.Executor.IsNullOrEmpty()) ug.Run(info.Executor);
+                _lastVersion = info.Version;
 
                 // 强制更新时，马上重启
-                if (rs && ur.Force)
+                if (rs && info.Force)
                 {
                     // 重新拉起进程
                     rs = ug.Run("dotnet", "IoTClient.dll -upgrade");
@@ -604,12 +644,19 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
             }
         }
 
-        return ur;
+        return info;
     }
 
     /// <summary>更新</summary>
     /// <returns></returns>
-    protected virtual Task<UpgradeInfo?> UpgradeAsync() => InvokeAsync<UpgradeInfo>(Prefix + "Upgrade");
+    protected virtual Task<IUpgradeInfo?> UpgradeAsync() => InvokeAsync<IUpgradeInfo>(Prefix + "Upgrade");
+    #endregion
+
+    #region 辅助
+    /// <summary>从服务提供者（对象容器）创建模型对象</summary>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    public virtual T? GetService<T>() where T : class => ServiceProvider?.GetService<T>() ?? ObjectContainer.Current.Resolve<T>();
     #endregion
 
     #region 日志

@@ -5,9 +5,11 @@ using NewLife.Caching;
 using NewLife.IoT.Models;
 using NewLife.Log;
 using NewLife.Remoting;
+using NewLife.Remoting.Models;
 using NewLife.Security;
 using NewLife.Serialization;
 using NewLife.Web;
+using TokenModel = NewLife.Remoting.Models.TokenModel;
 
 namespace IoTZero.Services;
 

@@ -30,7 +30,7 @@ services.AddSingleton<DataService>();
 services.AddSingleton<QueueService>();
 services.AddSingleton<MyDeviceService>();
 
-services.AddTransient<LoginRequest, LoginInfo>();
+services.AddTransient<ILoginRequest, LoginInfo>();
 
 // 注册Remoting所必须的服务
 services.AddRemoting(set);

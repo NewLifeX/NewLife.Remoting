@@ -1,11 +1,10 @@
-﻿using NewLife;
-using NewLife.IoT.Models;
+﻿using NewLife.IoT.Models;
 using NewLife.IoT.ThingModels;
 using NewLife.Log;
+using NewLife.Model;
 using NewLife.Remoting.Clients;
 using NewLife.Remoting.Models;
 using NewLife.Security;
-using LoginResponse = NewLife.Remoting.Models.LoginResponse;
 
 namespace IoTEdge;
 
@@ -32,32 +31,50 @@ public class HttpDevice : HttpClientBase
     }
     #endregion
 
+    #region 方法
+    protected override void OnInit()
+    {
+        var provider = ServiceProvider ??= ObjectContainer.Provider;
+
+        // 找到容器，注册默认的模型实现，供后续InvokeAsync时自动创建正确的模型对象
+        var container = ModelExtension.GetService<IObjectContainer>(provider) ?? ObjectContainer.Current;
+        if (container != null)
+        {
+            container.TryAddTransient<ILoginRequest, LoginInfo>();
+            //container.TryAddTransient<ILoginResponse, LoginResponse>();
+            //container.TryAddTransient<ILogoutResponse, LogoutResponse>();
+            container.TryAddTransient<IPingRequest, PingInfo>();
+            //container.TryAddTransient<IPingResponse, PingResponse>();
+            //container.TryAddTransient<IUpgradeInfo, UpgradeInfo>();
+        }
+
+        base.OnInit();
+    }
+    #endregion
+
     #region 登录注销
-    public override LoginRequest BuildLoginRequest()
+    public override ILoginRequest BuildLoginRequest()
     {
         var request = base.BuildLoginRequest();
-
-        return new LoginInfo
+        if (request is LoginInfo info)
         {
-            Code = request.Code,
-            Secret = request.Secret,
-            Version = request.Version,
-            ClientId = request.ClientId,
+            info.ProductKey = ProductKey;
+        }
 
-            ProductKey = ProductKey,
-            //ProductSecret = _setting.DeviceSecret,
-        };
+        return request;
     }
     #endregion
 
     #region 心跳
-    public override PingRequest BuildPingRequest()
+    public override IPingRequest BuildPingRequest()
     {
         var request = base.BuildPingRequest();
-
-        return new PingInfo
+        if (request is PingInfo info)
         {
-        };
+
+        }
+
+        return request;
     }
 
     public override Task<Object> CommandReply(CommandReplyModel model) => InvokeAsync<Object>("Thing/ServiceReply", new ServiceReplyModel

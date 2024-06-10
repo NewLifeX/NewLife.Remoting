@@ -90,7 +90,7 @@ public class HttpClientBase : ClientBase
     /// <summary>登录</summary>
     /// <param name="request">登录信息</param>
     /// <returns></returns>
-    protected override async Task<LoginResponse?> LoginAsync(LoginRequest request)
+    protected override async Task<ILoginResponse?> LoginAsync(ILoginRequest request)
     {
         // 登录前清空令牌，避免服务端使用上一次信息
         _client.Token = null;
@@ -105,7 +105,7 @@ public class HttpClientBase : ClientBase
 
     /// <summary>注销</summary>
     /// <returns></returns>
-    protected override async Task<LogoutResponse?> LogoutAsync(String reason)
+    protected override async Task<ILogoutResponse?> LogoutAsync(String reason)
     {
         var rs = await base.LogoutAsync(reason);
 
@@ -129,7 +129,7 @@ public class HttpClientBase : ClientBase
             var rs = await Ping();
 
             // 令牌
-            if (rs is PingResponse pr && !pr.Token.IsNullOrEmpty())
+            if (rs is IPingResponse pr && !pr.Token.IsNullOrEmpty())
                 _client.Token = pr.Token;
 
 #if NETCOREAPP

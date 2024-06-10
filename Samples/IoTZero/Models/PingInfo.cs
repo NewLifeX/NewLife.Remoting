@@ -3,7 +3,7 @@
 namespace NewLife.IoT.Models;
 
 /// <summary>心跳信息</summary>
-public class PingInfo : PingRequest
+public class PingInfo : IPingRequest
 {
     #region 属性
     /// <summary>内存大小</summary>
@@ -19,7 +19,7 @@ public class PingInfo : PingRequest
     public UInt64 AvailableFreeSpace { get; set; }
 
     /// <summary>CPU使用率</summary>
-    public Single CpuRate { get; set; }
+    public Double CpuRate { get; set; }
 
     /// <summary>温度</summary>
     public Double Temperature { get; set; }

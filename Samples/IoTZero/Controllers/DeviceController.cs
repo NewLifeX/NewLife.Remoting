@@ -9,6 +9,7 @@ using NewLife.IoT.ThingModels;
 using NewLife.Log;
 using NewLife.Remoting;
 using NewLife.Remoting.Extensions;
+using NewLife.Remoting.Models;
 using WebSocket = System.Net.WebSockets.WebSocket;
 
 namespace IoTZero.Controllers;
@@ -61,7 +62,7 @@ public class DeviceController : BaseController
     /// <returns></returns>
     [AllowAnonymous]
     [HttpPost(nameof(Login))]
-    public LoginResponse Login(LoginInfo model) => _deviceService.Login(model, "Http", UserHost);
+    public ILoginResponse Login(LoginInfo model) => _deviceService.Login(model, "Http", UserHost);
 
     /// <summary>设备注销</summary>
     /// <param name="reason">注销原因</param>

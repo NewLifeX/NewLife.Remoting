@@ -1,7 +1,26 @@
 ﻿namespace NewLife.Remoting.Models;
 
 /// <summary>更新响应</summary>
-public class UpgradeInfo
+public interface IUpgradeInfo
+{
+    /// <summary>版本号</summary>
+    String? Version { get; set; }
+
+    /// <summary>更新源，Url地址</summary>
+    String? Source { get; set; }
+
+    /// <summary>文件哈希</summary>
+    String? FileHash { get; set; }
+
+    /// <summary>更新后要执行的命令</summary>
+    String? Executor { get; set; }
+
+    /// <summary>是否强制更新，覆盖文件后即刻重启应用，不需要用户同意</summary>
+    Boolean Force { get; set; }
+}
+
+/// <summary>更新响应</summary>
+public class UpgradeInfo : IUpgradeInfo
 {
     /// <summary>版本号</summary>
     public String? Version { get; set; }
