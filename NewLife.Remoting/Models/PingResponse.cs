@@ -3,10 +3,10 @@
 /// <summary>心跳响应</summary>
 public class PingResponse
 {
-    /// <summary>本地时间。非UTC时间，Unix毫秒</summary>
+    /// <summary>本地时间。客户端用于计算延迟，Unix毫秒（UTC）</summary>
     public Int64 Time { get; set; }
 
-    /// <summary>服务器时间。UTC时间，Unix毫秒</summary>
+    /// <summary>服务器时间。Unix毫秒（UTC）</summary>
     public Int64 ServerTime { get; set; }
 
     /// <summary>采样周期。单位秒</summary>

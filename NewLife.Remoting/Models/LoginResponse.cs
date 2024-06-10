@@ -16,7 +16,7 @@ public class LoginResponse
     /// <summary>令牌</summary>
     public String? Token { get; set; }
 
-    /// <summary>服务器时间</summary>
+    /// <summary>服务器时间。Unix毫秒（UTC）</summary>
     public Int64 Time { get; set; }
     #endregion
 }

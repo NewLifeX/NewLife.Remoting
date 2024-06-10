@@ -3,7 +3,7 @@
 /// <summary>事件模型</summary>
 public class EventModel
 {
-    /// <summary>时间。Unix毫秒，UTC</summary>
+    /// <summary>发生时间。Unix毫秒（UTC）</summary>
     public Int64 Time { get; set; }
 
     /// <summary>事件类型。info/alert/error</summary>

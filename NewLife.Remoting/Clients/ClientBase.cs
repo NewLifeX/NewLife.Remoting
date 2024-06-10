@@ -422,13 +422,15 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         if (!model.TraceId.IsNullOrEmpty()) span?.Detach(model.TraceId);
         try
         {
-            //todo 有效期判断可能有隐患，现在只是假设服务器和客户端在同一个时区，如果不同，可能会出现问题
+            // 有效期判断前把UTC转为本地时间
             var now = GetNow();
+            var expire = model.Expire.ToLocalTime();
             XTrace.WriteLine("[{0}] Got Command: {1}", source, model.ToJson());
             if (model.Expire.Year < 2000 || model.Expire > now)
             {
                 // 延迟执行
-                var ts = model.StartTime - now;
+                var startTime = model.StartTime.ToLocalTime();
+                var ts = startTime - now;
                 if (ts.TotalMilliseconds > 0)
                 {
                     TimerX.Delay(s =>
@@ -440,7 +442,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
                     {
                         Id = model.Id,
                         Status = CommandStatus.处理中,
-                        Data = $"已安排计划执行 {model.StartTime.ToFullString()}"
+                        Data = $"已安排计划执行 {startTime.ToFullString()}"
                     };
                     await CommandReply(reply);
                 }

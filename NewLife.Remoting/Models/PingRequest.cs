@@ -61,10 +61,10 @@ public class PingRequest
     /// <summary>开机时间，单位s</summary>
     public Int32 Uptime { get; set; }
 
-    /// <summary>本地UTC时间。ms毫秒</summary>
+    /// <summary>本地UTC时间。Unix毫秒（UTC）</summary>
     public Int64 Time { get; set; }
 
-    /// <summary>延迟</summary>
+    /// <summary>延迟。请求到服务端并返回的延迟时间。单位ms</summary>
     public Int32 Delay { get; set; }
     #endregion
 }
