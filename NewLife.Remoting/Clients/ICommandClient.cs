@@ -2,7 +2,7 @@
 using NewLife.Remoting.Models;
 using NewLife.Serialization;
 
-namespace NewLife.Remoting.Services;
+namespace NewLife.Remoting.Clients;
 
 /// <summary>命令服务接口</summary>
 public interface ICommandClient

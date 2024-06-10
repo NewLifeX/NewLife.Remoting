@@ -6,14 +6,13 @@ using NewLife.Caching;
 using NewLife.Log;
 using NewLife.Reflection;
 using NewLife.Remoting.Models;
-using NewLife.Remoting.Services;
 using NewLife.Security;
 using NewLife.Serialization;
 using NewLife.Threading;
 
 namespace NewLife.Remoting.Clients;
 
-/// <summary>应用客户端基类。实现对接目标平台的登录、注销和心跳等场景操作</summary>
+/// <summary>应用客户端基类。实现对接目标平台的登录、心跳、更新和指令下发等场景操作</summary>
 public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, ITracerFeature, ILogFeature
 {
     #region 属性
@@ -71,8 +70,8 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     {
         Setting = setting;
 
-        Code = setting.DeviceCode;
-        Secret = setting.DeviceSecret;
+        Code = setting.Code;
+        Secret = setting.Secret;
     }
 
     /// <summary>销毁</summary>
@@ -178,8 +177,8 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
             var set = Setting;
             if (set != null && !rs.Code.IsNullOrEmpty())
             {
-                set.DeviceCode = rs.Code;
-                set.DeviceSecret = rs.Secret;
+                set.Code = rs.Code;
+                set.Secret = rs.Secret;
                 set.Save();
             }
 

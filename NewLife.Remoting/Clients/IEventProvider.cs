@@ -1,4 +1,4 @@
-﻿namespace NewLife.Remoting.Services;
+﻿namespace NewLife.Remoting.Clients;
 
 /// <summary>事件客户端</summary>
 public interface IEventProvider

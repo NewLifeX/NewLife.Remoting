@@ -25,4 +25,9 @@ public class ClientSetting : Config<ClientSetting>, IClientSetting
     [Description("产品证书。用于一型一密验证，对一机一密无效")]
     public String ProductKey { get; set; } = "EdgeGateway";
     #endregion
+
+    #region IClientSetting
+    String IClientSetting.Code { get => DeviceCode; set => DeviceCode = value; }
+    String IClientSetting.Secret { get => DeviceSecret; set => DeviceSecret = value; }
+    #endregion
 }
