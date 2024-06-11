@@ -86,36 +86,6 @@ public class HttpClientBase : ClientBase
     }
     #endregion
 
-    #region 登录
-    /// <summary>登录</summary>
-    /// <param name="request">登录信息</param>
-    /// <returns></returns>
-    protected override async Task<ILoginResponse?> LoginAsync(ILoginRequest request)
-    {
-        // 登录前清空令牌，避免服务端使用上一次信息
-        _client.Token = null;
-
-        var rs = await base.LoginAsync(request);
-
-        // 登录后设置用于用户认证的token
-        _client.Token = rs?.Token;
-
-        return rs;
-    }
-
-    /// <summary>注销</summary>
-    /// <returns></returns>
-    protected override async Task<ILogoutResponse?> LogoutAsync(String reason)
-    {
-        var rs = await base.LogoutAsync(reason);
-
-        // 更新令牌
-        _client.Token = rs?.Token;
-
-        return rs;
-    }
-    #endregion
-
     #region 心跳
     /// <summary>心跳后建立WebSocket长连接</summary>
     /// <param name="state"></param>

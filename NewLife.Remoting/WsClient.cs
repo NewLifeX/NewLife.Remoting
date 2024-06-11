@@ -1,5 +1,4 @@
-﻿using System;
-using System.Net.WebSockets;
+﻿using System.Net.WebSockets;
 using NewLife.Collections;
 using NewLife.Data;
 using NewLife.Log;

@@ -5,6 +5,7 @@ using System.Reflection;
 using NewLife.Caching;
 using NewLife.Log;
 using NewLife.Model;
+using NewLife.Net;
 using NewLife.Reflection;
 using NewLife.Remoting.Models;
 using NewLife.Security;
@@ -28,6 +29,10 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
 
     /// <summary>服务提供者</summary>
     public IServiceProvider? ServiceProvider { get; set; }
+
+    private IApiClient? _client;
+    /// <summary>Api客户端</summary>
+    public IApiClient? Client => _client;
 
     /// <summary>是否已登录</summary>
     public Boolean Logined { get; set; }
@@ -123,6 +128,31 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         }
 
         PasswordProvider ??= GetService<IPasswordProvider>() ?? new SaltPasswordProvider { Algorithm = "md5" };
+
+        if (Client == null)
+        {
+            var urls = Setting?.Server;
+            if (urls.IsNullOrEmpty()) throw new ArgumentNullException(nameof(Setting), "未指定服务端地址");
+
+            _client = urls.StartsWithIgnoreCase("http", "https") ? CreateHttp(urls) : CreateRpc(urls);
+        }
+    }
+
+    /// <summary>创建Http客户端</summary>
+    /// <param name="urls"></param>
+    /// <returns></returns>
+    protected virtual ApiHttpClient CreateHttp(String urls) => new(urls) { Log = Log };
+
+    /// <summary>创建RPC客户端</summary>
+    /// <param name="urls"></param>
+    /// <returns></returns>
+    protected virtual ApiClient CreateRpc(String urls) => new MyApiClient { Client = this, Servers = urls.Split(","), Log = Log };
+
+    class MyApiClient : ApiClient
+    {
+        public ClientBase Client { get; set; } = null!;
+
+        protected override async Task<Object?> OnLoginAsync(ISocketClient client, Boolean force) => await InvokeWithClientAsync<Object>(client, Client.Prefix + "Login", Client.BuildLoginRequest());
     }
 
     /// <summary>异步调用</summary>
@@ -130,7 +160,19 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <param name="args">参数</param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public abstract Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken);
+    public virtual async Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken)
+    {
+        if (_client is ApiHttpClient http)
+        {
+            var method = System.Net.Http.HttpMethod.Post;
+            if (args == null || action.StartsWithIgnoreCase("Get") || action.ToLower().Contains("/get"))
+                method = System.Net.Http.HttpMethod.Get;
+
+            return await http.InvokeAsync<TResult>(method, action, args, null, cancellationToken);
+        }
+
+        return await _client.InvokeAsync<TResult>(action, args, cancellationToken);
+    }
 
     /// <summary>远程调用拦截，支持重新登录</summary>
     /// <typeparam name="TResult"></typeparam>
@@ -170,7 +212,10 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
 
     /// <summary>设置令牌。派生类可重定义逻辑</summary>
     /// <param name="token"></param>
-    protected virtual void SetToken(String? token) { }
+    protected virtual void SetToken(String? token)
+    {
+        if (_client != null) _client.Token = token;
+    }
 
     /// <summary>获取相对于服务器的当前时间，避免两端时间差</summary>
     /// <returns></returns>
@@ -439,18 +484,45 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         _timerUpgrade = null;
         _eventTimer.TryDispose();
         _eventTimer = null;
+
+        _ws.TryDispose();
+        _ws = null;
     }
 
+    private WsChannel? _ws;
     /// <summary>定时心跳</summary>
     /// <param name="state"></param>
     /// <returns></returns>
-    protected virtual Task OnPing(Object state) => Ping();
+    protected virtual async Task OnPing(Object state)
+    {
+        DefaultSpan.Current = null;
+        using var span = Tracer?.NewSpan("DevicePing");
+        try
+        {
+            var rs = await Ping();
+
+            if (_client is ApiHttpClient http)
+            {
+#if NETCOREAPP
+                _ws ??= new WsChannelCore(this);
+#else
+                _ws ??= new WsChannel(this);
+#endif
+                if (_ws != null) await _ws.ValidWebSocket(http);
+            }
+        }
+        catch (Exception ex)
+        {
+            span?.SetError(ex, null);
+            Log?.Debug("{0}", ex);
+        }
+    }
 
     /// <summary>收到命令</summary>
     /// <param name="model"></param>
     /// <param name="source"></param>
     /// <returns></returns>
-    protected async Task ReceiveCommand(CommandModel model, String source)
+    public async Task ReceiveCommand(CommandModel model, String source)
     {
         if (model == null) return;
 

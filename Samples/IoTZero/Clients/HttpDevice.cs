@@ -9,7 +9,7 @@ using NewLife.Security;
 namespace IoTEdge;
 
 /// <summary>Http协议设备</summary>
-public class HttpDevice : HttpClientBase
+public class HttpDevice : ClientBase
 {
     #region 属性
     /// <summary>产品编码。从IoT管理平台获取</summary>
@@ -26,8 +26,6 @@ public class HttpDevice : HttpClientBase
         _setting = setting;
 
         ProductKey = setting.ProductKey;
-
-        AddServices(setting.Server);
     }
     #endregion
 

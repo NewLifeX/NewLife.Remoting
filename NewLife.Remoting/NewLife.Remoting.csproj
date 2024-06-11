@@ -38,7 +38,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Clients\WsClientBase.cs" />
+    <Compile Remove="Clients\HttpClientBase.cs" />
+    <Compile Remove="Clients\RpcClientBase.cs" />
     <Compile Remove="IpHelper.cs" />
   </ItemGroup>
 
