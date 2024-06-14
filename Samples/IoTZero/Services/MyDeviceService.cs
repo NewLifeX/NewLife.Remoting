@@ -2,9 +2,11 @@
 using IoT.Data;
 using NewLife;
 using NewLife.Caching;
+using NewLife.Caching.Queues;
 using NewLife.IoT.Models;
 using NewLife.Log;
 using NewLife.Remoting;
+using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using NewLife.Security;
 using NewLife.Serialization;
@@ -14,11 +16,14 @@ using TokenModel = NewLife.Remoting.Models.TokenModel;
 namespace IoTZero.Services;
 
 /// <summary>设备服务</summary>
-public class MyDeviceService
+public class MyDeviceService : IDeviceService
 {
     /// <summary>节点引用，令牌无效时使用</summary>
     public Device Current { get; set; }
 
+    IDevice IDeviceService.Current { get => Current; set => Current = value as Device; }
+
+    private readonly ICacheProvider _cacheProvider;
     private readonly ICache _cache;
     private readonly IPasswordProvider _passwordProvider;
     private readonly DataService _dataService;
@@ -37,6 +42,7 @@ public class MyDeviceService
     {
         _passwordProvider = passwordProvider;
         _dataService = dataService;
+        _cacheProvider = cacheProvider;
         _cache = cacheProvider.InnerCache;
         _setting = setting;
         _tracer = tracer;
@@ -46,13 +52,15 @@ public class MyDeviceService
     /// <summary>
     /// 设备登录验证，内部支持动态注册
     /// </summary>
-    /// <param name="inf">登录信息</param>
+    /// <param name="request">登录信息</param>
     /// <param name="source">登录来源</param>
     /// <param name="ip">远程IP</param>
     /// <returns></returns>
     /// <exception cref="ApiException"></exception>
-    public LoginResponse Login(LoginInfo inf, String source, String ip)
+    public LoginResponse Login(ILoginRequest request, String source, String ip)
     {
+        if (request is not LoginInfo inf) throw new ArgumentOutOfRangeException(nameof(request));
+
         var code = inf.Code;
         var secret = inf.Secret;
 
@@ -201,8 +209,9 @@ public class MyDeviceService
     /// <param name="source">登录来源</param>
     /// <param name="ip">远程IP</param>
     /// <returns></returns>
-    public Device Logout(Device device, String reason, String source, String ip)
+    public Device Logout(String reason, String source, String ip)
     {
+        var device = Current;
         var olt = GetOnline(device, ip);
         if (olt != null)
         {
@@ -228,16 +237,14 @@ public class MyDeviceService
     #endregion
 
     #region 心跳
-    /// <summary>
-    /// 心跳
-    /// </summary>
-    /// <param name="device"></param>
+    /// <summary>心跳</summary>
     /// <param name="inf"></param>
     /// <param name="token"></param>
     /// <param name="ip"></param>
     /// <returns></returns>
-    public DeviceOnline Ping(Device device, PingInfo inf, String token, String ip)
+    public DeviceOnline Ping(PingInfo inf, String token, String ip)
     {
+        var device = Current;
         if (inf != null && !inf.IP.IsNullOrEmpty()) device.IP = inf.IP;
 
         // 自动上线
@@ -370,7 +377,7 @@ public class MyDeviceService
     /// <param name="deviceCode"></param>
     /// <param name="token"></param>
     /// <returns></returns>
-    public TokenModel ValidAndIssueToken(String deviceCode, String token)
+    public TokenModel ValidAndIssueToken(String deviceCode, String? token)
     {
         if (token.IsNullOrEmpty()) return null;
 
@@ -390,6 +397,19 @@ public class MyDeviceService
     }
 
     /// <summary>
+    /// 获取指定设备的命令队列
+    /// </summary>
+    /// <param name="deviceCode"></param>
+    /// <returns></returns>
+    public IProducerConsumer<String> GetQueue(String deviceCode)
+    {
+        var q = _cacheProvider.GetQueue<String>($"cmd:{deviceCode}");
+        if (q is QueueBase qb) qb.TraceName = "ServiceQueue";
+
+        return q;
+    }
+
+    /// <summary>
     /// 写设备历史
     /// </summary>
     /// <param name="device"></param>
@@ -402,5 +422,10 @@ public class MyDeviceService
         var traceId = DefaultSpan.Current?.TraceId;
         var hi = DeviceHistory.Create(device ?? Current, action, success, remark, Environment.MachineName, ip, traceId);
     }
+
+    public IDevice QueryDevice(String code) => throw new NotImplementedException();
+    IDevice IDeviceService.Logout(String reason, String source, String ip) => throw new NotImplementedException();
+    public Object Ping(IPingRequest request, String token, String ip) => throw new NotImplementedException();
+    public void WriteHistory(IDevice device, String action, Boolean success, String remark, String ip) => throw new NotImplementedException();
     #endregion
 }

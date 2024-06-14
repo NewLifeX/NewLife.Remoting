@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Runtime.Serialization;
 using System.Web.Script.Serialization;
 using System.Xml.Serialization;
@@ -10,13 +8,13 @@ using NewLife.Data;
 using NewLife.IoT.Models;
 using NewLife.Log;
 using NewLife.Remoting;
+using NewLife.Remoting.Models;
 using XCode;
 using XCode.Cache;
-using XCode.Membership;
 
 namespace IoT.Data;
 
-public partial class Device : Entity<Device>
+public partial class Device : Entity<Device>, IDevice
 {
     #region 对象操作
     static Device()

@@ -19,7 +19,6 @@ public class AppController : BaseController
     private readonly MyDeviceService _deviceService;
     private readonly ThingService _thingService;
     private readonly ITracer _tracer;
-    private IDictionary<String, Object> _args;
 
     #region 构造
     /// <summary>
