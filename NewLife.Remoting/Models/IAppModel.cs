@@ -1,7 +1,7 @@
-﻿namespace NewLife.Remoting.Extensions.Models;
+﻿namespace NewLife.Remoting.Models;
 
 /// <summary>应用信息接口</summary>
-public interface IAppInfo
+public interface IAppModel
 {
     /// <summary>名称</summary>
     String Name { get; }

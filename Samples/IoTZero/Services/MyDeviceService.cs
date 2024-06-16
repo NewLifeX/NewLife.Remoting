@@ -11,7 +11,6 @@ using NewLife.Remoting.Models;
 using NewLife.Security;
 using NewLife.Serialization;
 using NewLife.Web;
-using TokenModel = NewLife.Remoting.Models.TokenModel;
 
 namespace IoTZero.Services;
 

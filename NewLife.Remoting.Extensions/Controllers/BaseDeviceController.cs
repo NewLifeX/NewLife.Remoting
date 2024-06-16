@@ -3,14 +3,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.Http;
 using NewLife.Log;
-using NewLife.Remoting.Extensions.Models;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using WebSocket = System.Net.WebSockets.WebSocket;
 
 namespace NewLife.Remoting.Extensions;
 
-/// <summary>设备控制器</summary>
+/// <summary>设备类控制器基类</summary>
 [ApiFilter]
 [ApiController]
 [Route("[controller]")]
@@ -21,7 +20,6 @@ public class BaseDeviceController : BaseController
 
     private readonly IDeviceService _deviceService;
     private readonly TokenService _tokenService;
-    private readonly ITokenSetting _tokenSetting;
     private readonly ITracer? _tracer;
 
     #region 构造
@@ -31,7 +29,6 @@ public class BaseDeviceController : BaseController
     {
         _deviceService = serviceProvider.GetRequiredService<IDeviceService>();
         _tokenService = serviceProvider.GetRequiredService<TokenService>();
-        _tokenSetting = serviceProvider.GetRequiredService<ITokenSetting>();
         _tracer = serviceProvider.GetService<ITracer>();
     }
 
@@ -73,7 +70,7 @@ public class BaseDeviceController : BaseController
         // 动态注册的设备不可用时，不要发令牌，只发证书
         if (dv.Enable)
         {
-            var tm = _tokenService.IssueToken(dv.Code, _tokenSetting.TokenSecret, _tokenSetting.TokenExpire, request.ClientId);
+            var tm = _tokenService.IssueToken(dv.Code, request.ClientId);
 
             rs.Token = tm.AccessToken;
         }

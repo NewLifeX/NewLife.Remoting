@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using NewLife.Log;
-using NewLife.Remoting.Extensions.Models;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Serialization;
 using NewLife.Web;
@@ -32,7 +31,6 @@ public abstract class BaseController : ControllerBase, IWebFilter
 
     private IDictionary<String, Object?>? _args;
     private readonly TokenService _tokenService;
-    private readonly ITokenSetting _setting;
     #endregion
 
     #region 构造
@@ -41,7 +39,6 @@ public abstract class BaseController : ControllerBase, IWebFilter
     public BaseController(IServiceProvider serviceProvider)
     {
         _tokenService = serviceProvider.GetRequiredService<TokenService>();
-        _setting = serviceProvider.GetRequiredService<ITokenSetting>();
     }
     #endregion
 
@@ -77,7 +74,7 @@ public abstract class BaseController : ControllerBase, IWebFilter
     /// <returns></returns>
     protected virtual Boolean OnAuthorize(String token)
     {
-        var jwt = _tokenService.DecodeToken(token, _setting.TokenSecret);
+        var jwt = _tokenService.DecodeToken(token);
         Jwt = jwt;
 
         return jwt != null;

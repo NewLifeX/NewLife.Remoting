@@ -2,13 +2,14 @@
 using NewLife.Data;
 using NewLife.Remoting.Extensions.Models;
 using NewLife.Remoting.Extensions.Services;
+using NewLife.Remoting.Models;
 using NewLife.Web;
 
 namespace NewLife.Remoting.Extensions;
 
-/// <summary>OAuth服务。向应用提供验证服务</summary>
+/// <summary>OAuth控制器基类。向应用提供令牌颁发与验证服务</summary>
 [Route("[controller]/[action]")]
-public abstract class OAuthController<TApp> : ControllerBase where TApp : IAppInfo
+public abstract class BaseOAuthController : ControllerBase
 {
     private readonly TokenService _tokenService;
     private readonly ITokenSetting _setting;
@@ -16,7 +17,7 @@ public abstract class OAuthController<TApp> : ControllerBase where TApp : IAppIn
     /// <summary>实例化</summary>
     /// <param name="tokenService"></param>
     /// <param name="setting"></param>
-    public OAuthController(TokenService tokenService, ITokenSetting setting)
+    public BaseOAuthController(TokenService tokenService, ITokenSetting setting)
     {
         _tokenService = tokenService;
         _setting = setting;
@@ -27,7 +28,7 @@ public abstract class OAuthController<TApp> : ControllerBase where TApp : IAppIn
     /// <returns></returns>
     /// <exception cref="NotSupportedException"></exception>
     [ApiFilter]
-    public TokenModel Token([FromBody] TokenInModel model)
+    public virtual TokenModel Token([FromBody] TokenInModel model)
     {
         var set = _setting;
 
@@ -45,7 +46,7 @@ public abstract class OAuthController<TApp> : ControllerBase where TApp : IAppIn
 
                 var app = Authorize(model.UserName, model.Password, set.AutoRegister, ip);
 
-                var tokenModel = _tokenService.IssueToken(app.Name, set.TokenSecret, set.TokenExpire, clientId);
+                var tokenModel = _tokenService.IssueToken(app.Name, clientId);
 
                 app.WriteLog("Authorize", true, model.UserName, ip, clientId);
 
@@ -56,22 +57,23 @@ public abstract class OAuthController<TApp> : ControllerBase where TApp : IAppIn
             {
                 if (model.refresh_token.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.refresh_token));
 
-                var (jwt, ex) = _tokenService.DecodeTokenWithError(model.refresh_token, set.TokenSecret);
+                var (jwt, ex) = _tokenService.DecodeTokenWithError(model.refresh_token);
 
                 // 验证应用
-                var app = FindByName(jwt?.Subject);
+                var name = jwt?.Subject;
+                var app = name.IsNullOrEmpty() ? null : FindByName(name);
                 if (app == null || !app.Enable)
-                    ex ??= new ApiException(ApiCode.Forbidden, $"无效应用[{jwt.Subject}]");
+                    ex ??= new ApiException(ApiCode.Forbidden, $"无效应用[{name}]");
 
-                if (clientId.IsNullOrEmpty()) clientId = jwt.Id;
+                if (jwt != null && clientId.IsNullOrEmpty()) clientId = jwt.Id;
 
                 if (ex != null)
                 {
-                    app.WriteLog("RefreshToken", false, ex.ToString(), ip, clientId);
+                    app?.WriteLog("RefreshToken", false, ex.ToString(), ip, clientId);
                     throw ex;
                 }
 
-                var tokenModel = _tokenService.IssueToken(app.Name, set.TokenSecret, set.TokenExpire, clientId);
+                var tokenModel = _tokenService.IssueToken(app!.Name, clientId);
 
                 //app.WriteHistory("RefreshToken", true, model.refresh_token, ip, clientId);
 
@@ -95,7 +97,7 @@ public abstract class OAuthController<TApp> : ControllerBase where TApp : IAppIn
     /// <param name="autoRegister"></param>
     /// <param name="ip"></param>
     /// <returns></returns>
-    protected TApp Authorize(String username, String? password, Boolean autoRegister, String? ip = null)
+    protected IAppModel Authorize(String username, String? password, Boolean autoRegister, String? ip = null)
     {
         if (username.IsNullOrEmpty()) throw new ArgumentNullException(nameof(username));
         //if (password.IsNullOrEmpty()) throw new ArgumentNullException(nameof(password));
@@ -118,11 +120,25 @@ public abstract class OAuthController<TApp> : ControllerBase where TApp : IAppIn
         return app;
     }
 
-    protected abstract TApp FindByName(String username);
+    /// <summary>查找应用</summary>
+    /// <param name="username"></param>
+    /// <returns></returns>
+    protected abstract IAppModel FindByName(String username);
 
-    protected abstract TApp Register(String username, String? password, Boolean autoRegister, String? ip = null);
+    /// <summary>应用注册</summary>
+    /// <param name="username"></param>
+    /// <param name="password"></param>
+    /// <param name="autoRegister"></param>
+    /// <param name="ip"></param>
+    /// <returns></returns>
+    protected abstract IAppModel Register(String username, String? password, Boolean autoRegister, String? ip = null);
 
-    protected abstract Boolean OnAuthorize(TApp app, String? password, String? ip = null);
+    /// <summary>应用鉴权</summary>
+    /// <param name="app"></param>
+    /// <param name="password"></param>
+    /// <param name="ip"></param>
+    /// <returns></returns>
+    protected abstract Boolean OnAuthorize(IAppModel app, String? password, String? ip = null);
 
     /// <summary>根据令牌获取应用信息，同时也是验证令牌是否有效</summary>
     /// <param name="token"></param>
@@ -130,8 +146,7 @@ public abstract class OAuthController<TApp> : ControllerBase where TApp : IAppIn
     [ApiFilter]
     public Object Info(String token)
     {
-        var set = _setting;
-        var jwt = _tokenService.DecodeToken(token, set.TokenSecret);
+        var jwt = _tokenService.DecodeToken(token);
         var name = jwt?.Subject;
         var app = name.IsNullOrEmpty() ? default : FindByName(name);
         if (app is IModel model)

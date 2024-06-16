@@ -1,5 +1,6 @@
 ﻿using NewLife.Caching;
 using NewLife.Remoting.Models;
+using NewLife.Web;
 
 namespace NewLife.Remoting.Extensions.Services;
 

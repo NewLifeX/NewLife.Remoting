@@ -41,6 +41,7 @@
     <Compile Remove="Clients\HttpClientBase.cs" />
     <Compile Remove="Clients\RpcClientBase.cs" />
     <Compile Remove="IpHelper.cs" />
+    <Compile Remove="Models\TokenModel.cs" />
   </ItemGroup>
 
   <ItemGroup>
