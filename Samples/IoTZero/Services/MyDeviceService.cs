@@ -50,7 +50,7 @@ public class MyDeviceService : IDeviceService
     /// <param name="ip">远程IP</param>
     /// <returns></returns>
     /// <exception cref="ApiException"></exception>
-    public LoginResponse Login(ILoginRequest request, String source, String ip)
+    public (IDeviceModel, IOnlineModel, ILoginResponse) Login(ILoginRequest request, String source, String ip)
     {
         if (request is not LoginInfo inf) throw new ArgumentOutOfRangeException(nameof(request));
 
@@ -89,16 +89,13 @@ public class MyDeviceService : IDeviceService
 
         //if (dv != null && !dv.Enable) throw new ApiException(99, "禁止登录");
 
-        if (dv == null) throw new ApiException(12, "节点鉴权失败");
+        if (dv == null) throw new ApiException(ApiCode.Unauthorized, "节点鉴权失败");
 
         dv.Login(inf, ip);
 
-        // 设置令牌
-        var tm = IssueToken(dv.Code, _setting);
-
         // 在线记录
         var olt = GetOnline(dv, ip) ?? CreateOnline(dv, ip);
-        olt.Save(inf, null, tm.AccessToken);
+        olt.Save(inf, null, null);
 
         //SetChildOnline(dv, ip);
 
@@ -107,20 +104,13 @@ public class MyDeviceService : IDeviceService
 
         var rs = new LoginResponse
         {
-            Name = dv.Name,
-            Token = tm.AccessToken,
-            Time = DateTime.UtcNow.ToLong(),
+            Name = dv.Name
         };
-
-        // 动态注册的设备不可用时，不要发令牌，只发证书
-        if (!dv.Enable) rs.Token = null;
 
         // 动态注册，下发节点证书
         if (autoReg) rs.Secret = dv.Secret;
 
-        rs.Code = dv.Code;
-
-        return rs;
+        return (dv, olt, rs);
     }
 
     /// <summary>设置设备在线，同时检查在线表</summary>

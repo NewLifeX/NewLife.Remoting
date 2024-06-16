@@ -10,16 +10,16 @@ namespace NewLife.Remoting.Extensions.Services;
 public interface IDeviceService
 {
     /// <summary>查找设备</summary>
-    /// <param name="code"></param>
+    /// <param name="code">编码</param>
     /// <returns></returns>
     IDeviceModel QueryDevice(String code);
 
     /// <summary>设备登录</summary>
-    /// <param name="request"></param>
-    /// <param name="source"></param>
-    /// <param name="ip"></param>
-    /// <returns></returns>
-    LoginResponse Login(ILoginRequest request, String source, String ip);
+    /// <param name="request">登录请求参数</param>
+    /// <param name="source">来源，如Http/Mqtt</param>
+    /// <param name="ip">来源IP</param>
+    /// <returns>返回元组：设备、在线、响应</returns>
+    (IDeviceModel, IOnlineModel, ILoginResponse) Login(ILoginRequest request, String source, String ip);
 
     /// <summary>设备注销</summary>
     /// <param name="device"></param>

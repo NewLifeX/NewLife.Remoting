@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.Http;
 using NewLife.Log;
+using NewLife.Remoting.Extensions.Models;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using WebSocket = System.Net.WebSockets.WebSocket;
@@ -19,6 +20,8 @@ public class BaseDeviceController : BaseController
     protected IDeviceModel _device = null!;
 
     private readonly IDeviceService _deviceService;
+    private readonly TokenService _tokenService;
+    private readonly ITokenSetting _tokenSetting;
     private readonly ITracer? _tracer;
 
     #region 构造
@@ -27,6 +30,8 @@ public class BaseDeviceController : BaseController
     public BaseDeviceController(IServiceProvider serviceProvider) : base(serviceProvider)
     {
         _deviceService = serviceProvider.GetRequiredService<IDeviceService>();
+        _tokenService = serviceProvider.GetRequiredService<TokenService>();
+        _tokenSetting = serviceProvider.GetRequiredService<ITokenSetting>();
         _tracer = serviceProvider.GetService<ITracer>();
     }
 
@@ -53,7 +58,28 @@ public class BaseDeviceController : BaseController
     /// <returns></returns>
     [AllowAnonymous]
     [HttpPost(nameof(Login))]
-    public virtual ILoginResponse Login(ILoginRequest request) => _deviceService.Login(request, "Http", UserHost);
+    public virtual ILoginResponse Login(ILoginRequest request)
+    {
+        // 先查一次，后续即使登录失败，也可以写设备历史
+        _device = _deviceService.QueryDevice(request.Code);
+
+        var (dv, online, rs) = _deviceService.Login(request, "Http", UserHost);
+
+        rs ??= new LoginResponse { Name = dv.Name, };
+
+        rs.Code = dv.Code;
+        rs.Time = DateTime.UtcNow.ToLong();
+
+        // 动态注册的设备不可用时，不要发令牌，只发证书
+        if (dv.Enable)
+        {
+            var tm = _tokenService.IssueToken(dv.Code, _tokenSetting.TokenSecret, _tokenSetting.TokenExpire, request.ClientId);
+
+            rs.Token = tm.AccessToken;
+        }
+
+        return rs;
+    }
 
     /// <summary>设备注销</summary>
     /// <param name="reason">注销原因</param>
@@ -160,5 +186,13 @@ public class BaseDeviceController : BaseController
         _ = Task.Run(() => socket.ConsumeAndPushAsync(queue, onProcess: null, source));
         await socket.WaitForClose(null, source);
     }
+    #endregion
+
+    #region 辅助
+    /// <summary>写日志</summary>
+    /// <param name="action"></param>
+    /// <param name="success"></param>
+    /// <param name="message"></param>
+    protected override void WriteLog(String action, Boolean success, String message) => _deviceService.WriteHistory(_device, action, success, message, UserHost);
     #endregion
 }

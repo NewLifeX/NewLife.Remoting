@@ -4,7 +4,7 @@
 public interface ILoginRequest
 {
     /// <summary>编码</summary>
-    String? Code { get; set; }
+    String Code { get; set; }
 
     /// <summary>密钥</summary>
     String? Secret { get; set; }
@@ -21,7 +21,7 @@ public class LoginRequest : ILoginRequest
 {
     #region 属性
     /// <summary>编码</summary>
-    public String? Code { get; set; }
+    public String Code { get; set; } = null!;
 
     /// <summary>密钥</summary>
     public String? Secret { get; set; }
