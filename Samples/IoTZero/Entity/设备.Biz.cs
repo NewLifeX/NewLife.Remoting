@@ -14,7 +14,7 @@ using XCode.Cache;
 
 namespace IoT.Data;
 
-public partial class Device : Entity<Device>, IDevice
+public partial class Device : Entity<Device>, IDeviceModel
 {
     #region 对象操作
     static Device()

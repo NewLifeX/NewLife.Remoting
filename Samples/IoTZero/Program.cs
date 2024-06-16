@@ -6,6 +6,7 @@ using NewLife.IoT.Models;
 using NewLife.Log;
 using NewLife.Reflection;
 using NewLife.Remoting.Extensions;
+using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using XCode;
 
@@ -28,12 +29,10 @@ services.AddSingleton(set);
 services.AddSingleton<ThingService>();
 services.AddSingleton<DataService>();
 services.AddSingleton<QueueService>();
-services.AddSingleton<MyDeviceService>();
-
-services.AddTransient<ILoginRequest, LoginInfo>();
 
 // 注册Remoting所必须的服务
-services.AddRemoting(set);
+services.AddIoT(set);
+//services.AddRemoting(set);
 
 services.AddHttpClient("hc", e => e.Timeout = TimeSpan.FromSeconds(5));
 

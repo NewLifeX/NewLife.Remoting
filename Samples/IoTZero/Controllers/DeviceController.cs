@@ -21,7 +21,6 @@ public class DeviceController : BaseDeviceController
     public Device Device { get; set; }
 
     private readonly QueueService _queue;
-    private readonly MyDeviceService _deviceService;
     private readonly ThingService _thingService;
     private readonly ITracer _tracer;
 
@@ -32,12 +31,20 @@ public class DeviceController : BaseDeviceController
     /// <param name="deviceService"></param>
     /// <param name="thingService"></param>
     /// <param name="tracer"></param>
-    public DeviceController(IServiceProvider serviceProvider, QueueService queue, MyDeviceService deviceService, ThingService thingService, ITracer tracer) : base(serviceProvider)
+    public DeviceController(IServiceProvider serviceProvider, QueueService queue, ThingService thingService, ITracer tracer) : base(serviceProvider)
     {
         _queue = queue;
-        _deviceService = deviceService;
         _thingService = thingService;
         _tracer = tracer;
+    }
+
+    protected override Boolean OnAuthorize(String token)
+    {
+        if (!base.OnAuthorize(token)) return false;
+
+        Device = _device as Device;
+
+        return true;
     }
     #endregion
 

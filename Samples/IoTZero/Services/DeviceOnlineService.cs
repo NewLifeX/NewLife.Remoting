@@ -1,6 +1,7 @@
 ﻿using IoT.Data;
 using NewLife;
 using NewLife.Log;
+using NewLife.Remoting.Extensions.Services;
 using NewLife.Threading;
 
 namespace IoTZero.Services;
@@ -10,7 +11,7 @@ public class DeviceOnlineService : IHostedService
 {
     #region 属性
     private TimerX _timer;
-    private readonly MyDeviceService _deviceService;
+    private readonly IDeviceService _deviceService;
     private readonly IoTSetting _setting;
     private readonly ITracer _tracer;
     #endregion
@@ -22,7 +23,7 @@ public class DeviceOnlineService : IHostedService
     /// <param name="deviceService"></param>
     /// <param name="setting"></param>
     /// <param name="tracer"></param>
-    public DeviceOnlineService(MyDeviceService deviceService, IoTSetting setting, ITracer tracer)
+    public DeviceOnlineService(IDeviceService deviceService, IoTSetting setting, ITracer tracer)
     {
         _deviceService = deviceService;
         _setting = setting;
@@ -71,7 +72,8 @@ public class DeviceOnlineService : IHostedService
                     var msg = $"[{device}]登录于{olt.CreateTime.ToFullString()}，最后活跃于{olt.UpdateTime.ToFullString()}";
                     _deviceService.WriteHistory(device, "超时下线", true, msg, olt.CreateIP);
 
-                    _deviceService.RemoveOnline(olt.DeviceId, olt.CreateIP);
+                    if (_deviceService is MyDeviceService ds)
+                        ds.RemoveOnline(olt.DeviceId, olt.CreateIP);
 
                     if (device != null)
                     {

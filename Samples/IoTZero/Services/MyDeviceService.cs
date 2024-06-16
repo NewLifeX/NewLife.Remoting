@@ -18,15 +18,9 @@ namespace IoTZero.Services;
 /// <summary>设备服务</summary>
 public class MyDeviceService : IDeviceService
 {
-    /// <summary>节点引用，令牌无效时使用</summary>
-    public Device Current { get; set; }
-
-    IDevice IDeviceService.Current { get => Current; set => Current = value as Device; }
-
     private readonly ICacheProvider _cacheProvider;
     private readonly ICache _cache;
     private readonly IPasswordProvider _passwordProvider;
-    private readonly DataService _dataService;
     private readonly IoTSetting _setting;
     private readonly ITracer _tracer;
 
@@ -38,10 +32,9 @@ public class MyDeviceService : IDeviceService
     /// <param name="cacheProvider"></param>
     /// <param name="setting"></param>
     /// <param name="tracer"></param>
-    public MyDeviceService(IPasswordProvider passwordProvider, DataService dataService, ICacheProvider cacheProvider, IoTSetting setting, ITracer tracer)
+    public MyDeviceService(IPasswordProvider passwordProvider, ICacheProvider cacheProvider, IoTSetting setting, ITracer tracer)
     {
         _passwordProvider = passwordProvider;
-        _dataService = dataService;
         _cacheProvider = cacheProvider;
         _cache = cacheProvider.InnerCache;
         _setting = setting;
@@ -65,7 +58,6 @@ public class MyDeviceService : IDeviceService
         var secret = inf.Secret;
 
         var dv = Device.FindByCode(code);
-        Current = dv;
 
         var autoReg = false;
         if (dv == null)
@@ -97,7 +89,7 @@ public class MyDeviceService : IDeviceService
 
         //if (dv != null && !dv.Enable) throw new ApiException(99, "禁止登录");
 
-        Current = dv ?? throw new ApiException(12, "节点鉴权失败");
+        if (dv == null) throw new ApiException(12, "节点鉴权失败");
 
         dv.Login(inf, ip);
 
@@ -209,30 +201,30 @@ public class MyDeviceService : IDeviceService
     /// <param name="source">登录来源</param>
     /// <param name="ip">远程IP</param>
     /// <returns></returns>
-    public Device Logout(String reason, String source, String ip)
+    public IOnlineModel Logout(IDeviceModel device, String reason, String source, String ip)
     {
-        var device = Current;
-        var olt = GetOnline(device, ip);
+        var dv = device as Device;
+        var olt = GetOnline(dv, ip);
         if (olt != null)
         {
             var msg = $"{reason} [{device}]]登录于{olt.CreateTime.ToFullString()}，最后活跃于{olt.UpdateTime.ToFullString()}";
             WriteHistory(device, source + "设备下线", true, msg, ip);
             olt.Delete();
 
-            var sid = $"{device.Id}@{ip}";
+            var sid = $"{dv.Id}@{ip}";
             _cache.Remove($"DeviceOnline:{sid}");
 
             // 计算在线时长
             if (olt.CreateTime.Year > 2000)
             {
-                device.OnlineTime += (Int32)(DateTime.Now - olt.CreateTime).TotalSeconds;
-                device.Logout();
+                dv.OnlineTime += (Int32)(DateTime.Now - olt.CreateTime).TotalSeconds;
+                dv.Logout();
             }
 
             //DeviceOnlineService.CheckOffline(device, "注销");
         }
 
-        return device;
+        return olt;
     }
     #endregion
 
@@ -242,21 +234,22 @@ public class MyDeviceService : IDeviceService
     /// <param name="token"></param>
     /// <param name="ip"></param>
     /// <returns></returns>
-    public DeviceOnline Ping(PingInfo inf, String token, String ip)
+    public IOnlineModel Ping(IDeviceModel device, IPingRequest? request, String token, String ip)
     {
-        var device = Current;
-        if (inf != null && !inf.IP.IsNullOrEmpty()) device.IP = inf.IP;
+        var dv = device as Device;
+        var inf = request as PingInfo;
+        if (inf != null && !inf.IP.IsNullOrEmpty()) dv.IP = inf.IP;
 
         // 自动上线
-        if (device != null && !device.Online) device.SetOnline(ip, "心跳");
+        if (dv != null && !dv.Online) dv.SetOnline(ip, "心跳");
 
-        device.UpdateIP = ip;
-        device.SaveAsync();
+        dv.UpdateIP = ip;
+        dv.SaveAsync();
 
-        var olt = GetOnline(device, ip) ?? CreateOnline(device, ip);
+        var olt = GetOnline(dv, ip) ?? CreateOnline(dv, ip);
         olt.Name = device.Name;
-        olt.GroupPath = device.GroupPath;
-        olt.ProductId = device.ProductId;
+        olt.GroupPath = dv.GroupPath;
+        olt.ProductId = dv.ProductId;
         olt.Save(null, inf, token);
 
         return olt;
@@ -365,7 +358,6 @@ public class MyDeviceService : IDeviceService
 
         var rs = jwt.TryDecode(token, out var message);
         var node = Device.FindByCode(jwt.Subject);
-        Current = node;
         if (!rs) throw new ApiException(ApiCode.Forbidden, $"非法访问 {message}");
 
         return node;
@@ -409,6 +401,11 @@ public class MyDeviceService : IDeviceService
         return q;
     }
 
+    /// <summary>查找设备</summary>
+    /// <param name="code"></param>
+    /// <returns></returns>
+    public IDeviceModel QueryDevice(String code) => Device.FindByCode(code);
+
     /// <summary>
     /// 写设备历史
     /// </summary>
@@ -417,15 +414,10 @@ public class MyDeviceService : IDeviceService
     /// <param name="success"></param>
     /// <param name="remark"></param>
     /// <param name="ip"></param>
-    public void WriteHistory(Device device, String action, Boolean success, String remark, String ip)
+    public void WriteHistory(IDeviceModel device, String action, Boolean success, String remark, String ip)
     {
         var traceId = DefaultSpan.Current?.TraceId;
-        var hi = DeviceHistory.Create(device ?? Current, action, success, remark, Environment.MachineName, ip, traceId);
+        var hi = DeviceHistory.Create(device as Device, action, success, remark, Environment.MachineName, ip, traceId);
     }
-
-    public IDevice QueryDevice(String code) => throw new NotImplementedException();
-    IDevice IDeviceService.Logout(String reason, String source, String ip) => throw new NotImplementedException();
-    public Object Ping(IPingRequest request, String token, String ip) => throw new NotImplementedException();
-    public void WriteHistory(IDevice device, String action, Boolean success, String remark, String ip) => throw new NotImplementedException();
     #endregion
 }

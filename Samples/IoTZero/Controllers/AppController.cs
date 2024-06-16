@@ -16,7 +16,6 @@ namespace IoTZero.Controllers;
 [Route("[controller]")]
 public class AppController : BaseController
 {
-    private readonly MyDeviceService _deviceService;
     private readonly ThingService _thingService;
     private readonly ITracer _tracer;
 
@@ -28,9 +27,8 @@ public class AppController : BaseController
     /// <param name="deviceService"></param>
     /// <param name="thingService"></param>
     /// <param name="tracer"></param>
-    public AppController(IServiceProvider serviceProvider, MyDeviceService deviceService, ThingService thingService, ITracer tracer) : base(serviceProvider)
+    public AppController(IServiceProvider serviceProvider, ThingService thingService, ITracer tracer) : base(serviceProvider)
     {
-        _deviceService = deviceService;
         _thingService = thingService;
         _tracer = tracer;
     }

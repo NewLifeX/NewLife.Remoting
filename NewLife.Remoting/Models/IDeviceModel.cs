@@ -1,7 +1,7 @@
 ﻿namespace NewLife.Remoting.Models;
 
 /// <summary>设备接口</summary>
-public interface IDevice
+public interface IDeviceModel
 {
     /// <summary>编码</summary>
     String Code { get; set; }
