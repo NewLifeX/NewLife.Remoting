@@ -55,7 +55,7 @@ public class BaseDeviceController : BaseController
     /// <returns></returns>
     [AllowAnonymous]
     [HttpPost(nameof(Login))]
-    public virtual ILoginResponse Login(ILoginRequest request)
+    public virtual ILoginResponse Login([FromServices][FromBody] ILoginRequest request)
     {
         // 先查一次，后续即使登录失败，也可以写设备历史
         _device = _deviceService.QueryDevice(request.Code);

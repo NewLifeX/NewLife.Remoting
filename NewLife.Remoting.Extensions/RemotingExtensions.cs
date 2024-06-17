@@ -1,7 +1,10 @@
-﻿using Microsoft.Extensions.DependencyInjection.Extensions;
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using NewLife.Caching;
 using NewLife.Remoting.Extensions.Models;
 using NewLife.Remoting.Extensions.Services;
+using NewLife.Remoting.Models;
 using NewLife.Security;
 
 namespace NewLife.Remoting.Extensions;
@@ -18,14 +21,28 @@ public static class RemotingExtensions
     {
         if (setting == null) throw new ArgumentNullException(nameof(setting));
 
+        services.TryAddTransient<ILoginRequest, LoginRequest>();
+        services.TryAddTransient<ILoginResponse, LoginResponse>();
+        services.TryAddTransient<ILogoutResponse, LogoutResponse>();
+        services.TryAddTransient<IPingRequest, PingRequest>();
+        services.TryAddTransient<IPingResponse, PingResponse>();
+
         // 注册Remoting所必须的服务
         services.TryAddSingleton<TokenService>();
         services.TryAddSingleton(setting);
 
         // 注册密码提供者，用于通信过程中保护密钥，避免明文传输
         services.TryAddSingleton<IPasswordProvider>(new SaltPasswordProvider { Algorithm = "md5", SaltTime = 60 });
-       
+
         services.TryAddSingleton<ICache, MemoryCache>();
+
+        // 添加模型绑定器
+        //var binderProvider = new ServiceModelBinderProvider();
+        //services.Configure<MvcOptions>(MvcOptions =>
+        //{
+        //    //MvcOptions.ModelBinderProviders.Insert(0, binderProvider);
+        //});
+        //services.AddSingleton<IModelMetadataProvider, ServicModelMetadataProvider>();
 
         return services;
     }

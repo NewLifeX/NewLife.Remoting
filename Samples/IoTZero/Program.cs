@@ -2,16 +2,16 @@
 using IoTZero.Services;
 using NewLife.Caching;
 using NewLife.Cube;
-using NewLife.IoT.Models;
 using NewLife.Log;
 using NewLife.Reflection;
-using NewLife.Remoting.Extensions;
-using NewLife.Remoting.Extensions.Services;
-using NewLife.Remoting.Models;
 using XCode;
 
 // 日志输出到控制台，并拦截全局异常
 XTrace.UseConsole();
+
+#if DEBUG
+XTrace.Log.Level = NewLife.Log.LogLevel.Debug;
+#endif
 
 var builder = WebApplication.CreateBuilder(args);
 var services = builder.Services;

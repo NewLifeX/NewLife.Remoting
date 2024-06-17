@@ -162,16 +162,23 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <returns></returns>
     public virtual async Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken)
     {
+        if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]=>{1}", action, args?.ToJson());
+
+        TResult? rs = default;
         if (_client is ApiHttpClient http)
         {
             var method = System.Net.Http.HttpMethod.Post;
             if (args == null || action.StartsWithIgnoreCase("Get") || action.ToLower().Contains("/get"))
                 method = System.Net.Http.HttpMethod.Get;
 
-            return await http.InvokeAsync<TResult>(method, action, args, null, cancellationToken);
+            rs = await http.InvokeAsync<TResult>(method, action, args, null, cancellationToken);
         }
 
-        return await _client.InvokeAsync<TResult>(action, args, cancellationToken);
+        rs = await _client!.InvokeAsync<TResult>(action, args, cancellationToken);
+
+        if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]<={1}", action, rs?.ToJson());
+
+        return rs!;
     }
 
     /// <summary>远程调用拦截，支持重新登录</summary>
