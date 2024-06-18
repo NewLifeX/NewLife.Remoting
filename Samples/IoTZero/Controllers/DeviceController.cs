@@ -53,7 +53,7 @@ public class DeviceController : BaseDeviceController
     /// <param name="request"></param>
     /// <returns></returns>
     [HttpPost(nameof(Ping))]
-    public override IPingResponse Ping(IPingRequest request)
+    public override IPingResponse Ping([FromBody] IPingRequest request)
     {
         var rs = base.Ping(request);
 

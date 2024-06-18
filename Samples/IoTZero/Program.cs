@@ -1,4 +1,5 @@
 ﻿using IoTZero;
+using IoTZero.Common;
 using IoTZero.Services;
 using NewLife.Caching;
 using NewLife.Cube;
@@ -45,7 +46,10 @@ services.AddHostedService<DeviceOnlineService>();
 // 启用接口响应压缩
 services.AddResponseCompression();
 
-services.AddControllersWithViews();
+services.AddControllersWithViews(options =>
+{
+    options.ModelBinderProviders.Insert(0, new InterfaceModelBinderProvider());
+});
 
 // 引入魔方
 services.AddCube();
