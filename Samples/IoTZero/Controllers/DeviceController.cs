@@ -20,7 +20,6 @@ public class DeviceController : BaseDeviceController
     /// <summary>当前设备</summary>
     public Device Device { get; set; }
 
-    private readonly QueueService _queue;
     private readonly ThingService _thingService;
     private readonly ITracer _tracer;
 
@@ -31,9 +30,8 @@ public class DeviceController : BaseDeviceController
     /// <param name="deviceService"></param>
     /// <param name="thingService"></param>
     /// <param name="tracer"></param>
-    public DeviceController(IServiceProvider serviceProvider, QueueService queue, ThingService thingService, ITracer tracer) : base(serviceProvider)
+    public DeviceController(IServiceProvider serviceProvider, ThingService thingService, ITracer tracer) : base(serviceProvider)
     {
-        _queue = queue;
         _thingService = thingService;
         _tracer = tracer;
     }

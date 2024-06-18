@@ -19,6 +19,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Common\InterfaceModelBinderProvider.cs" />
+    <Compile Remove="Common\LoginRequestModelBinder.cs" />
+    <Compile Remove="Common\PingRequestModelBinder.cs" />
     <Compile Remove="Models\LoginResponse.cs" />
     <Compile Remove="Models\LogoutResponse.cs" />
     <Compile Remove="Models\PingResponse.cs" />

@@ -46,10 +46,7 @@ services.AddHostedService<DeviceOnlineService>();
 // 启用接口响应压缩
 services.AddResponseCompression();
 
-services.AddControllersWithViews(options =>
-{
-    options.ModelBinderProviders.Insert(0, new InterfaceModelBinderProvider());
-});
+services.AddControllersWithViews();
 
 // 引入魔方
 services.AddCube();
