@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NewLife.Caching;
+using NewLife.Remoting.Extensions.ModelBinders;
 using NewLife.Remoting.Extensions.Models;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
@@ -38,10 +39,11 @@ public static class RemotingExtensions
 
         // 添加模型绑定器
         //var binderProvider = new ServiceModelBinderProvider();
-        //services.Configure<MvcOptions>(MvcOptions =>
-        //{
-        //    //MvcOptions.ModelBinderProviders.Insert(0, binderProvider);
-        //});
+        services.Configure<MvcOptions>(mvcOptions =>
+        {
+            //mvcOptions.ModelBinderProviders.Insert(0, binderProvider);
+            mvcOptions.ModelBinderProviders.Insert(0, new InterfaceModelBinderProvider());
+        });
         //services.AddSingleton<IModelMetadataProvider, ServicModelMetadataProvider>();
 
         return services;
