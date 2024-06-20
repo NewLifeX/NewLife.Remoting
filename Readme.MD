@@ -1,4 +1,4 @@
-﻿﻿# NewLife.Remoting - RPC远程过程调用
+﻿﻿# NewLife.Remoting - 协议通信库
 
 ![GitHub top language](https://img.shields.io/github/languages/top/newlifex/NewLife.Remoting?logo=github)
 ![GitHub License](https://img.shields.io/github/license/newlifex/NewLife.Remoting?logo=github)
@@ -6,14 +6,51 @@
 ![Nuget](https://img.shields.io/nuget/v/NewLife.Remoting?logo=nuget)
 ![Nuget (with prereleases)](https://img.shields.io/nuget/vpre/NewLife.Remoting?label=dev%20nuget&logo=nuget)
 
-RPC远程过程调用，二进制封装，提供高吞吐低延迟的高性能RPC框架  
+![Nuget Downloads](https://img.shields.io/nuget/dt/NewLife.Remoting.Extensions?logo=nuget)
+![Nuget](https://img.shields.io/nuget/v/NewLife.Remoting.Extensions?logo=nuget)
+![Nuget (with prereleases)](https://img.shields.io/nuget/vpre/NewLife.Remoting.Extensions?label=dev%20nuget&logo=nuget)
+
+协议通信库，二进制封装，提供高吞吐低延迟的高性能RPC框架  
 
 源码： https://github.com/NewLifeX/NewLife.Remoting  
-Nuget：NewLife.Remoting  
+Nuget：NewLife.Remoting / NewLife.Remoting.Extensions  
 
-在分布式系统中，RPC尤为重要。SRMP是新生命团队专门为了RPC框架而设计的通信协议，既支持内网高速通信，也能覆盖物联网嵌入式设备。
+# 组织架构
+## RPC框架
+客户端：ApiClient  
+服务端：ApiServer  
+应用客户端：ClientBase  
+特点：
+1. 服务端根据Action把请求转发给各个Controller，用法跟WebApi一致。
+2. 简单高性能，网络库上来就是二进制序列化，中间没有任何损耗
+3. TCP/UDP长会话，支持主动下发
+4. 最高连接，单机400万TCP长连接
+5. 常见吞吐，单机10万TPS，最高2266万TPS
+6. 可寄宿于控制台、Web项目、桌面应用、IoT嵌入式应用
+
+## WebApi框架
+客户端：ApiHttpClient  
+服务端：ASP.NET WebApi
+应用客户端：ClientBase  
+应用服务端：BaseDeviceController  
+特点：
+1. 标准ASP.NET WebApi作为服务端，重用原有技术栈。
+
+2. 客户端ApiHttpClient是标准HttpClient的进一步封装，支持多服务端地址。
+
+3. 服务端提供BaseController基类，封装了令牌验证等鉴权机制
+
+4. 服务端提供BaseDeviceController基类，封装常见的登录、心跳和更新等接口
+
+5. 通过WebSocket长连接实现指令下发，心跳保活
+
+6. 常见吞吐，1万TPS
+
+   
 
 # 目标定位
+在分布式系统中，RPC尤为重要。SRMP是新生命团队专门为了RPC框架而设计的通信协议，既支持内网高速通信，也能覆盖物联网嵌入式设备。
+
 经过十多年实战经验积累以及多方共同讨论，新生命团队（[https://newlifex.com](https://newlifex.com)）制订了一种简单而又具有较好扩展性的RPC（Remote Procedure Call）协议。
 
 全称：**简易远程消息交换协议**，简称： **SRMP（Simple Remote Messaging Protocol）**
