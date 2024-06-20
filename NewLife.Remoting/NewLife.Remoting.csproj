@@ -1,11 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFrameworks>net45;net461;netstandard2.0;netstandard2.1;net5.0;net6.0;net7.0;net8.0</TargetFrameworks>
-    <AssemblyTitle>RPC远程过程调用</AssemblyTitle>
-    <Description>RPC远程过程调用，二进制封装，提供高吞吐低延迟的高性能RPC框架</Description>
+    <AssemblyTitle>协议通信库</AssemblyTitle>
+    <Description>提供高性能RPC客户端服务端，提供Http/WebSocket客户端服务端，提供应用级客户端</Description>
     <Company>新生命开发团队</Company>
     <Copyright>©2002-2024 新生命开发团队</Copyright>
-    <VersionPrefix>2.8</VersionPrefix>
+    <VersionPrefix>3.0</VersionPrefix>
     <VersionSuffix>$([System.DateTime]::Now.ToString(`yyyy.MMdd`))</VersionSuffix>
     <Version>$(VersionPrefix).$(VersionSuffix)</Version>
     <FileVersion>$(Version)</FileVersion>
@@ -28,7 +28,7 @@
     <RepositoryUrl>https://github.com/NewLifeX/NewLife.Remoting</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>新生命团队;X组件;NewLife;$(AssemblyName)</PackageTags>
-    <PackageReleaseNotes>RPC接口出入参支持IAccessor派生类，便于使用二进制序列化用户自定义消息，其它消息默认Json序列化</PackageReleaseNotes>
+    <PackageReleaseNotes>第三代协议通信库，增强RPC，引入主流Http/WebSockt/WebApi应用级封装</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>

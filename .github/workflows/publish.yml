@@ -15,10 +15,12 @@ jobs:
       uses: actions/setup-dotnet@v3
       with:
         dotnet-version: 8.0.x
+    - name: Get Version
+      run: echo "VERSION=$(date '+%Y.%m%d')" >> $GITHUB_ENV
     - name: Build
       run: |
-        dotnet pack -c Release -o out NewLife.Remoting/NewLife.Remoting.csproj
-        dotnet pack -c Release -o out NewLife.Remoting.Extensions/NewLife.Remoting.Extensions.csproj
+        dotnet pack --version-suffix ${{ env.VERSION }} -c Release -o out NewLife.Remoting/NewLife.Remoting.csproj
+        dotnet pack --version-suffix ${{ env.VERSION }} -c Release -o out NewLife.Remoting.Extensions/NewLife.Remoting.Extensions.csproj
 
     - name: Publish
       run: |

@@ -8,7 +8,7 @@ namespace Demo;
 
 internal class Program
 {
-    static void Main(string[] args)
+    static void Main(String[] args)
     {
         XTrace.UseConsole();
 
@@ -53,7 +53,7 @@ internal class Program
     {
         public IApiSession Session { get; set; }
 
-        public int Sum(int a, int b)
+        public Int32 Sum(Int32 a, Int32 b)
         {
             Task.Run(async () =>
             {
@@ -64,7 +64,7 @@ internal class Program
 
             return a + b;
         }
-        public string ToUpper(string str) => str.ToUpper();
+        public String ToUpper(String str) => str.ToUpper();
 
         public Packet Test(Packet pk)
         {
