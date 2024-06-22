@@ -95,7 +95,7 @@ public class JsonEncoder : EncoderBase, IEncoder
     public virtual IMessage CreateRequest(String action, Object? args)
     {
         // 二进制优先
-        var (pk, str) = EncodeValue(args);
+        var pk = EncodeValue(args, out var str);
 
         if (Log != null && str.IsNullOrEmpty() && pk != null) str = $"[{pk?.Total}]";
         WriteLog("{0}=>{1}", action, str);
@@ -114,7 +114,7 @@ public class JsonEncoder : EncoderBase, IEncoder
     public IMessage CreateResponse(IMessage msg, String action, Int32 code, Object? value)
     {
         // 编码响应数据包，二进制优先
-        var (pk, str) = EncodeValue(value);
+        var pk = EncodeValue(value, out var str);
 
         if (Log != null && str.IsNullOrEmpty() && pk != null) str = $"[{pk?.Total}]";
         WriteLog("{0}[{2:X2}]=>{1}", action, str, msg is DefaultMessage dm ? dm.Sequence : 0);
@@ -129,9 +129,9 @@ public class JsonEncoder : EncoderBase, IEncoder
         return rs;
     }
 
-    internal (Packet?, String) EncodeValue(Object? value)
+    internal Packet? EncodeValue(Object? value, out String str)
     {
-        var str = "";
+        str = "";
         Packet? pk = null;
 
         if (value != null)
@@ -160,6 +160,6 @@ public class JsonEncoder : EncoderBase, IEncoder
             }
         }
 
-        return (pk, str);
+        return pk;
     }
 }

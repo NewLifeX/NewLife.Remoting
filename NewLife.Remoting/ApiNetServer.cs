@@ -3,6 +3,7 @@ using NewLife.Log;
 using NewLife.Messaging;
 using NewLife.Net;
 using NewLife.Remoting.Http;
+using HttpCodec = NewLife.Remoting.Http.HttpCodec;
 
 namespace NewLife.Remoting;
 

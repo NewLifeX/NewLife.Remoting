@@ -1,4 +1,5 @@
-﻿using System.Net.WebSockets;
+﻿#if !NET40
+using System.Net.WebSockets;
 using NewLife.Collections;
 using NewLife.Data;
 using NewLife.Log;
@@ -443,3 +444,4 @@ public class WsClient : ApiHost, IApiClient
     }
     #endregion
 }
+#endif

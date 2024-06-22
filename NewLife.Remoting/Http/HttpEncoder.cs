@@ -258,12 +258,12 @@ public class HttpEncoder : EncoderBase, IEncoder
             p = url.IndexOf('?');
             if (p > 0)
             {
-                message.Action = url[1..p];
-                message.Data = url[(p + 1)..].GetBytes();
+                message.Action = url.Substring(1, p - 1);
+                message.Data = url.Substring(p + 1).GetBytes();
             }
             else
             {
-                message.Action = url[1..];
+                message.Action = url.Substring(1);
                 message.Data = http.Payload;
             }
         }
@@ -279,7 +279,7 @@ public class HttpEncoder : EncoderBase, IEncoder
                 message.Action = uri.AbsolutePath;
                 message.Data = http.Payload;
             }
-            if (message.Action.Length > 1) message.Action = message.Action[1..];
+            if (message.Action.Length > 1) message.Action = message.Action.Substring(1);
         }
 
         return message;

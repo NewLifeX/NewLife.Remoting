@@ -6,6 +6,9 @@ using NewLife.Model;
 using NewLife.Net;
 using NewLife.Remoting.Http;
 using NewLife.Threading;
+#if !NET40
+using TaskEx = System.Threading.Tasks.Task;
+#endif
 
 namespace NewLife.Remoting;
 
@@ -186,7 +189,7 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
     /// <returns></returns>
-    public virtual TResult? Invoke<TResult>(String action, Object? args = null) => Task.Run(() => InvokeAsync<TResult>(action, args)).Result;
+    public virtual TResult? Invoke<TResult>(String action, Object? args = null) => TaskEx.Run(() => InvokeAsync<TResult>(action, args)).Result;
 
     /// <summary>单向发送。同步调用，不等待返回</summary>
     /// <param name="action">服务操作</param>
@@ -380,7 +383,7 @@ public class ApiClient : ApiHost, IApiClient
     /// <summary>连接后自动登录</summary>
     /// <param name="client">客户端</param>
     /// <param name="force">强制登录</param>
-    protected virtual Task<Object?> OnLoginAsync(ISocketClient client, Boolean force) => Task.FromResult<Object?>(null);
+    protected virtual Task<Object?> OnLoginAsync(ISocketClient client, Boolean force) => TaskEx.FromResult<Object?>(null);
 
     /// <summary>登录</summary>
     /// <returns></returns>

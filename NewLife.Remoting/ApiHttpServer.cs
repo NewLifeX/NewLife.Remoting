@@ -1,6 +1,7 @@
 ﻿using NewLife.Http;
 using NewLife.Net;
 using NewLife.Remoting.Http;
+using HttpCodec = NewLife.Remoting.Http.HttpCodec;
 
 namespace NewLife.Remoting;
 

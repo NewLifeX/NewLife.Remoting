@@ -357,44 +357,44 @@ public class JsonEncoderTests
 
         {
             var value = new Packet(Rand.NextBytes(64));
-            var (pk, str) = encoder.EncodeValue(value);
+            var pk = encoder.EncodeValue(value, out var str);
             Assert.Equal(value, pk);
             Assert.Empty(str);
         }
         {
             var value = Rand.NextBytes(64);
-            var (pk, str) = encoder.EncodeValue(value);
+            var pk = encoder.EncodeValue(value, out var str);
             Assert.Equal(value.ToHex(), pk.ToHex(64));
             Assert.Empty(str);
         }
         {
             var value = new UserInfo2 { Name = "Stone", Age = 18 };
-            var (pk, str) = encoder.EncodeValue(value);
+            var pk = encoder.EncodeValue(value, out var str);
             Assert.Equal(1 + value.Name.Length + 1, pk.Total);
             Assert.Empty(str);
         }
         {
             var value = DateTime.Now;
-            var (pk, str) = encoder.EncodeValue(value);
+            var pk = encoder.EncodeValue(value, out var str);
             Assert.Equal(value.ToFullString(), pk.ToStr());
             Assert.Equal(value.ToFullString(), str);
         }
         {
             var value = 123.456d;
-            var (pk, str) = encoder.EncodeValue(value);
+            var pk = encoder.EncodeValue(value, out var str);
             Assert.Equal(value.ToString(), pk.ToStr());
             Assert.Equal(value.ToString(), str);
         }
         {
             var value = new UserInfo { Name = "Stone", Age = 18 };
-            var (pk, str) = encoder.EncodeValue(value);
+            var pk = encoder.EncodeValue(value, out var str);
             var json = value.ToJson();
             Assert.Equal(json, pk.ToStr());
             Assert.Equal(json, str);
         }
         {
             var value = new Exception("this is an error");
-            var (pk, str) = encoder.EncodeValue(value);
+            var pk = encoder.EncodeValue(value, out var str);
             Assert.Equal(value.Message, pk.ToStr());
             Assert.Equal(value.Message, str);
         }

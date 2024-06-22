@@ -2,6 +2,9 @@
 using NewLife.Net;
 using NewLife.Remoting.Models;
 using NewLife.Serialization;
+#if !NET40
+using TaskEx = System.Threading.Tasks.Task;
+#endif
 
 namespace NewLife.Remoting.Clients;
 
@@ -65,7 +68,7 @@ class WsChannel : DisposeBase
             _websocket = client;
 
             _source = new CancellationTokenSource();
-            _ = Task.Run(() => DoPull(client, _source.Token));
+            _ = TaskEx.Run(() => DoPull(client, _source.Token));
         }
     }
 
