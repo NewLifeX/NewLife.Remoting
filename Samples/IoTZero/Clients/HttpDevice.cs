@@ -1,7 +1,9 @@
-﻿using NewLife.IoT.Models;
+﻿using NewLife;
+using NewLife.IoT.Models;
 using NewLife.IoT.ThingModels;
 using NewLife.Log;
 using NewLife.Model;
+using NewLife.Remoting;
 using NewLife.Remoting.Clients;
 using NewLife.Remoting.Models;
 using NewLife.Security;
@@ -57,6 +59,11 @@ public class HttpDevice : ClientBase
         if (request is LoginInfo info)
         {
             info.ProductKey = ProductKey;
+            info.Name = Environment.MachineName;
+            info.IP = NetHelper.MyIP() + "";
+
+            var mi = MachineInfo.GetCurrent();
+            info.UUID = mi.BuildCode();
         }
 
         return request;

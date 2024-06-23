@@ -12,6 +12,9 @@ public interface ILoginResponse
     /// <summary>令牌</summary>
     String? Token { get; set; }
 
+    /// <summary>令牌过期时间。单位秒</summary>
+    Int32 Expire { get; set; }
+
     /// <summary>服务器时间。Unix毫秒（UTC）</summary>
     Int64 Time { get; set; }
 }
@@ -31,6 +34,9 @@ public class LoginResponse : ILoginResponse
 
     /// <summary>令牌</summary>
     public String? Token { get; set; }
+
+    /// <summary>令牌过期时间。单位秒</summary>
+    public Int32 Expire { get; set; }
 
     /// <summary>服务器时间。Unix毫秒（UTC）</summary>
     public Int64 Time { get; set; }

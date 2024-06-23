@@ -9,7 +9,7 @@ public interface IPingResponse
     /// <summary>服务器时间。Unix毫秒（UTC）</summary>
     Int64 ServerTime { get; set; }
 
-    /// <summary>采样周期。单位秒</summary>
+    /// <summary>心跳周期。单位秒</summary>
     Int32 Period { get; set; }
 
     /// <summary>令牌。现有令牌即将过期时，颁发新的令牌</summary>
@@ -28,7 +28,7 @@ public class PingResponse : IPingResponse
     /// <summary>服务器时间。Unix毫秒（UTC）</summary>
     public Int64 ServerTime { get; set; }
 
-    /// <summary>采样周期。单位秒</summary>
+    /// <summary>心跳周期。单位秒</summary>
     public Int32 Period { get; set; }
 
     /// <summary>令牌。现有令牌即将过期时，颁发新的令牌</summary>

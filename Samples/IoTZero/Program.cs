@@ -1,6 +1,7 @@
 ﻿using IoTZero;
 using IoTZero.Services;
 using NewLife.Caching;
+using NewLife.Caching.Services;
 using NewLife.Cube;
 using NewLife.Log;
 using NewLife.Reflection;
@@ -25,22 +26,12 @@ var star = services.AddStardust(null);
 var set = IoTSetting.Current;
 services.AddSingleton(set);
 
-// 逐个注册每一个用到的服务，必须做到清晰明了
-services.AddSingleton<ThingService>();
-services.AddSingleton<DataService>();
-services.AddSingleton<QueueService>();
+// 注册Redis缓存提供者
+//services.AddSingleton<ICacheProvider, RedisCacheProvider>();
 
 // 注册Remoting所必须的服务
 services.AddIoT(set);
 //services.AddRemoting(set);
-
-services.AddHttpClient("hc", e => e.Timeout = TimeSpan.FromSeconds(5));
-
-services.AddSingleton<ICache, MemoryCache>();
-
-// 后台服务
-services.AddHostedService<ShardTableService>();
-services.AddHostedService<DeviceOnlineService>();
 
 // 启用接口响应压缩
 services.AddResponseCompression();
@@ -75,7 +66,7 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=CubeHome}/{action=Index}/{id?}");
 
-app.RegisterService("AlarmServer", null, app.Environment.EnvironmentName);
+app.RegisterService("IoTZero", null, app.Environment.EnvironmentName);
 
 // 反射查找并调用客户端测试，该代码仅用于测试，实际项目中不要这样做
 var clientType = "IoTZero.Clients.ClientTest".GetTypeEx();

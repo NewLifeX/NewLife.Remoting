@@ -4,7 +4,7 @@
 public interface ILoginRequest
 {
     /// <summary>编码</summary>
-    String Code { get; set; }
+    String? Code { get; set; }
 
     /// <summary>密钥</summary>
     String? Secret { get; set; }
@@ -12,8 +12,11 @@ public interface ILoginRequest
     /// <summary>实例。应用可能多实例部署，ip@proccessid</summary>
     String? ClientId { get; set; }
 
-    /// <summary>版本</summary>
-    String? Version { get; set; }
+    ///// <summary>版本</summary>
+    //String? Version { get; set; }
+
+    ///// <summary>本地UTC时间</summary>
+    //Int64 Time { get; set; }
 }
 
 /// <summary>登录请求</summary>
@@ -21,7 +24,7 @@ public class LoginRequest : ILoginRequest
 {
     #region 属性
     /// <summary>编码</summary>
-    public String Code { get; set; } = null!;
+    public String? Code { get; set; }
 
     /// <summary>密钥</summary>
     public String? Secret { get; set; }
@@ -31,5 +34,8 @@ public class LoginRequest : ILoginRequest
 
     /// <summary>版本</summary>
     public String? Version { get; set; }
+
+    /// <summary>本地UTC时间</summary>
+    public Int64 Time { get; set; }
     #endregion
 }

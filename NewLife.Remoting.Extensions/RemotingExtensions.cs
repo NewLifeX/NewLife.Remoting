@@ -35,7 +35,8 @@ public static class RemotingExtensions
         // 注册密码提供者，用于通信过程中保护密钥，避免明文传输
         services.TryAddSingleton<IPasswordProvider>(new SaltPasswordProvider { Algorithm = "md5", SaltTime = 60 });
 
-        services.TryAddSingleton<ICache, MemoryCache>();
+        // 注册缓存提供者，必须有默认实现
+        services.TryAddSingleton<ICacheProvider, CacheProvider>();
 
         // 添加模型绑定器
         //var binderProvider = new ServiceModelBinderProvider();

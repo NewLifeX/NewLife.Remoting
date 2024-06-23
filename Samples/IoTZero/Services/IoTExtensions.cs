@@ -13,6 +13,11 @@ public static class IoTExtensions
     {
         ArgumentNullException.ThrowIfNull(setting);
 
+        // 逐个注册每一个用到的服务，必须做到清晰明了
+        services.AddSingleton<ThingService>();
+        services.AddSingleton<DataService>();
+        services.AddSingleton<QueueService>();
+
         services.AddSingleton<IDeviceService, MyDeviceService>();
 
         services.AddTransient<ILoginRequest, LoginInfo>();
@@ -20,6 +25,10 @@ public static class IoTExtensions
 
         // 注册Remoting所必须的服务
         services.AddRemoting(setting);
+
+        // 后台服务
+        services.AddHostedService<ShardTableService>();
+        services.AddHostedService<DeviceOnlineService>();
 
         return services;
     }

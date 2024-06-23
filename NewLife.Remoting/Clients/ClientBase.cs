@@ -315,7 +315,12 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         info.Code = Code;
         info.Secret = Secret;
         info.ClientId = $"{NetHelper.MyIP()}@{Process.GetCurrentProcess().Id}";
-        info.Version = _version;
+
+        if (info is LoginRequest request)
+        {
+            request.Version = _version;
+            request.Time = DateTime.UtcNow.ToLong();
+        }
 
         return info;
     }
@@ -446,14 +451,26 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         Init();
 
         var request = GetService<IPingRequest>() ?? new PingRequest();
-        request.Uptime = Environment.TickCount / 1000;
         request.Time = DateTime.UtcNow.ToLong();
-        request.Delay = Delay;
 
-        // 开始时间 Environment.TickCount 很容易溢出，导致开机24天后变成负数。
-        // 后来在 netcore3.0 增加了Environment.TickCount64
-        // 现在借助 Stopwatch 来解决
-        if (Stopwatch.IsHighResolution) request.Uptime = (Int32)(Stopwatch.GetTimestamp() / Stopwatch.Frequency);
+        if (request is PingRequest req)
+        {
+            req.Delay = Delay;
+            req.Uptime = Environment.TickCount / 1000;
+
+            // 开始时间 Environment.TickCount 很容易溢出，导致开机24天后变成负数。
+            // 后来在 netcore3.0 增加了Environment.TickCount64
+            // 现在借助 Stopwatch 来解决
+            if (Stopwatch.IsHighResolution) req.Uptime = (Int32)(Stopwatch.GetTimestamp() / Stopwatch.Frequency);
+
+            var mi = MachineInfo.GetCurrent();
+            req.AvailableMemory = mi.AvailableMemory;
+            req.CpuRate = Math.Round(mi.CpuRate, 3);
+            req.Temperature = Math.Round(mi.Temperature, 1);
+            req.Battery = Math.Round(mi.Battery, 3);
+            req.UplinkSpeed = mi.UplinkSpeed;
+            req.DownlinkSpeed = mi.DownlinkSpeed;
+        }
 
         return request;
     }

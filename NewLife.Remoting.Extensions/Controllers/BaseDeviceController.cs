@@ -73,6 +73,7 @@ public class BaseDeviceController : BaseController
             var tm = _tokenService.IssueToken(dv.Code, request.ClientId);
 
             rs.Token = tm.AccessToken;
+            rs.Expire = tm.ExpireIn;
         }
 
         return rs;

@@ -25,8 +25,6 @@ public class ThingService
     /// </summary>
     /// <param name="dataService"></param>
     /// <param name="queueService"></param>
-    /// <param name="ruleService"></param>
-    /// <param name="segmentService"></param>
     /// <param name="deviceService"></param>
     /// <param name="cacheProvider"></param>
     /// <param name="setting"></param>
@@ -294,6 +292,8 @@ public class ThingService
         // 挂起等待。借助redis队列，等待响应
         if (timeout > 1000)
         {
+            await Task.Delay(1000);
+
             throw new NotImplementedException();
         }
 
