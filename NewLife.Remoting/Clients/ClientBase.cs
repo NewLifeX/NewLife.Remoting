@@ -61,6 +61,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
 
     /// <summary>协议版本</summary>
     private readonly static String _version;
+    private readonly static String _name;
     private TimeSpan _span;
     private readonly ConcurrentQueue<IPingRequest> _fails = new();
     private readonly ICache _cache = new MemoryCache();
@@ -71,6 +72,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     {
         var asm = AssemblyX.Entry ?? AssemblyX.Create(Assembly.GetExecutingAssembly());
         _version = asm?.FileVersion + "";
+        _name = asm?.Name ?? "NewLifeRemoting";
     }
 
     /// <summary>实例化</summary>
@@ -141,7 +143,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <summary>创建Http客户端</summary>
     /// <param name="urls"></param>
     /// <returns></returns>
-    protected virtual ApiHttpClient CreateHttp(String urls) => new(urls) { Log = Log };
+    protected virtual ApiHttpClient CreateHttp(String urls) => new(urls) { Log = Log, DefaultUserAgent = $"{_name}/v{_version}" };
 
     /// <summary>创建RPC客户端</summary>
     /// <param name="urls"></param>
