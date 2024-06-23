@@ -17,14 +17,17 @@ public interface IPingRequest
 public class PingRequest : IPingRequest
 {
     #region 属性
+    /// <summary>内存大小</summary>
+    public UInt64 Memory { get; set; }
+
     /// <summary>可用内存大小</summary>
     public UInt64 AvailableMemory { get; set; }
 
-    ///// <summary>磁盘可用空间。应用所在盘</summary>
-    //public UInt64 AvailableFreeSpace { get; set; }
+    /// <summary>磁盘大小。应用所在盘</summary>
+    public UInt64 TotalSize { get; set; }
 
-    ///// <summary>驱动器信息。各分区大小，逗号分隔</summary>
-    //public String? DriveInfo { get; set; }
+    /// <summary>磁盘可用空间。应用所在盘</summary>
+    public UInt64 AvailableFreeSpace { get; set; }
 
     /// <summary>CPU占用率</summary>
     public Double CpuRate { get; set; }
@@ -44,29 +47,8 @@ public class PingRequest : IPingRequest
     /// <summary>下行速度。网络接收速度，字节每秒</summary>
     public UInt64 DownlinkSpeed { get; set; }
 
-    ///// <summary>MAC地址</summary>
-    //public String? Macs { get; set; }
-
-    ///// <summary>框架。本地支持的所有版本框架</summary>
-    //public String? Framework { get; set; }
-
     /// <summary>本地IP地址。随着网卡变动，可能改变</summary>
     public String? IP { get; set; }
-
-    ///// <summary>进程列表</summary>
-    //public String? Processes { get; set; }
-
-    ///// <summary>进程个数</summary>
-    //public Int32 ProcessCount { get; set; }
-
-    ///// <summary>正在传输的Tcp连接数</summary>
-    //public Int32 TcpConnections { get; set; }
-
-    ///// <summary>主动关闭的Tcp连接数</summary>
-    //public Int32 TcpTimeWait { get; set; }
-
-    ///// <summary>被动关闭的Tcp连接数</summary>
-    //public Int32 TcpCloseWait { get; set; }
 
     /// <summary>开机时间，单位s</summary>
     public Int32 Uptime { get; set; }

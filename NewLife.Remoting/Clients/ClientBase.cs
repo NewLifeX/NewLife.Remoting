@@ -1,5 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.IO;
+using System.Net;
 using System.Net.NetworkInformation;
 using System.Reflection;
 using NewLife.Caching;
@@ -175,8 +177,8 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
 
             rs = await http.InvokeAsync<TResult>(method, action, args, null, cancellationToken);
         }
-
-        rs = await _client!.InvokeAsync<TResult>(action, args, cancellationToken);
+        else
+            rs = await _client!.InvokeAsync<TResult>(action, args, cancellationToken);
 
         if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]<={1}", action, rs?.ToJson());
 
@@ -256,6 +258,14 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
                 WriteLog("下发密钥：{0}/{1}", rs.Code, rs.Secret);
                 Code = rs.Code;
                 Secret = rs.Secret;
+
+                var set = Setting;
+                if (set != null)
+                {
+                    set.Code = rs.Code;
+                    set.Secret = rs.Secret;
+                    set.Save();
+                }
             }
 
             FixTime(rs.Time, rs.Time);
@@ -265,14 +275,6 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
             Logined = true;
 
             OnLogined?.Invoke(this, new(request, rs));
-
-            var set = Setting;
-            if (set != null && !rs.Code.IsNullOrEmpty())
-            {
-                set.Code = rs.Code;
-                set.Secret = rs.Secret;
-                set.Save();
-            }
 
             StartTimer();
 
@@ -457,6 +459,24 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
 
         if (request is PingRequest req)
         {
+            var path = ".".GetFullPath();
+            var driveInfo = DriveInfo.GetDrives().FirstOrDefault(e => path.StartsWithIgnoreCase(e.Name));
+            var mi = MachineInfo.GetCurrent();
+            mi.Refresh();
+
+            req.Memory = mi.Memory;
+            req.AvailableMemory = mi.AvailableMemory;
+            req.TotalSize = (UInt64)(driveInfo?.TotalSize ?? 0);
+            req.AvailableFreeSpace = (UInt64)(driveInfo?.AvailableFreeSpace ?? 0);
+            req.CpuRate = Math.Round(mi.CpuRate, 3);
+            req.Temperature = Math.Round(mi.Temperature, 1);
+            req.Battery = Math.Round(mi.Battery, 3);
+            req.UplinkSpeed = mi.UplinkSpeed;
+            req.DownlinkSpeed = mi.DownlinkSpeed;
+
+            var ip = NetHelper.GetIPs().Where(ip => ip.IsIPv4() && !IPAddress.IsLoopback(ip) && ip.GetAddressBytes()[0] != 169).Join();
+            req.IP = ip;
+
             req.Delay = Delay;
             req.Uptime = Environment.TickCount / 1000;
 
@@ -464,14 +484,6 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
             // 后来在 netcore3.0 增加了Environment.TickCount64
             // 现在借助 Stopwatch 来解决
             if (Stopwatch.IsHighResolution) req.Uptime = (Int32)(Stopwatch.GetTimestamp() / Stopwatch.Frequency);
-
-            var mi = MachineInfo.GetCurrent();
-            req.AvailableMemory = mi.AvailableMemory;
-            req.CpuRate = Math.Round(mi.CpuRate, 3);
-            req.Temperature = Math.Round(mi.Temperature, 1);
-            req.Battery = Math.Round(mi.Battery, 3);
-            req.UplinkSpeed = mi.UplinkSpeed;
-            req.DownlinkSpeed = mi.DownlinkSpeed;
         }
 
         return request;

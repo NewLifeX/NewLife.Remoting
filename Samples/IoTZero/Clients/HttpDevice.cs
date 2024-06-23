@@ -17,6 +17,9 @@ public class HttpDevice : ClientBase
     /// <summary>产品编码。从IoT管理平台获取</summary>
     public String ProductKey { get; set; }
 
+    /// <summary>产品密钥</summary>
+    public String ProductSecret { get; set; }
+
     private readonly ClientSetting _setting;
     #endregion
 
@@ -28,6 +31,7 @@ public class HttpDevice : ClientBase
         _setting = setting;
 
         ProductKey = setting.ProductKey;
+        ProductSecret = setting.DeviceSecret;
     }
     #endregion
 
@@ -59,11 +63,10 @@ public class HttpDevice : ClientBase
         if (request is LoginInfo info)
         {
             info.ProductKey = ProductKey;
+            info.ProductSecret = ProductSecret;
             info.Name = Environment.MachineName;
             info.IP = NetHelper.MyIP() + "";
-
-            var mi = MachineInfo.GetCurrent();
-            info.UUID = mi.BuildCode();
+            info.UUID = MachineInfo.GetCurrent().BuildCode();
         }
 
         return request;
@@ -76,7 +79,8 @@ public class HttpDevice : ClientBase
         var request = base.BuildPingRequest();
         if (request is PingInfo info)
         {
-
+            info.Memory = 0;
+            info.TotalSize = 0;
         }
 
         return request;
