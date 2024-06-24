@@ -61,6 +61,9 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <summary>命令前缀。默认Device/</summary>
     public String Prefix { get; set; } = "Device/";
 
+    /// <summary>允许匿名访问的动作</summary>
+    public IList<String> AllowAnonymous { get; set; } = new List<String>(["Login", "Logout", "*/Login", "*/Logout"]);
+
     /// <summary>客户端设置</summary>
     public IClientSetting? Setting { get; set; }
 
@@ -196,7 +199,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <returns></returns>
     public virtual async Task<TResult?> InvokeAsync<TResult>(String action, Object? args = null, CancellationToken cancellationToken = default)
     {
-        var needLogin = !action.EndsWithIgnoreCase("/Login", "/Logout");
+        var needLogin = !AllowAnonymous.Any(e => e.IsMatch(action));
         if (!Logined && needLogin) await Login();
 
         try
