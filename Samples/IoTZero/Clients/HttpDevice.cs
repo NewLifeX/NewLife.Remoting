@@ -44,6 +44,8 @@ public class HttpDevice : ClientBase
     {
         var provider = ServiceProvider ??= ObjectContainer.Provider;
 
+        PasswordProvider = new SaltPasswordProvider { Algorithm = "md5", SaltTime = 60 };
+
         // 找到容器，注册默认的模型实现，供后续InvokeAsync时自动创建正确的模型对象
         var container = ModelExtension.GetService<IObjectContainer>(provider) ?? ObjectContainer.Current;
         if (container != null)

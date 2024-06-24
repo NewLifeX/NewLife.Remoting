@@ -30,6 +30,10 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     public String? Secret { get; set; }
 
     /// <summary>密码提供者</summary>
+    /// <remarks>
+    /// 用于保护密码传输，默认提供者为空，密码将明文传输。
+    /// 推荐使用SaltPasswordProvider。
+    /// </remarks>
     public IPasswordProvider? PasswordProvider { get; set; }
 
     /// <summary>服务提供者</summary>
@@ -140,7 +144,8 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
             container.TryAddTransient<IUpgradeInfo, UpgradeInfo>();
         }
 
-        PasswordProvider ??= GetService<IPasswordProvider>() ?? new SaltPasswordProvider { Algorithm = "md5" };
+        //PasswordProvider ??= GetService<IPasswordProvider>() ?? new SaltPasswordProvider { Algorithm = "md5", SaltTime = 60 };
+        PasswordProvider ??= GetService<IPasswordProvider>();
 
         if (Client == null)
         {
@@ -334,8 +339,10 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
 
         var info = GetService<ILoginRequest>() ?? new LoginRequest();
         info.Code = Code;
-        info.Secret = Secret;
         info.ClientId = $"{NetHelper.MyIP()}@{Process.GetCurrentProcess().Id}";
+
+        if (!Secret.IsNullOrEmpty())
+            info.Secret = PasswordProvider?.Hash(Secret) ?? Secret;
 
         if (info is LoginRequest request)
         {
