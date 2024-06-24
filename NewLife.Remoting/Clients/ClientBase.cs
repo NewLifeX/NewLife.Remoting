@@ -1,6 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.IO;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Reflection;
@@ -13,6 +13,9 @@ using NewLife.Remoting.Models;
 using NewLife.Security;
 using NewLife.Serialization;
 using NewLife.Threading;
+#if !NET40
+using TaskEx = System.Threading.Tasks.Task;
+#endif
 
 namespace NewLife.Remoting.Clients;
 
@@ -220,6 +223,14 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
             throw;
         }
     }
+
+    /// <summary>同步调用</summary>
+    /// <typeparam name="TResult"></typeparam>
+    /// <param name="action"></param>
+    /// <param name="args"></param>
+    /// <returns></returns>
+    [return: MaybeNull]
+    public virtual TResult Invoke<TResult>(String action, Object? args = null) => TaskEx.Run(() => InvokeAsync<TResult>(action, args)).Result;
 
     /// <summary>设置令牌。派生类可重定义逻辑</summary>
     /// <param name="token"></param>
