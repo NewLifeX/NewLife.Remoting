@@ -28,6 +28,10 @@ public class HttpDevice : ClientBase
 
     public HttpDevice(ClientSetting setting) : base(setting)
     {
+        // 设置动作前缀，开启下行通知
+        Prefix = "Device/";
+        Features = ClientFeatures.Login | ClientFeatures.Logout | ClientFeatures.Ping | ClientFeatures.Notify;
+
         _setting = setting;
 
         ProductKey = setting.ProductKey;
