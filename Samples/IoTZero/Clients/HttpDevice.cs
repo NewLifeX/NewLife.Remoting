@@ -97,7 +97,7 @@ public class HttpDevice : ClientBase
     /// <returns></returns>
     public async Task PostDataAsync()
     {
-        if (Tracer != null) DefaultSpan.Current = null;
+        //if (Tracer != null) DefaultSpan.Current = null;
 
         using var span = Tracer?.NewSpan("PostData");
         try

@@ -418,7 +418,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     {
         Init();
 
-        if (Tracer != null) DefaultSpan.Current = null;
+        //if (Tracer != null) DefaultSpan.Current = null;
         using var span = Tracer?.NewSpan(nameof(Ping));
         try
         {
@@ -577,7 +577,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <returns></returns>
     protected virtual async Task OnPing(Object state)
     {
-        DefaultSpan.Current = null;
+        //DefaultSpan.Current = null;
         using var span = Tracer?.NewSpan("ClientPing");
         try
         {
