@@ -517,7 +517,9 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <param name="request"></param>
     /// <returns></returns>
     protected virtual Task<IPingResponse?> PingAsync(IPingRequest request) => InvokeAsync<IPingResponse>(Prefix + "Ping", request);
+    #endregion
 
+    #region 下行通知
     private TimerX? _timer;
     private TimerX? _timerUpgrade;
     /// <summary>开始心跳定时器</summary>
@@ -560,7 +562,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     protected virtual async Task OnPing(Object state)
     {
         DefaultSpan.Current = null;
-        using var span = Tracer?.NewSpan("DevicePing");
+        using var span = Tracer?.NewSpan("ClientPing");
         try
         {
             if (Features.HasFlag(ClientFeatures.Ping)) await Ping();
@@ -655,6 +657,11 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <param name="argument"></param>
     /// <returns></returns>
     public async Task SendCommand(String command, String argument) => await OnReceiveCommand(new CommandModel { Command = command, Argument = argument });
+
+    /// <summary>上报命令调用结果</summary>
+    /// <param name="model"></param>
+    /// <returns></returns>
+    public virtual Task<Object?> CommandReply(CommandReplyModel model) => InvokeAsync<Object>(Prefix + "CommandReply", model);
     #endregion
 
     #region 上报
@@ -744,11 +751,6 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
 
         return true;
     }
-
-    /// <summary>上报命令调用结果</summary>
-    /// <param name="model"></param>
-    /// <returns></returns>
-    public virtual Task<Object?> CommandReply(CommandReplyModel model) => InvokeAsync<Object>(Prefix + "CommandReply", model);
     #endregion
 
     #region 更新

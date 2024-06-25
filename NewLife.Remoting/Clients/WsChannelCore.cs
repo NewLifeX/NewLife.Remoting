@@ -53,7 +53,7 @@ class WsChannelCore : WsChannel
         if (_websocket == null || _websocket.State != WebSocketState.Open)
         {
             var url = svc.Address.ToString().Replace("http://", "ws://").Replace("https://", "wss://");
-            var uri = new Uri(new Uri(url), "/Device/Notify");
+            var uri = new Uri(new Uri(url), _client.Prefix + "Notify");
 
             using var span2 = _client.Tracer?.NewSpan("WebSocketConnect", uri + "");
 

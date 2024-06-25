@@ -53,16 +53,14 @@ class WsChannel : DisposeBase
         if (_websocket == null || _websocket.Disposed)
         {
             var url = svc.Address.ToString().Replace("http://", "ws://").Replace("https://", "wss://");
-            var uri = new Uri(new Uri(url), "/Device/Notify");
+            var uri = new Uri(new Uri(url), _client.Prefix + "Notify");
 
             using var span2 = _client.Tracer?.NewSpan("WebSocketConnect", uri + "");
 
-            var client = uri.CreateRemote() as WebSocketClient;
-            //todo 设置令牌
-            //client.Options.SetRequestHeader("Authorization", "Bearer " + token);
+            var client = (uri.CreateRemote() as WebSocketClient)!;
+            client.SetRequestHeader("Authorization", "Bearer " + token);
 
             span?.AppendTag($"WebSocket.Connect {uri}");
-            //await client.ConnectAsync(uri, default);
             client.Open();
 
             _websocket = client;
