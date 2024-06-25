@@ -530,7 +530,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
                 if (_timer == null)
                 {
                     if (Features.HasFlag(ClientFeatures.Ping) || Features.HasFlag(ClientFeatures.Notify))
-                        _timer = new TimerX(OnPing, null, 3_000, 60_000, "Client") { Async = true };
+                        _timer = new TimerX(OnPing, null, 100, 60_000, "Client") { Async = true };
 
                     if (Features.HasFlag(ClientFeatures.Upgrade))
                         _timerUpgrade = new TimerX(s => Upgrade(), null, 5_000, 600_000, "Client") { Async = true };
