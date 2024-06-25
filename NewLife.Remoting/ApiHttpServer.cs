@@ -1,6 +1,7 @@
 ﻿using NewLife.Http;
+using NewLife.Model;
 using NewLife.Net;
-using NewLife.Remoting.Http;
+using NewLife.Serialization;
 using HttpCodec = NewLife.Remoting.Http.HttpCodec;
 
 namespace NewLife.Remoting;
@@ -29,13 +30,15 @@ class ApiHttpServer : ApiNetServer
         if (config is NetUri uri) Port = uri.Port;
 
         //RawUrl = uri + "";
+        var json = ServiceProvider?.GetService<IJsonHost>() ?? JsonHelper.Default;
 
         // Http封包协议
         //Add<HttpCodec>();
-        Add(new HttpCodec { AllowParseHeader = true });
+        Add(new HttpCodec { AllowParseHeader = true, JsonHost = json });
 
         //host.Handler = new ApiHttpHandler { Host = host };
-        host.Encoder = new HttpEncoder();
+
+        host.Encoder = new HttpEncoder { JsonHost = json };
 
         return true;
     }

@@ -1,8 +1,9 @@
-﻿using NewLife.Http;
-using NewLife.Log;
+﻿using NewLife.Log;
 using NewLife.Messaging;
+using NewLife.Model;
 using NewLife.Net;
 using NewLife.Remoting.Http;
+using NewLife.Serialization;
 using HttpCodec = NewLife.Remoting.Http.HttpCodec;
 
 namespace NewLife.Remoting;
@@ -38,9 +39,10 @@ class ApiNetServer : NetServer<ApiNetSession>, IApiServer
         //    Add<WebSocketServerCodec>();
         //else
         //    Add(new HttpCodec { AllowParseHeader = true });
-      
+        var json = ServiceProvider?.GetService<IJsonHost>() ?? JsonHelper.Default;
+
         Add<WebSocketServerCodec>();
-        Add(new HttpCodec { AllowParseHeader = true });
+        Add(new HttpCodec { AllowParseHeader = true, JsonHost = json });
 
         // 新生命标准网络封包协议
         Add(Host.GetMessageCodec());

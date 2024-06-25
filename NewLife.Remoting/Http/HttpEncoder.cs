@@ -13,6 +13,9 @@ namespace NewLife.Http;
 public class HttpEncoder : EncoderBase, IEncoder
 {
     #region 属性
+    /// <summary>Json主机。提供序列化能力</summary>
+    public IJsonHost JsonHost { get; set; } = JsonHelper.Default;
+
     /// <summary>是否使用Http状态。默认false，使用json包装响应码</summary>
     public Boolean UseHttpStatus { get; set; }
     #endregion
@@ -34,11 +37,9 @@ public class HttpEncoder : EncoderBase, IEncoder
 
         if (value == null) return null;
 
-        String json;
-        if (UseHttpStatus)
-            json = value.ToJson(false, false, false);
-        else
-            json = new { action, code, data = value }.ToJson(false, true, false);
+        var json = UseHttpStatus ?
+            JsonHost.Write(value, false, false, false) :
+            JsonHost.Write(new { action, code, data = value }, false, true, false);
         WriteLog("{0}=>{1}", action, json);
 
         return json.GetBytes();
@@ -124,7 +125,7 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <param name="obj"></param>
     /// <param name="targetType"></param>
     /// <returns></returns>
-    public virtual Object? Convert(Object obj, Type targetType) => JsonHelper.Default.Convert(obj, targetType);
+    public virtual Object? Convert(Object obj, Type targetType) => JsonHost.Convert(obj, targetType);
 
     #region 编码/解码
     /// <summary>创建请求</summary>

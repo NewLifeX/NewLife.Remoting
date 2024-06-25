@@ -1,5 +1,6 @@
 ﻿using NewLife.Data;
 using NewLife.Messaging;
+using NewLife.Model;
 using NewLife.Reflection;
 using NewLife.Serialization;
 
@@ -8,6 +9,9 @@ namespace NewLife.Remoting;
 /// <summary>Json编码器</summary>
 public class JsonEncoder : EncoderBase, IEncoder
 {
+    /// <summary>Json主机。提供序列化能力</summary>
+    public IJsonHost JsonHost { get; set; } = JsonHelper.Default;
+
     /// <summary>编码。请求/响应</summary>
     /// <param name="action"></param>
     /// <param name="code"></param>
@@ -86,7 +90,7 @@ public class JsonEncoder : EncoderBase, IEncoder
     /// <param name="obj"></param>
     /// <param name="targetType"></param>
     /// <returns></returns>
-    public Object? Convert(Object obj, Type targetType) => JsonHelper.Default.Convert(obj, targetType);
+    public Object? Convert(Object obj, Type targetType) => JsonHost.Convert(obj, targetType);
 
     /// <summary>创建请求</summary>
     /// <param name="action"></param>
@@ -154,7 +158,7 @@ public class JsonEncoder : EncoderBase, IEncoder
                 if (value is Exception ex)
                     value = str = ex.GetTrue().Message;
                 else
-                    str = value.ToJson(false, false, false);
+                    str = JsonHost.Write(value, false, false, false);
 
                 pk = str.GetBytes();
             }

@@ -37,30 +37,31 @@ public sealed class ApiFilterAttribute : ActionFilterAttribute
         if (context.Result != null)
             if (context.Result is ObjectResult obj)
             {
+                var host = context.HttpContext.RequestServices?.GetService<IJsonHost>() ?? JsonHelper.Default;
                 //context.Result = new JsonResult(new { code = obj.StatusCode ?? 0, data = obj.Value });
                 var rs = new { code = obj.StatusCode ?? 0, data = obj.Value, traceId };
                 context.Result = new ContentResult
                 {
-                    Content = rs.ToJson(false, true, true),
+                    Content = host.Write(rs, false, true, true),
                     ContentType = "application/json",
                     StatusCode = 200
                 };
             }
             else if (context.Result is EmptyResult)
                 context.Result = new JsonResult(new { code = 0, data = new { }, traceId });
-        else if (context.Exception != null && !context.ExceptionHandled)
-        {
-            var ex = context.Exception.GetTrue();
-            if (ex is NewLife.Remoting.ApiException aex)
-                context.Result = new JsonResult(new { code = aex.Code, data = aex.Message, traceId });
-            else
-                context.Result = new JsonResult(new { code = 500, data = ex.Message, traceId });
+            else if (context.Exception != null && !context.ExceptionHandled)
+            {
+                var ex = context.Exception.GetTrue();
+                if (ex is NewLife.Remoting.ApiException aex)
+                    context.Result = new JsonResult(new { code = aex.Code, data = aex.Message, traceId });
+                else
+                    context.Result = new JsonResult(new { code = 500, data = ex.Message, traceId });
 
-            context.ExceptionHandled = true;
+                context.ExceptionHandled = true;
 
-            // 输出异常日志
-            if (XTrace.Debug) XTrace.WriteException(ex);
-        }
+                // 输出异常日志
+                if (XTrace.Debug) XTrace.WriteException(ex);
+            }
 
         base.OnActionExecuted(context);
     }

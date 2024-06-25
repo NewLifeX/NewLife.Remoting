@@ -5,6 +5,7 @@ using NewLife.Messaging;
 using NewLife.Model;
 using NewLife.Net;
 using NewLife.Remoting.Http;
+using NewLife.Serialization;
 using NewLife.Threading;
 #if !NET40
 using TaskEx = System.Threading.Tasks.Task;
@@ -45,6 +46,9 @@ public class ApiClient : ApiHost, IApiClient
 
     /// <summary>收到请求或响应时</summary>
     public event EventHandler<ApiReceivedEventArgs>? Received;
+
+    /// <summary>服务提供者。创建控制器实例时使用，可实现依赖注入。务必在注册控制器之前设置该属性</summary>
+    public IServiceProvider? ServiceProvider { get; set; }
 
     /// <summary>调用统计</summary>
     public ICounter? StatInvoke { get; set; }
@@ -89,7 +93,8 @@ public class ApiClient : ApiHost, IApiClient
             var ss = Servers;
             if (ss == null || ss.Length == 0) throw new ArgumentNullException(nameof(Servers), "未指定服务端地址");
 
-            Encoder ??= new JsonEncoder();
+            var json = ServiceProvider?.GetService<IJsonHost>() ?? JsonHelper.Default;
+            Encoder ??= new JsonEncoder { JsonHost = json };
 
             // 集群
             Cluster = InitCluster();

@@ -5,6 +5,7 @@ using NewLife.Log;
 using NewLife.Messaging;
 using NewLife.Model;
 using NewLife.Net;
+using NewLife.Serialization;
 using NewLife.Threading;
 
 namespace NewLife.Remoting;
@@ -47,7 +48,7 @@ public class ApiServer : ApiHost, IServer
     public event EventHandler<ApiReceivedEventArgs>? Received;
 
     /// <summary>服务提供者。创建控制器实例时使用，可实现依赖注入。务必在注册控制器之前设置该属性</summary>
-    public IServiceProvider? ServiceProvider { get; set; } //= ObjectContainer.Provider;
+    public IServiceProvider? ServiceProvider { get; set; }
 
     /// <summary>处理统计</summary>
     public ICounter? StatProcess { get; set; }
@@ -167,7 +168,8 @@ public class ApiServer : ApiHost, IServer
     {
         if (Active) return;
 
-        Encoder ??= new JsonEncoder();
+        var json = ServiceProvider?.GetService<IJsonHost>() ?? JsonHelper.Default;
+        Encoder ??= new JsonEncoder { JsonHost = json };
         Handler ??= new ApiHandler { Host = this };
 
         Encoder.Log = EncoderLog;

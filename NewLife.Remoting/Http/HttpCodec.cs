@@ -1,10 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using NewLife.Data;
+﻿using NewLife.Data;
 using NewLife.Http;
-using NewLife.Messaging;
 using NewLife.Model;
 using NewLife.Net;
+using NewLife.Serialization;
 
 namespace NewLife.Remoting.Http;
 
@@ -17,6 +15,9 @@ public class HttpCodec : Handler
     /// 分析头部对性能有一定损耗
     /// </remarks>
     public Boolean AllowParseHeader { get; set; }
+
+    /// <summary>Json主机。提供序列化能力</summary>
+    public IJsonHost JsonHost { get; set; } = JsonHelper.Default;
     #endregion
 
     /// <summary>写入数据</summary>
@@ -58,7 +59,7 @@ public class HttpCodec : Handler
             // 第一个请求必须是GET/POST，才执行后续操作
             if (!isGet && !isPost) return base.Read(context, message);
 
-            ext["Encoder"] = new HttpEncoder();
+            ext["Encoder"] = new HttpEncoder { JsonHost = JsonHost };
         }
 
         // 检查是否有未完成消息
