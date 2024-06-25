@@ -24,13 +24,12 @@ public class HttpDevice : ClientBase
     #endregion
 
     #region 构造
-    public HttpDevice() => Prefix = "Device/";
-
     public HttpDevice(ClientSetting setting) : base(setting)
     {
-        // 设置动作前缀，开启下行通知
-        Prefix = "Device/";
-        Features = ClientFeatures.Login | ClientFeatures.Logout | ClientFeatures.Ping | ClientFeatures.Notify;
+        // 设置动作，开启下行通知
+        Features = Features.Login | Features.Logout | Features.Ping | Features.Notify;
+        SetActions("Device/");
+        Actions[Features.CommandReply] = "Thing/ServiceReply";
 
         _setting = setting;
 
@@ -62,7 +61,7 @@ public class HttpDevice : ClientBase
     }
     #endregion
 
-    #region 登录注销
+    #region 登录
     public override ILoginRequest BuildLoginRequest()
     {
         var request = base.BuildLoginRequest();
@@ -91,13 +90,6 @@ public class HttpDevice : ClientBase
 
         return request;
     }
-
-    public override Task<Object> CommandReply(CommandReplyModel model) => InvokeAsync<Object>("Thing/ServiceReply", new ServiceReplyModel
-    {
-        Id = model.Id,
-        Status = (ServiceStatus)model.Status,
-        Data = model.Data,
-    });
     #endregion
 
     #region 数据

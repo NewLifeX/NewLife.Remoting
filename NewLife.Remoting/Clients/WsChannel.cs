@@ -53,7 +53,7 @@ class WsChannel : DisposeBase
         if (_websocket == null || _websocket.Disposed)
         {
             var url = svc.Address.ToString().Replace("http://", "ws://").Replace("https://", "wss://");
-            var uri = new Uri(new Uri(url), _client.Prefix + "Notify");
+            var uri = new Uri(new Uri(url), _client.Actions[Features.Notify]);
 
             using var span2 = _client.Tracer?.NewSpan("WebSocketConnect", uri + "");
 

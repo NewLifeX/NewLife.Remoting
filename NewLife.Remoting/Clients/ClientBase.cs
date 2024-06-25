@@ -23,6 +23,9 @@ namespace NewLife.Remoting.Clients;
 public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, ITracerFeature, ILogFeature
 {
     #region 属性
+    /// <summary>服务端地址。支持http/tcp/udp，多地址逗号分隔</summary>
+    public String? Server { get; set; }
+
     /// <summary>应用标识</summary>
     public String? Code { get; set; }
 
@@ -63,13 +66,10 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     public event EventHandler<CommandEventArgs>? Received;
 
     /// <summary>客户端功能特性。默认登录注销心跳，可添加更新等</summary>
-    public ClientFeatures Features { get; set; } = ClientFeatures.Login | ClientFeatures.Logout | ClientFeatures.Ping;
+    public Features Features { get; set; } = Features.Login | Features.Logout | Features.Ping;
 
-    /// <summary>命令前缀。默认Device/</summary>
-    public String Prefix { get; set; } = "Device/";
-
-    /// <summary>允许匿名访问的动作</summary>
-    public IList<String> AllowAnonymous { get; set; } = new List<String>(["Login", "Logout", "*/Login", "*/Logout"]);
+    /// <summary>各功能的命令集合</summary>
+    public IDictionary<Features, String> Actions { get; set; } = null!;
 
     /// <summary>客户端设置</summary>
     public IClientSetting? Setting { get; set; }
@@ -91,7 +91,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     }
 
     /// <summary>实例化</summary>
-    public ClientBase() { }
+    public ClientBase() => SetActions("Device/");
 
     /// <summary>通过客户端设置实例化</summary>
     /// <param name="setting"></param>
@@ -99,6 +99,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     {
         Setting = setting;
 
+        Server = setting.Server;
         Code = setting.Code;
         Secret = setting.Secret;
     }
@@ -118,6 +119,21 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     #endregion
 
     #region 方法
+    /// <summary>设置各功能接口名</summary>
+    /// <param name="prefix"></param>
+    protected virtual void SetActions(String prefix)
+    {
+        Actions = new Dictionary<Features, String>
+        {
+            [Features.Login] = prefix + "Login",
+            [Features.Logout] = prefix + "Logout",
+            [Features.Ping] = prefix + "Ping",
+            [Features.Notify] = prefix + "Notify",
+            [Features.Upgrade] = prefix + "Upgrade",
+            [Features.PostEvent] = prefix + "PostEvents"
+        };
+    }
+
     private Int32 _inited;
     /// <summary>初始化</summary>
     private void Init()
@@ -149,7 +165,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
 
         if (Client == null)
         {
-            var urls = Setting?.Server;
+            var urls = Server ?? Setting?.Server;
             if (urls.IsNullOrEmpty()) throw new ArgumentNullException(nameof(Setting), "未指定服务端地址");
 
             _client = urls.StartsWithIgnoreCase("http", "https") ? CreateHttp(urls) : CreateRpc(urls);
@@ -170,7 +186,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     {
         public ClientBase Client { get; set; } = null!;
 
-        protected override async Task<Object?> OnLoginAsync(ISocketClient client, Boolean force) => await InvokeWithClientAsync<Object>(client, Client.Prefix + "Login", Client.BuildLoginRequest());
+        protected override async Task<Object?> OnLoginAsync(ISocketClient client, Boolean force) => await InvokeWithClientAsync<Object>(client, Client.Actions[Features.Login], Client.BuildLoginRequest());
     }
 
     /// <summary>异步调用</summary>
@@ -207,8 +223,8 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <returns></returns>
     public virtual async Task<TResult?> InvokeAsync<TResult>(String action, Object? args = null, CancellationToken cancellationToken = default)
     {
-        var needLogin = !AllowAnonymous.Any(e => e.IsMatch(action));
-        if (!Logined && needLogin && Features.HasFlag(ClientFeatures.Login)) await Login();
+        var needLogin = !Actions[Features.Login].EqualIgnoreCase(action);
+        if (!Logined && needLogin && Features.HasFlag(Features.Login)) await Login();
 
         try
         {
@@ -219,7 +235,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
             var ex2 = ex.GetTrue();
             if (ex2 is ApiException aex)
             {
-                if (Logined && aex.Code == ApiCode.Unauthorized && needLogin && Features.HasFlag(ClientFeatures.Login))
+                if (Logined && aex.Code == ApiCode.Unauthorized && needLogin && Features.HasFlag(Features.Login))
                 {
                     Log?.Debug("{0}", ex);
                     WriteLog("重新登录！");
@@ -388,11 +404,11 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <summary>登录</summary>
     /// <param name="request">登录信息</param>
     /// <returns></returns>
-    protected virtual Task<ILoginResponse?> LoginAsync(ILoginRequest request) => InvokeAsync<ILoginResponse>(Prefix + "Login", request);
+    protected virtual Task<ILoginResponse?> LoginAsync(ILoginRequest request) => InvokeAsync<ILoginResponse>(Actions[Features.Login], request);
 
     /// <summary>注销</summary>
     /// <returns></returns>
-    protected virtual Task<ILogoutResponse?> LogoutAsync(String reason) => InvokeAsync<ILogoutResponse>(Prefix + "Logout", new { reason });
+    protected virtual Task<ILogoutResponse?> LogoutAsync(String reason) => InvokeAsync<ILogoutResponse>(Actions[Features.Logout], new { reason });
     #endregion
 
     #region 心跳
@@ -459,7 +475,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
             span?.SetError(ex, null);
 
             var ex2 = ex.GetTrue();
-            if (ex2 is ApiException aex && (aex.Code == ApiCode.Unauthorized || aex.Code == ApiCode.Forbidden) && Features.HasFlag(ClientFeatures.Login))
+            if (ex2 is ApiException aex && (aex.Code == ApiCode.Unauthorized || aex.Code == ApiCode.Forbidden) && Features.HasFlag(Features.Login))
             {
                 WriteLog("重新登录");
                 await Login();
@@ -516,7 +532,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <summary>心跳</summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    protected virtual Task<IPingResponse?> PingAsync(IPingRequest request) => InvokeAsync<IPingResponse>(Prefix + "Ping", request);
+    protected virtual Task<IPingResponse?> PingAsync(IPingRequest request) => InvokeAsync<IPingResponse>(Actions[Features.Ping], request);
     #endregion
 
     #region 下行通知
@@ -531,10 +547,10 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
             {
                 if (_timer == null)
                 {
-                    if (Features.HasFlag(ClientFeatures.Ping) || Features.HasFlag(ClientFeatures.Notify))
+                    if (Features.HasFlag(Features.Ping) || Features.HasFlag(Features.Notify))
                         _timer = new TimerX(OnPing, null, 100, 60_000, "Client") { Async = true };
 
-                    if (Features.HasFlag(ClientFeatures.Upgrade))
+                    if (Features.HasFlag(Features.Upgrade))
                         _timerUpgrade = new TimerX(s => Upgrade(), null, 5_000, 600_000, "Client") { Async = true };
                 }
             }
@@ -565,9 +581,9 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         using var span = Tracer?.NewSpan("ClientPing");
         try
         {
-            if (Features.HasFlag(ClientFeatures.Ping)) await Ping();
+            if (Features.HasFlag(Features.Ping)) await Ping();
 
-            if (_client is ApiHttpClient http && Features.HasFlag(ClientFeatures.Notify))
+            if (_client is ApiHttpClient http && Features.HasFlag(Features.Notify))
             {
 #if NETCOREAPP
                 _ws ??= new WsChannelCore(this);
@@ -661,7 +677,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <summary>上报命令调用结果</summary>
     /// <param name="model"></param>
     /// <returns></returns>
-    public virtual Task<Object?> CommandReply(CommandReplyModel model) => InvokeAsync<Object>(Prefix + "CommandReply", model);
+    public virtual Task<Object?> CommandReply(CommandReplyModel model) => InvokeAsync<Object>(Actions[Features.CommandReply], model);
     #endregion
 
     #region 上报
@@ -670,21 +686,12 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     private TimerX? _eventTimer;
     private String? _eventTraceId;
 
-    void InitEvent()
-    {
-        _eventTimer ??= new TimerX(DoPostEvent, null, 3_000, 60_000, "Client") { Async = true };
-    }
+    void InitEvent() => _eventTimer ??= new TimerX(DoPostEvent, null, 3_000, 60_000, "Client") { Async = true };
 
     /// <summary>批量上报事件</summary>
     /// <param name="events"></param>
     /// <returns></returns>
-    public virtual Task<Int32> PostEvents(params EventModel[] events)
-    {
-        // 使用时才创建定时器
-        InitEvent();
-
-        return InvokeAsync<Int32>(Prefix + "PostEvents", events);
-    }
+    public virtual Task<Int32> PostEvents(params EventModel[] events) => InvokeAsync<Int32>(Actions[Features.PostEvent], events);
 
     async Task DoPostEvent(Object state)
     {
@@ -740,6 +747,9 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     /// <param name="remark"></param>
     public virtual Boolean WriteEvent(String type, String name, String? remark)
     {
+        // 使用时才创建定时器
+        InitEvent();
+
         // 记录追踪标识，上报的时候带上，尽可能让源头和下游串联起来
         _eventTraceId = DefaultSpan.Current?.ToString();
 
@@ -783,22 +793,28 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
                 _lastVersion = info.Version;
 
                 // 强制更新时，马上重启
-                if (rs && info.Force)
-                {
-                    // 重新拉起进程
-                    rs = ug.Run("dotnet", "IoTClient.dll -upgrade");
-
-                    if (rs) ug.KillSelf();
-                }
+                if (rs && info.Force) Restart(ug);
             }
         }
 
         return info;
     }
 
+    /// <summary>更新完成，重启自己</summary>
+    /// <param name="upgrade"></param>
+    protected virtual void Restart(Upgrade upgrade)
+    {
+        var asm = Assembly.GetEntryAssembly();
+
+        // 重新拉起进程
+        var rs = upgrade.Run("dotnet", $"{asm!.Location} -upgrade {Environment.CommandLine}");
+
+        if (rs) upgrade.KillSelf();
+    }
+
     /// <summary>更新</summary>
     /// <returns></returns>
-    protected virtual Task<IUpgradeInfo?> UpgradeAsync() => InvokeAsync<IUpgradeInfo>(Prefix + "Upgrade");
+    protected virtual Task<IUpgradeInfo?> UpgradeAsync() => InvokeAsync<IUpgradeInfo>(Actions[Features.Upgrade]);
     #endregion
 
     #region 辅助
