@@ -183,7 +183,23 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>创建RPC客户端</summary>
     /// <param name="urls"></param>
     /// <returns></returns>
-    protected virtual ApiClient CreateRpc(String urls) => new MyApiClient { Client = this, Servers = urls.Split(","), Log = Log };
+    protected virtual ApiClient CreateRpc(String urls)
+    {
+        var client = new MyApiClient { Client = this, Servers = urls.Split(","), Log = Log };
+        client.Received += (s, e) =>
+        {
+            var msg = e.Message;
+            var api = e.ApiMessage;
+            if (msg != null && !msg.Reply && api != null && api.Action == "Notify")
+            {
+                var cmd = api.Data?.ToStr().ToJsonEntity<CommandModel>();
+                if (cmd != null)
+                    _ = ReceiveCommand(cmd, client.Local?.Type + "");
+            }
+        };
+
+        return client;
+    }
 
     class MyApiClient : ApiClient
     {
