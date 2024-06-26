@@ -15,40 +15,56 @@
 源码： https://github.com/NewLifeX/NewLife.Remoting  
 Nuget：NewLife.Remoting / NewLife.Remoting.Extensions  
 
-# 组织架构
-## RPC框架
+# 系统架构
+## RPC架构
 客户端：ApiClient  
 服务端：ApiServer  
 应用客户端：ClientBase  
 特点：
 1. 服务端根据Action把请求转发给各个Controller，用法跟WebApi一致。
-2. 简单高性能，网络库上来就是二进制序列化，中间没有任何损耗
-3. TCP/UDP长会话，支持主动下发
-4. 最高连接，单机400万TCP长连接
-5. 常见吞吐，单机10万TPS，最高2266万TPS
-6. 可寄宿于控制台、Web项目、桌面应用、IoT嵌入式应用
+2. 简单高性能，通信报文使用二进制序列化，中间没有任何损耗
+3. 接口出入参支持灵活的Json序列化（常规接口），同时也支持高效的二进制序列化（图片视频）
+4. TCP/UDP长会话，服务端支持主动下发消息
+5. 最高连接，单机400万TCP长连接
+6. 常见吞吐，单机10万TPS，最高2266万TPS
+7. 服务端可寄宿于控制台、Web项目、桌面应用、IoT嵌入式应用
+8. 支持集群部署横向扩展，每个客户端跟其中一个服务端维持长连接
 
-## WebApi框架
+代表性应用（蚂蚁调度AntJob）：
+
+1. 客户端AntClient继承自ClientBase，通过Tcp/Udp等协议连接服务端ApiServer，进行登录、心跳等操作。
+2. 客户端使用应用AppId和AppSecret登录，获得令牌，后续无需携带或验证令牌，直到令牌过期重新登录。
+
+
+
+
+## HTTP架构
 客户端：ApiHttpClient  
 服务端：ASP.NET WebApi
 应用客户端：ClientBase  
 应用服务端：BaseDeviceController  
 特点：
+
 1. 标准ASP.NET WebApi作为服务端，重用原有技术栈。
+2. 客户端ApiHttpClient是标准HttpClient的进一步封装，支持多服务端地址负载均衡。
+3. 默认通信使用Json序列化，不适合传输文件、图片和视频等二进制数据。
+4. 服务端提供BaseController基类，封装了令牌验证等鉴权机制
+5. 服务端提供BaseDeviceController基类，封装常见的登录、心跳和更新等接口
+6. 通过WebSocket长连接实现指令下发，心跳保活
+7. 常见吞吐，单机1万TPS
+8. 服务端仅寄宿于 Kestrel和IIS
+9. 支持集群部署横向扩展，客户端每次请求都可能分流到不同应用服务器
 
-2. 客户端ApiHttpClient是标准HttpClient的进一步封装，支持多服务端地址。
+代表性应用（轻量级IoT平台ZeroIoT）：
 
-3. 服务端提供BaseController基类，封装了令牌验证等鉴权机制
+1. 客户端HttpDevice继承自ClientBase，通过Http/Https协议连接服务端WebApi，进行登录、注销、心跳和更新等操作。
+2. 客户端使用设备DeviceCode和DeviceSecret登录，获得令牌，后续每次请求头都需要带上令牌。
+3. 在心跳时检测并维持WebSocket长连接。
 
-4. 服务端提供BaseDeviceController基类，封装常见的登录、心跳和更新等接口
 
-5. 通过WebSocket长连接实现指令下发，心跳保活
 
-6. 常见吞吐，1万TPS
 
-   
-
-# 目标定位
+# SRMP协议
 在分布式系统中，RPC尤为重要。SRMP是新生命团队专门为了RPC框架而设计的通信协议，既支持内网高速通信，也能覆盖物联网嵌入式设备。
 
 经过十多年实战经验积累以及多方共同讨论，新生命团队（[https://newlifex.com](https://newlifex.com)）制订了一种简单而又具有较好扩展性的RPC（Remote Procedure Call）协议。

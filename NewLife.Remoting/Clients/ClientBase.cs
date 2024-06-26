@@ -20,16 +20,28 @@ using TaskEx = System.Threading.Tasks.Task;
 namespace NewLife.Remoting.Clients;
 
 /// <summary>应用客户端基类。实现对接目标平台的登录、心跳、更新和指令下发等场景操作</summary>
+/// <remarks>
+/// 典型应用架构：
+/// 1，RPC应用架构
+///     客户端ApiClient通过Tcp/Udp等协议连接服务端ApiServer，进行登录、心跳和更新等操作，服务端直接下发指令。
+///     例如蚂蚁调度，客户端使用应用编码和密钥登录后，获得令牌，后续无需验证令牌，直到令牌过期，重新登录。
+/// 2，Http应用架构
+///     客户端ApiHttpClient通过Http/Https协议连接服务端WebApi，进行登录、心跳和更新等操作，服务端通过WebSocket下发指令。
+///     例如ZeroIot，客户端使用设备编码和密钥登录后，获得令牌，后续每次请求都需要带上令牌，在心跳时维持WebSocket长连接。
+/// 3，OAuth应用架构
+///     客户端ApiHttpClient通过Http/Https协议连接服务端WebApi，进行OAuth登录，获得令牌，后续每次请求都需要带上令牌。
+///     例如星尘AppClient，AppId和AppSecret进行OAuth登录后，获得令牌，后续每次请求都需要带上令牌。
+/// </remarks>
 public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEventProvider, ITracerFeature, ILogFeature
 {
     #region 属性
     /// <summary>服务端地址。支持http/tcp/udp，多地址逗号分隔</summary>
     public String? Server { get; set; }
 
-    /// <summary>应用标识</summary>
+    /// <summary>编码。设备编码DeviceCode，或应用标识AppId</summary>
     public String? Code { get; set; }
 
-    /// <summary>应用密钥</summary>
+    /// <summary>密钥。设备密钥DeviceSecret，或应用密钥AppSecret</summary>
     public String? Secret { get; set; }
 
     /// <summary>密码提供者</summary>
@@ -569,7 +581,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 if (_timer == null)
                 {
                     if (Features.HasFlag(Features.Ping) || Features.HasFlag(Features.Notify))
-                        _timer = new TimerX(OnPing, null, 100, 60_000, "Client") { Async = true };
+                        _timer = new TimerX(OnPing, null, 1000, 60_000, "Client") { Async = true };
 
                     if (Features.HasFlag(Features.Upgrade))
                         _timerUpgrade = new TimerX(s => Upgrade(), null, 5_000, 600_000, "Client") { Async = true };
