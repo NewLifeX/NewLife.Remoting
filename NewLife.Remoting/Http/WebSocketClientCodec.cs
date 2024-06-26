@@ -44,7 +44,7 @@ public class WebSocketClientCodec : Handler
         if (message is Packet pk)
         {
             var msg = new WebSocketMessage();
-            if (msg.Read(pk)) message = msg.Payload;
+            if (msg.Read(pk)) message = msg.Payload!;
         }
 
         return base.Read(context, message);

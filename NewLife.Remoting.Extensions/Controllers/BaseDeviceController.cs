@@ -58,7 +58,7 @@ public class BaseDeviceController : BaseController
     public virtual ILoginResponse Login([FromBody] ILoginRequest request)
     {
         // 先查一次，后续即使登录失败，也可以写设备历史
-        _device = _deviceService.QueryDevice(request.Code);
+        if (!request.Code.IsNullOrEmpty()) _device = _deviceService.QueryDevice(request.Code);
 
         var (dv, online, rs) = _deviceService.Login(request, "Http", UserHost);
 

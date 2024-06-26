@@ -1,11 +1,10 @@
 ﻿using NewLife.Collections;
 using NewLife.Log;
-using NewLife.Net;
 
 namespace NewLife.Remoting;
 
 /// <summary>客户端连接池负载均衡集群</summary>
-public class ClientPoolCluster<T> : ICluster<String, T>
+public class ClientPoolCluster<T> : ICluster<String, T> where T : class
 {
     /// <summary>最后使用资源</summary>
     public KeyValuePair<String, T> Current { get; private set; }

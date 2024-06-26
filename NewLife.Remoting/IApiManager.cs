@@ -109,9 +109,10 @@ class ApiManager : IApiManager
         if (Services.TryGetValue(action, out var mi)) return mi;
 
         // 局部模糊匹配
-        if (action.Contains('/'))
+        var p = action.IndexOf('/');
+        if (p >= 0)
         {
-            var ctrl = action.Substring(null, "/");
+            var ctrl = action.Substring(0, p);
             if (Services.TryGetValue(ctrl + "/*", out mi)) return mi;
         }
 

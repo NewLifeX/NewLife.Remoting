@@ -30,7 +30,7 @@ public class ApiClient : ApiHost, IApiClient
     public String[]? Servers { get; set; }
 
     /// <summary>本地地址。在本地有多个IP时，可以指定使用哪一个IP地址</summary>
-    public NetUri Local { get; set; }
+    public NetUri? Local { get; set; }
 
     /// <summary>客户端连接集群</summary>
     public ICluster<String, ISocketClient>? Cluster { get; set; }

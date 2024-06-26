@@ -20,7 +20,7 @@ using TaskEx = System.Threading.Tasks.Task;
 namespace NewLife.Remoting.Clients;
 
 /// <summary>应用客户端基类。实现对接目标平台的登录、心跳、更新和指令下发等场景操作</summary>
-public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, ITracerFeature, ILogFeature
+public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEventProvider, ITracerFeature, ILogFeature
 {
     #region 属性
     /// <summary>服务端地址。支持http/tcp/udp，多地址逗号分隔</summary>
@@ -44,7 +44,9 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
 
     private IApiClient? _client;
     /// <summary>Api客户端</summary>
-    public IApiClient? Client => _client;
+    public IApiClient? Client { get => _client; set => _client = value; }
+
+    String? IApiClient.Token { get => _client?.Token; set { if (_client != null) _client.Token = value; } }
 
     /// <summary>是否已登录</summary>
     public Boolean Logined { get; set; }
@@ -134,16 +136,17 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         };
     }
 
-    private Int32 _inited;
     /// <summary>初始化</summary>
+    [MemberNotNull(nameof(_client))]
     private void Init()
     {
-        if (Interlocked.CompareExchange(ref _inited, 1, 0) != 0) return;
+        if (_client != null) return;
 
         OnInit();
     }
 
     /// <summary>初始化</summary>
+    [MemberNotNull(nameof(_client))]
     protected virtual void OnInit()
     {
         var provider = ServiceProvider ??= ObjectContainer.Provider;
@@ -163,7 +166,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
         //PasswordProvider ??= GetService<IPasswordProvider>() ?? new SaltPasswordProvider { Algorithm = "md5", SaltTime = 60 };
         PasswordProvider ??= GetService<IPasswordProvider>();
 
-        if (Client == null)
+        if (_client == null)
         {
             var urls = Server ?? Setting?.Server;
             if (urls.IsNullOrEmpty()) throw new ArgumentNullException(nameof(Setting), "未指定服务端地址");
@@ -198,6 +201,8 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
     {
         if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]=>{1}", action, args?.ToJson());
 
+        Init();
+
         TResult? rs = default;
         if (_client is ApiHttpClient http)
         {
@@ -208,7 +213,7 @@ public abstract class ClientBase : DisposeBase, ICommandClient, IEventProvider, 
             rs = await http.InvokeAsync<TResult>(method, action, args, null, cancellationToken);
         }
         else
-            rs = await _client!.InvokeAsync<TResult>(action, args, cancellationToken);
+            rs = await _client.InvokeAsync<TResult>(action, args, cancellationToken);
 
         if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]<={1}", action, rs?.ToJson());
 

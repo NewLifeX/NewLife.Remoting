@@ -51,8 +51,6 @@ public class TokenService
 
     /// <summary>验证并续发新令牌，过期前10分钟才能续发</summary>
     /// <param name="name"></param>
-    /// <param name="secret"></param>
-    /// <param name="expire"></param>
     /// <param name="token"></param>
     /// <returns></returns>
     public virtual TokenModel? ValidAndIssueToken(String name, String token)

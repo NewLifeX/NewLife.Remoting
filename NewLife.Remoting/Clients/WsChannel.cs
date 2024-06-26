@@ -81,8 +81,8 @@ class WsChannel : DisposeBase
             while (!cancellationToken.IsCancellationRequested && !socket.Disposed)
             {
                 var rs = await socket.ReceiveMessageAsync(cancellationToken);
-                var txt = rs.Payload.ToStr();
-                await OnReceive(txt);
+                var txt = rs?.Payload?.ToStr();
+                if (txt != null) await OnReceive(txt);
             }
         }
         catch (Exception ex)
