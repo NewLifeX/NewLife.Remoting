@@ -847,7 +847,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     /// <summary>更新</summary>
     /// <returns></returns>
-    protected virtual Task<IUpgradeInfo?> UpgradeAsync(String? channel) => InvokeAsync<IUpgradeInfo>(Actions[Features.Upgrade], channel);
+    protected virtual Task<IUpgradeInfo?> UpgradeAsync(String? channel) => InvokeAsync<IUpgradeInfo>(Actions[Features.Upgrade], new { channel });
     #endregion
 
     #region 辅助
