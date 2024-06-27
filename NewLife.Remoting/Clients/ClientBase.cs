@@ -235,7 +235,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (_client is ApiHttpClient http)
         {
             var method = System.Net.Http.HttpMethod.Post;
-            if (args == null || action.StartsWithIgnoreCase("Get") || action.ToLower().Contains("/get"))
+            if (args == null || args.GetType().IsBaseType() || action.StartsWithIgnoreCase("Get") || action.ToLower().Contains("/get"))
                 method = System.Net.Http.HttpMethod.Get;
 
             rs = await http.InvokeAsync<TResult>(method, action, args, null, cancellationToken);
@@ -304,7 +304,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     public DateTime GetNow() => DateTime.Now.Add(_span);
     #endregion
 
-    #region 登录
+    #region 登录注销
     /// <summary>登录</summary>
     /// <returns></returns>
     public virtual async Task<ILoginResponse?> Login()
@@ -380,7 +380,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (dt.Year > 2000) _span = dt.AddMilliseconds(Delay / 2) - DateTime.UtcNow;
     }
 
-    /// <summary>获取登录信息</summary>
+    /// <summary>创建登录请求</summary>
     /// <returns></returns>
     public virtual ILoginRequest BuildLoginRequest()
     {
@@ -405,7 +405,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>注销</summary>
     /// <param name="reason"></param>
     /// <returns></returns>
-    public virtual async Task<ILogoutResponse?> Logout(String reason)
+    public virtual async Task<ILogoutResponse?> Logout(String? reason)
     {
         if (!Logined) return null;
 
@@ -522,7 +522,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
     }
 
-    /// <summary>获取心跳信息</summary>
+    /// <summary>创建心跳请求</summary>
     public virtual IPingRequest BuildPingRequest()
     {
         Init();
@@ -584,7 +584,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                         _timer = new TimerX(OnPing, null, 1000, 60_000, "Client") { Async = true };
 
                     if (Features.HasFlag(Features.Upgrade))
-                        _timerUpgrade = new TimerX(s => Upgrade(), null, 5_000, 600_000, "Client") { Async = true };
+                        _timerUpgrade = new TimerX(s => Upgrade(null), null, 5_000, 600_000, "Client") { Async = true };
                 }
             }
         }
@@ -796,11 +796,11 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
     #endregion
 
-    #region 更新
+    #region 升级更新
     private String? _lastVersion;
     /// <summary>获取更新信息</summary>
     /// <returns></returns>
-    public async Task<IUpgradeInfo?> Upgrade()
+    public async Task<IUpgradeInfo?> Upgrade(String? channel)
     {
         using var span = Tracer?.NewSpan(nameof(Upgrade));
         WriteLog("检查更新");
@@ -809,7 +809,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         var ug = new Upgrade { Log = XTrace.Log };
         ug.DeleteBackup(".");
 
-        var info = await UpgradeAsync();
+        var info = await UpgradeAsync(channel);
         if (info != null && info.Version != _lastVersion)
         {
             WriteLog("发现更新：{0}", info.ToJson(true));
@@ -847,7 +847,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     /// <summary>更新</summary>
     /// <returns></returns>
-    protected virtual Task<IUpgradeInfo?> UpgradeAsync() => InvokeAsync<IUpgradeInfo>(Actions[Features.Upgrade]);
+    protected virtual Task<IUpgradeInfo?> UpgradeAsync(String? channel) => InvokeAsync<IUpgradeInfo>(Actions[Features.Upgrade], channel);
     #endregion
 
     #region 辅助

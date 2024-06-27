@@ -1,32 +1,35 @@
 ﻿using System.Diagnostics;
 using System.Net.Http;
 using System.Reflection;
+using NewLife;
 using NewLife.Log;
 
 namespace NewLife.Remoting.Clients;
 
 /// <summary>升级更新</summary>
 /// <remarks>
-/// 优先比较版本Version，再比较时间Time。
 /// 自动更新的难点在于覆盖正在使用的exe/dll文件，通过改名可以解决。
 /// </remarks>
 public class Upgrade
 {
     #region 属性
     /// <summary>名称</summary>
-    public String Name { get; set; }
+    public String Name { get; set; } = null!;
 
-    /// <summary>更新目录</summary>
-    public String UpdatePath { get; set; } = "Update";
+    /// <summary>更新目录。默认./Update</summary>
+    public String? UpdatePath { get; set; } = "Update";
 
     /// <summary>目标目录</summary>
-    public String DestinationPath { get; set; } = ".";
+    public String? DestinationPath { get; set; } = ".";
 
     /// <summary>源文件下载地址</summary>
     public String? Url { get; set; }
 
     /// <summary>更新源文件</summary>
     public String? SourceFile { get; set; }
+
+    /// <summary>解压缩的临时目录</summary>
+    public String? TempPath { get; set; }
     #endregion
 
     #region 构造
@@ -34,24 +37,25 @@ public class Upgrade
     public Upgrade()
     {
         var asm = Assembly.GetEntryAssembly();
-        Name = asm?.GetName().Name ?? GetType().Name;
+        Name = asm?.GetName().Name ?? nameof(Upgrade);
     }
     #endregion
 
     #region 方法
-    /// <summary>开始更新</summary>
+    /// <summary>开始下载更新</summary>
     public virtual async Task<Boolean> Download()
     {
         var url = Url;
         if (url.IsNullOrEmpty()) return false;
 
         var fileName = Path.GetFileName(url);
+        if (fileName.IsNullOrEmpty() || fileName.Contains('?')) fileName = "a.zip";
 
         // 即使更新包存在，也要下载
         var file = UpdatePath.CombinePath(fileName).GetBasePath();
         if (File.Exists(file)) File.Delete(file); ;
 
-        WriteLog("准备下载 {0}", url);
+        WriteLog("准备下载 {0} 到 {1}", url, file);
 
         var sw = Stopwatch.StartNew();
 
@@ -61,6 +65,9 @@ public class Upgrade
 
         sw.Stop();
         WriteLog("下载完成！{2} 大小{0:n0}字节，耗时{1:n0}ms", file.AsFile().Length, sw.ElapsedMilliseconds, file);
+
+        var md5 = file.AsFile().MD5().ToHex();
+        WriteLog("MD5: {0}", md5);
 
         SourceFile = file;
 
@@ -83,46 +90,128 @@ public class Upgrade
         return md5.EqualIgnoreCase(hash);
     }
 
-    /// <summary>检查并执行更新操作</summary>
-    public virtual Boolean Update()
+    /// <summary>解压缩</summary>
+    /// <returns></returns>
+    public virtual Boolean Extract()
     {
-        var dest = DestinationPath;
-
-        // 删除备份文件
-        DeleteBackup(dest);
-
         var file = SourceFile;
         if (file.IsNullOrEmpty() || !File.Exists(file)) return false;
 
         WriteLog("发现更新包 {0}", file);
 
         // 解压更新程序包
-        if (!file.EndsWithIgnoreCase(".zip", ".7z")) return false;
+        if (!file.EndsWithIgnoreCase(".zip")) return false;
 
-        var tmp = Path.GetTempPath().CombinePath(Path.GetFileNameWithoutExtension(file)!);
+        var tmp = TempPath;
+        if (tmp.IsNullOrEmpty()) tmp = TempPath = Path.GetTempPath().CombinePath(Path.GetFileNameWithoutExtension(file));
         WriteLog("解压缩到临时目录 {0}", tmp);
         file.AsFile().Extract(tmp, true);
 
-        //!!! 此处递归删除，导致也删掉了Update里面的文件
-        // 更新覆盖之前，需要把exe/dll可执行文件移走，否则Linux下覆盖运行中文件会报段错误
-        foreach (var item in dest.AsDirectory().GetAllFiles("*.exe;*.dll", false))
+        return true;
+    }
+
+    /// <summary>执行更新，拷贝文件</summary>
+    public virtual Boolean Update()
+    {
+        var dest = DestinationPath;
+        if (dest.IsNullOrEmpty()) return false;
+
+        // 删除备份文件
+        DeleteBackup(dest);
+
+        var tmp = TempPath;
+        if (tmp.IsNullOrEmpty() || !Directory.Exists(tmp)) return false;
+
+        WriteLog("发现更新源目录 {0}", tmp);
+
+        // 记录移动文件，更新失败时恢复
+        var dic = new Dictionary<String, String>();
+        try
         {
-            var del = item.FullName + ".del";
-            WriteLog("MoveTo {0}", del);
-            if (File.Exists(del)) File.Delete(del);
-            item.MoveTo(del);
+            //!!! 此处递归删除，导致也删掉了Update里面的文件
+            // 更新覆盖之前，需要把exe/dll可执行文件移走，否则Linux下覆盖运行中文件会报段错误
+            foreach (var item in dest.AsDirectory().GetAllFiles("*.exe;*.dll", false))
+            {
+                var ori = item.FullName;
+                var del = item.FullName + ".del";
+                WriteLog("MoveTo {0}", del);
+                try
+                {
+                    if (File.Exists(del)) File.Delete(del);
+                    item.MoveTo(del);
+
+                    dic[ori] = del;
+                }
+                catch (Exception ex)
+                {
+                    WriteLog(ex.Message);
+
+                    try
+                    {
+                        // 删除失败时，移动到临时目录随机文件
+                        var target = Path.GetTempFileName();
+                        item.MoveTo(target);
+
+                        dic[ori] = target;
+                    }
+                    catch (Exception ex2)
+                    {
+                        WriteLog(ex2.Message);
+                    }
+                }
+            }
+
+            // 拷贝替换更新
+            CopyAndReplace(tmp, dest);
+
+            //// 删除备份文件
+            //DeleteBackup(DestinationPath);
+            //!!! 先别急着删除，在Linux上，删除正在使用的文件可能导致进程崩溃
+
+            WriteLog("更新成功！");
+        }
+        catch
+        {
+            WriteLog("更新失败，恢复文件");
+            Restore(dic);
+
+            throw;
         }
 
-        // 拷贝替换更新
-        CopyAndReplace(tmp, dest);
-
-        //// 删除备份文件
-        //DeleteBackup(DestinationPath);
-        //!!! 先别急着删除，在Linux上，删除正在使用的文件可能导致进程崩溃
-
-        WriteLog("更新成功！");
-
         return true;
+    }
+
+    void Restore(IDictionary<String, String> dic)
+    {
+        foreach (var item in dic)
+        {
+            WriteLog("Restore {0}", item.Value);
+            if (File.Exists(item.Value))
+            {
+                if (File.Exists(item.Key))
+                {
+                    WriteLog("Delete {0}", item.Key);
+
+                    try
+                    {
+                        File.Delete(item.Key);
+                    }
+                    catch (Exception ex)
+                    {
+                        WriteLog(ex.Message);
+                    }
+                }
+
+                try
+                {
+                    File.Move(item.Value, item.Key);
+                }
+                catch (Exception ex)
+                {
+                    WriteLog(ex.Message);
+                }
+            }
+        }
     }
 
     /// <summary>启动当前应用的新进程。当前进程退出</summary>
@@ -155,7 +244,7 @@ public class Upgrade
             RunShell(file, args);
 
         // 如果进程在指定时间退出，说明启动失败
-        return p != null && !p.WaitForExit(1000);
+        return p != null && (!p.WaitForExit(1000) || p.ExitCode == 0);
     }
 
     static Process? RunShell(String fileName, String args) => Process.Start(new ProcessStartInfo(fileName, args) { UseShellExecute = true });
@@ -233,13 +322,25 @@ public class Upgrade
         var rs = await client.SendAsync(request);
         rs.EnsureSuccessStatusCode();
 
+        // 从Http响应头中获取文件名
         var file2 = rs.Content.Headers?.ContentDisposition?.FileName;
         if (!file2.IsNullOrEmpty()) fileName = Path.GetDirectoryName(fileName).CombinePath(file2);
         fileName.EnsureDirectory(true);
 
+        // 删除已存在文件，否则新文件比旧文件小时，写入的文件后面有冗余数据，导致解压缩失败
+        if (File.Exists(fileName))
+            try
+            {
+                File.Delete(fileName);
+            }
+            catch { }
+
         var ms = rs.Content;
         using var fs = new FileStream(fileName, FileMode.OpenOrCreate, FileAccess.ReadWrite);
         await ms.CopyToAsync(fs);
+
+        // 截断文件，如果前面删除失败，这里就可能使用旧文件，需要把多余部分截断
+        fs.SetLength(fs.Position);
 
         return fileName;
     }
@@ -258,7 +359,10 @@ public class Upgrade
             {
                 item.Delete();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                WriteLog(ex.Message);
+            }
         }
     }
 
@@ -269,11 +373,11 @@ public class Upgrade
     {
         WriteLog("CopyAndReplace {0} => {1}", source, dest);
 
-        var di = source.AsDirectory();
+        var src = source.AsDirectory();
 
         // 来源目录根，用于截断
-        var root = di.FullName.EnsureEnd(Path.DirectorySeparatorChar.ToString());
-        foreach (var item in di.GetAllFiles(null, true))
+        var root = src.FullName.EnsureEnd(Path.DirectorySeparatorChar.ToString());
+        foreach (var item in src.GetAllFiles(null, true))
         {
             var name = item.FullName.TrimStart(root);
             var dst = dest.CombinePath(name).GetBasePath();
@@ -288,8 +392,10 @@ public class Upgrade
             {
                 item.CopyTo(dst.EnsureDirectory(true), true);
             }
-            catch
+            catch (Exception ex)
             {
+                WriteLog(ex.Message);
+
                 // 如果是exe/dll，则先改名，因为可能无法覆盖
                 if (/*dst.EndsWithIgnoreCase(".exe", ".dll") &&*/ File.Exists(dst))
                 {
@@ -314,8 +420,8 @@ public class Upgrade
         }
 
         // 删除临时目录
-        WriteLog("Delete {0}", di.FullName);
-        di.Delete(true);
+        WriteLog("Delete {0}", src.FullName);
+        src.Delete(true);
     }
     #endregion
 

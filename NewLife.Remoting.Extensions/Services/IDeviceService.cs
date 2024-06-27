@@ -28,7 +28,7 @@ public interface IDeviceService
     /// <param name="source"></param>
     /// <param name="ip"></param>
     /// <returns></returns>
-    IOnlineModel Logout(IDeviceModel device, String reason, String source, String ip);
+    IOnlineModel Logout(IDeviceModel device, String? reason, String source, String ip);
 
     /// <summary>设备心跳</summary>
     /// <param name="device"></param>
@@ -37,6 +37,13 @@ public interface IDeviceService
     /// <param name="ip"></param>
     /// <returns></returns>
     IOnlineModel Ping(IDeviceModel device, IPingRequest? request, String? token, String ip);
+
+    /// <summary>升级检查</summary>
+    /// <param name="device"></param>
+    /// <param name="channel">更新通道</param>
+    /// <param name="ip"></param>
+    /// <returns></returns>
+    IUpgradeInfo Upgrade(IDeviceModel device, String? channel, String ip);
 
     /// <summary>验证并重新颁发令牌</summary>
     /// <param name="deviceCode"></param>

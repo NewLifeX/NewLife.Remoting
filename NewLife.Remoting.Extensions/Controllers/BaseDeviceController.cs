@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Xml.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.Http;
@@ -41,7 +42,7 @@ public class BaseDeviceController : BaseController
         if (!base.OnAuthorize(token) || Jwt == null || Jwt.Subject.IsNullOrEmpty()) return false;
 
         var dv = _deviceService.QueryDevice(Jwt.Subject);
-        if (dv == null || !dv.Enable) throw new ApiException(ApiCode.Forbidden, "无效设备！");
+        if (dv == null || !dv.Enable) throw new ApiException(ApiCode.Forbidden, "无效客户端！");
 
         _device = dv;
 
@@ -83,7 +84,8 @@ public class BaseDeviceController : BaseController
     /// <param name="reason">注销原因</param>
     /// <returns></returns>
     [HttpGet(nameof(Logout))]
-    public virtual ILogoutResponse Logout(String reason)
+    [HttpPost(nameof(Logout))]
+    public virtual ILogoutResponse Logout(String? reason)
     {
         var olt = _deviceService.Logout(_device, reason, "Http", UserHost);
 
@@ -100,7 +102,7 @@ public class BaseDeviceController : BaseController
     /// <param name="request"></param>
     /// <returns></returns>
     [HttpPost(nameof(Ping))]
-    public virtual IPingResponse Ping(IPingRequest request) => OnPing(request);
+    public virtual IPingResponse Ping([FromBody] IPingRequest request) => OnPing(request);
 
     /// <summary>设备心跳</summary>
     /// <returns></returns>
@@ -110,7 +112,7 @@ public class BaseDeviceController : BaseController
     /// <summary>设备心跳</summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    protected IPingResponse OnPing(IPingRequest? request)
+    protected virtual IPingResponse OnPing(IPingRequest? request)
     {
         var rs = new PingResponse
         {
@@ -142,12 +144,25 @@ public class BaseDeviceController : BaseController
     /// <summary>升级检查</summary>
     /// <returns></returns>
     [HttpGet(nameof(Upgrade))]
-    public virtual IUpgradeInfo Upgrade()
+    [HttpPost(nameof(Upgrade))]
+    public virtual IUpgradeInfo Upgrade(String? channel)
     {
-        var device = _device ?? throw new ApiException(ApiCode.Unauthorized, "节点未登录");
+        var device = _device ?? throw new ApiException(ApiCode.Unauthorized, "未登录");
 
-        //throw new NotImplementedException();
-        return new UpgradeInfo { };
+        // 基础路径
+        var uri = Request.GetRawUrl().ToString();
+        var p = uri.IndexOf('/', "https://".Length);
+        if (p > 0) uri = uri[..p];
+
+        var info = _deviceService.Upgrade(device, channel, UserHost);
+
+        // 为了兼容旧版本客户端，这里必须把路径处理为绝对路径
+        if (info != null && !info.Source.StartsWithIgnoreCase("http://", "https://"))
+        {
+            info.Source = new Uri(new Uri(uri), info.Source) + "";
+        }
+
+        return info;
     }
     #endregion
 

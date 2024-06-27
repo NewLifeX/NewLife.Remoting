@@ -294,6 +294,17 @@ public class MyDeviceService : IDeviceService
     }
     #endregion
 
+    #region 升级
+    /// <summary>升级检查</summary>
+    /// <param name="channel">更新通道</param>
+    /// <returns></returns>
+    public IUpgradeInfo Upgrade(IDeviceModel device, String channel, String ip)
+    {
+        //return new UpgradeInfo();
+        return null;
+    }
+    #endregion
+
     #region 辅助
     /// <summary>
     /// 颁发令牌

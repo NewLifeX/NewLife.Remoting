@@ -47,13 +47,12 @@ public class DeviceController : BaseDeviceController
     #endregion
 
     #region 心跳
-    /// <summary>设备心跳</summary>
+    /// <summary>心跳</summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    [HttpPost(nameof(Ping))]
-    public override IPingResponse Ping([FromBody] IPingRequest request)
+    protected override IPingResponse OnPing(IPingRequest request)
     {
-        var rs = base.Ping(request);
+        var rs = base.OnPing(request);
 
         var device = Device;
         if (device != null && rs != null)
@@ -62,19 +61,6 @@ public class DeviceController : BaseDeviceController
         }
 
         return rs;
-    }
-    #endregion
-
-    #region 升级
-    /// <summary>升级检查</summary>
-    /// <returns></returns>
-    [HttpGet(nameof(Upgrade))]
-    public override IUpgradeInfo Upgrade()
-    {
-        var device = Device ?? throw new ApiException(ApiCode.Unauthorized, "节点未登录");
-
-        //throw new NotImplementedException();
-        return new UpgradeInfo { };
     }
     #endregion
 
