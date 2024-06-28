@@ -28,6 +28,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NewLife.Remoting.Extensions
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IoTZero", "Samples\IoTZero\IoTZero.csproj", "{1DEAF969-F093-4D99-80C9-1CEA3BD06ABB}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ZeroServer", "Samples\ZeroServer\ZeroServer.csproj", "{95AA14E4-6771-487B-886E-251C785624E6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -62,6 +64,10 @@ Global
 		{1DEAF969-F093-4D99-80C9-1CEA3BD06ABB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1DEAF969-F093-4D99-80C9-1CEA3BD06ABB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1DEAF969-F093-4D99-80C9-1CEA3BD06ABB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{95AA14E4-6771-487B-886E-251C785624E6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{95AA14E4-6771-487B-886E-251C785624E6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{95AA14E4-6771-487B-886E-251C785624E6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{95AA14E4-6771-487B-886E-251C785624E6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -70,6 +76,7 @@ Global
 		{685205DD-0754-4877-9A96-40CD18F8D84B} = {8DB8495C-1EB6-41AE-83DD-55DBBB0E6FA2}
 		{8351AC88-1955-48AD-B6F4-26959E1A0C4C} = {8DB8495C-1EB6-41AE-83DD-55DBBB0E6FA2}
 		{1DEAF969-F093-4D99-80C9-1CEA3BD06ABB} = {8DB8495C-1EB6-41AE-83DD-55DBBB0E6FA2}
+		{95AA14E4-6771-487B-886E-251C785624E6} = {8DB8495C-1EB6-41AE-83DD-55DBBB0E6FA2}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {323831A1-A95B-40AB-B9AD-36A0BC10C2CB}

@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <AssemblyTitle>物联网服务平台</AssemblyTitle>
-    <Description>IoT服务平台</Description>
+    <AssemblyTitle>零代服务平台</AssemblyTitle>
+    <Description>CS架构服务端平台</Description>
     <Company>新生命开发团队</Company>
     <Copyright>©2002-2024 NewLife</Copyright>
     <VersionPrefix>1.0</VersionPrefix>
@@ -12,7 +12,7 @@
     <FileVersion>$(Version)</FileVersion>
     <AssemblyVersion>$(VersionPrefix).*</AssemblyVersion>
     <Deterministic>false</Deterministic>
-    <OutputPath>..\..\Bin\IoTZero</OutputPath>
+    <OutputPath>..\..\Bin\ZeroServer</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
@@ -21,13 +21,16 @@
   <ItemGroup>
     <PackageReference Include="NewLife.Cube.Core" Version="6.1.2024.403" />
     <PackageReference Include="NewLife.IoT" Version="2.2.2024.501" />
-    <PackageReference Include="NewLife.MQTT" Version="2.0.2024.516" />
     <PackageReference Include="NewLife.Redis" Version="5.7.2024.602" />
     <PackageReference Include="NewLife.Stardust.Extensions" Version="2.9.2024.402" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\NewLife.Remoting.Extensions\NewLife.Remoting.Extensions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Areas\" />
   </ItemGroup>
 
 </Project>
