@@ -80,6 +80,20 @@ public static class CommandClientHelper
     /// <param name="command"></param>
     /// <param name="method"></param>
     /// <exception cref="ArgumentNullException"></exception>
+    public static void RegisterCommand(this ICommandClient client, String command, Func<CommandModel, CancellationToken, Task<CommandReplyModel>> method)
+    {
+        if (command.IsNullOrEmpty()) command = method.Method.Name;
+
+        client.Commands[command] = method;
+    }
+
+    /// <summary>
+    /// 注册服务。收到平台下发的服务调用时，执行注册的方法
+    /// </summary>
+    /// <param name="client">命令客户端</param>
+    /// <param name="command"></param>
+    /// <param name="method"></param>
+    /// <exception cref="ArgumentNullException"></exception>
     public static void RegisterCommand(this ICommandClient client, String command, Action<CommandModel> method)
     {
         if (command.IsNullOrEmpty()) command = method.Method.Name;
@@ -90,14 +104,15 @@ public static class CommandClientHelper
     /// <summary>执行命令</summary>
     /// <param name="client">命令客户端</param>
     /// <param name="model"></param>
+    /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public static async Task<CommandReplyModel> ExecuteCommand(this ICommandClient client, CommandModel model)
+    public static async Task<CommandReplyModel> ExecuteCommand(this ICommandClient client, CommandModel model, CancellationToken cancellationToken = default)
     {
         using var span = DefaultTracer.Instance?.NewSpan("ExecuteCommand", $"{model.Command}({model.Argument})");
         var rs = new CommandReplyModel { Id = model.Id, Status = CommandStatus.已完成 };
         try
         {
-            var result = await OnCommand(client, model);
+            var result = await OnCommand(client, model, cancellationToken);
             if (result is CommandReplyModel reply)
             {
                 reply.Id = model.Id;
@@ -129,7 +144,8 @@ public static class CommandClientHelper
     /// <summary>分发执行服务</summary>
     /// <param name="client">命令客户端</param>
     /// <param name="model"></param>
-    private static async Task<Object?> OnCommand(ICommandClient client, CommandModel model)
+    /// <param name="cancellationToken"></param>
+    private static async Task<Object?> OnCommand(ICommandClient client, CommandModel model, CancellationToken cancellationToken)
     {
         //WriteLog("OnCommand {0}", model.ToJson());
 
@@ -139,6 +155,7 @@ public static class CommandClientHelper
         if (d is Func<String?, Task<String?>> func1) return await func1(model.Argument);
         //if (d is Func<String, Task<Object>> func2) return await func2(model.Argument);
         if (d is Func<CommandModel, Task<CommandReplyModel>> func3) return await func3(model);
+        if (d is Func<CommandModel, CancellationToken, Task<CommandReplyModel>> func4) return await func4(model, cancellationToken);
 
         if (d is Action<CommandModel> func21) func21(model);
 

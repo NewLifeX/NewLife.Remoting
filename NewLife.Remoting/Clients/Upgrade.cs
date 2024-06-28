@@ -1,7 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Net.Http;
 using System.Reflection;
-using NewLife;
 using NewLife.Log;
 
 namespace NewLife.Remoting.Clients;
@@ -43,7 +42,7 @@ public class Upgrade
 
     #region 方法
     /// <summary>开始下载更新</summary>
-    public virtual async Task<Boolean> Download()
+    public virtual async Task<Boolean> Download(CancellationToken cancellationToken = default)
     {
         var url = Url;
         if (url.IsNullOrEmpty()) return false;
@@ -61,7 +60,7 @@ public class Upgrade
 
         var web = CreateClient();
         //await web.DownloadFileAsync(url, file);
-        file = await DownloadFileAsync(web, url, file);
+        file = await DownloadFileAsync(web, url, file, cancellationToken);
 
         sw.Stop();
         WriteLog("下载完成！{2} 大小{0:n0}字节，耗时{1:n0}ms", file.AsFile().Length, sw.ElapsedMilliseconds, file);
@@ -316,10 +315,11 @@ public class Upgrade
     /// <param name="client"></param>
     /// <param name="address"></param>
     /// <param name="fileName"></param>
-    public static async Task<String> DownloadFileAsync(HttpClient client, String address, String fileName)
+    /// <param name="cancellationToken"></param>
+    public static async Task<String> DownloadFileAsync(HttpClient client, String address, String fileName, CancellationToken cancellationToken = default)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, address);
-        var rs = await client.SendAsync(request);
+        var rs = await client.SendAsync(request, cancellationToken);
         rs.EnsureSuccessStatusCode();
 
         // 从Http响应头中获取文件名
