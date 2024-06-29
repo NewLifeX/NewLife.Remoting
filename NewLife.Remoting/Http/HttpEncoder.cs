@@ -71,7 +71,7 @@ public class HttpEncoder : EncoderBase, IEncoder
         if (ctype.Contains("application/json"))
         {
             var rs = new Dictionary<String, Object?>(StringComparer.OrdinalIgnoreCase);
-            var dic = JsonParser.Decode(str);
+            var dic = JsonHost.Decode(str);
             if (dic != null)
             {
                 foreach (var item in dic)
@@ -114,7 +114,7 @@ public class HttpEncoder : EncoderBase, IEncoder
         if (json.IsNullOrEmpty()) return null;
         if (returnType == null || returnType == typeof(String)) return json;
 
-        var rs = new JsonParser(json).Decode();
+        var rs = JsonHost.Decode(json);
         if (rs == null) return null;
         if (returnType == typeof(Object)) return rs;
 

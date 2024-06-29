@@ -53,10 +53,11 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     public IPasswordProvider? PasswordProvider { get; set; }
 
     /// <summary>服务提供者</summary>
+    /// <remarks>借助对象容器，解析各基本接口的请求响应模型</remarks>
     public IServiceProvider? ServiceProvider { get; set; }
 
     private IApiClient? _client;
-    /// <summary>Api客户端</summary>
+    /// <summary>Api客户端。ApiClient或ApiHttpClient</summary>
     public IApiClient? Client { get => _client; set => _client = value; }
 
     String? IApiClient.Token { get => _client?.Token; set { if (_client != null) _client.Token = value; } }
@@ -70,21 +71,24 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>请求到服务端并返回的延迟时间。单位ms</summary>
     public Int32 Delay { get; set; }
 
-    /// <summary>最大失败数。超过该数时，新的数据将被抛弃，默认120</summary>
+    /// <summary>最大失败数。心跳上报失败时进入失败队列，并稍候重试。重试超过该数时，新的数据将被抛弃，默认1440次，约24小时</summary>
     public Int32 MaxFails { get; set; } = 1 * 24 * 60;
 
     private readonly ConcurrentDictionary<String, Delegate> _commands = new(StringComparer.OrdinalIgnoreCase);
-    /// <summary>命令集合</summary>
+    /// <summary>命令集合。注册到客户端的命令与委托</summary>
     public IDictionary<String, Delegate> Commands => _commands;
 
-    /// <summary>收到命令时触发</summary>
+    /// <summary>收到下行命令时触发</summary>
     public event EventHandler<CommandEventArgs>? Received;
 
     /// <summary>客户端功能特性。默认登录注销心跳，可添加更新等</summary>
     public Features Features { get; set; } = Features.Login | Features.Logout | Features.Ping;
 
-    /// <summary>各功能的命令集合</summary>
+    /// <summary>各功能的动作集合。记录每一种功能所对应的动作接口路径。</summary>
     public IDictionary<Features, String> Actions { get; set; } = null!;
+
+    /// <summary>Json主机。提供序列化能力</summary>
+    public IJsonHost JsonHost { get; set; } = null!;
 
     /// <summary>客户端设置</summary>
     public IClientSetting? Setting { get; set; }
@@ -134,7 +138,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     #endregion
 
     #region 方法
-    /// <summary>设置各功能接口名</summary>
+    /// <summary>设置各功能接口路径</summary>
     /// <param name="prefix"></param>
     protected virtual void SetActions(String prefix)
     {
@@ -151,20 +155,20 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     /// <summary>初始化</summary>
     [MemberNotNull(nameof(_client))]
-    private void Init()
+    protected void Init()
     {
         if (_client != null) return;
 
         OnInit();
     }
 
-    /// <summary>初始化</summary>
+    /// <summary>初始化对象容器以及客户端</summary>
     [MemberNotNull(nameof(_client))]
     protected virtual void OnInit()
     {
         var provider = ServiceProvider ??= ObjectContainer.Provider;
 
-        // 找到容器，注册默认的模型实现，供后续InvokeAsync时自动创建正确的模型对象
+        // 找到容器，注册默认的模型实现，供后续InvokeAsync返回时自动创建正确的模型对象
         var container = provider?.GetService<IObjectContainer>() ?? ObjectContainer.Current;
         if (container != null)
         {
@@ -176,6 +180,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             container.TryAddTransient<IUpgradeInfo, UpgradeInfo>();
         }
 
+        JsonHost ??= GetService<IJsonHost>() ?? JsonHelper.Default;
         //PasswordProvider ??= GetService<IPasswordProvider>() ?? new SaltPasswordProvider { Algorithm = "md5", SaltTime = 60 };
         PasswordProvider ??= GetService<IPasswordProvider>();
 
@@ -191,14 +196,28 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>创建Http客户端</summary>
     /// <param name="urls"></param>
     /// <returns></returns>
-    protected virtual ApiHttpClient CreateHttp(String urls) => new(urls) { Log = Log, DefaultUserAgent = $"{_name}/v{_version}" };
+    protected virtual ApiHttpClient CreateHttp(String urls) => new(urls)
+    {
+#if !NET40
+        JsonHost = JsonHost,
+#endif
+        DefaultUserAgent = $"{_name}/v{_version}",
+        Log = Log,
+    };
 
     /// <summary>创建RPC客户端</summary>
     /// <param name="urls"></param>
     /// <returns></returns>
     protected virtual ApiClient CreateRpc(String urls)
     {
-        var client = new MyApiClient { Client = this, Servers = urls.Split(","), Log = Log };
+        var client = new MyApiClient
+        {
+            Client = this,
+            Servers = urls.Split(","),
+            JsonHost = JsonHost,
+            ServiceProvider = ServiceProvider,
+            Log = Log
+        };
         client.Received += (s, e) =>
         {
             var msg = e.Message;
@@ -232,6 +251,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         Init();
 
+        // HTTP请求需要区分GET/POST
         TResult? rs = default;
         if (_client is ApiHttpClient http)
         {
@@ -276,7 +296,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         return rs!;
     }
 
-    /// <summary>远程调用拦截，支持重新登录</summary>
+    /// <summary>[核心接口]远程调用服务端接口，支持重新登录</summary>
+    /// <remarks>
+    /// 所有对服务端接口的调用，都应该走这个方法，以便统一处理登录、心跳、令牌过期等问题。
+    /// </remarks>
     /// <typeparam name="TResult"></typeparam>
     /// <param name="action"></param>
     /// <param name="args"></param>
@@ -284,6 +307,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <returns></returns>
     public virtual async Task<TResult?> InvokeAsync<TResult>(String action, Object? args = null, CancellationToken cancellationToken = default)
     {
+        // 验证登录。如果该接口需要登录，且未登录，则先登录
         var needLogin = !Actions[Features.Login].EqualIgnoreCase(action);
         if (!Logined && needLogin && Features.HasFlag(Features.Login)) await Login();
 
@@ -296,12 +320,14 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             var ex2 = ex.GetTrue();
             if (ex2 is ApiException aex)
             {
+                // 在客户端已登录状态下，服务端返回未授权，可能是令牌过期，尝试重新登录
                 if (Logined && aex.Code == ApiCode.Unauthorized && needLogin && Features.HasFlag(Features.Login))
                 {
                     Log?.Debug("{0}", ex);
                     WriteLog("重新登录！");
                     await Login();
 
+                    // 再次执行当前请求
                     return await OnInvokeAsync<TResult>(action, args, cancellationToken);
                 }
 
@@ -333,7 +359,12 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     #endregion
 
     #region 登录注销
-    /// <summary>登录</summary>
+    /// <summary>登录。使用编码和密钥登录服务端，获取令牌用于后续接口调用</summary>
+    /// <remarks>
+    /// 支持编码和密钥下发（自动注册）、时间校准。
+    /// 用户可重载Login实现自定义登录逻辑，通过Logined判断是否登录成功。
+    /// 也可以在OnLogined事件中处理登录成功后的逻辑。
+    /// </remarks>
     /// <returns></returns>
     public virtual async Task<ILoginResponse?> Login(CancellationToken cancellationToken = default)
     {
@@ -343,41 +374,43 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         WriteLog("登录：{0}", Code);
         try
         {
+            // 创建登录请求，用户可重载BuildLoginRequest实现自定义登录请求，填充更多参数
             var request = BuildLoginRequest();
 
             // 登录前清空令牌，避免服务端使用上一次信息
             SetToken(null);
             Logined = false;
 
-            var rs = await LoginAsync(request, cancellationToken);
-            if (rs == null) return null;
+            var response = await LoginAsync(request, cancellationToken);
+            if (response == null) return null;
 
-            if (!rs.Code.IsNullOrEmpty() && !rs.Secret.IsNullOrEmpty())
+            // 登录成果。服务端执行自动注册时，可能有下发编码和密钥
+            if (!response.Code.IsNullOrEmpty() && !response.Secret.IsNullOrEmpty())
             {
-                WriteLog("下发密钥：{0}/{1}", rs.Code, rs.Secret);
-                Code = rs.Code;
-                Secret = rs.Secret;
+                WriteLog("下发密钥：{0}/{1}", response.Code, response.Secret);
+                Code = response.Code;
+                Secret = response.Secret;
 
                 var set = Setting;
                 if (set != null)
                 {
-                    set.Code = rs.Code;
-                    set.Secret = rs.Secret;
+                    set.Code = response.Code;
+                    set.Secret = response.Secret;
                     set.Save();
                 }
             }
 
-            FixTime(rs.Time, rs.Time);
+            FixTime(response.Time, response.Time);
 
             // 登录后设置用于用户认证的token
-            SetToken(rs.Token);
+            SetToken(response.Token);
             Logined = true;
 
-            OnLogined?.Invoke(this, new(request, rs));
+            OnLogined?.Invoke(this, new(request, response));
 
             StartTimer();
 
-            return rs;
+            return response;
         }
         catch (Exception ex)
         {
@@ -386,7 +419,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
     }
 
-    /// <summary>计算客户端到服务端的网络延迟，以及相对时间差</summary>
+    /// <summary>计算客户端到服务端的网络延迟，以及相对时间差。支持GetNow()返回基于服务器的当前时间</summary>
     /// <param name="startTime"></param>
     /// <param name="serverTime"></param>
     protected void FixTime(Int64 startTime, Int64 serverTime)
@@ -408,29 +441,41 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (dt.Year > 2000) _span = dt.AddMilliseconds(Delay / 2) - DateTime.UtcNow;
     }
 
-    /// <summary>创建登录请求</summary>
+    /// <summary>创建登录请求。支持重载后使用自定义的登录请求对象</summary>
+    /// <remarks>
+    /// 用户可以重载此方法，返回自定义的登录请求对象，用于支持更多的登录参数。
+    /// 也可以调用基类BuildLoginRequest后得到ClientId和Secret等基本参数，然后填充自己的登录请求对象。
+    /// 还可以直接使用自己的登录请求对象，调用FillLoginRequest填充基本参数。
+    /// </remarks>
     /// <returns></returns>
     public virtual ILoginRequest BuildLoginRequest()
     {
         Init();
 
-        var info = GetService<ILoginRequest>() ?? new LoginRequest();
-        info.Code = Code;
-        info.ClientId = $"{NetHelper.MyIP()}@{Process.GetCurrentProcess().Id}";
+        var request = GetService<ILoginRequest>() ?? new LoginRequest();
+        FillLoginRequest(request);
 
-        if (!Secret.IsNullOrEmpty())
-            info.Secret = PasswordProvider?.Hash(Secret) ?? Secret;
-
-        if (info is LoginRequest request)
-        {
-            request.Version = _version;
-            request.Time = DateTime.UtcNow.ToLong();
-        }
-
-        return info;
+        return request;
     }
 
-    /// <summary>注销</summary>
+    /// <summary>填充登录请求。用户自定义登录时可选调用</summary>
+    /// <param name="request"></param>
+    protected virtual void FillLoginRequest(ILoginRequest request)
+    {
+        request.Code = Code;
+        request.ClientId = $"{NetHelper.MyIP()}@{Process.GetCurrentProcess().Id}";
+
+        if (!Secret.IsNullOrEmpty())
+            request.Secret = PasswordProvider?.Hash(Secret) ?? Secret;
+
+        if (request is LoginRequest info)
+        {
+            info.Version = _version;
+            info.Time = DateTime.UtcNow.ToLong();
+        }
+    }
+
+    /// <summary>注销。调用服务端注销接口，销毁令牌</summary>
     /// <param name="reason"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
@@ -463,13 +508,13 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
     }
 
-    /// <summary>登录</summary>
-    /// <param name="request">登录信息</param>
+    /// <summary>发起登录异步请求。由Login内部调用</summary>
+    /// <param name="request">登录请求</param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     protected virtual Task<ILoginResponse?> LoginAsync(ILoginRequest request, CancellationToken cancellationToken) => InvokeAsync<ILoginResponse>(Actions[Features.Login], request, cancellationToken);
 
-    /// <summary>注销</summary>
+    /// <summary>发起注销异步请求。由Logout内部调用</summary>
     /// <returns></returns>
     protected virtual async Task<ILogoutResponse?> LogoutAsync(String? reason, CancellationToken cancellationToken)
     {
@@ -481,16 +526,20 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     #endregion
 
     #region 心跳保活
-    /// <summary>心跳</summary>
+    /// <summary>心跳。请求服务端心跳接口，上报客户端性能数据的同时，更新其在服务端的最后活跃时间</summary>
+    /// <remarks>
+    /// 心跳逻辑内部带有失败重试机制，最大失败数MaxFails默认120，超过该数时，新的数据将被抛弃。
+    /// 在网络不可用或者接口请求异常时，会将数据保存到队列，等待网络恢复或者下次心跳时重试。
+    /// </remarks>
     /// <returns></returns>
     public virtual async Task<IPingResponse?> Ping(CancellationToken cancellationToken = default)
     {
         Init();
 
-        //if (Tracer != null) DefaultSpan.Current = null;
         using var span = Tracer?.NewSpan(nameof(Ping));
         try
         {
+            // 创建心跳请求。支持重载后使用自定义的心跳请求对象，填充更多参数
             var request = BuildPingRequest();
 
             // 如果网络不可用，直接保存到队列
@@ -514,7 +563,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     // 更新令牌。即将过期时，服务端会返回新令牌
                     if (!rs.Token.IsNullOrEmpty()) SetToken(rs.Token);
 
-                    // 推队列
+                    // 心跳响应携带的命令，推送到队列
                     if (rs.Commands != null && rs.Commands.Length > 0)
                     {
                         foreach (var model in rs.Commands)
@@ -526,6 +575,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             }
             catch
             {
+                // 失败时保存到队列
                 if (_fails.Count < MaxFails) _fails.Enqueue(request);
 
                 throw;
@@ -558,12 +608,26 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
     }
 
-    /// <summary>创建心跳请求</summary>
+    /// <summary>创建心跳请求。支持重载后使用自定义的心跳请求对象</summary>
+    /// <remarks>
+    /// 用户可以重载此方法，返回自定义的心跳请求对象，用于支持更多的心跳参数。
+    /// 也可以调用基类BuildPingRequest后得到基本参数，然后填充自己的心跳请求对象。
+    /// 还可以直接使用自己的心跳请求对象，调用FillPingRequest填充基本参数。
+    /// </remarks>
     public virtual IPingRequest BuildPingRequest()
     {
         Init();
 
         var request = GetService<IPingRequest>() ?? new PingRequest();
+        FillPingRequest(request);
+
+        return request;
+    }
+
+    /// <summary>填充心跳请求</summary>
+    /// <param name="request"></param>
+    protected virtual void FillPingRequest(IPingRequest request)
+    {
         request.Time = DateTime.UtcNow.ToLong();
 
         if (request is PingRequest req)
@@ -594,11 +658,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             // 现在借助 Stopwatch 来解决
             if (Stopwatch.IsHighResolution) req.Uptime = (Int32)(Stopwatch.GetTimestamp() / Stopwatch.Frequency);
         }
-
-        return request;
     }
 
-    /// <summary>心跳</summary>
+    /// <summary>发起心跳异步请求。由Ping内部调用</summary>
     /// <param name="request"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
@@ -655,6 +717,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
             if (_client is ApiHttpClient http && Features.HasFlag(Features.Notify))
             {
+                // 非NetCore平台，使用自研轻量级WebSocket
 #if NETCOREAPP
                 _ws ??= new WsChannelCore(this);
 #else
@@ -670,17 +733,22 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
     }
 
-    /// <summary>收到命令</summary>
+    /// <summary>接收命令，分发调用指定委托</summary>
+    /// <remarks>
+    /// 命令处理流程中，会对命令进行去重，避免重复执行。
+    /// 其次判断命令是否已经过期，如果已经过期则取消执行。
+    /// 还支持定时执行，延迟执行。
+    /// </remarks>
     /// <param name="model"></param>
     /// <param name="source"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public async Task ReceiveCommand(CommandModel model, String source, CancellationToken cancellationToken = default)
+    public virtual async Task<CommandReplyModel?> ReceiveCommand(CommandModel model, String source, CancellationToken cancellationToken = default)
     {
-        if (model == null) return;
+        if (model == null) return null;
 
         // 去重，避免命令被重复执行
-        if (!_cache.Add($"cmd:{model.Id}", model, 3600)) return;
+        if (!_cache.Add($"cmd:{model.Id}", model, 3600)) return null;
 
         // 埋点，建立调用链
         using var span = Tracer?.NewSpan("cmd:" + model.Command, model);
@@ -710,20 +778,24 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                         Data = $"已安排计划执行 {startTime.ToFullString()}"
                     };
                     await CommandReply(reply, cancellationToken);
+                    return reply;
                 }
                 else
-                    await OnReceiveCommand(model, cancellationToken);
+                    return await OnReceiveCommand(model, cancellationToken);
             }
             else
             {
                 var reply = new CommandReplyModel { Id = model.Id, Status = CommandStatus.取消 };
                 await CommandReply(reply, cancellationToken);
+                return reply;
             }
         }
         catch (Exception ex)
         {
             span?.SetError(ex, null);
         }
+
+        return null;
     }
 
     /// <summary>触发收到命令的动作</summary>
@@ -829,6 +901,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         // 记录追踪标识，上报的时候带上，尽可能让源头和下游串联起来
         _eventTraceId = DefaultSpan.Current?.ToString();
 
+        // 获取相对于服务器的当前时间，避免两端时间差。转为UTC毫秒，作为事件时间。
         var now = GetNow().ToUniversalTime();
         var ev = new EventModel { Time = now.ToLong(), Type = type, Name = name, Remark = remark };
         _events.Enqueue(ev);
@@ -841,22 +914,25 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     #region 升级更新
     private String? _lastVersion;
-    /// <summary>获取更新信息</summary>
+    /// <summary>获取更新信息。如有更新，则下载解压覆盖并重启应用</summary>
     /// <returns></returns>
     public virtual async Task<IUpgradeInfo?> Upgrade(String? channel, CancellationToken cancellationToken = default)
     {
         using var span = Tracer?.NewSpan(nameof(Upgrade));
         WriteLog("检查更新");
 
-        // 清理
+        // 清理旧版备份文件
         var ug = new Upgrade { Log = XTrace.Log };
         ug.DeleteBackup(".");
 
+        // 调用接口查询思否存在更新信息
         var info = await UpgradeAsync(channel, cancellationToken);
         if (info != null && info.Version != _lastVersion)
         {
+            // _lastVersion避免频繁更新同一个版本
             WriteLog("发现更新：{0}", info.ToJson(true));
 
+            // 下载文件包
             ug.Url = info.Source;
             await ug.Download(cancellationToken);
 
@@ -865,6 +941,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             {
                 // 执行更新，解压缩覆盖文件
                 var rs = ug.Update();
+
+                // 执行前置命令
                 if (rs && !info.Executor.IsNullOrEmpty()) ug.Run(info.Executor);
                 _lastVersion = info.Version;
 
@@ -888,7 +966,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (rs) upgrade.KillSelf();
     }
 
-    /// <summary>更新</summary>
+    /// <summary>放弃更新异步请求。由Upgrade内部调用</summary>
     /// <returns></returns>
     protected virtual async Task<IUpgradeInfo?> UpgradeAsync(String? channel, CancellationToken cancellationToken)
     {

@@ -58,8 +58,7 @@ public class JsonEncoder : EncoderBase, IEncoder
         // 接口只有一个入参时，客户端可能用基础类型封包传递
         if (json.IsNullOrEmpty() || json[0] != '{' && json[0] != '[') return json;
 
-        //return JsonParser.Decode(json);
-        return new JsonParser(json).Decode();
+        return JsonHost.Decode(json);
     }
 
     /// <summary>解码结果</summary>
@@ -79,7 +78,7 @@ public class JsonEncoder : EncoderBase, IEncoder
         if (json.IsNullOrEmpty()) return null;
         if (returnType == null || returnType == typeof(String)) return json;
 
-        var rs = new JsonParser(json).Decode();
+        var rs = JsonHost.Decode(json);
         if (rs == null) return null;
         if (returnType == typeof(Object)) return rs;
 
