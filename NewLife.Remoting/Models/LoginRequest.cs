@@ -35,7 +35,10 @@ public class LoginRequest : ILoginRequest
     /// <summary>版本</summary>
     public String? Version { get; set; }
 
-    /// <summary>本地UTC时间</summary>
+    /// <summary>编译时间。UTC毫秒</summary>
+    public Int64 Compile { get; set; }
+
+    /// <summary>本地时间。UTC毫秒</summary>
     public Int64 Time { get; set; }
     #endregion
 }

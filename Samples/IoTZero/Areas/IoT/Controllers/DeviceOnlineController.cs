@@ -15,7 +15,7 @@ public class DeviceOnlineController : EntityController<DeviceOnline>
     {
         //LogOnChange = true;
 
-        //ListFields.RemoveField("Id", "Creator");
+        ListFields.RemoveField("Token");
         ListFields.RemoveCreateField().RemoveRemarkField();
 
         {

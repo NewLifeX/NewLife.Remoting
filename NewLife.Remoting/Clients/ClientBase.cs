@@ -470,7 +470,13 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         if (request is LoginRequest info)
         {
-            info.Version = _version;
+            var asm = AssemblyX.Entry ?? AssemblyX.Create(Assembly.GetExecutingAssembly());
+            if (asm != null)
+            {
+                info.Version = asm.FileVersion;
+                info.Compile = asm.Compile.ToUniversalTime().ToLong();
+            }
+
             info.Time = DateTime.UtcNow.ToLong();
         }
     }
