@@ -19,6 +19,7 @@ public partial class NodeHistory : Entity<NodeHistory>
 
         Meta.Modules.Add<TimeModule>();
         Meta.Modules.Add<IPModule>();
+        Meta.Modules.Add<TraceModule>();
     }
 
     /// <summary>插入或修改时</summary>
@@ -79,34 +80,34 @@ public partial class NodeHistory : Entity<NodeHistory>
         return Find(_.Id == id);
     }
 
-/// <summary>根据编号查找</summary>
-/// <param name="id">编号</param>
-/// <returns>实体对象</returns>
-public static NodeHistory FindById(Int64 id)
-{
-    if (id <= 0) return null;
+    /// <summary>根据编号查找</summary>
+    /// <param name="id">编号</param>
+    /// <returns>实体对象</returns>
+    public static NodeHistory FindById(Int64 id)
+    {
+        if (id <= 0) return null;
 
-    // 实体缓存
-    if (Meta.Session.Count < 1000) return Meta.Cache.Find(e => e.Id == id);
+        // 实体缓存
+        if (Meta.Session.Count < 1000) return Meta.Cache.Find(e => e.Id == id);
 
-    // 单对象缓存
-    return Meta.SingleCache[id];
+        // 单对象缓存
+        return Meta.SingleCache[id];
 
-    //return Find(_.Id == id);
-}
+        //return Find(_.Id == id);
+    }
 
-/// <summary>根据节点、操作查找</summary>
-/// <param name="nodeId">节点</param>
-/// <param name="action">操作</param>
-/// <returns>实体列表</returns>
-public static IList<NodeHistory> FindAllByNodeIDAndAction(Int32 nodeId, String action)
-{
+    /// <summary>根据节点、操作查找</summary>
+    /// <param name="nodeId">节点</param>
+    /// <param name="action">操作</param>
+    /// <returns>实体列表</returns>
+    public static IList<NodeHistory> FindAllByNodeIDAndAction(Int32 nodeId, String action)
+    {
 
-    // 实体缓存
-    if (Meta.Session.Count < 1000) return Meta.Cache.FindAll(e => e.NodeId == nodeId && e.Action.EqualIgnoreCase(action));
+        // 实体缓存
+        if (Meta.Session.Count < 1000) return Meta.Cache.FindAll(e => e.NodeId == nodeId && e.Action.EqualIgnoreCase(action));
 
-    return FindAll(_.NodeId == nodeId & _.Action == action);
-}
+        return FindAll(_.NodeId == nodeId & _.Action == action);
+    }
     #endregion
 
     #region 高级查询
@@ -163,7 +164,7 @@ public static IList<NodeHistory> FindAllByNodeIDAndAction(Int32 nodeId, String a
     /// <returns></returns>
     public static NodeHistory Create(Node node, String action, Boolean success, String remark, String creator, String ip)
     {
-        if (node == null) node = new Node();
+        node ??= new Node();
 
         var history = new NodeHistory
         {

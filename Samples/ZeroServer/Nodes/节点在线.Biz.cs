@@ -5,9 +5,9 @@ using NewLife;
 using NewLife.Data;
 using NewLife.Remoting.Models;
 using NewLife.Serialization;
-using Stardust.Models;
 using XCode;
 using XCode.Membership;
+using ZeroServer.Models;
 
 namespace Zero.Data.Nodes;
 
@@ -193,90 +193,76 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
     }
 
     /// <summary>更新并保存在线状态</summary>
-    /// <param name="di"></param>
-    /// <param name="pi"></param>
+    /// <param name="login"></param>
+    /// <param name="ping"></param>
     /// <param name="token"></param>
     /// <param name="ip"></param>
-    public void Save(NodeInfo di, PingInfo pi, String token, String ip)
+    public void Save(LoginInfo login, PingInfo ping, String token, String ip)
     {
-        var olt = this;
+        var online = this;
 
-        if (di != null)
+        if (login != null)
         {
-            olt.Fill(di);
-            olt.LocalTime = di.Time.ToLocalTime();
-            olt.MACs = di.Macs;
-            //olt.COMs = di.COMs;
+            online.Fill(login);
+            online.LocalTime = login.Time.ToDateTime().ToLocalTime();
+            online.MACs = login.Macs;
         }
         else
         {
-            olt.Fill(pi);
-            //olt.CreateData(pi, ip);
+            online.Fill(ping);
         }
 
-        olt.Token = token;
-        olt.PingCount++;
-        olt.UpdateIP = ip;
+        online.Token = token;
+        online.PingCount++;
+        online.UpdateIP = ip;
 
         // 5秒内直接保存
-        if (olt.CreateTime.AddSeconds(5) > DateTime.Now)
-            olt.Save();
+        if (online.CreateTime.AddSeconds(5) > DateTime.Now)
+            online.Save();
         else
-            olt.SaveAsync();
+            online.SaveAsync();
     }
 
     /// <summary>填充节点信息</summary>
     /// <param name="di"></param>
-    public void Fill(NodeInfo di)
+    public void Fill(LoginInfo di)
     {
         var online = this;
 
-        online.LocalTime = di.Time.ToLocalTime();
+        online.LocalTime = di.Time.ToDateTime().ToLocalTime();
         online.MACs = di.Macs;
         //online.COMs = di.COMs;
         online.IP = di.IP;
-
-        if (di.AvailableMemory > 0) online.AvailableMemory = (Int32)(di.AvailableMemory / 1024 / 1024);
-        if (di.AvailableFreeSpace > 0) online.AvailableFreeSpace = (Int32)(di.AvailableFreeSpace / 1024 / 1024);
     }
 
     /// <summary>填充在线节点信息</summary>
     /// <param name="inf"></param>
     private void Fill(PingInfo inf)
     {
-        var olt = this;
+        var online = this;
 
-        if (inf.AvailableMemory > 0) olt.AvailableMemory = (Int32)(inf.AvailableMemory / 1024 / 1024);
-        if (inf.AvailableFreeSpace > 0) olt.AvailableFreeSpace = (Int32)(inf.AvailableFreeSpace / 1024 / 1024);
-        if (inf.CpuRate > 0) olt.CpuRate = inf.CpuRate;
-        if (inf.Temperature > 0) olt.Temperature = inf.Temperature;
-        if (inf.Battery > 0) olt.Battery = inf.Battery;
-        if (inf.UplinkSpeed > 0) olt.UplinkSpeed = (Int64)inf.UplinkSpeed;
-        if (inf.DownlinkSpeed > 0) olt.DownlinkSpeed = (Int64)inf.DownlinkSpeed;
-        if (inf.ProcessCount > 0) olt.ProcessCount = inf.ProcessCount;
-        if (inf.TcpConnections > 0) olt.TcpConnections = inf.TcpConnections;
-        if (inf.TcpTimeWait > 0) olt.TcpTimeWait = inf.TcpTimeWait;
-        if (inf.TcpCloseWait > 0) olt.TcpCloseWait = inf.TcpCloseWait;
-        if (inf.Uptime > 0) olt.Uptime = inf.Uptime;
-        if (inf.Delay > 0) olt.Delay = inf.Delay;
+        if (inf.AvailableMemory > 0) online.AvailableMemory = (Int32)(inf.AvailableMemory / 1024 / 1024);
+        if (inf.AvailableFreeSpace > 0) online.AvailableFreeSpace = (Int32)(inf.AvailableFreeSpace / 1024 / 1024);
+        if (inf.CpuRate > 0) online.CpuRate = inf.CpuRate;
+        if (inf.Temperature > 0) online.Temperature = inf.Temperature;
+        if (inf.Battery > 0) online.Battery = inf.Battery;
+        if (inf.UplinkSpeed > 0) online.UplinkSpeed = (Int64)inf.UplinkSpeed;
+        if (inf.DownlinkSpeed > 0) online.DownlinkSpeed = (Int64)inf.DownlinkSpeed;
+        if (inf.Uptime > 0) online.Uptime = inf.Uptime;
+        if (inf.Delay > 0) online.Delay = inf.Delay;
 
         var dt = inf.Time.ToDateTime().ToLocalTime();
         if (dt.Year > 2000)
         {
-            olt.LocalTime = dt;
-            //olt.Offset = (Int32)Math.Round((dt - DateTime.Now).TotalSeconds);
-            olt.Offset = (Int32)(inf.Time - DateTime.UtcNow.ToLong());
+            online.LocalTime = dt;
+            online.Offset = (Int32)(inf.Time - DateTime.UtcNow.ToLong());
         }
 
-        if (!inf.Processes.IsNullOrEmpty()) olt.Processes = inf.Processes;
-        if (!inf.Macs.IsNullOrEmpty()) olt.MACs = inf.Macs;
-        //if (!inf.COMs.IsNullOrEmpty()) olt.COMs = inf.COMs;
-        if (!inf.IP.IsNullOrEmpty()) olt.IP = inf.IP;
+        if (!inf.IP.IsNullOrEmpty()) online.IP = inf.IP;
 
-        //olt.Data = inf.ToJson();
         var dic = inf.ToDictionary();
         dic.Remove("Processes");
-        olt.Data = dic.ToJson();
+        online.Data = dic.ToJson();
     }
 
     //private void CreateData(PingInfo inf, String ip)

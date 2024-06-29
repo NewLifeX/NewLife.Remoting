@@ -4,10 +4,10 @@ using System.Xml.Serialization;
 using NewLife;
 using NewLife.Data;
 using NewLife.Remoting.Models;
-using Stardust.Models;
 using XCode;
 using XCode.Cache;
 using XCode.Membership;
+using ZeroServer.Models;
 
 namespace Zero.Data.Nodes;
 
@@ -386,7 +386,7 @@ public partial class Node : Entity<Node>, IDeviceModel
     /// <summary>登录并保存信息</summary>
     /// <param name="di"></param>
     /// <param name="ip"></param>
-    public void Login(NodeInfo di, String ip)
+    public void Login(LoginInfo di, String ip)
     {
         var node = this;
 
@@ -410,7 +410,7 @@ public partial class Node : Entity<Node>, IDeviceModel
 
     /// <summary>填充</summary>
     /// <param name="di"></param>
-    public void Fill(NodeInfo di)
+    public void Fill(LoginInfo di)
     {
         var node = this;
 
@@ -418,28 +418,17 @@ public partial class Node : Entity<Node>, IDeviceModel
         if (!di.OSVersion.IsNullOrEmpty()) node.OSVersion = di.OSVersion;
         if (!di.Architecture.IsNullOrEmpty()) node.Architecture = di.Architecture;
         if (!di.Version.IsNullOrEmpty()) node.Version = di.Version;
-        if (di.Compile.Year > 2000) node.CompileTime = di.Compile;
+        if (di.Compile > 2000) node.CompileTime = di.Compile.ToDateTime().ToLocalTime();
 
         if (!di.MachineName.IsNullOrEmpty()) node.MachineName = di.MachineName;
         if (!di.UserName.IsNullOrEmpty()) node.UserName = di.UserName;
         if (!di.IP.IsNullOrEmpty()) node.IP = di.IP;
-        if (!di.Processor.IsNullOrEmpty()) node.Processor = di.Processor;
-        //if (!di.CpuID.IsNullOrEmpty()) node.CpuID = di.CpuID;
         if (!di.UUID.IsNullOrEmpty()) node.Uuid = di.UUID;
-        if (!di.MachineGuid.IsNullOrEmpty()) node.MachineGuid = di.MachineGuid;
-        if (!di.DiskID.IsNullOrEmpty()) node.DiskID = di.DiskID;
 
         if (di.ProcessorCount > 0) node.Cpu = di.ProcessorCount;
         if (di.Memory > 0) node.Memory = (Int32)(di.Memory / 1024 / 1024);
         if (di.TotalSize > 0) node.TotalSize = (Int32)(di.TotalSize / 1024 / 1024);
-        if (di.MaxOpenFiles > 0) node.MaxOpenFiles = di.MaxOpenFiles;
-        if (!di.Dpi.IsNullOrEmpty()) node.Dpi = di.Dpi;
-        if (!di.Resolution.IsNullOrEmpty()) node.Resolution = di.Resolution;
         if (!di.Macs.IsNullOrEmpty()) node.MACs = di.Macs;
-        //if (!di.COMs.IsNullOrEmpty()) node.COMs = di.COMs;
-        if (!di.InstallPath.IsNullOrEmpty()) node.InstallPath = di.InstallPath;
-        if (!di.Runtime.IsNullOrEmpty()) node.Runtime = di.Runtime;
-        if (!di.Framework.IsNullOrEmpty()) node.Framework = di.Framework;
     }
 
     /// <summary>修正地区</summary>

@@ -1,9 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Net.WebSockets;
+using Microsoft.AspNetCore.Mvc;
 using NewLife.Log;
 using NewLife.Remoting;
 using NewLife.Remoting.Extensions;
+using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using Zero.Data.Nodes;
+using ZeroServer.Services;
 
 namespace ZeroServer.Controllers;
 
@@ -14,8 +17,9 @@ namespace ZeroServer.Controllers;
 public class NodeController : BaseDeviceController
 {
     /// <summary>当前设备</summary>
-    public Node Node { get; set; }
+    public Node? Node { get; set; }
 
+    private readonly NodeService _nodeService;
     private readonly ITracer _tracer;
 
     #region 构造
@@ -27,6 +31,7 @@ public class NodeController : BaseDeviceController
     /// <param name="tracer"></param>
     public NodeController(IServiceProvider serviceProvider, ITracer tracer) : base(serviceProvider)
     {
+        _nodeService = serviceProvider.GetRequiredService<IDeviceService>() as NodeService;
         _tracer = tracer;
     }
 
@@ -44,15 +49,43 @@ public class NodeController : BaseDeviceController
     /// <summary>心跳</summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    protected override IPingResponse OnPing(IPingRequest request)
+    protected override IPingResponse OnPing(IPingRequest? request)
     {
         var rs = base.OnPing(request);
 
         var device = Node;
-        if (device != null && rs != null)
+        if (device != null)
             rs.Period = device.Period;
 
         return rs;
+    }
+
+    protected override async Task HandleNotify(WebSocket socket, String token)
+    {
+        NodeOnline online = null;
+        var node = Node;
+        if (node != null)
+        {
+            online = _nodeService.GetOnline(node, UserHost);
+            if (online != null)
+            {
+                online.WebSocket = true;
+                online.Update();
+            }
+        }
+
+        try
+        {
+            await base.HandleNotify(socket, token);
+        }
+        finally
+        {
+            if (online != null)
+            {
+                online.WebSocket = false;
+                online.Update();
+            }
+        }
     }
     #endregion
 }

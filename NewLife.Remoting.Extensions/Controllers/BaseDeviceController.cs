@@ -182,13 +182,18 @@ public class BaseDeviceController : BaseController
         {
             using var socket = await HttpContext.WebSockets.AcceptWebSocketAsync();
 
-            await Handle(socket, Token);
+            await HandleNotify(socket, Token);
         }
         else
             HttpContext.Response.StatusCode = 400;
     }
 
-    private async Task Handle(WebSocket socket, String token)
+    /// <summary>处理长连接</summary>
+    /// <param name="socket"></param>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
+    protected virtual async Task HandleNotify(WebSocket socket, String token)
     {
         var device = _device ?? throw new InvalidOperationException("未登录！");
 

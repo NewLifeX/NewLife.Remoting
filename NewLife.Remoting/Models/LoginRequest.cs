@@ -38,6 +38,15 @@ public class LoginRequest : ILoginRequest
     /// <summary>编译时间。UTC毫秒</summary>
     public Int64 Compile { get; set; }
 
+    /// <summary>本地IP地址</summary>
+    public String? IP { get; set; }
+
+    /// <summary>MAC地址</summary>
+    public String? Macs { get; set; }
+
+    /// <summary>唯一标识</summary>
+    public String? UUID { get; set; }
+
     /// <summary>本地时间。UTC毫秒</summary>
     public Int64 Time { get; set; }
     #endregion

@@ -11,7 +11,7 @@ public class ClientSetting : Config<ClientSetting>, IClientSetting
     #region 属性
     /// <summary>服务端地址。IoT服务平台地址</summary>
     [Description("服务端地址。IoT服务平台地址")]
-    public String Server { get; set; } = "http://localhost:2880";
+    public String Server { get; set; } = "http://localhost:6080";
 
     /// <summary>客户端编码</summary>
     [Description("客户端编码")]

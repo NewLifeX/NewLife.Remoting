@@ -20,7 +20,6 @@
 
   <ItemGroup>
     <PackageReference Include="NewLife.Cube.Core" Version="6.1.2024.403" />
-    <PackageReference Include="NewLife.IoT" Version="2.2.2024.501" />
     <PackageReference Include="NewLife.Redis" Version="5.7.2024.602" />
     <PackageReference Include="NewLife.Stardust.Extensions" Version="2.9.2024.402" />
   </ItemGroup>

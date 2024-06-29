@@ -477,6 +477,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 info.Compile = asm.Compile.ToUniversalTime().ToLong();
             }
 
+            info.IP = NetHelper.GetIPsWithCache().Where(e => e.IsIPv4() && e.GetAddressBytes()[0] != 169).Join();
+            info.Macs = NetHelper.GetMacs().Select(e => e.ToHex("-")).Where(e => e != "00-00-00-00-00-00").OrderBy(e => e).Join(",");
+            info.UUID = MachineInfo.GetCurrent().BuildCode();
+
             info.Time = DateTime.UtcNow.ToLong();
         }
     }

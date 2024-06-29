@@ -1,8 +1,8 @@
-﻿using NewLife.IoT.Models;
-using NewLife.Remoting.Extensions;
+﻿using NewLife.Remoting.Extensions;
 using NewLife.Remoting.Extensions.Models;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
+using ZeroServer.Models;
 
 namespace ZeroServer.Services;
 
@@ -14,8 +14,6 @@ public static class IoTExtensions
         ArgumentNullException.ThrowIfNull(setting);
 
         // 逐个注册每一个用到的服务，必须做到清晰明了
-        services.AddSingleton<QueueService>();
-
         services.AddSingleton<IDeviceService, NodeService>();
 
         services.AddTransient<ILoginRequest, LoginInfo>();

@@ -38,8 +38,8 @@ public class PingRequest : IPingRequest
     /// <summary>电量</summary>
     public Double Battery { get; set; }
 
-    ///// <summary>信号强度。WiFi/4G</summary>
-    //public Int32 Signal { get; set; }
+    /// <summary>信号强度。WiFi/4G</summary>
+    public Int32 Signal { get; set; }
 
     /// <summary>上行速度。网络发送速度，字节每秒</summary>
     public UInt64 UplinkSpeed { get; set; }

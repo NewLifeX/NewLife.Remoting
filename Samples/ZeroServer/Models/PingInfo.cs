@@ -1,19 +1,19 @@
 ﻿using NewLife.Remoting.Models;
 
-namespace NewLife.IoT.Models;
+namespace ZeroServer.Models;
 
 /// <summary>心跳信息</summary>
 public class PingInfo : PingRequest
 {
     #region 属性
-    /// <summary>内存大小</summary>
-    public UInt64 Memory { get; set; }
+    ///// <summary>内存大小</summary>
+    //public UInt64 Memory { get; set; }
 
     ///// <summary>可用内存大小</summary>
     //public UInt64 AvailableMemory { get; set; }
 
-    /// <summary>磁盘大小。应用所在盘</summary>
-    public UInt64 TotalSize { get; set; }
+    ///// <summary>磁盘大小。应用所在盘</summary>
+    //public UInt64 TotalSize { get; set; }
 
     ///// <summary>磁盘可用空间。应用所在盘</summary>
     //public UInt64 AvailableFreeSpace { get; set; }

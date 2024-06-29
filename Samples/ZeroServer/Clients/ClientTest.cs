@@ -1,12 +1,12 @@
 ﻿using NewLife.Log;
 
-namespace ZeroClient.Clients;
+namespace ZeroClient;
 
 /// <summary>客户端测试入口。主程序通过反射调用</summary>
 public static class ClientTest
 {
     private static ITracer _tracer;
-    private static HttpDevice _device;
+    private static NodeClient _device;
 
     public static async Task Main(IServiceProvider serviceProvider)
     {
@@ -19,7 +19,7 @@ public static class ClientTest
         var set = ClientSetting.Current;
 
         // 产品编码、产品密钥从IoT管理平台获取，设备编码支持自动注册
-        var device = new HttpDevice(set)
+        var device = new NodeClient(set)
         {
             Tracer = _tracer,
             Log = XTrace.Log,

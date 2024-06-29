@@ -1,7 +1,6 @@
 ﻿using NewLife;
 using NewLife.IoT.Models;
 using NewLife.IoT.ThingModels;
-using NewLife.Log;
 using NewLife.Model;
 using NewLife.Remoting;
 using NewLife.Remoting.Clients;
@@ -64,15 +63,12 @@ public class HttpDevice : ClientBase
     #region 登录
     public override ILoginRequest BuildLoginRequest()
     {
-        var request = base.BuildLoginRequest();
-        if (request is LoginInfo info)
-        {
-            info.ProductKey = ProductKey;
-            info.ProductSecret = ProductSecret;
-            info.Name = Environment.MachineName;
-            info.IP = NetHelper.MyIP() + "";
-            info.UUID = MachineInfo.GetCurrent().BuildCode();
-        }
+        var request = new LoginInfo();
+        FillLoginRequest(request);
+
+        request.ProductKey = ProductKey;
+        request.ProductSecret = ProductSecret;
+        request.Name = Environment.MachineName;
 
         return request;
     }
@@ -81,12 +77,8 @@ public class HttpDevice : ClientBase
     #region 心跳
     public override IPingRequest BuildPingRequest()
     {
-        var request = base.BuildPingRequest();
-        if (request is PingInfo info)
-        {
-            info.Memory = 0;
-            info.TotalSize = 0;
-        }
+        var request = new PingInfo();
+        FillPingRequest(request);
 
         return request;
     }

@@ -27,11 +27,11 @@ public class LoginInfo : LoginRequest
     ///// <summary>版本</summary>
     //public String Version { get; set; }
 
-    /// <summary>本地IP地址</summary>
-    public String IP { get; set; }
+    ///// <summary>本地IP地址</summary>
+    //public String IP { get; set; }
 
-    /// <summary>唯一标识</summary>
-    public String UUID { get; set; }
+    ///// <summary>唯一标识</summary>
+    //public String UUID { get; set; }
 
     ///// <summary>本地UTC时间</summary>
     //public Int64 Time { get; set; }

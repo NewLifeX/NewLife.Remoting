@@ -1,23 +1,28 @@
 ﻿using NewLife;
-using NewLife.IoT.Models;
-using NewLife.IoT.ThingModels;
 using NewLife.Model;
-using NewLife.Remoting;
 using NewLife.Remoting.Clients;
 using NewLife.Remoting.Models;
 using NewLife.Security;
+using ZeroServer.Models;
+using MigrationEventArgs = Stardust.Models.MigrationEventArgs;
 
 namespace ZeroClient;
 
 /// <summary>Http协议设备</summary>
-public class HttpDevice : ClientBase
+public class NodeClient : ClientBase
 {
     #region 属性
+    /// <summary>产品编码</summary>
+    public String? ProductCode { get; set; }
+
+    /// <summary>服务迁移</summary>
+    public event EventHandler<MigrationEventArgs>? OnMigration;
+
     private readonly ClientSetting _setting;
     #endregion
 
     #region 构造
-    public HttpDevice(ClientSetting setting) : base(setting)
+    public NodeClient(ClientSetting setting) : base(setting)
     {
         // 设置动作，开启下行通知
         Features = Features.Login | Features.Logout | Features.Ping | Features.Notify | Features.Upgrade;
@@ -49,13 +54,11 @@ public class HttpDevice : ClientBase
     #region 登录
     public override ILoginRequest BuildLoginRequest()
     {
-        var request = base.BuildLoginRequest();
-        if (request is LoginInfo info)
-        {
-            info.Name = Environment.MachineName;
-            info.IP = NetHelper.MyIP() + "";
-            info.UUID = MachineInfo.GetCurrent().BuildCode();
-        }
+        var request = new LoginInfo();
+        FillLoginRequest(request);
+
+        request.ProductCode = ProductCode;
+        request.Name = Environment.MachineName;
 
         return request;
     }
@@ -64,46 +67,39 @@ public class HttpDevice : ClientBase
     #region 心跳
     public override IPingRequest BuildPingRequest()
     {
-        var request = base.BuildPingRequest();
-        if (request is PingInfo info)
-        {
-            info.Memory = 0;
-            info.TotalSize = 0;
-        }
+        var request = new PingInfo();
+        FillPingRequest(request);
 
         return request;
     }
-    #endregion
 
-    #region 数据
-    /// <summary>上传数据</summary>
+    /// <summary>心跳</summary>
     /// <returns></returns>
-    public async Task PostDataAsync()
+    public override async Task<IPingResponse?> Ping(CancellationToken cancellationToken = default)
     {
-        //if (Tracer != null) DefaultSpan.Current = null;
-
-        using var span = Tracer?.NewSpan("PostData");
-        try
+        var rs = await base.Ping(cancellationToken);
+        if (rs != null)
         {
-            var items = new List<DataModel>
+            // 迁移到新服务器
+            if (rs is PingResponse prs && !prs.NewServer.IsNullOrEmpty() && prs.NewServer != Server)
             {
-                new() {
-                    Time = DateTime.UtcNow.ToLong(),
-                    Name = "TestValue",
-                    Value = Rand.Next(0, 100) + ""
+                var arg = new MigrationEventArgs { NewServer = prs.NewServer };
+
+                OnMigration?.Invoke(this, arg);
+                if (!arg.Cancel)
+                {
+                    await Logout("切换新服务器");
+
+                    // 清空原有链接，添加新链接
+                    Server = prs.NewServer;
+                    Client = null;
+
+                    await Login();
                 }
-            };
-
-            var data = new DataModels { DeviceCode = Code, Items = items.ToArray() };
-
-            await InvokeAsync<Int32>("Thing/PostData", data);
+            }
         }
-        catch (Exception ex)
-        {
-            span?.SetError(ex, null);
 
-            throw;
-        }
+        return rs;
     }
     #endregion
 }

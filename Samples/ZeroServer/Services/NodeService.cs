@@ -2,7 +2,6 @@
 using NewLife;
 using NewLife.Caching;
 using NewLife.Caching.Queues;
-using NewLife.IoT.Models;
 using NewLife.Log;
 using NewLife.Remoting;
 using NewLife.Remoting.Extensions.Services;
@@ -11,6 +10,7 @@ using NewLife.Security;
 using NewLife.Serialization;
 using NewLife.Web;
 using Zero.Data.Nodes;
+using ZeroServer.Models;
 
 namespace ZeroServer.Services;
 
@@ -56,107 +56,72 @@ public class NodeService : IDeviceService
         var code = inf.Code;
         var secret = inf.Secret;
 
-        var dv = Node.FindByCode(code);
+        var node = Node.FindByCode(code!, true);
+        if (node != null && !node.Enable) throw new ApiException(99, "禁止登录");
 
         var autoReg = false;
-        if (dv == null)
+        if (node == null)
         {
-            if (inf.ProductKey.IsNullOrEmpty()) throw new ApiException(ApiCode.NotFound, "找不到设备，且产品证书为空，无法登录");
-
-            dv = AutoRegister(null, inf, ip);
+            node = AutoRegister(null, inf, ip);
             autoReg = true;
         }
         else
         {
-            if (!dv.Enable) throw new ApiException(ApiCode.Forbidden, "禁止登录");
+            if (!node.Enable) throw new ApiException(ApiCode.Forbidden, "禁止登录");
 
             // 校验唯一编码，防止客户端拷贝配置
             var uuid = inf.UUID;
-            if (!uuid.IsNullOrEmpty() && !dv.Uuid.IsNullOrEmpty() && uuid != dv.Uuid)
-                WriteHistory(dv, source + "登录校验", false, $"新旧唯一标识不一致！（新）{uuid}!={dv.Uuid}（旧）", ip);
+            if (!uuid.IsNullOrEmpty() && !node.Uuid.IsNullOrEmpty() && uuid != node.Uuid)
+                WriteHistory(node, source + "登录校验", false, $"新旧唯一标识不一致！（新）{uuid}!={node.Uuid}（旧）", ip);
 
             // 登录密码未设置或者未提交，则执行动态注册
-            if (dv == null || !dv.Secret.IsNullOrEmpty()
-                && (secret.IsNullOrEmpty() || !_passwordProvider.Verify(dv.Secret, secret)))
+            if (node == null || !node.Secret.IsNullOrEmpty()
+                && (secret.IsNullOrEmpty() || !_passwordProvider.Verify(node.Secret, secret)))
             {
-                if (inf.ProductKey.IsNullOrEmpty()) throw new ApiException(ApiCode.Unauthorized, "设备验证失败，且产品证书为空，无法登录");
-
-                dv = AutoRegister(dv, inf, ip);
+                node = AutoRegister(node, inf, ip);
                 autoReg = true;
             }
         }
 
-        //if (dv != null && !dv.Enable) throw new ApiException(99, "禁止登录");
+        if (node == null) throw new ApiException(ApiCode.Unauthorized, "节点鉴权失败");
 
-        if (dv == null) throw new ApiException(ApiCode.Unauthorized, "节点鉴权失败");
-
-        dv.Login(inf, ip);
+        node.Login(inf, ip);
 
         // 在线记录
-        var olt = GetOnline(dv, ip) ?? CreateOnline(dv, ip);
-        olt.Save(inf, null, null);
-
-        //SetChildOnline(dv, ip);
+        var olt = GetOnline(node, ip) ?? CreateOnline(node, ip);
+        olt.Save(inf, null, null, ip);
 
         // 登录历史
-        WriteHistory(dv, source + "设备鉴权", true, $"[{dv.Name}/{dv.Code}]鉴权成功 " + inf.ToJson(false, false, false), ip);
+        WriteHistory(node, source + "节点鉴权", true, $"[{node.Name}/{node.Code}]鉴权成功 " + inf.ToJson(false, false, false), ip);
 
         var rs = new LoginResponse
         {
-            Name = dv.Name
+            Name = node.Name
         };
 
         // 动态注册，下发节点证书
-        if (autoReg) rs.Secret = dv.Secret;
+        if (autoReg) rs.Secret = node.Secret;
 
-        return (dv, olt, rs);
-    }
-
-    /// <summary>设置设备在线，同时检查在线表</summary>
-    /// <param name="dv"></param>
-    /// <param name="ip"></param>
-    /// <param name="reason"></param>
-    public void SetDeviceOnline(Node dv, String ip, String reason)
-    {
-        // 如果已上线，则不需要埋点
-        var tracer = _tracer;
-        //if (dv.Online) tracer = null;
-        using var span = tracer?.NewSpan(nameof(SetDeviceOnline), new { dv.Name, dv.Code, ip, reason });
-
-        var olt = GetOnline(dv, ip) ?? CreateOnline(dv, ip);
-
-        dv.SetOnline(ip, reason);
-
-        // 避免频繁更新心跳数
-        if (olt.UpdateTime.AddSeconds(60) < DateTime.Now)
-            olt.Save(null, null, null);
+        return (node, olt, rs);
     }
 
     /// <summary>自动注册</summary>
-    /// <param name="device"></param>
+    /// <param name="node"></param>
     /// <param name="inf"></param>
     /// <param name="ip"></param>
     /// <returns></returns>
     /// <exception cref="ApiException"></exception>
-    public Node AutoRegister(Node device, LoginInfo inf, String ip)
+    public Node AutoRegister(Node? node, LoginInfo inf, String ip)
     {
         // 全局开关，是否允许自动注册新产品
         if (!_setting.AutoRegister) throw new ApiException(12, "禁止自动注册");
 
-        // 验证产品，即使产品不给自动注册，也会插入一个禁用的设备
-        var product = Product.FindByCode(inf.ProductKey);
-        if (product == null || !product.Enable)
-            throw new ApiException(13, $"无效产品[{inf.ProductKey}]！");
-        //if (!product.Secret.IsNullOrEmpty() && !_passwordProvider.Verify(product.Secret, inf.ProductSecret))
-        //    throw new ApiException(13, $"非法产品[{product}]！");
-
-        //// 检查白名单
-        //if (!product.IsMatchWhiteIP(ip)) throw new ApiException(13, "非法来源，禁止注册");
-
         var code = inf.Code;
+        if (code.IsNullOrEmpty()) code = inf.UUID.GetBytes().Crc().ToString("X8");
         if (code.IsNullOrEmpty()) code = Rand.NextString(8);
 
-        device ??= new Node
+        node ??= Node.FindByCode(code, false);
+        node ??= new Node
         {
             Code = code,
             CreateIP = ip,
@@ -165,55 +130,50 @@ public class NodeService : IDeviceService
         };
 
         // 如果未打开动态注册，则把节点修改为禁用
-        device.Enable = true;
+        node.Enable = true;
 
-        if (device.Name.IsNullOrEmpty()) device.Name = inf.Name;
+        if (node.Name.IsNullOrEmpty()) node.Name = inf.Name;
 
-        device.ProductId = product.Id;
-        //device.Secret = Rand.NextString(16);
-        device.UpdateIP = ip;
-        device.UpdateTime = DateTime.Now;
+        node.ProductCode = inf.ProductCode;
+        node.Secret = Rand.NextString(16);
+        node.UpdateIP = ip;
+        node.UpdateTime = DateTime.Now;
 
-        device.Save();
+        node.Save();
 
-        // 更新产品设备总量避免界面无法及时获取设备数量信息
-        device.Product.Fix();
+        WriteHistory(node, "动态注册", true, inf.ToJson(false, false, false), ip);
 
-        WriteHistory(device, "动态注册", true, inf.ToJson(false, false, false), ip);
-
-        return device;
+        return node;
     }
 
     /// <summary>注销</summary>
-    /// <param name="device">设备</param>
+    /// <param name="model">设备</param>
     /// <param name="reason">注销原因</param>
     /// <param name="source">登录来源</param>
     /// <param name="ip">远程IP</param>
     /// <returns></returns>
-    public IOnlineModel Logout(IDeviceModel device, String reason, String source, String ip)
+    public IOnlineModel Logout(IDeviceModel model, String reason, String source, String ip)
     {
-        var dv = device as Node;
-        var olt = GetOnline(dv, ip);
-        if (olt != null)
+        var node = model as Node;
+        var online = GetOnline(node, ip);
+        if (online != null)
         {
-            var msg = $"{reason} [{device}]]登录于{olt.CreateTime.ToFullString()}，最后活跃于{olt.UpdateTime.ToFullString()}";
-            WriteHistory(device, source + "设备下线", true, msg, ip);
-            olt.Delete();
+            var msg = $"{reason} [{model}]]登录于{online.CreateTime.ToFullString()}，最后活跃于{online.UpdateTime.ToFullString()}";
+            WriteHistory(model, source + "设备下线", true, msg, ip);
+            online.Delete();
 
-            var sid = $"{dv.Id}@{ip}";
+            var sid = $"{node.Id}@{ip}";
             _cache.Remove($"NodeOnline:{sid}");
 
             // 计算在线时长
-            if (olt.CreateTime.Year > 2000)
+            if (online.CreateTime.Year > 2000)
             {
-                dv.OnlineTime += (Int32)(DateTime.Now - olt.CreateTime).TotalSeconds;
-                dv.Logout();
+                node.OnlineTime += (Int32)(DateTime.Now - online.CreateTime).TotalSeconds;
+                node.Update();
             }
-
-            //DeviceOnlineService.CheckOffline(device, "注销");
         }
 
-        return olt;
+        return online;
     }
     #endregion
 
@@ -223,63 +183,57 @@ public class NodeService : IDeviceService
     /// <param name="token"></param>
     /// <param name="ip"></param>
     /// <returns></returns>
-    public IOnlineModel Ping(IDeviceModel device, IPingRequest request, String token, String ip)
+    public IOnlineModel Ping(IDeviceModel model, IPingRequest request, String token, String ip)
     {
-        var dv = device as Node;
+        var node = model as Node;
         var inf = request as PingInfo;
-        if (inf != null && !inf.IP.IsNullOrEmpty()) dv.IP = inf.IP;
+        if (inf != null && !inf.IP.IsNullOrEmpty()) node.IP = inf.IP;
 
-        // 自动上线
-        if (dv != null && !dv.Online) dv.SetOnline(ip, "心跳");
+        node.UpdateIP = ip;
+        node.SaveAsync();
 
-        dv.UpdateIP = ip;
-        dv.SaveAsync();
+        var online = GetOnline(node, ip) ?? CreateOnline(node, ip);
+        online.Name = model.Name;
+        online.Save(null, inf, token, ip);
 
-        var olt = GetOnline(dv, ip) ?? CreateOnline(dv, ip);
-        olt.Name = device.Name;
-        olt.GroupPath = dv.GroupPath;
-        olt.ProductId = dv.ProductId;
-        olt.Save(null, inf, token);
-
-        return olt;
+        return online;
     }
 
     /// <summary></summary>
-    /// <param name="device"></param>
+    /// <param name="node"></param>
     /// <param name="ip"></param>
     /// <returns></returns>
-    protected virtual NodeOnline GetOnline(Node device, String ip)
+    public virtual NodeOnline GetOnline(Node node, String ip)
     {
-        var sid = $"{device.Id}@{ip}";
-        var olt = _cache.Get<NodeOnline>($"NodeOnline:{sid}");
-        if (olt != null)
+        var sid = $"{node.Id}@{ip}";
+        var online = _cache.Get<NodeOnline>($"NodeOnline:{sid}");
+        if (online != null)
         {
             _cache.SetExpire($"NodeOnline:{sid}", TimeSpan.FromSeconds(600));
-            return olt;
+            return online;
         }
 
-        return NodeOnline.FindBySessionId(sid);
+        return NodeOnline.FindBySessionID(sid);
     }
 
     /// <summary>检查在线</summary>
-    /// <param name="device"></param>
+    /// <param name="node"></param>
     /// <param name="ip"></param>
     /// <returns></returns>
-    protected virtual NodeOnline CreateOnline(Node device, String ip)
+    public virtual NodeOnline CreateOnline(Node node, String ip)
     {
-        var sid = $"{device.Id}@{ip}";
-        var olt = NodeOnline.GetOrAdd(sid);
-        olt.ProductId = device.ProductId;
-        olt.DeviceId = device.Id;
-        olt.Name = device.Name;
-        olt.IP = device.IP;
-        olt.CreateIP = ip;
+        var sid = $"{node.Id}@{ip}";
+        var online = NodeOnline.GetOrAdd(sid);
+        online.NodeId = node.Id;
+        online.Name = node.Name;
+        online.IP = node.IP;
+        online.CreateIP = ip;
 
-        olt.Creator = Environment.MachineName;
+        online.Creator = Environment.MachineName;
 
-        _cache.Set($"NodeOnline:{sid}", olt, 600);
+        _cache.Set($"NodeOnline:{sid}", online, 600);
 
-        return olt;
+        return online;
     }
 
     /// <summary>删除在线</summary>
@@ -337,33 +291,6 @@ public class NodeService : IDeviceService
     }
 
     /// <summary>
-    /// 解码令牌，并验证有效性
-    /// </summary>
-    /// <param name="token"></param>
-    /// <param name="tokenSecret"></param>
-    /// <returns></returns>
-    /// <exception cref="ApiException"></exception>
-    public Node DecodeToken(String token, String tokenSecret)
-    {
-        //if (token.IsNullOrEmpty()) throw new ArgumentNullException(nameof(token));
-        if (token.IsNullOrEmpty()) throw new ApiException(ApiCode.Unauthorized, "节点未登录");
-
-        // 解码令牌
-        var ss = tokenSecret.Split(':');
-        var jwt = new JwtBuilder
-        {
-            Algorithm = ss[0],
-            Secret = ss[1],
-        };
-
-        var rs = jwt.TryDecode(token, out var message);
-        var node = Node.FindByCode(jwt.Subject);
-        if (!rs) throw new ApiException(ApiCode.Forbidden, $"非法访问 {message}");
-
-        return node;
-    }
-
-    /// <summary>
     /// 验证并颁发令牌
     /// </summary>
     /// <param name="deviceCode"></param>
@@ -409,15 +336,14 @@ public class NodeService : IDeviceService
     /// <summary>
     /// 写设备历史
     /// </summary>
-    /// <param name="device"></param>
+    /// <param name="model"></param>
     /// <param name="action"></param>
     /// <param name="success"></param>
     /// <param name="remark"></param>
     /// <param name="ip"></param>
-    public void WriteHistory(IDeviceModel device, String action, Boolean success, String remark, String ip)
+    public void WriteHistory(IDeviceModel model, String action, Boolean success, String remark, String ip)
     {
-        var traceId = DefaultSpan.Current?.TraceId;
-        var hi = NodeHistory.Create(device as Node, action, success, remark, Environment.MachineName, ip, traceId);
+        NodeHistory.Create(model as Node, action, success, remark, Environment.MachineName, ip);
     }
     #endregion
 }
