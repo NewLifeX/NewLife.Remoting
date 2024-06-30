@@ -1,4 +1,5 @@
-﻿using IoT.Data;
+﻿using System.Net.WebSockets;
+using IoT.Data;
 using IoTZero.Services;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.IoT.Drivers;
@@ -7,6 +8,7 @@ using NewLife.IoT.ThingModels;
 using NewLife.Log;
 using NewLife.Remoting;
 using NewLife.Remoting.Extensions;
+using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 
 namespace IoTZero.Controllers;
@@ -20,6 +22,7 @@ public class DeviceController : BaseDeviceController
     /// <summary>当前设备</summary>
     public Device Device { get; set; }
 
+    private readonly MyDeviceService _deviceService;
     private readonly ThingService _thingService;
     private readonly ITracer _tracer;
 
@@ -32,6 +35,7 @@ public class DeviceController : BaseDeviceController
     /// <param name="tracer"></param>
     public DeviceController(IServiceProvider serviceProvider, ThingService thingService, ITracer tracer) : base(serviceProvider)
     {
+        _deviceService = serviceProvider.GetRequiredService<IDeviceService>() as MyDeviceService;
         _thingService = thingService;
         _tracer = tracer;
     }
@@ -61,6 +65,40 @@ public class DeviceController : BaseDeviceController
         }
 
         return rs;
+    }
+
+    /// <summary>长连接处理</summary>
+    /// <param name="socket"></param>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    protected override async Task HandleNotify(WebSocket socket, String token)
+    {
+        DeviceOnline online = null;
+        var device = Device;
+        if (device != null)
+        {
+            // 上线打标记
+            online = _deviceService.GetOnline(device, UserHost);
+            if (online != null)
+            {
+                online.WebSocket = true;
+                online.Update();
+            }
+        }
+
+        try
+        {
+            await base.HandleNotify(socket, token);
+        }
+        finally
+        {
+            // 下线清除标记
+            if (online != null)
+            {
+                online.WebSocket = false;
+                online.Update();
+            }
+        }
     }
     #endregion
 

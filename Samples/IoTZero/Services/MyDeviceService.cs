@@ -248,7 +248,7 @@ public class MyDeviceService : IDeviceService
     /// <param name="device"></param>
     /// <param name="ip"></param>
     /// <returns></returns>
-    protected virtual DeviceOnline GetOnline(Device device, String ip)
+    public virtual DeviceOnline GetOnline(Device device, String ip)
     {
         var sid = $"{device.Id}@{ip}";
         var olt = _cache.Get<DeviceOnline>($"DeviceOnline:{sid}");
@@ -265,7 +265,7 @@ public class MyDeviceService : IDeviceService
     /// <param name="device"></param>
     /// <param name="ip"></param>
     /// <returns></returns>
-    protected virtual DeviceOnline CreateOnline(Device device, String ip)
+    public virtual DeviceOnline CreateOnline(Device device, String ip)
     {
         var sid = $"{device.Id}@{ip}";
         var olt = DeviceOnline.GetOrAdd(sid);

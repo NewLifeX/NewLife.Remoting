@@ -88,6 +88,14 @@ public partial class DeviceOnline
     [BindColumn("Pings", "心跳", "")]
     public Int32 Pings { get => _Pings; set { if (OnPropertyChanging("Pings", value)) { _Pings = value; OnPropertyChanged("Pings"); } } }
 
+    private Boolean _WebSocket;
+    /// <summary>长连接。WebSocket长连接</summary>
+    [DisplayName("长连接")]
+    [Description("长连接。WebSocket长连接")]
+    [DataObjectField(false, false, false, 0)]
+    [BindColumn("WebSocket", "长连接。WebSocket长连接", "")]
+    public Boolean WebSocket { get => _WebSocket; set { if (OnPropertyChanging("WebSocket", value)) { _WebSocket = value; OnPropertyChanged("WebSocket"); } } }
+
     private Int32 _Delay;
     /// <summary>延迟。网络延迟，单位ms</summary>
     [DisplayName("延迟")]
@@ -177,6 +185,7 @@ public partial class DeviceOnline
             "IP" => _IP,
             "GroupPath" => _GroupPath,
             "Pings" => _Pings,
+            "WebSocket" => _WebSocket,
             "Delay" => _Delay,
             "Offset" => _Offset,
             "LocalTime" => _LocalTime,
@@ -200,6 +209,7 @@ public partial class DeviceOnline
                 case "IP": _IP = Convert.ToString(value); break;
                 case "GroupPath": _GroupPath = Convert.ToString(value); break;
                 case "Pings": _Pings = value.ToInt(); break;
+                case "WebSocket": _WebSocket = value.ToBoolean(); break;
                 case "Delay": _Delay = value.ToInt(); break;
                 case "Offset": _Offset = value.ToInt(); break;
                 case "LocalTime": _LocalTime = value.ToDateTime(); break;
@@ -245,6 +255,9 @@ public partial class DeviceOnline
 
         /// <summary>心跳</summary>
         public static readonly Field Pings = FindByName("Pings");
+
+        /// <summary>长连接。WebSocket长连接</summary>
+        public static readonly Field WebSocket = FindByName("WebSocket");
 
         /// <summary>延迟。网络延迟，单位ms</summary>
         public static readonly Field Delay = FindByName("Delay");
@@ -302,6 +315,9 @@ public partial class DeviceOnline
 
         /// <summary>心跳</summary>
         public const String Pings = "Pings";
+
+        /// <summary>长连接。WebSocket长连接</summary>
+        public const String WebSocket = "WebSocket";
 
         /// <summary>延迟。网络延迟，单位ms</summary>
         public const String Delay = "Delay";

@@ -45,7 +45,6 @@ public class NodeController : BaseDeviceController
     }
     #endregion
 
-    #region 心跳
     /// <summary>心跳</summary>
     /// <param name="request"></param>
     /// <returns></returns>
@@ -60,12 +59,17 @@ public class NodeController : BaseDeviceController
         return rs;
     }
 
+    /// <summary>长连接处理</summary>
+    /// <param name="socket"></param>
+    /// <param name="token"></param>
+    /// <returns></returns>
     protected override async Task HandleNotify(WebSocket socket, String token)
     {
         NodeOnline online = null;
         var node = Node;
         if (node != null)
         {
+            // 上线打标记
             online = _nodeService.GetOnline(node, UserHost);
             if (online != null)
             {
@@ -80,6 +84,7 @@ public class NodeController : BaseDeviceController
         }
         finally
         {
+            // 下线清除标记
             if (online != null)
             {
                 online.WebSocket = false;
@@ -87,5 +92,4 @@ public class NodeController : BaseDeviceController
             }
         }
     }
-    #endregion
 }

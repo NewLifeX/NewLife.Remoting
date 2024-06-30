@@ -162,7 +162,7 @@ public class BaseDeviceController : BaseController
             info.Source = new Uri(new Uri(uri), info.Source) + "";
         }
 
-        return info;
+        return info!;
     }
     #endregion
 
@@ -188,7 +188,7 @@ public class BaseDeviceController : BaseController
             HttpContext.Response.StatusCode = 400;
     }
 
-    /// <summary>处理长连接</summary>
+    /// <summary>长连接处理</summary>
     /// <param name="socket"></param>
     /// <param name="token"></param>
     /// <returns></returns>
