@@ -792,7 +792,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                         Status = CommandStatus.处理中,
                         Data = $"已安排计划执行 {startTime.ToFullString()}"
                     };
-                    await CommandReply(reply, cancellationToken);
+
+                    if (Features.HasFlag(Features.CommandReply))
+                        await CommandReply(reply, cancellationToken);
+
                     return reply;
                 }
                 else
@@ -801,7 +804,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             else
             {
                 var reply = new CommandReplyModel { Id = model.Id, Status = CommandStatus.取消 };
-                await CommandReply(reply, cancellationToken);
+
+                if (Features.HasFlag(Features.CommandReply))
+                    await CommandReply(reply, cancellationToken);
+
                 return reply;
             }
         }
@@ -824,7 +830,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         var rs = await this.ExecuteCommand(model, cancellationToken);
         e.Reply ??= rs;
 
-        if (e.Reply != null && e.Reply.Id > 0) await CommandReply(e.Reply, cancellationToken);
+        if (e.Reply != null && e.Reply.Id > 0 && Features.HasFlag(Features.CommandReply))
+            await CommandReply(e.Reply, cancellationToken);
 
         return e.Reply;
     }
