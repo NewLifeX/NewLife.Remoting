@@ -14,13 +14,13 @@ namespace ZeroServer.Areas.Nodes.Controllers;
 /// <summary>节点历史</summary>
 [Menu(10, true, Icon = "fa-table")]
 [NodesArea]
-public class NodeHistoryController : EntityController<NodeHistory>
+public class NodeHistoryController : NodeEntityController<NodeHistory>
 {
     static NodeHistoryController()
     {
         //LogOnChange = true;
 
-        //ListFields.RemoveField("Id", "Creator");
+        ListFields.RemoveField("ProvinceName");
         ListFields.RemoveCreateField().RemoveRemarkField();
 
         //{
@@ -40,24 +40,22 @@ public class NodeHistoryController : EntityController<NodeHistory>
         ListFields.TraceUrl("TraceId");
     }
 
-    //private readonly ITracer _tracer;
-
-    //public NodeHistoryController(ITracer tracer)
-    //{
-    //    _tracer = tracer;
-    //}
-
     /// <summary>高级搜索。列表页查询、导出Excel、导出Json、分享页等使用</summary>
     /// <param name="p">分页器。包含分页排序参数，以及Http请求参数</param>
     /// <returns></returns>
     protected override IEnumerable<NodeHistory> Search(Pager p)
     {
-        //var deviceId = p["deviceId"].ToInt(-1);
-        //var enable = p["enable"]?.Boolean();
+        var rids = p["areaId"].SplitAsInt("/");
+        var provinceId = rids.Length > 0 ? rids[0] : -1;
+        var cityId = rids.Length > 1 ? rids[1] : -1;
+
+        var nodeId = p["nodeId"].ToInt(-1);
+        var action = p["action"];
+        var success = p["success"]?.ToBoolean();
 
         var start = p["dtStart"].ToDateTime();
         var end = p["dtEnd"].ToDateTime();
 
-        return NodeHistory.Search(start, end, p["Q"], p);
+        return NodeHistory.Search(nodeId, provinceId, cityId, action, success, start, end, p["Q"], p);
     }
 }

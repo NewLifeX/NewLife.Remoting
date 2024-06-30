@@ -343,7 +343,8 @@ public class NodeService : IDeviceService
     /// <param name="ip"></param>
     public void WriteHistory(IDeviceModel model, String action, Boolean success, String remark, String ip)
     {
-        NodeHistory.Create(model as Node, action, success, remark, Environment.MachineName, ip);
+        var history = NodeHistory.Create(model as Node, action, success, remark, Environment.MachineName, ip);
+        history.SaveAsync();
     }
     #endregion
 }

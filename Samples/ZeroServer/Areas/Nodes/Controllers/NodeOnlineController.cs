@@ -14,13 +14,13 @@ namespace ZeroServer.Areas.Nodes.Controllers;
 /// <summary>节点在线</summary>
 [Menu(20, true, Icon = "fa-table")]
 [NodesArea]
-public class NodeOnlineController : EntityController<NodeOnline>
+public class NodeOnlineController : NodeEntityController<NodeOnline>
 {
     static NodeOnlineController()
     {
         //LogOnChange = true;
 
-        //ListFields.RemoveField("Id", "Creator");
+        ListFields.RemoveField("ProvinceName", "Token");
         ListFields.RemoveCreateField().RemoveRemarkField();
 
         //{
@@ -40,24 +40,20 @@ public class NodeOnlineController : EntityController<NodeOnline>
         //ListFields.TraceUrl("TraceId");
     }
 
-    //private readonly ITracer _tracer;
-
-    //public NodeOnlineController(ITracer tracer)
-    //{
-    //    _tracer = tracer;
-    //}
-
     /// <summary>高级搜索。列表页查询、导出Excel、导出Json、分享页等使用</summary>
     /// <param name="p">分页器。包含分页排序参数，以及Http请求参数</param>
     /// <returns></returns>
     protected override IEnumerable<NodeOnline> Search(Pager p)
     {
-        //var deviceId = p["deviceId"].ToInt(-1);
-        //var enable = p["enable"]?.Boolean();
+        var nodeId = p["nodeId"].ToInt(-1);
+        var rids = p["areaId"].SplitAsInt("/");
+        var provinceId = rids.Length > 0 ? rids[0] : -1;
+        var cityId = rids.Length > 1 ? rids[1] : -1;
+        var category = p["category"];
 
         var start = p["dtStart"].ToDateTime();
         var end = p["dtEnd"].ToDateTime();
 
-        return NodeOnline.Search(start, end, p["Q"], p);
+        return NodeOnline.Search(nodeId, provinceId, cityId, category, start, end, p["Q"], p);
     }
 }

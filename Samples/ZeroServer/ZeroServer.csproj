@@ -28,8 +28,4 @@
     <ProjectReference Include="..\..\NewLife.Remoting.Extensions\NewLife.Remoting.Extensions.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Areas\" />
-  </ItemGroup>
-
 </Project>
