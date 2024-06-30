@@ -8,6 +8,11 @@ using NewLife.Log;
 using NewLife.Web;
 using XCode.Membership;
 using static Zero.Data.Nodes.NodeOnline;
+using Stardust;
+using System.ComponentModel;
+using NewLife.Remoting.Extensions.Services;
+using NewLife.Remoting.Models;
+using NewLife.Serialization;
 
 namespace ZeroServer.Areas.Nodes.Controllers;
 
@@ -16,6 +21,8 @@ namespace ZeroServer.Areas.Nodes.Controllers;
 [NodesArea]
 public class NodeOnlineController : NodeEntityController<NodeOnline>
 {
+    private readonly IDeviceService _deviceService;
+
     static NodeOnlineController()
     {
         //LogOnChange = true;
@@ -40,6 +47,8 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
         //ListFields.TraceUrl("TraceId");
     }
 
+    public NodeOnlineController(IDeviceService deviceService) => _deviceService = deviceService;
+
     /// <summary>高级搜索。列表页查询、导出Excel、导出Json、分享页等使用</summary>
     /// <param name="p">分页器。包含分页排序参数，以及Http请求参数</param>
     /// <returns></returns>
@@ -55,5 +64,63 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
         var end = p["dtEnd"].ToDateTime();
 
         return NodeOnline.Search(nodeId, provinceId, cityId, category, start, end, p["Q"], p);
+    }
+
+    [DisplayName("检查更新")]
+    [EntityAuthorize((PermissionFlags)16)]
+    public async Task<ActionResult> CheckUpgrade()
+    {
+        var ts = new List<Task>();
+        foreach (var item in SelectKeys)
+        {
+            var online = NodeOnline.FindById(item.ToInt());
+            if (online?.Node != null)
+            {
+                //ts.Add(_starFactory.SendNodeCommand(online.Node.Code, "node/upgrade", null, 600, 0));
+                var cmd = new CommandInModel
+                {
+                    Code = online.Node.Code,
+                    Command = "node/upgrade",
+                    Expire = 600,
+                };
+                var queue = _deviceService.GetQueue(online.Node.Code);
+                queue.Add(cmd.ToJson());
+            }
+        }
+
+        await Task.WhenAll(ts);
+
+        return JsonRefresh("操作成功！");
+    }
+
+    [DisplayName("执行命令")]
+    [EntityAuthorize((PermissionFlags)16)]
+    public async Task<ActionResult> Execute(String command, String argument)
+    {
+        if (GetRequest("keys") == null) throw new ArgumentNullException(nameof(SelectKeys));
+        if (command.IsNullOrEmpty()) throw new ArgumentNullException(nameof(command));
+
+        var ts = new List<Task<Int32>>();
+        foreach (var item in SelectKeys)
+        {
+            var online = NodeOnline.FindById(item.ToInt());
+            if (online != null && online.Node != null)
+            {
+                //ts.Add(_starFactory.SendNodeCommand(online.Node.Code, command, argument, 30, 0));
+                var cmd = new CommandInModel
+                {
+                    Code = online.Node.Code,
+                    Command = command,
+                    Argument = argument,
+                    Expire = 30,
+                };
+                var queue = _deviceService.GetQueue(online.Node.Code);
+                queue.Add(cmd.ToJson());
+            }
+        }
+
+        var rs = await Task.WhenAll(ts);
+
+        return JsonRefresh($"操作成功！下发指令{rs.Length}个，成功{rs.Count(e => e > 0)}个");
     }
 }
