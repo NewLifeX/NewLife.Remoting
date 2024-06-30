@@ -1,12 +1,16 @@
 ﻿using System.Net;
+using System.Net.WebSockets;
 using System.Xml.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NewLife.Caching;
 using NewLife.Http;
 using NewLife.Log;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
+using NewLife.Serialization;
 using WebSocket = System.Net.WebSockets.WebSocket;
+using WebSocketMessageType = System.Net.WebSockets.WebSocketMessageType;
 
 namespace NewLife.Remoting.Extensions;
 
@@ -197,12 +201,68 @@ public class BaseDeviceController : BaseController
     {
         var device = _device ?? throw new InvalidOperationException("未登录！");
 
-        _deviceService.WriteHistory(device, "WebSocket连接", true, socket.State + "", UserHost);
+        var ip = UserHost;
+        WriteLog("WebSocket连接", true, socket.State + "");
 
         var source = new CancellationTokenSource();
         var queue = _deviceService.GetQueue(device.Code);
-        _ = Task.Run(() => socket.ConsumeAndPushAsync(queue, onProcess: null, source));
+        //_ = Task.Run(() => socket.ConsumeAndPushAsync(queue, onProcess: null, source));
+        _ = Task.Run(() => ConsumeMessage(socket, device.Code, queue, ip, source));
+
         await socket.WaitForClose(null, source);
+    }
+
+    private async Task ConsumeMessage(WebSocket socket, String code, IProducerConsumer<String> queue, String ip, CancellationTokenSource source)
+    {
+        DefaultSpan.Current = null;
+        var cancellationToken = source.Token;
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested && socket.State == WebSocketState.Open)
+            {
+                ISpan? span = null;
+                var mqMsg = await queue.TakeOneAsync(15, cancellationToken);
+                if (mqMsg != null)
+                {
+                    // 埋点
+                    span = _tracer?.NewSpan($"mq:Command", mqMsg);
+
+                    // 解码
+                    var dic = JsonParser.Decode(mqMsg)!;
+                    var msg = JsonHelper.Convert<CommandModel>(dic);
+                    span?.Detach(dic);
+
+                    if (msg == null || msg.Id == 0 || msg.Expire.Year > 2000 && msg.Expire < DateTime.Now)
+                    {
+                        WriteLog("WebSocket发送", false, "消息无效或已过期。" + mqMsg);
+                    }
+                    else
+                    {
+                        WriteLog("WebSocket发送", true, mqMsg);
+
+                        await socket.SendAsync(mqMsg.GetBytes(), WebSocketMessageType.Text, true, cancellationToken);
+                    }
+
+                    span?.Dispose();
+                }
+                else
+                {
+                    await Task.Delay(1_000, cancellationToken);
+                }
+            }
+        }
+        catch (TaskCanceledException) { }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            XTrace.WriteLine("WebSocket异常 client={0} ip={1}", code, ip);
+            XTrace.WriteException(ex);
+            WriteLog("WebSocket断开", false, $"State={socket.State} CloseStatus={socket.CloseStatus} {ex}");
+        }
+        finally
+        {
+            source.Cancel();
+        }
     }
     #endregion
 

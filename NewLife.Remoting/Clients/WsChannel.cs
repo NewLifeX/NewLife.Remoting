@@ -1,4 +1,5 @@
-﻿using NewLife.Log;
+﻿using NewLife.Http;
+using NewLife.Log;
 using NewLife.Net;
 using NewLife.Remoting.Models;
 using NewLife.Serialization;
@@ -66,31 +67,45 @@ class WsChannel : DisposeBase
             _websocket = client;
 
             _source = new CancellationTokenSource();
-            _ = TaskEx.Run(() => DoPull(client, _source.Token));
+            _ = TaskEx.Run(() => DoPull(client, _source));
         }
     }
 
     private WebSocketClient? _websocket;
     private CancellationTokenSource? _source;
-    private async Task DoPull(WebSocketClient socket, CancellationToken cancellationToken)
+    private async Task DoPull(WebSocketClient socket, CancellationTokenSource source)
     {
         DefaultSpan.Current = null;
         try
         {
-            var buf = new Byte[4 * 1024];
-            while (!cancellationToken.IsCancellationRequested && !socket.Disposed)
+            var buf = new Byte[64 * 1024];
+            while (!source.IsCancellationRequested && !socket.Disposed)
             {
-                var rs = await socket.ReceiveMessageAsync(cancellationToken);
-                var txt = rs?.Payload?.ToStr();
-                if (txt != null) await OnReceive(txt);
+                var rs = await socket.ReceiveMessageAsync(source.Token);
+                if (rs == null) continue;
+
+                if (rs.Type == WebSocketMessageType.Close) break;
+                if (rs.Type == WebSocketMessageType.Text)
+                {
+                    var txt = rs.Payload?.ToStr();
+                    if (txt != null) await OnReceive(txt);
+                }
             }
+
+            if (!source.IsCancellationRequested) source.Cancel();
+
+            if (!socket.Disposed) await socket.CloseAsync(1000, "finish", default);
         }
+        catch (TaskCanceledException) { }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            XTrace.WriteException(ex);
+            XTrace.WriteLine("WebSocket异常 {0}", ex.Message);
         }
-
-        if (!socket.Disposed) await socket.CloseAsync(1000, "finish", default);
+        finally
+        {
+            source.Cancel();
+        }
     }
 
     /// <summary>收到服务端主动下发消息。默认转为CommandModel命令处理</summary>

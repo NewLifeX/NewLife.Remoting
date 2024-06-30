@@ -1,5 +1,6 @@
 ﻿#if NETCOREAPP
 using System.Net.WebSockets;
+using NewLife.Http;
 using NewLife.Log;
 using NewLife.Remoting.Models;
 using NewLife.Serialization;
@@ -66,31 +67,44 @@ class WsChannelCore : WsChannel
             _websocket = client;
 
             _source = new CancellationTokenSource();
-            _ = Task.Run(() => DoPull(client, _source.Token));
+            _ = Task.Run(() => DoPull(client, _source));
         }
     }
 
     private WebSocket? _websocket;
     private CancellationTokenSource? _source;
-    private async Task DoPull(WebSocket socket, CancellationToken cancellationToken)
+    private async Task DoPull(WebSocket socket, CancellationTokenSource source)
     {
         DefaultSpan.Current = null;
         try
         {
-            var buf = new Byte[4 * 1024];
-            while (!cancellationToken.IsCancellationRequested && socket.State == WebSocketState.Open)
+            var buf = new Byte[64 * 1024];
+            while (!source.IsCancellationRequested && socket.State == WebSocketState.Open)
             {
-                var data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), cancellationToken);
-                var txt = buf.ToStr(null, 0, data.Count);
-                await OnReceive(txt);
+                var data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), source.Token);
+                if (data.MessageType == WebSocketMessageType.Close) break;
+                if (data.MessageType == WebSocketMessageType.Text)
+                {
+                    var txt = buf.ToStr(null, 0, data.Count);
+                    await OnReceive(txt);
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            XTrace.WriteException(ex);
-        }
 
-        if (socket.State == WebSocketState.Open) await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default);
+            if (!source.IsCancellationRequested) source.Cancel();
+
+            if (socket.State == WebSocketState.Open)
+                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default);
+        }
+        catch (TaskCanceledException) { }
+        catch (OperationCanceledException) { }
+        catch (WebSocketException ex)
+        {
+            XTrace.WriteLine("WebSocket异常 {0}", ex.Message);
+        }
+        finally
+        {
+            source.Cancel();
+        }
     }
 
     /// <summary>收到服务端主动下发消息。默认转为CommandModel命令处理</summary>
@@ -103,14 +117,13 @@ class WsChannelCore : WsChannel
         }
         else
         {
-            var model = message.ToJsonEntity<CommandModel>();
+            var model = _client.JsonHost.Read(message, typeof(CommandModel)) as CommandModel;
             if (model != null) await _client.ReceiveCommand(model, "WebSocket");
         }
     }
 
     private void StopWebSocket()
     {
-#if NETCOREAPP
         _source?.Cancel();
         try
         {
@@ -120,7 +133,6 @@ class WsChannelCore : WsChannel
         catch { }
 
         _websocket = null;
-#endif
     }
 }
 #endif

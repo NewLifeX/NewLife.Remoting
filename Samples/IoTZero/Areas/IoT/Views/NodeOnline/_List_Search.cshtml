@@ -1,5 +1,4 @@
-﻿@using Stardust.Data.Nodes;
-@using NewLife;
+﻿@using NewLife;
 @using NewLife.Web;
 @using XCode;
 @{
@@ -7,7 +6,7 @@
     var page = ViewBag.Page as Pager;
 }
 <div class="form-group">
-    <label for="category" class="control-label">类别：</label>
-    @Html.ForDropDownList("category", Node.FindAllCategory(), page["category"], "全部", true)
+    <label for="productId" class="control-label">产品：</label>
+    @Html.ForDropDownList("productId", Product.FindAllWithCache(), page["productId"], "全部", true)
 </div>
 @await Html.PartialAsync("_Area2", "")

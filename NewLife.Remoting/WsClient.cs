@@ -241,12 +241,13 @@ public class WsClient : ApiHost, IApiClient
 
             //todo 通过websocket收发数据
             var codec = GetMessageCodec();
-            var pk = codec.Write(null, msg) as Packet;
-            await client.SendAsync(pk.ToSegment(), WebSocketMessageType.Binary, true, default);
+            var context = new NetHandlerContext();
+            var pk = codec.Write(context, msg) as Packet;
+            await client.SendAsync(pk!.ToSegment(), WebSocketMessageType.Binary, true, default);
 
-            var buf = new Byte[4 * 1024];
+            var buf = new Byte[64 * 1024];
             var data = await client.ReceiveAsync(new ArraySegment<Byte>(buf), default);
-            rs = codec.Read(null, data) as IMessage;
+            rs = codec.Read(context, data) as IMessage;
 
             if (rs == null) return default;
         }

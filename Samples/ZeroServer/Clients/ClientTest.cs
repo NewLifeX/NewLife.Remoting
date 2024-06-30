@@ -1,4 +1,5 @@
-﻿using NewLife.Log;
+﻿using NewLife;
+using NewLife.Log;
 
 namespace ZeroClient;
 
@@ -22,14 +23,20 @@ public static class ClientTest
         var set = ClientSetting.Current;
 
         // 产品编码、产品密钥从IoT管理平台获取，设备编码支持自动注册
-        var device = new NodeClient(set)
+        var client = new NodeClient(set)
         {
             Tracer = _tracer,
             Log = XTrace.Log,
         };
 
-        await device.Login();
+        await client.Login();
 
-        _device = device;
+        _device = client;
+
+        // 进程退出时注销
+        NewLife.Model.Host.RegisterExit(() => client.TryDispose());
+
+        var life = serviceProvider.GetService<IHostApplicationLifetime>();
+        life.ApplicationStopping.Register(() => client.TryDispose());
     }
 }

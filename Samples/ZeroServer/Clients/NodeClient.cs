@@ -104,13 +104,15 @@ public class NodeClient : ClientBase
                 OnMigration?.Invoke(this, arg);
                 if (!arg.Cancel)
                 {
-                    await Logout("切换新服务器");
+                    if (Features.HasFlag(Features.Logout))
+                        await Logout("切换新服务器");
 
                     // 清空原有链接，添加新链接
                     Server = prs.NewServer;
                     Client = null;
 
-                    await Login();
+                    if (Features.HasFlag(Features.Login))
+                        await Login();
                 }
             }
         }
