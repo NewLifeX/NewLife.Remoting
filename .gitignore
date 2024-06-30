@@ -16,10 +16,8 @@ bld/
 /packages
 *.user
 /Data
-/Log
+[Ll]og/
+[Cc]onfig/
 *.log
 *.nuspec
 *.nupkg
-/BinTest
-/BinUnitTest
-/NewLife.Remoting.Extensions/Properties
