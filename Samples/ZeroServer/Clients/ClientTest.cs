@@ -14,6 +14,9 @@ public static class ClientTest
 
         XTrace.WriteLine("开始Node客户端测试");
 
+        // 降低日志等级，输出通信详情。生产环境不建议这么做
+        XTrace.Log.Level = NewLife.Log.LogLevel.Debug;
+
         _tracer = serviceProvider.GetService<ITracer>();
 
         var set = ClientSetting.Current;

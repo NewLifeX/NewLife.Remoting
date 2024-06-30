@@ -9,6 +9,7 @@ using NewLife.Remoting.Models;
 using NewLife.Security;
 using NewLife.Serialization;
 using NewLife.Web;
+using XCode.Membership;
 using Zero.Data.Nodes;
 using ZeroServer.Models;
 
@@ -190,10 +191,18 @@ public class NodeService : IDeviceService
         if (inf != null && !inf.IP.IsNullOrEmpty()) node.IP = inf.IP;
 
         node.UpdateIP = ip;
+        node.FixArea();
+
+        // 每10分钟更新一次节点信息，确保活跃
+        if (node.LastActive.AddMinutes(10) < DateTime.Now) node.LastActive = DateTime.Now;
         node.SaveAsync();
 
         var online = GetOnline(node, ip) ?? CreateOnline(node, ip);
         online.Name = model.Name;
+        online.Category = node.Category;
+        online.Version = node.Version;
+        online.CompileTime = node.CompileTime;
+        online.OSKind = node.OSKind;
         online.Save(null, inf, token, ip);
 
         return online;
@@ -344,6 +353,14 @@ public class NodeService : IDeviceService
     public void WriteHistory(IDeviceModel model, String action, Boolean success, String remark, String ip)
     {
         var history = NodeHistory.Create(model as Node, action, success, remark, Environment.MachineName, ip);
+
+        if (history.CityID == 0 && !ip.IsNullOrEmpty())
+        {
+            var rs = Area.SearchIP(ip);
+            if (rs.Count > 0) history.ProvinceID = rs[0].ID;
+            if (rs.Count > 1) history.CityID = rs[^1].ID;
+        }
+
         history.SaveAsync();
     }
     #endregion

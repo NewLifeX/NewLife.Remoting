@@ -122,6 +122,14 @@ public partial class NodeOnline
     [BindColumn("CompileTime", "编译时间", "")]
     public DateTime CompileTime { get => _CompileTime; set { if (OnPropertyChanging("CompileTime", value)) { _CompileTime = value; OnPropertyChanged("CompileTime"); } } }
 
+    private Stardust.Models.OSKinds _OSKind;
+    /// <summary>系统种类。主流操作系统类型，不考虑子版本</summary>
+    [DisplayName("系统种类")]
+    [Description("系统种类。主流操作系统类型，不考虑子版本")]
+    [DataObjectField(false, false, false, 0)]
+    [BindColumn("OSKind", "系统种类。主流操作系统类型，不考虑子版本", "")]
+    public Stardust.Models.OSKinds OSKind { get => _OSKind; set { if (OnPropertyChanging("OSKind", value)) { _OSKind = value; OnPropertyChanged("OSKind"); } } }
+
     private Int32 _Memory;
     /// <summary>内存。单位M</summary>
     [DisplayName("内存")]
@@ -138,6 +146,14 @@ public partial class NodeOnline
     [BindColumn("AvailableMemory", "可用内存。单位M", "")]
     public Int32 AvailableMemory { get => _AvailableMemory; set { if (OnPropertyChanging("AvailableMemory", value)) { _AvailableMemory = value; OnPropertyChanged("AvailableMemory"); } } }
 
+    private Int32 _MemoryUsed;
+    /// <summary>已用内存。单位M</summary>
+    [DisplayName("已用内存")]
+    [Description("已用内存。单位M")]
+    [DataObjectField(false, false, false, 0)]
+    [BindColumn("MemoryUsed", "已用内存。单位M", "")]
+    public Int32 MemoryUsed { get => _MemoryUsed; set { if (OnPropertyChanging("MemoryUsed", value)) { _MemoryUsed = value; OnPropertyChanged("MemoryUsed"); } } }
+
     private Int32 _AvailableFreeSpace;
     /// <summary>可用磁盘。应用所在盘，单位M</summary>
     [DisplayName("可用磁盘")]
@@ -146,12 +162,29 @@ public partial class NodeOnline
     [BindColumn("AvailableFreeSpace", "可用磁盘。应用所在盘，单位M", "")]
     public Int32 AvailableFreeSpace { get => _AvailableFreeSpace; set { if (OnPropertyChanging("AvailableFreeSpace", value)) { _AvailableFreeSpace = value; OnPropertyChanged("AvailableFreeSpace"); } } }
 
+    private Int32 _SpaceUsed;
+    /// <summary>已用磁盘。应用所在盘，单位M</summary>
+    [DisplayName("已用磁盘")]
+    [Description("已用磁盘。应用所在盘，单位M")]
+    [DataObjectField(false, false, false, 0)]
+    [BindColumn("SpaceUsed", "已用磁盘。应用所在盘，单位M", "")]
+    public Int32 SpaceUsed { get => _SpaceUsed; set { if (OnPropertyChanging("SpaceUsed", value)) { _SpaceUsed = value; OnPropertyChanged("SpaceUsed"); } } }
+
+    private String _DriveInfo;
+    /// <summary>驱动器信息。各分区大小，逗号分隔</summary>
+    [Category("硬件信息")]
+    [DisplayName("驱动器信息")]
+    [Description("驱动器信息。各分区大小，逗号分隔")]
+    [DataObjectField(false, false, true, 500)]
+    [BindColumn("DriveInfo", "驱动器信息。各分区大小，逗号分隔", "")]
+    public String DriveInfo { get => _DriveInfo; set { if (OnPropertyChanging("DriveInfo", value)) { _DriveInfo = value; OnPropertyChanged("DriveInfo"); } } }
+
     private Double _CpuRate;
     /// <summary>CPU率。占用率</summary>
     [DisplayName("CPU率")]
     [Description("CPU率。占用率")]
     [DataObjectField(false, false, false, 0)]
-    [BindColumn("CpuRate", "CPU率。占用率", "")]
+    [BindColumn("CpuRate", "CPU率。占用率", "", ItemType = "percent")]
     public Double CpuRate { get => _CpuRate; set { if (OnPropertyChanging("CpuRate", value)) { _CpuRate = value; OnPropertyChanged("CpuRate"); } } }
 
     private Double _Temperature;
@@ -167,15 +200,23 @@ public partial class NodeOnline
     [DisplayName("电量")]
     [Description("电量")]
     [DataObjectField(false, false, false, 0)]
-    [BindColumn("Battery", "电量", "")]
+    [BindColumn("Battery", "电量", "", ItemType = "percent")]
     public Double Battery { get => _Battery; set { if (OnPropertyChanging("Battery", value)) { _Battery = value; OnPropertyChanged("Battery"); } } }
+
+    private Int32 _Signal;
+    /// <summary>信号。信号强度，WiFi/4G</summary>
+    [DisplayName("信号")]
+    [Description("信号。信号强度，WiFi/4G")]
+    [DataObjectField(false, false, false, 0)]
+    [BindColumn("Signal", "信号。信号强度，WiFi/4G", "")]
+    public Int32 Signal { get => _Signal; set { if (OnPropertyChanging("Signal", value)) { _Signal = value; OnPropertyChanged("Signal"); } } }
 
     private Int64 _UplinkSpeed;
     /// <summary>上行速度。网络发送速度，字节每秒</summary>
     [DisplayName("上行速度")]
     [Description("上行速度。网络发送速度，字节每秒")]
     [DataObjectField(false, false, false, 0)]
-    [BindColumn("UplinkSpeed", "上行速度。网络发送速度，字节每秒", "")]
+    [BindColumn("UplinkSpeed", "上行速度。网络发送速度，字节每秒", "", ItemType = "GMK")]
     public Int64 UplinkSpeed { get => _UplinkSpeed; set { if (OnPropertyChanging("UplinkSpeed", value)) { _UplinkSpeed = value; OnPropertyChanged("UplinkSpeed"); } } }
 
     private Int64 _DownlinkSpeed;
@@ -183,7 +224,7 @@ public partial class NodeOnline
     [DisplayName("下行速度")]
     [Description("下行速度。网络接收速度，字节每秒")]
     [DataObjectField(false, false, false, 0)]
-    [BindColumn("DownlinkSpeed", "下行速度。网络接收速度，字节每秒", "")]
+    [BindColumn("DownlinkSpeed", "下行速度。网络接收速度，字节每秒", "", ItemType = "GMK")]
     public Int64 DownlinkSpeed { get => _DownlinkSpeed; set { if (OnPropertyChanging("DownlinkSpeed", value)) { _DownlinkSpeed = value; OnPropertyChanged("DownlinkSpeed"); } } }
 
     private Int32 _ProcessCount;
@@ -247,7 +288,7 @@ public partial class NodeOnline
     [DisplayName("开机时间")]
     [Description("开机时间。单位s")]
     [DataObjectField(false, false, false, 0)]
-    [BindColumn("Uptime", "开机时间。单位s", "")]
+    [BindColumn("Uptime", "开机时间。单位s", "", ItemType = "TimeSpan")]
     public Int32 Uptime { get => _Uptime; set { if (OnPropertyChanging("Uptime", value)) { _Uptime = value; OnPropertyChanged("Uptime"); } } }
 
     private String _MACs;
@@ -281,6 +322,15 @@ public partial class NodeOnline
     [DataObjectField(false, false, true, -1)]
     [BindColumn("Data", "数据", "")]
     public String Data { get => _Data; set { if (OnPropertyChanging("Data", value)) { _Data = value; OnPropertyChanged("Data"); } } }
+
+    private String _TraceId;
+    /// <summary>追踪。最新一次查看采样，可用于关联多个片段，建立依赖关系，随线程上下文、Http、Rpc传递</summary>
+    [Category("扩展")]
+    [DisplayName("追踪")]
+    [Description("追踪。最新一次查看采样，可用于关联多个片段，建立依赖关系，随线程上下文、Http、Rpc传递")]
+    [DataObjectField(false, false, true, 50)]
+    [BindColumn("TraceId", "追踪。最新一次查看采样，可用于关联多个片段，建立依赖关系，随线程上下文、Http、Rpc传递", "")]
+    public String TraceId { get => _TraceId; set { if (OnPropertyChanging("TraceId", value)) { _TraceId = value; OnPropertyChanged("TraceId"); } } }
 
     private String _Creator;
     /// <summary>创建者。服务端节点</summary>
@@ -348,12 +398,17 @@ public partial class NodeOnline
             "WebSocket" => _WebSocket,
             "Version" => _Version,
             "CompileTime" => _CompileTime,
+            "OSKind" => _OSKind,
             "Memory" => _Memory,
             "AvailableMemory" => _AvailableMemory,
+            "MemoryUsed" => _MemoryUsed,
             "AvailableFreeSpace" => _AvailableFreeSpace,
+            "SpaceUsed" => _SpaceUsed,
+            "DriveInfo" => _DriveInfo,
             "CpuRate" => _CpuRate,
             "Temperature" => _Temperature,
             "Battery" => _Battery,
+            "Signal" => _Signal,
             "UplinkSpeed" => _UplinkSpeed,
             "DownlinkSpeed" => _DownlinkSpeed,
             "ProcessCount" => _ProcessCount,
@@ -368,6 +423,7 @@ public partial class NodeOnline
             "Processes" => _Processes,
             "Token" => _Token,
             "Data" => _Data,
+            "TraceId" => _TraceId,
             "Creator" => _Creator,
             "CreateTime" => _CreateTime,
             "CreateIP" => _CreateIP,
@@ -391,12 +447,17 @@ public partial class NodeOnline
                 case "WebSocket": _WebSocket = value.ToBoolean(); break;
                 case "Version": _Version = Convert.ToString(value); break;
                 case "CompileTime": _CompileTime = value.ToDateTime(); break;
+                case "OSKind": _OSKind = (Stardust.Models.OSKinds)value.ToInt(); break;
                 case "Memory": _Memory = value.ToInt(); break;
                 case "AvailableMemory": _AvailableMemory = value.ToInt(); break;
+                case "MemoryUsed": _MemoryUsed = value.ToInt(); break;
                 case "AvailableFreeSpace": _AvailableFreeSpace = value.ToInt(); break;
+                case "SpaceUsed": _SpaceUsed = value.ToInt(); break;
+                case "DriveInfo": _DriveInfo = Convert.ToString(value); break;
                 case "CpuRate": _CpuRate = value.ToDouble(); break;
                 case "Temperature": _Temperature = value.ToDouble(); break;
                 case "Battery": _Battery = value.ToDouble(); break;
+                case "Signal": _Signal = value.ToInt(); break;
                 case "UplinkSpeed": _UplinkSpeed = value.ToLong(); break;
                 case "DownlinkSpeed": _DownlinkSpeed = value.ToLong(); break;
                 case "ProcessCount": _ProcessCount = value.ToInt(); break;
@@ -411,6 +472,7 @@ public partial class NodeOnline
                 case "Processes": _Processes = Convert.ToString(value); break;
                 case "Token": _Token = Convert.ToString(value); break;
                 case "Data": _Data = Convert.ToString(value); break;
+                case "TraceId": _TraceId = Convert.ToString(value); break;
                 case "Creator": _Creator = Convert.ToString(value); break;
                 case "CreateTime": _CreateTime = value.ToDateTime(); break;
                 case "CreateIP": _CreateIP = Convert.ToString(value); break;
@@ -465,14 +527,26 @@ public partial class NodeOnline
         /// <summary>编译时间</summary>
         public static readonly Field CompileTime = FindByName("CompileTime");
 
+        /// <summary>系统种类。主流操作系统类型，不考虑子版本</summary>
+        public static readonly Field OSKind = FindByName("OSKind");
+
         /// <summary>内存。单位M</summary>
         public static readonly Field Memory = FindByName("Memory");
 
         /// <summary>可用内存。单位M</summary>
         public static readonly Field AvailableMemory = FindByName("AvailableMemory");
 
+        /// <summary>已用内存。单位M</summary>
+        public static readonly Field MemoryUsed = FindByName("MemoryUsed");
+
         /// <summary>可用磁盘。应用所在盘，单位M</summary>
         public static readonly Field AvailableFreeSpace = FindByName("AvailableFreeSpace");
+
+        /// <summary>已用磁盘。应用所在盘，单位M</summary>
+        public static readonly Field SpaceUsed = FindByName("SpaceUsed");
+
+        /// <summary>驱动器信息。各分区大小，逗号分隔</summary>
+        public static readonly Field DriveInfo = FindByName("DriveInfo");
 
         /// <summary>CPU率。占用率</summary>
         public static readonly Field CpuRate = FindByName("CpuRate");
@@ -482,6 +556,9 @@ public partial class NodeOnline
 
         /// <summary>电量</summary>
         public static readonly Field Battery = FindByName("Battery");
+
+        /// <summary>信号。信号强度，WiFi/4G</summary>
+        public static readonly Field Signal = FindByName("Signal");
 
         /// <summary>上行速度。网络发送速度，字节每秒</summary>
         public static readonly Field UplinkSpeed = FindByName("UplinkSpeed");
@@ -524,6 +601,9 @@ public partial class NodeOnline
 
         /// <summary>数据</summary>
         public static readonly Field Data = FindByName("Data");
+
+        /// <summary>追踪。最新一次查看采样，可用于关联多个片段，建立依赖关系，随线程上下文、Http、Rpc传递</summary>
+        public static readonly Field TraceId = FindByName("TraceId");
 
         /// <summary>创建者。服务端节点</summary>
         public static readonly Field Creator = FindByName("Creator");
@@ -582,14 +662,26 @@ public partial class NodeOnline
         /// <summary>编译时间</summary>
         public const String CompileTime = "CompileTime";
 
+        /// <summary>系统种类。主流操作系统类型，不考虑子版本</summary>
+        public const String OSKind = "OSKind";
+
         /// <summary>内存。单位M</summary>
         public const String Memory = "Memory";
 
         /// <summary>可用内存。单位M</summary>
         public const String AvailableMemory = "AvailableMemory";
 
+        /// <summary>已用内存。单位M</summary>
+        public const String MemoryUsed = "MemoryUsed";
+
         /// <summary>可用磁盘。应用所在盘，单位M</summary>
         public const String AvailableFreeSpace = "AvailableFreeSpace";
+
+        /// <summary>已用磁盘。应用所在盘，单位M</summary>
+        public const String SpaceUsed = "SpaceUsed";
+
+        /// <summary>驱动器信息。各分区大小，逗号分隔</summary>
+        public const String DriveInfo = "DriveInfo";
 
         /// <summary>CPU率。占用率</summary>
         public const String CpuRate = "CpuRate";
@@ -599,6 +691,9 @@ public partial class NodeOnline
 
         /// <summary>电量</summary>
         public const String Battery = "Battery";
+
+        /// <summary>信号。信号强度，WiFi/4G</summary>
+        public const String Signal = "Signal";
 
         /// <summary>上行速度。网络发送速度，字节每秒</summary>
         public const String UplinkSpeed = "UplinkSpeed";
@@ -641,6 +736,9 @@ public partial class NodeOnline
 
         /// <summary>数据</summary>
         public const String Data = "Data";
+
+        /// <summary>追踪。最新一次查看采样，可用于关联多个片段，建立依赖关系，随线程上下文、Http、Rpc传递</summary>
+        public const String TraceId = "TraceId";
 
         /// <summary>创建者。服务端节点</summary>
         public const String Creator = "Creator";

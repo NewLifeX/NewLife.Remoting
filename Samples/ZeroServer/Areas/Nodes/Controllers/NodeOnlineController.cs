@@ -20,7 +20,7 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
     {
         //LogOnChange = true;
 
-        ListFields.RemoveField("ProvinceName", "Token");
+        ListFields.RemoveField("ProvinceName", "Macs", "Token");
         ListFields.RemoveCreateField().RemoveRemarkField();
 
         //{

@@ -8,10 +8,6 @@ using ZeroServer.Services;
 // 日志输出到控制台，并拦截全局异常
 XTrace.UseConsole();
 
-#if DEBUG
-XTrace.Log.Level = NewLife.Log.LogLevel.Debug;
-#endif
-
 var builder = WebApplication.CreateBuilder(args);
 var services = builder.Services;
 

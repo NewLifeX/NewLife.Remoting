@@ -20,24 +20,15 @@ public class NodeHistoryController : NodeEntityController<NodeHistory>
     {
         //LogOnChange = true;
 
-        ListFields.RemoveField("ProvinceName");
-        ListFields.RemoveCreateField().RemoveRemarkField();
+        ListFields.RemoveField("ProvinceName", "Compile");
+        ListFields.RemoveRemarkField();
 
-        //{
-        //    var df = ListFields.GetField("Code") as ListField;
-        //    df.Url = "?code={Code}";
-        //}
-        //{
-        //    var df = ListFields.AddListField("devices", null, "Onlines");
-        //    df.DisplayName = "查看设备";
-        //    df.Url = "Device?groupId={Id}";
-        //    df.DataVisible = e => (e as NodeHistory).Devices > 0;
-        //}
-        //{
-        //    var df = ListFields.GetField("Kind") as ListField;
-        //    df.GetValue = e => ((Int32)(e as NodeHistory).Kind).ToString("X4");
-        //}
-        ListFields.TraceUrl("TraceId");
+        {
+            var df = ListFields.AddListField("Remark", "TraceId");
+            df.TextAlign = TextAligns.Nowrap;
+        }
+
+        ListFields.TraceUrl();
     }
 
     /// <summary>高级搜索。列表页查询、导出Excel、导出Json、分享页等使用</summary>

@@ -52,9 +52,16 @@ public class NodeController : BaseDeviceController
     {
         var rs = base.OnPing(request);
 
-        var device = Node;
-        if (device != null)
-            rs.Period = device.Period;
+        var node = Node;
+        if (node != null)
+        {
+            rs.Period = node.Period;
+
+            if (rs is PingResponse rs2)
+            {
+                rs2.NewServer = node.NewServer;
+            }
+        }
 
         return rs;
     }

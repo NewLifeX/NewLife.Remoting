@@ -1,4 +1,6 @@
-﻿using NewLife;
+﻿using System.IO;
+using System.Runtime.InteropServices;
+using NewLife;
 using NewLife.Model;
 using NewLife.Remoting.Clients;
 using NewLife.Remoting.Models;
@@ -57,8 +59,22 @@ public class NodeClient : ClientBase
         var request = new LoginInfo();
         FillLoginRequest(request);
 
+        var mi = MachineInfo.GetCurrent();
+        var path = ".".GetFullPath();
+        var driveInfo = DriveInfo.GetDrives().FirstOrDefault(e => path.StartsWithIgnoreCase(e.Name));
+
         request.ProductCode = ProductCode;
         request.Name = Environment.MachineName;
+
+        request.OSName = mi.OSName;
+        request.OSVersion = mi.OSVersion;
+        request.Architecture = RuntimeInformation.ProcessArchitecture + "";
+        request.MachineName = Environment.MachineName;
+        request.UserName = Environment.UserName;
+
+        request.ProcessorCount = Environment.ProcessorCount;
+        request.Memory = mi.Memory;
+        request.TotalSize = (UInt64)(driveInfo?.TotalSize ?? 0);
 
         return request;
     }

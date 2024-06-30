@@ -384,13 +384,13 @@ public partial class Node : Entity<Node>, IDeviceModel
     public static Node GetOrAdd(String code) => GetOrAdd(code, FindByCode, k => new Node { Code = k, Enable = true });
 
     /// <summary>登录并保存信息</summary>
-    /// <param name="di"></param>
+    /// <param name="info"></param>
     /// <param name="ip"></param>
-    public void Login(LoginInfo di, String ip)
+    public void Login(LoginInfo info, String ip)
     {
         var node = this;
 
-        node.Fill(di);
+        node.Fill(info);
 
         // 如果节点本地IP为空，而来源IP是局域网，则直接取用
         //if (node.IP.IsNullOrEmpty() && ip.StartsWithIgnoreCase("10.", "192.", "172.")) node.IP = ip;
@@ -409,26 +409,28 @@ public partial class Node : Entity<Node>, IDeviceModel
     }
 
     /// <summary>填充</summary>
-    /// <param name="di"></param>
-    public void Fill(LoginInfo di)
+    /// <param name="info"></param>
+    public void Fill(LoginInfo info)
     {
         var node = this;
 
-        if (!di.OSName.IsNullOrEmpty()) node.OS = di.OSName;
-        if (!di.OSVersion.IsNullOrEmpty()) node.OSVersion = di.OSVersion;
-        if (!di.Architecture.IsNullOrEmpty()) node.Architecture = di.Architecture;
-        if (!di.Version.IsNullOrEmpty()) node.Version = di.Version;
-        if (di.Compile > 2000) node.CompileTime = di.Compile.ToDateTime().ToLocalTime();
+        if (!info.OSName.IsNullOrEmpty()) node.OS = info.OSName;
+        if (!info.OSVersion.IsNullOrEmpty()) node.OSVersion = info.OSVersion;
+        if (!info.Architecture.IsNullOrEmpty()) node.Architecture = info.Architecture;
+        if (!info.Version.IsNullOrEmpty()) node.Version = info.Version;
+        if (info.Compile > 2000) node.CompileTime = info.Compile.ToDateTime().ToLocalTime();
 
-        if (!di.MachineName.IsNullOrEmpty()) node.MachineName = di.MachineName;
-        if (!di.UserName.IsNullOrEmpty()) node.UserName = di.UserName;
-        if (!di.IP.IsNullOrEmpty()) node.IP = di.IP;
-        if (!di.UUID.IsNullOrEmpty()) node.Uuid = di.UUID;
+        if (!info.MachineName.IsNullOrEmpty()) node.MachineName = info.MachineName;
+        if (!info.UserName.IsNullOrEmpty()) node.UserName = info.UserName;
+        if (!info.IP.IsNullOrEmpty()) node.IP = info.IP;
+        if (!info.UUID.IsNullOrEmpty()) node.Uuid = info.UUID;
 
-        if (di.ProcessorCount > 0) node.Cpu = di.ProcessorCount;
-        if (di.Memory > 0) node.Memory = (Int32)(di.Memory / 1024 / 1024);
-        if (di.TotalSize > 0) node.TotalSize = (Int32)(di.TotalSize / 1024 / 1024);
-        if (!di.Macs.IsNullOrEmpty()) node.MACs = di.Macs;
+        if (info.ProcessorCount > 0) node.Cpu = info.ProcessorCount;
+        if (info.Memory > 0) node.Memory = (Int32)(info.Memory / 1024 / 1024);
+        if (info.TotalSize > 0) node.TotalSize = (Int32)(info.TotalSize / 1024 / 1024);
+        if (!info.Macs.IsNullOrEmpty()) node.MACs = info.Macs;
+
+        if (!node.OS.IsNullOrEmpty()) node.OSKind = Stardust.Models.OSKindHelper.Parse(node.OS, node.OSVersion);
     }
 
     /// <summary>修正地区</summary>
@@ -440,39 +442,6 @@ public partial class Node : Entity<Node>, IDeviceModel
         var rs = Area.SearchIP(node.UpdateIP);
         if (rs.Count > 0) node.ProvinceID = rs[0].ID;
         if (rs.Count > 1) node.CityID = rs[^1].ID;
-    }
-
-    ///// <summary>
-    ///// 根据IP地址修正名称和分类
-    ///// </summary>
-    //public void FixNameByRule()
-    //{
-    //    //var ip = IP;
-    //    //if (ip.IsNullOrEmpty()) return;
-
-    //    var rule = NodeResolver.Instance.Match(IP, UpdateIP);
-    //    if (rule != null)
-    //    {
-    //        if ((Name.IsNullOrEmpty() || Name == MachineName) && !rule.Name.IsNullOrEmpty())
-    //            Name = rule.Name;
-
-    //        if (!rule.Category.IsNullOrEmpty())
-    //            Category = rule.Category;
-    //    }
-    //}
-
-    /// <summary>写历史</summary>
-    /// <param name="action"></param>
-    /// <param name="success"></param>
-    /// <param name="remark"></param>
-    /// <param name="ip"></param>
-    /// <returns></returns>
-    public NodeHistory WriteHistory(String action, Boolean success, String remark, String ip)
-    {
-        var hi = NodeHistory.Create(this, action, success, remark, Environment.MachineName, ip);
-        hi.SaveAsync();
-
-        return hi;
     }
     #endregion
 }
