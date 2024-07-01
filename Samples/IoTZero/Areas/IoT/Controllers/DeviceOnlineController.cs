@@ -107,6 +107,7 @@ public class DeviceOnlineController : EntityController<DeviceOnline>
                 };
                 var queue = _deviceService.GetQueue(cmd.Code);
                 queue.Add(cmd.ToJson());
+                ts.Add(Task.FromResult(1));
             }
         }
 

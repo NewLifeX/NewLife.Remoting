@@ -116,6 +116,7 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
                 };
                 var queue = _deviceService.GetQueue(online.Node.Code);
                 queue.Add(cmd.ToJson());
+                ts.Add(Task.FromResult(1));
             }
         }
 

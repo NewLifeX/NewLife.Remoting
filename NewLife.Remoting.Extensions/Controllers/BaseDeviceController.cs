@@ -232,7 +232,7 @@ public class BaseDeviceController : BaseController
                     var msg = JsonHelper.Convert<CommandModel>(dic);
                     span?.Detach(dic);
 
-                    if (msg == null || msg.Id == 0 || msg.Expire.Year > 2000 && msg.Expire < DateTime.Now)
+                    if (msg == null || /*msg.Id == 0 ||*/ msg.Expire.Year > 2000 && msg.Expire < DateTime.Now)
                     {
                         WriteLog("WebSocket发送", false, "消息无效或已过期。" + mqMsg);
                     }
