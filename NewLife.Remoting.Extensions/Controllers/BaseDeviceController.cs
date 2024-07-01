@@ -54,7 +54,7 @@ public class BaseDeviceController : BaseController
     }
     #endregion
 
-    #region 登录
+    #region 登录注销
     /// <summary>设备登录</summary>
     /// <param name="request"></param>
     /// <returns></returns>
@@ -101,7 +101,7 @@ public class BaseDeviceController : BaseController
     }
     #endregion
 
-    #region 心跳
+    #region 心跳保活
     /// <summary>设备心跳</summary>
     /// <param name="request"></param>
     /// <returns></returns>
@@ -144,7 +144,7 @@ public class BaseDeviceController : BaseController
     }
     #endregion
 
-    #region 升级
+    #region 升级更新
     /// <summary>升级检查</summary>
     /// <returns></returns>
     [HttpGet(nameof(Upgrade))]
@@ -264,6 +264,20 @@ public class BaseDeviceController : BaseController
             source.Cancel();
         }
     }
+
+    /// <summary>设备端响应服务调用</summary>
+    /// <param name="model">服务</param>
+    /// <returns></returns>
+    [HttpPost(nameof(CommandReply))]
+    public virtual Int32 CommandReply(CommandReplyModel model) => _deviceService.CommandReply(_device, model, UserHost);
+    #endregion
+
+    #region 事件上报
+    /// <summary>批量上报事件</summary>
+    /// <param name="events">事件集合</param>
+    /// <returns></returns>
+    [HttpPost(nameof(PostEvents))]
+    public virtual Int32 PostEvents(EventModel[] events) => _deviceService.PostEvents(_device, events, UserHost);
     #endregion
 
     #region 辅助

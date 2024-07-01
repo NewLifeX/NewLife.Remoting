@@ -38,6 +38,20 @@ public interface IDeviceService
     /// <returns></returns>
     IOnlineModel Ping(IDeviceModel device, IPingRequest? request, String? token, String ip);
 
+    /// <summary>命令响应</summary>
+    /// <param name="device"></param>
+    /// <param name="model"></param>
+    /// <param name="ip"></param>
+    /// <returns></returns>
+    Int32 CommandReply(IDeviceModel device, CommandReplyModel model, String ip);
+
+    /// <summary>上报事件</summary>
+    /// <param name="device"></param>
+    /// <param name="events"></param>
+    /// <param name="ip"></param>
+    /// <returns></returns>
+    Int32 PostEvents(IDeviceModel device, EventModel[] events, String ip);
+
     /// <summary>升级检查</summary>
     /// <param name="device"></param>
     /// <param name="channel">更新通道</param>

@@ -40,7 +40,7 @@ public class MyDeviceService : IDeviceService
         _tracer = tracer;
     }
 
-    #region 登录
+    #region 登录注销
     /// <summary>
     /// 设备登录验证，内部支持动态注册
     /// </summary>
@@ -217,7 +217,7 @@ public class MyDeviceService : IDeviceService
     }
     #endregion
 
-    #region 心跳
+    #region 心跳保活
     /// <summary>心跳</summary>
     /// <param name="inf"></param>
     /// <param name="token"></param>
@@ -294,7 +294,7 @@ public class MyDeviceService : IDeviceService
     }
     #endregion
 
-    #region 升级
+    #region 升级更新
     /// <summary>升级检查</summary>
     /// <param name="channel">更新通道</param>
     /// <returns></returns>
@@ -303,6 +303,37 @@ public class MyDeviceService : IDeviceService
         //return new UpgradeInfo();
         return null;
     }
+    #endregion
+
+    #region 下行通知
+    /// <summary>
+    /// 获取指定设备的命令队列
+    /// </summary>
+    /// <param name="deviceCode"></param>
+    /// <returns></returns>
+    public IProducerConsumer<String> GetQueue(String deviceCode)
+    {
+        var q = _cacheProvider.GetQueue<String>($"cmd:{deviceCode}");
+        if (q is QueueBase qb) qb.TraceName = "ServiceQueue";
+
+        return q;
+    }
+    #endregion
+
+    #region 事件上报
+    /// <summary>命令响应</summary>
+    /// <param name="device"></param>
+    /// <param name="model"></param>
+    /// <param name="ip"></param>
+    /// <returns></returns>
+    public Int32 CommandReply(IDeviceModel device, CommandReplyModel model, String ip) => 0;
+
+    /// <summary>上报事件</summary>
+    /// <param name="device"></param>
+    /// <param name="events"></param>
+    /// <param name="ip"></param>
+    /// <returns></returns>
+    public Int32 PostEvents(IDeviceModel device, EventModel[] events, String ip) => 0;
     #endregion
 
     #region 辅助
@@ -386,19 +417,6 @@ public class MyDeviceService : IDeviceService
         if (DateTime.Now.AddMinutes(10) > jwt.Expire) return IssueToken(deviceCode, _setting);
 
         return null;
-    }
-
-    /// <summary>
-    /// 获取指定设备的命令队列
-    /// </summary>
-    /// <param name="deviceCode"></param>
-    /// <returns></returns>
-    public IProducerConsumer<String> GetQueue(String deviceCode)
-    {
-        var q = _cacheProvider.GetQueue<String>($"cmd:{deviceCode}");
-        if (q is QueueBase qb) qb.TraceName = "ServiceQueue";
-
-        return q;
     }
 
     /// <summary>查找设备</summary>
