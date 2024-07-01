@@ -105,14 +105,14 @@ public class NodeClient : ClientBase
                 if (!arg.Cancel)
                 {
                     if (Features.HasFlag(Features.Logout))
-                        await Logout("切换新服务器");
+                        await Logout("切换新服务器", cancellationToken);
 
                     // 清空原有链接，添加新链接
                     Server = prs.NewServer;
                     Client = null;
 
                     if (Features.HasFlag(Features.Login))
-                        await Login();
+                        await Login(cancellationToken);
                 }
             }
         }

@@ -202,9 +202,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <returns></returns>
     protected virtual ApiHttpClient CreateHttp(String urls) => new(urls)
     {
-#if !NET40
         JsonHost = JsonHost,
-#endif
         DefaultUserAgent = $"{_name}/v{_version}",
         Log = Log,
     };
@@ -290,7 +288,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         // 验证登录
         var needLogin = !Actions[Features.Login].EqualIgnoreCase(action);
-        if (!Logined && needLogin && Features.HasFlag(Features.Login)) await Login();
+        if (!Logined && needLogin && Features.HasFlag(Features.Login)) await Login(cancellationToken);
 
         // GET请求
         var rs = await http.InvokeAsync<TResult>(HttpMethod.Get, action, args, null, cancellationToken);
@@ -313,7 +311,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     {
         // 验证登录。如果该接口需要登录，且未登录，则先登录
         var needLogin = !Actions[Features.Login].EqualIgnoreCase(action);
-        if (!Logined && needLogin && Features.HasFlag(Features.Login)) await Login();
+        if (!Logined && needLogin && Features.HasFlag(Features.Login)) await Login(cancellationToken);
 
         try
         {
@@ -329,7 +327,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 {
                     Log?.Debug("{0}", ex);
                     WriteLog("重新登录！");
-                    await Login();
+                    await Login(cancellationToken);
 
                     // 再次执行当前请求
                     return await OnInvokeAsync<TResult>(action, args, cancellationToken);
@@ -559,7 +557,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             // 如果网络不可用，直接保存到队列
             if (!NetworkInterface.GetIsNetworkAvailable())
             {
-                if (_fails.Count < MaxFails) _fails.Enqueue(request);
+                // 如果心跳请求实现了ICloneable接口，可以克隆一份，避免后续修改
+                if (_fails.Count < MaxFails) _fails.Enqueue((request as ICloneable)?.Clone() as IPingRequest ?? request);
                 return null;
             }
 
@@ -590,7 +589,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             catch
             {
                 // 失败时保存到队列
-                if (_fails.Count < MaxFails) _fails.Enqueue(request);
+                //if (_fails.Count < MaxFails) _fails.Enqueue(request);
+                if (_fails.Count < MaxFails) _fails.Enqueue((request as ICloneable)?.Clone() as IPingRequest ?? request);
 
                 throw;
             }
