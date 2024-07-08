@@ -70,19 +70,22 @@ public class HttpEncoder : EncoderBase, IEncoder
 
         if (ctype.Contains("application/json"))
         {
-            var rs = new Dictionary<String, Object?>(StringComparer.OrdinalIgnoreCase);
-            var dic = JsonHost.Decode(str);
-            if (dic != null)
-            {
-                foreach (var item in dic)
-                {
-                    if (item.Value is String str2)
-                        rs[item.Key] = HttpUtility.UrlDecode(str2);
-                    else
-                        rs[item.Key] = item.Value;
-                }
-            }
+            // 返回类型可能是列表而不是字典
+            //todo 临时修正，将来使用新版IJsonHost.Parse
+            var obj = new JsonParser(str).Decode();
+            //var obj = JsonHost.Parse();
 
+            if (obj is not IDictionary<String, Object?> dic)
+                return obj;
+
+            var rs = new Dictionary<String, Object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in dic)
+            {
+                if (item.Value is String str2)
+                    rs[item.Key] = HttpUtility.UrlDecode(str2);
+                else
+                    rs[item.Key] = item.Value;
+            }
             return rs;
         }
         else
@@ -114,7 +117,10 @@ public class HttpEncoder : EncoderBase, IEncoder
         if (json.IsNullOrEmpty()) return null;
         if (returnType == null || returnType == typeof(String)) return json;
 
-        var rs = JsonHost.Decode(json);
+        // 返回类型可能是列表而不是字典
+        //todo 临时修正，将来使用新版IJsonHost.Parse
+        var rs = new JsonParser(json).Decode();
+        //var rs = JsonHost.Parse(json);
         if (rs == null) return null;
         if (returnType == typeof(Object)) return rs;
 
