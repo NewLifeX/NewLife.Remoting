@@ -71,9 +71,11 @@ public class HttpEncoder : EncoderBase, IEncoder
         if (ctype.Contains("application/json"))
         {
             // 返回类型可能是列表而不是字典
-            //todo 临时修正，将来使用新版IJsonHost.Parse
+#if NET40
             var obj = new JsonParser(str).Decode();
-            //var obj = JsonHost.Parse();
+#else
+            var obj = JsonHost.Parse(str);
+#endif
 
             if (obj is not IDictionary<String, Object?> dic)
                 return obj;
@@ -118,9 +120,11 @@ public class HttpEncoder : EncoderBase, IEncoder
         if (returnType == null || returnType == typeof(String)) return json;
 
         // 返回类型可能是列表而不是字典
-        //todo 临时修正，将来使用新版IJsonHost.Parse
+#if NET40
         var rs = new JsonParser(json).Decode();
-        //var rs = JsonHost.Parse(json);
+#else
+        var rs = JsonHost.Parse(json);
+#endif
         if (rs == null) return null;
         if (returnType == typeof(Object)) return rs;
 
