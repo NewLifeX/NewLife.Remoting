@@ -523,7 +523,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         catch (Exception ex)
         {
             span?.SetError(ex, null);
-            XTrace.WriteException(ex);
+            Log?.Error(ex.ToString());
 
             return null;
         }
@@ -710,17 +710,19 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         WriteLog("检查更新");
 
         // 清理旧版备份文件
-        var ug = new Upgrade { Log = XTrace.Log };
+        var ug = new Upgrade { Log = Log };
         ug.DeleteBackup(".");
 
         // 调用接口查询思否存在更新信息
         var info = await UpgradeAsync(channel, cancellationToken);
-        if (info != null && info.Version != _lastVersion)
-        {
-            // _lastVersion避免频繁更新同一个版本
-            WriteLog("发现更新：{0}", info.ToJson(true));
-            this.WriteInfoEvent("Upgrade", $"准备从[{_lastVersion}]更新到[{info.Version}]，开始下载 {info.Source}");
+        if (info == null || info.Version == _lastVersion) return info;
 
+        // _lastVersion避免频繁更新同一个版本
+        WriteLog("发现更新：{0}", info.ToJson(true));
+        this.WriteInfoEvent("Upgrade", $"准备从[{_lastVersion}]更新到[{info.Version}]，开始下载 {info.Source}");
+
+        try
+        {
             // 下载文件包
             ug.Url = BuildUrl(info.Source!);
             await ug.Download(cancellationToken);
@@ -759,6 +761,12 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     if (rs && info.Force) Restart(ug);
                 }
             }
+        }
+        catch (Exception ex)
+        {
+            span?.SetError(ex, null);
+            //Log?.Error(ex.ToString());
+            throw;
         }
 
         return info;
@@ -892,7 +900,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             // 有效期判断前把UTC转为本地时间
             var now = GetNow();
             var expire = model.Expire.ToLocalTime();
-            XTrace.WriteLine("[{0}] Got Command: {1}", source, model.ToJson());
+            WriteLog("[{0}] Got Command: {1}", source, model.ToJson());
             if (model.Expire.Year < 2000 || model.Expire > now)
             {
                 // 延迟执行

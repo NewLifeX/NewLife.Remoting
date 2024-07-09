@@ -100,7 +100,7 @@ class WsChannel : DisposeBase
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            XTrace.WriteLine("WebSocket异常 {0}", ex.Message);
+            _client.Log?.Error("WebSocket异常 {0}", ex.Message);
         }
         finally
         {

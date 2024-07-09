@@ -26,6 +26,7 @@ public class BaseDeviceController : BaseController
     private readonly IDeviceService _deviceService;
     private readonly TokenService _tokenService;
     private readonly ITracer? _tracer;
+    private readonly ILog? _log;
 
     #region 构造
     /// <summary>实例化设备控制器</summary>
@@ -35,6 +36,7 @@ public class BaseDeviceController : BaseController
         _deviceService = serviceProvider.GetRequiredService<IDeviceService>();
         _tokenService = serviceProvider.GetRequiredService<TokenService>();
         _tracer = serviceProvider.GetService<ITracer>();
+        _log = serviceProvider.GetService<ILog>();
     }
 
     /// <summary>验证身份</summary>
@@ -274,8 +276,8 @@ public class BaseDeviceController : BaseController
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            XTrace.WriteLine("WebSocket异常 client={0} ip={1}", code, ip);
-            XTrace.WriteException(ex);
+            _log?.Error("WebSocket异常 client={0} ip={1}", code, ip);
+            _log?.Error(ex.ToString());
             WriteLog("WebSocket断开", false, $"State={socket.State} CloseStatus={socket.CloseStatus} {ex}");
         }
         finally

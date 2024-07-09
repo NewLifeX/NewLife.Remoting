@@ -99,7 +99,7 @@ class WsChannelCore : WsChannel
         catch (OperationCanceledException) { }
         catch (WebSocketException ex)
         {
-            XTrace.WriteLine("WebSocket异常 {0}", ex.Message);
+            _client.Log?.Error("WebSocket异常 {0}", ex.Message);
         }
         finally
         {
