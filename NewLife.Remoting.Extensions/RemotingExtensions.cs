@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NewLife.Caching;
 using NewLife.Remoting.Extensions.ModelBinders;
@@ -18,9 +17,9 @@ public static class RemotingExtensions
     /// <param name="setting"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
-    public static IServiceCollection AddRemoting(this IServiceCollection services, ITokenSetting setting)
+    public static IServiceCollection AddRemoting(this IServiceCollection services, ITokenSetting? setting = null)
     {
-        if (setting == null) throw new ArgumentNullException(nameof(setting));
+        //if (setting == null) throw new ArgumentNullException(nameof(setting));
 
         services.TryAddTransient<ILoginRequest, LoginRequest>();
         services.TryAddTransient<ILoginResponse, LoginResponse>();
@@ -29,8 +28,11 @@ public static class RemotingExtensions
         services.TryAddTransient<IPingResponse, PingResponse>();
 
         // 注册Remoting所必须的服务
-        services.TryAddSingleton<TokenService>();
-        services.TryAddSingleton(setting);
+        if (setting != null)
+        {
+            services.TryAddSingleton<TokenService>();
+            services.TryAddSingleton(setting);
+        }
 
         // 注册密码提供者，用于通信过程中保护密钥，避免明文传输
         services.TryAddSingleton<IPasswordProvider>(new SaltPasswordProvider { Algorithm = "md5", SaltTime = 60 });
