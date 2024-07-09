@@ -1,5 +1,4 @@
-﻿using System.Net.WebSockets;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using NewLife.Log;
 using NewLife.Remoting;
 using NewLife.Remoting.Extensions;
@@ -64,39 +63,5 @@ public class NodeController : BaseDeviceController
         }
 
         return rs;
-    }
-
-    /// <summary>长连接处理</summary>
-    /// <param name="socket"></param>
-    /// <param name="token"></param>
-    /// <returns></returns>
-    protected override async Task HandleNotify(WebSocket socket, String token)
-    {
-        NodeOnline online = null;
-        var node = Node;
-        if (node != null)
-        {
-            // 上线打标记
-            online = _nodeService.GetOnline(node, UserHost);
-            if (online != null)
-            {
-                online.WebSocket = true;
-                online.Update();
-            }
-        }
-
-        try
-        {
-            await base.HandleNotify(socket, token);
-        }
-        finally
-        {
-            // 下线清除标记
-            if (online != null)
-            {
-                online.WebSocket = false;
-                online.Update();
-            }
-        }
     }
 }

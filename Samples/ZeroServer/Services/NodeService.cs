@@ -208,6 +208,30 @@ public class NodeService : IDeviceService
         return online;
     }
 
+    /// <summary>设置设备的长连接上线/下线</summary>
+    /// <param name="device"></param>
+    /// <param name="online"></param>
+    /// <param name="token"></param>
+    /// <param name="ip"></param>
+    /// <returns></returns>
+    public IOnlineModel SetOnline(IDeviceModel device, Boolean online, String token, String ip)
+    {
+        if (device is Node node)
+        {
+            // 上线打标记
+            var olt = GetOnline(node, ip);
+            if (olt != null)
+            {
+                olt.WebSocket = online;
+                olt.Update();
+            }
+
+            return olt;
+        }
+
+        return null;
+    }
+
     /// <summary></summary>
     /// <param name="node"></param>
     /// <param name="ip"></param>

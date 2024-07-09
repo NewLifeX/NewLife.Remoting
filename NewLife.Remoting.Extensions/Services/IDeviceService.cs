@@ -38,6 +38,14 @@ public interface IDeviceService
     /// <returns></returns>
     IOnlineModel Ping(IDeviceModel device, IPingRequest? request, String? token, String ip);
 
+    /// <summary>设置设备的长连接上线/下线</summary>
+    /// <param name="device"></param>
+    /// <param name="online"></param>
+    /// <param name="token"></param>
+    /// <param name="ip"></param>
+    /// <returns></returns>
+    IOnlineModel SetOnline(IDeviceModel device, Boolean online, String token, String ip);
+
     /// <summary>命令响应</summary>
     /// <param name="device"></param>
     /// <param name="model"></param>

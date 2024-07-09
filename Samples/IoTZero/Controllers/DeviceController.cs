@@ -1,5 +1,4 @@
-﻿using System.Net.WebSockets;
-using IoT.Data;
+﻿using IoT.Data;
 using IoTZero.Services;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.IoT.Drivers;
@@ -65,40 +64,6 @@ public class DeviceController : BaseDeviceController
         }
 
         return rs;
-    }
-
-    /// <summary>长连接处理</summary>
-    /// <param name="socket"></param>
-    /// <param name="token"></param>
-    /// <returns></returns>
-    protected override async Task HandleNotify(WebSocket socket, String token)
-    {
-        DeviceOnline online = null;
-        var device = Device;
-        if (device != null)
-        {
-            // 上线打标记
-            online = _deviceService.GetOnline(device, UserHost);
-            if (online != null)
-            {
-                online.WebSocket = true;
-                online.Update();
-            }
-        }
-
-        try
-        {
-            await base.HandleNotify(socket, token);
-        }
-        finally
-        {
-            // 下线清除标记
-            if (online != null)
-            {
-                online.WebSocket = false;
-                online.Update();
-            }
-        }
     }
     #endregion
 

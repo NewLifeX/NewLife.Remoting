@@ -1,6 +1,5 @@
 ﻿using System.Net;
 using System.Net.WebSockets;
-using System.Xml.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.Caching;
@@ -8,6 +7,7 @@ using NewLife.Http;
 using NewLife.Log;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
+using NewLife.Security;
 using NewLife.Serialization;
 using WebSocket = System.Net.WebSockets.WebSocket;
 using WebSocketMessageType = System.Net.WebSockets.WebSocketMessageType;
@@ -202,14 +202,33 @@ public class BaseDeviceController : BaseController
         var device = _device ?? throw new InvalidOperationException("未登录！");
 
         var ip = UserHost;
-        WriteLog("WebSocket连接", true, socket.State + "");
+        var sid = Rand.Next();
+        WriteLog("WebSocket连接", true, $"State={socket.State} sid={sid}");
+
+        // 长连接上线
+        _deviceService.SetOnline(device, true, token, ip);
 
         var source = new CancellationTokenSource();
         var queue = _deviceService.GetQueue(device.Code);
         //_ = Task.Run(() => socket.ConsumeAndPushAsync(queue, onProcess: null, source));
         _ = Task.Run(() => ConsumeMessage(socket, device.Code, queue, ip, source));
 
-        await socket.WaitForClose(null, source);
+        //await socket.WaitForClose(null, source);
+        await socket.WaitForClose(txt =>
+        {
+            if (txt == "Ping")
+            {
+                socket.SendAsync("Pong".GetBytes(), WebSocketMessageType.Text, true, source.Token);
+
+                // 长连接上线。可能客户端心跳已经停了，WS还在，这里重新上线
+                _deviceService.SetOnline(device, true, token, ip);
+            }
+        }, source);
+
+        WriteLog("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid}");
+
+        // 长连接下线
+        _deviceService.SetOnline(device, false, token, ip);
     }
 
     private async Task ConsumeMessage(WebSocket socket, String code, IProducerConsumer<String> queue, String ip, CancellationTokenSource source)
