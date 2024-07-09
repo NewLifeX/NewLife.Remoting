@@ -373,6 +373,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     {
         Init();
 
+        // 加锁登录，避免多线程同时登录
+        var keyLock = this;
+        if (!Monitor.TryEnter(keyLock, 5_000)) return null;
+
         using var span = Tracer?.NewSpan(nameof(Login), Code);
         WriteLog("登录：{0}", Code);
         try
@@ -419,6 +423,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         {
             span?.SetError(ex, null);
             throw;
+        }
+        finally
+        {
+            Monitor.Exit(keyLock);
         }
     }
 
