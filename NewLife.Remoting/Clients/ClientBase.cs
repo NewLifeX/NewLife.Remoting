@@ -136,6 +136,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         StopTimer();
 
         Logined = false;
+
+        _timerLogin.TryDispose();
+        _timerLogin = null;
     }
     #endregion
 
@@ -362,6 +365,40 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     #endregion
 
     #region 登录注销
+    private TimerX? _timerLogin;
+    /// <summary>打开连接，尝试登录服务端。在网络未就绪之前反复尝试</summary>
+    public virtual void Open()
+    {
+        _timerLogin = new TimerX(TryConnectServer, null, 0, 5_000) { Async = true };
+    }
+
+    private async Task TryConnectServer(Object state)
+    {
+        if (!NetworkInterface.GetIsNetworkAvailable())
+        {
+            WriteLog("网络不可达，延迟连接服务器");
+            return;
+        }
+
+        try
+        {
+            await Login();
+        }
+        catch (Exception ex)
+        {
+            // 登录报错后，加大定时间隔，输出简单日志
+            //_timer.Period = 30_000;
+            if (_timer != null && _timer.Period < 30_000) _timer.Period += 5_000;
+
+            Log?.Error(ex.Message);
+
+            return;
+        }
+
+        _timerLogin.TryDispose();
+        _timerLogin = null;
+    }
+
     /// <summary>登录。使用编码和密钥登录服务端，获取令牌用于后续接口调用</summary>
     /// <remarks>
     /// 支持编码和密钥下发（自动注册）、时间校准。
