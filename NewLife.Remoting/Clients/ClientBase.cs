@@ -37,6 +37,9 @@ namespace NewLife.Remoting.Clients;
 public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEventProvider, ITracerFeature, ILogFeature
 {
     #region 属性
+    /// <summary>客户端名称。例如Device/Node/App</summary>
+    public String Name { get; set; } = null!;
+
     /// <summary>服务端地址。支持http/tcp/udp，支持客户端负载均衡，多地址逗号分隔</summary>
     public String? Server { get; set; }
 
@@ -111,7 +114,12 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>实例化</summary>
-    public ClientBase() => SetActions("Device/");
+    public ClientBase()
+    {
+        Name = GetType().Name.TrimEnd("Client");
+
+        SetActions("Device/");
+    }
 
     /// <summary>通过客户端设置实例化</summary>
     /// <param name="setting"></param>
@@ -380,6 +388,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             return;
         }
 
+        var timer = _timerLogin;
         try
         {
             await Login();
@@ -387,15 +396,14 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         catch (Exception ex)
         {
             // 登录报错后，加大定时间隔，输出简单日志
-            //_timer.Period = 30_000;
-            if (_timer != null && _timer.Period < 30_000) _timer.Period += 5_000;
+            if (timer != null && timer.Period < 30_000) timer.Period += 5_000;
 
             Log?.Error(ex.Message);
 
-            return;
+            if (!Logined) return;
         }
 
-        _timerLogin.TryDispose();
+        timer.TryDispose();
         _timerLogin = null;
     }
 
@@ -410,61 +418,57 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     {
         Init();
 
-        // 加锁登录，避免多线程同时登录
-        var keyLock = this;
-        if (!Monitor.TryEnter(keyLock, 5_000)) return null;
-
+        ILoginRequest? request = null;
+        ILoginResponse? response = null;
         using var span = Tracer?.NewSpan(nameof(Login), Code);
         WriteLog("登录：{0}", Code);
         try
         {
             // 创建登录请求，用户可重载BuildLoginRequest实现自定义登录请求，填充更多参数
-            var request = BuildLoginRequest();
+            request = BuildLoginRequest();
 
             // 登录前清空令牌，避免服务端使用上一次信息
             SetToken(null);
             Logined = false;
 
-            var response = await LoginAsync(request, cancellationToken);
+            response = await LoginAsync(request, cancellationToken);
             if (response == null) return null;
 
-            // 登录成果。服务端执行自动注册时，可能有下发编码和密钥
-            if (!response.Code.IsNullOrEmpty() && !response.Secret.IsNullOrEmpty())
-            {
-                WriteLog("下发密钥：{0}/{1}", response.Code, response.Secret);
-                Code = response.Code;
-                Secret = response.Secret;
-
-                var set = Setting;
-                if (set != null)
-                {
-                    set.Code = response.Code;
-                    set.Secret = response.Secret;
-                    set.Save();
-                }
-            }
-
-            FixTime(response.Time, response.Time);
+            WriteLog("登录成功：{0}", response);
 
             // 登录后设置用于用户认证的token
             SetToken(response.Token);
             Logined = true;
-
-            OnLogined?.Invoke(this, new(request, response));
-
-            StartTimer();
-
-            return response;
         }
         catch (Exception ex)
         {
             span?.SetError(ex, null);
             throw;
         }
-        finally
+
+        // 登录成果。服务端执行自动注册时，可能有下发编码和密钥
+        if (!response.Code.IsNullOrEmpty() && !response.Secret.IsNullOrEmpty())
         {
-            Monitor.Exit(keyLock);
+            WriteLog("下发密钥：{0}/{1}", response.Code, response.Secret);
+            Code = response.Code;
+            Secret = response.Secret;
+
+            var set = Setting;
+            if (set != null)
+            {
+                set.Code = response.Code;
+                set.Secret = response.Secret;
+                set.Save();
+            }
         }
+
+        FixTime(response.Time, response.Time);
+
+        OnLogined?.Invoke(this, new(request, response));
+
+        StartTimer();
+
+        return response;
     }
 
     /// <summary>计算客户端到服务端的网络延迟，以及相对时间差。支持GetNow()返回基于服务器的当前时间</summary>
@@ -615,7 +619,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 if (rs != null)
                 {
                     // 由服务器改变采样频率
-                    if (rs.Period > 0 && _timer != null) _timer.Period = rs.Period * 1000;
+                    if (rs.Period > 0 && _timerPing != null) _timerPing.Period = rs.Period * 1000;
 
                     FixTime(rs.Time, rs.ServerTime);
 
@@ -851,23 +855,24 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     #endregion
 
     #region 下行通知
-    private TimerX? _timer;
+    private TimerX? _timerPing;
     private TimerX? _timerUpgrade;
     /// <summary>开始心跳定时器</summary>
     protected virtual void StartTimer()
     {
-        if (_timer == null)
+        if (_timerPing == null && (Features.HasFlag(Features.Ping) || Features.HasFlag(Features.Notify)))
         {
             lock (this)
             {
-                if (_timer == null)
-                {
-                    if (Features.HasFlag(Features.Ping) || Features.HasFlag(Features.Notify))
-                        _timer = new TimerX(OnPing, null, 1000, 60_000, "Client") { Async = true };
+                _timerPing ??= new TimerX(OnPing, null, 1000, 60_000, Name ?? "Client") { Async = true };
+            }
+        }
 
-                    if (Features.HasFlag(Features.Upgrade))
-                        _timerUpgrade = new TimerX(CheckUpgrade, null, 5_000, 600_000, "Client") { Async = true };
-                }
+        if (_timerUpgrade == null && Features.HasFlag(Features.Upgrade))
+        {
+            lock (this)
+            {
+                _timerUpgrade ??= new TimerX(CheckUpgrade, null, 5_000, 600_000, Name ?? "Client") { Async = true };
             }
         }
     }
@@ -875,8 +880,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>停止心跳定时器</summary>
     protected virtual void StopTimer()
     {
-        _timer.TryDispose();
-        _timer = null;
+        _timerPing.TryDispose();
+        _timerPing = null;
         _timerUpgrade.TryDispose();
         _timerUpgrade = null;
         _eventTimer.TryDispose();
@@ -893,7 +898,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     protected virtual async Task OnPing(Object state)
     {
         //DefaultSpan.Current = null;
-        using var span = Tracer?.NewSpan("ClientPing");
+        using var span = Tracer?.NewSpan(Name + "Ping");
         try
         {
             if (Features.HasFlag(Features.Ping)) await Ping();
@@ -1024,7 +1029,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     private TimerX? _eventTimer;
     private String? _eventTraceId;
 
-    void InitEvent() => _eventTimer ??= new TimerX(DoPostEvent, null, 3_000, 60_000, "Client") { Async = true };
+    void InitEvent() => _eventTimer ??= new TimerX(DoPostEvent, null, 3_000, 60_000, Name ?? "Client") { Async = true };
 
     /// <summary>批量上报事件</summary>
     /// <param name="events"></param>
