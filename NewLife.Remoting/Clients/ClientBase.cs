@@ -820,7 +820,11 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (name.IsNullOrEmpty()) return;
 
         // 重新拉起进程
-        var rs = upgrade.Run(name, $"-upgrade {Environment.CommandLine}");
+        var args = Environment.GetCommandLineArgs();
+        if (args == null || args.Length == 0) args = new String[1];
+        args[0] = "-upgrade";
+
+        var rs = upgrade.Run(name, args.Join(" "));
 
         if (rs)
         {
