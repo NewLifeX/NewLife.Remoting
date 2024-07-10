@@ -48,6 +48,9 @@ class WsChannelCore : WsChannel
             {
                 span?.SetError(ex, null);
                 _client.WriteLog("{0}", ex);
+
+                _websocket.TryDispose();
+                _websocket = null;
             }
         }
 
