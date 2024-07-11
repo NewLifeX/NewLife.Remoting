@@ -166,7 +166,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             [Features.PostEvent] = prefix + "PostEvents",
         };
 
-        this.RegisterCommand(prefix + "Upgrade", s => _ = CheckUpgrade(null));
+        this.RegisterCommand(prefix + "Upgrade", ReceiveUpgrade);
     }
 
     /// <summary>初始化</summary>
@@ -740,6 +740,16 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (!NetworkInterface.GetIsNetworkAvailable()) return;
 
         await Upgrade(null);
+    }
+
+    private async Task<String?> ReceiveUpgrade(String? arguments)
+    {
+        // 参数作为通道
+        var channel = arguments;
+        var rs = await Upgrade(channel);
+        if (rs == null) return "没有可用更新！";
+
+        return $"成功更新到[{rs.Version}]";
     }
 
     private String? _lastVersion;
