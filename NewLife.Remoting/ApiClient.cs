@@ -421,8 +421,8 @@ public class ApiClient : ApiHost, IApiClient
 
         // 网络层采用消息层超时
         client.Timeout = Timeout;
-        client.Tracer = Tracer;
-        client.Log = SocketLog;
+        client.Tracer = (Log != null && Log.Level <= LogLevel.Debug || SocketLog != null && SocketLog.Level <= LogLevel.Debug) ? Tracer : null;
+        client.Log = SocketLog!;
 
         if (Local != null) client.Local = Local;
 
