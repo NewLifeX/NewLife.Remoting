@@ -141,7 +141,7 @@ public partial class DeviceOnline : Entity<DeviceOnline>, IOnlineModel
     /// <returns>实体列表</returns>
     public static IList<DeviceOnline> FindAllByProductId(Int32 productId)
     {
-        if (productId <= 0) return new List<DeviceOnline>();
+        if (productId <= 0) return [];
 
         // 实体缓存
         if (Meta.Session.Count < 1000) return Meta.Cache.FindAll(e => e.ProductId == productId);

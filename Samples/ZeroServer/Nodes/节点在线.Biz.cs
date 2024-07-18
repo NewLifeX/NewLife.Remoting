@@ -113,7 +113,7 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
     /// <returns>实体列表</returns>
     public static IList<NodeOnline> FindAllByToken(String token)
     {
-        if (token.IsNullOrEmpty()) return new List<NodeOnline>();
+        if (token.IsNullOrEmpty()) return [];
 
         // 实体缓存
         if (Meta.Session.Count < 1000) return Meta.Cache.FindAll(e => e.Token.EqualIgnoreCase(token));

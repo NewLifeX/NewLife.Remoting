@@ -97,10 +97,13 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>客户端设置</summary>
     public IClientSetting? Setting { get; set; }
 
+    private TimeSpan _span;
+    /// <summary>时间差。服务器时间减去客户端时间</summary>
+    public TimeSpan Span => _span;
+
     /// <summary>协议版本</summary>
     private readonly static String _version;
     private readonly static String _name;
-    private TimeSpan _span;
     private readonly ConcurrentQueue<IPingRequest> _fails = new();
     private readonly ICache _cache = new MemoryCache();
     #endregion
