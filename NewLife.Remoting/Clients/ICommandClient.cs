@@ -163,6 +163,7 @@ public static class CommandClientHelper
         if (d is Func<String?, String?> func32) return func32(model.Argument);
         //if (d is Func<String, Object> func33) return func33(model.Argument);
 
-        return null;
+        //return null;
+        throw new ApiException(ApiCode.InternalServerError, $"服务[{model.Command}]的签名[{d}]不正确");
     }
 }
