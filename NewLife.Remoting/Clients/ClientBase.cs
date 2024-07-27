@@ -66,8 +66,11 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     String? IApiClient.Token { get => _client?.Token; set { if (_client != null) _client.Token = value; } }
 
+    /// <summary>登录状态</summary>
+    public LoginStatus Status { get; set; }
+
     /// <summary>是否已登录</summary>
-    public Boolean Logined { get; set; }
+    public Boolean Logined => Status == LoginStatus.LoggedIn;
 
     /// <summary>登录完成后触发</summary>
     public event EventHandler<LoginEventArgs>? OnLogined;
@@ -146,7 +149,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         StopTimer();
 
-        Logined = false;
+        Status = LoginStatus.LoggedOut;
 
         _timerLogin.TryDispose();
         _timerLogin = null;
@@ -326,7 +329,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     {
         // 验证登录。如果该接口需要登录，且未登录，则先登录
         var needLogin = !Actions[Features.Login].EqualIgnoreCase(action);
-        if (!Logined && needLogin && Features.HasFlag(Features.Login)) await Login(cancellationToken);
+        if (needLogin && !Logined && Features.HasFlag(Features.Login)) await Login(cancellationToken);
 
         try
         {
@@ -394,7 +397,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         var timer = _timerLogin;
         try
         {
-            await Login();
+            if (!Logined) await Login();
         }
         catch (Exception ex)
         {
@@ -419,6 +422,18 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <returns></returns>
     public virtual async Task<ILoginResponse?> Login(CancellationToken cancellationToken = default)
     {
+        if (Status >= LoginStatus.LoggedOut) return null;
+
+        // 如果已登录，直接返回。如果正在登录，则稍等一会，避免重复登录。
+        if (Status == LoginStatus.LoggedIn) return null;
+        if (Status == LoginStatus.LoggingIn)
+        {
+            await TaskEx.Delay(500);
+            if (Status == LoginStatus.LoggedIn) return null;
+        }
+
+        if (Status != LoginStatus.LoggedIn) Status = LoginStatus.LoggingIn;
+
         Init();
 
         ILoginRequest? request = null;
@@ -432,7 +447,6 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
             // 登录前清空令牌，避免服务端使用上一次信息
             SetToken(null);
-            Logined = false;
 
             response = await LoginAsync(request, cancellationToken);
             if (response == null) return null;
@@ -441,7 +455,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
             // 登录后设置用于用户认证的token
             SetToken(response.Token);
-            Logined = true;
+
+            Status = LoginStatus.LoggedIn;
         }
         catch (Exception ex)
         {
@@ -560,7 +575,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
             StopTimer();
 
-            Logined = false;
+            Status = LoginStatus.LoggedOut;
 
             return rs;
         }
