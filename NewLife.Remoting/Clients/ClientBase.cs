@@ -341,14 +341,18 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             if (ex2 is ApiException aex)
             {
                 // 在客户端已登录状态下，服务端返回未授权，可能是令牌过期，尝试重新登录
-                if (Logined && aex.Code == ApiCode.Unauthorized && needLogin && Features.HasFlag(Features.Login))
+                if (Logined && aex.Code == ApiCode.Unauthorized)
                 {
-                    Log?.Debug("{0}", ex);
-                    WriteLog("重新登录！");
-                    await Login(cancellationToken);
+                    Status = LoginStatus.Ready;
+                    if (needLogin && Features.HasFlag(Features.Login))
+                    {
+                        Log?.Debug("{0}", ex);
+                        WriteLog("重新登录，因调用[{0}]失败：{1}", action, ex.Message);
+                        await Login(cancellationToken);
 
-                    // 再次执行当前请求
-                    return await OnInvokeAsync<TResult>(action, args, cancellationToken);
+                        // 再次执行当前请求
+                        return await OnInvokeAsync<TResult>(action, args, cancellationToken);
+                    }
                 }
 
                 throw new ApiException(aex.Code, $"[{action}]{aex.Message}");
@@ -428,8 +432,11 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (Status == LoginStatus.LoggedIn) return null;
         if (Status == LoginStatus.LoggingIn)
         {
-            await TaskEx.Delay(500);
-            if (Status == LoginStatus.LoggedIn) return null;
+            for (var i = 0; i < 10; i++)
+            {
+                await TaskEx.Delay(100);
+                if (Status == LoginStatus.LoggedIn) return null;
+            }
         }
 
         if (Status != LoginStatus.LoggedIn) Status = LoginStatus.LoggingIn;
@@ -676,11 +683,12 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             span?.SetError(ex, null);
 
             var ex2 = ex.GetTrue();
-            if (ex2 is ApiException aex && (aex.Code == ApiCode.Unauthorized || aex.Code == ApiCode.Forbidden) && Features.HasFlag(Features.Login))
+            if (ex2 is ApiException aex && (aex.Code == ApiCode.Unauthorized || aex.Code == ApiCode.Forbidden))
             {
+                Status = LoginStatus.Ready;
                 if (Features.HasFlag(Features.Login))
                 {
-                    WriteLog("重新登录");
+                    WriteLog("重新登录，因心跳失败：{0}", ex.Message);
                     await Login(cancellationToken);
                 }
 
