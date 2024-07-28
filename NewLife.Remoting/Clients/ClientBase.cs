@@ -487,7 +487,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             }
         }
 
-        FixTime(response.Time, response.Time);
+        FixTime(response.Time, response.ServerTime);
 
         OnLogined?.Invoke(this, new(request, response));
 
@@ -637,24 +637,24 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 return null;
             }
 
-            IPingResponse? rs = null;
+            IPingResponse? response = null;
             try
             {
-                rs = await PingAsync(request, cancellationToken);
-                if (rs != null)
+                response = await PingAsync(request, cancellationToken);
+                if (response != null)
                 {
                     // 由服务器改变采样频率
-                    if (rs.Period > 0 && _timerPing != null) _timerPing.Period = rs.Period * 1000;
+                    if (response.Period > 0 && _timerPing != null) _timerPing.Period = response.Period * 1000;
 
-                    FixTime(rs.Time, rs.ServerTime);
+                    FixTime(response.Time, response.ServerTime);
 
                     // 更新令牌。即将过期时，服务端会返回新令牌
-                    if (!rs.Token.IsNullOrEmpty()) SetToken(rs.Token);
+                    if (!response.Token.IsNullOrEmpty()) SetToken(response.Token);
 
                     // 心跳响应携带的命令，推送到队列
-                    if (rs.Commands != null && rs.Commands.Length > 0)
+                    if (response.Commands != null && response.Commands.Length > 0)
                     {
-                        foreach (var model in rs.Commands)
+                        foreach (var model in response.Commands)
                         {
                             await ReceiveCommand(model, "Pong", cancellationToken);
                         }
@@ -676,7 +676,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 await PingAsync(info, cancellationToken);
             }
 
-            return rs;
+            return response;
         }
         catch (Exception ex)
         {

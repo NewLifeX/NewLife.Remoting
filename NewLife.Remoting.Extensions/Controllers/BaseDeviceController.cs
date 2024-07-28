@@ -72,7 +72,9 @@ public class BaseDeviceController : BaseController
         rs ??= new LoginResponse { Name = dv.Name, };
 
         rs.Code = dv.Code;
-        rs.Time = DateTime.UtcNow.ToLong();
+
+        if (request is LoginRequest req) rs.Time = req.Time;
+        rs.ServerTime = DateTime.UtcNow.ToLong();
 
         // 动态注册的设备不可用时，不要发令牌，只发证书
         if (dv.Enable)
