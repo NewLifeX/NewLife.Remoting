@@ -383,8 +383,10 @@ public class Upgrade
             var dst = dest.CombinePath(name).GetBasePath();
 
             // 如果是应用配置文件，不要更新
-            if (dst.EndsWithIgnoreCase(".exe.config") ||
-                dst.EqualIgnoreCase("appsettings.json")) continue;
+            //if (dst.EndsWithIgnoreCase(".exe.config") ||
+            //    dst.EqualIgnoreCase("appsettings.json")) continue;
+            // net45下，需要更新 StarAgent.exe.config ，里面的assemblyBinding指定了所依赖 NewLife.Core 的版本
+            if (dst.EqualIgnoreCase("appsettings.json")) continue;
 
             // 拷贝覆盖
             WriteLog("Copy {0}", name);
