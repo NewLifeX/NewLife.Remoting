@@ -59,11 +59,7 @@ public class JsonEncoder : EncoderBase, IEncoder
         if (json.IsNullOrEmpty() || json[0] != '{' && json[0] != '[') return json;
 
         // 返回类型可能是列表而不是字典
-#if NET40
-        return new JsonParser(json).Decode();
-#else
         return JsonHost.Parse(json);
-#endif
     }
 
     /// <summary>解码结果</summary>
@@ -84,11 +80,7 @@ public class JsonEncoder : EncoderBase, IEncoder
         if (returnType == null || returnType == typeof(String)) return json;
 
         // 返回类型可能是列表而不是字典
-#if NET40
-        var rs = new JsonParser(json).Decode();
-#else
         var rs = JsonHost.Parse(json);
-#endif
         if (rs == null) return null;
         if (returnType == typeof(Object)) return rs;
 
