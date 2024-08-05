@@ -78,6 +78,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>请求到服务端并返回的延迟时间。单位ms</summary>
     public Int32 Delay { get; set; }
 
+    private TimeSpan _span;
+    /// <summary>时间差。服务器时间减去客户端时间</summary>
+    public TimeSpan Span => _span;
+
     /// <summary>最大失败数。心跳上报失败时进入失败队列，并稍候重试。重试超过该数时，新的数据将被抛弃，默认1440次，约24小时</summary>
     public Int32 MaxFails { get; set; } = 1 * 24 * 60;
 
@@ -99,10 +103,6 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     /// <summary>客户端设置</summary>
     public IClientSetting? Setting { get; set; }
-
-    private TimeSpan _span;
-    /// <summary>时间差。服务器时间减去客户端时间</summary>
-    public TimeSpan Span => _span;
 
     /// <summary>协议版本</summary>
     private readonly static String _version;
