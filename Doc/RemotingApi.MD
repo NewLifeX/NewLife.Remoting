@@ -138,11 +138,202 @@ public AppClient()
 
 ### 登录Login
 
-​	**地址**：`/{Prefix}/Login`
+​	**地址**：`POST /{Prefix}/Login`
 
 ​	**功能**：向服务端提交编码和密钥，服务端验证通过后颁发令牌给客户端，后续所有接口调用带上令牌作为身份标识。
 
 ​	**说明**：登录请求一般还提供ClientId、版本信息、IP地址与MAC地址、唯一机器码、本地时间等信息，服务端接口能验证客户端身份，并颁发令牌。服务端找不到关联身份时，也可以根据相关信息注册一个身份，并通过登录响应返回编码和原始明文密钥。
+
+
+
+​	**请求**（ILoginRequest）：
+
+| 名字     | 类型   | 必要 | 说明                                    |
+| -------- | ------ | :--: | --------------------------------------- |
+| Code     | String |  √   | 编码                                    |
+| Secret   | String |  √   | 密钥                                    |
+| ClientId | String |  √   | 实例。应用可能多实例部署，ip@proccessid |
+| Version  | String |      | 版本                                    |
+| Compile  | Int64  |      | 编译时间。UTC毫秒                       |
+| IP       | String |      | 本地IP地址                              |
+| Macs     | String |      | MAC地址                                 |
+| UUID     | String |      | 唯一标识                                |
+| Time     | Int64  |      | 本地时间。UTC毫秒                       |
+
+
+
+​	**响应**（ILoginResponse）：
+
+| 名字       | 类型   | 必要 | 说明                                              |
+| ---------- | ------ | :--: | ------------------------------------------------- |
+| Code       | String |      | 编码。平台下发新编码，仅用于自动注册              |
+| Secret     | String |      | 密钥。平台下发新密钥，仅用于自动注册              |
+| Token      | String |  √   | 令牌。后续所有接口调用均需要在请求头携带该令牌。  |
+| Expire     | Int32  |      | 令牌过期时间。单位秒。默认7200秒                  |
+| Time       | Int64  |      | 本地时间。客户端用于计算延迟，Unix毫秒（UTC）     |
+| ServerTime | Int64  |      | 服务器时间。客户端用于计算时间差，Unix毫秒（UTC） |
+
+
+
+### 注销Logout
+
+​	**地址**：`GET /{Prefix}/Logout`
+
+​	**功能**：向服务端申请，注销当前令牌。
+
+
+
+​	**请求**：
+
+| 名字     | 类型   | 必要 | 说明                                    |
+| -------- | ------ | :--: | --------------------------------------- |
+| reason   | String |      | 原因                                    |
+
+
+
+
+​	**响应**（ILogoutResponse）：
+
+| 名字  | 类型   | 必要 | 说明                 |
+| ----- | ------ | :--: | -------------------- |
+| Token | String |      | 令牌。清空令牌后返回 |
+
+
+
+### 心跳Ping
+
+​	**地址**：`POST /{Prefix}/Ping
+
+​	**功能**：定时向服务端发送心跳，主要目的是链路保活，同时上报客户端的性能数据。
+
+
+
+​	**请求**（IPingRequest）：
+
+| 名字               | 类型   | 必要 | 说明                                       |
+| ------------------ | ------ | :--: | ------------------------------------------ |
+| Time               | Int64  |  √   | 本地UTC时间。Unix毫秒（UTC）               |
+| Memory             | UInt64 |      | 内存大小                                   |
+| AvailableMemory    | UInt64 |      | 可用内存大小                               |
+| TotalSize          | UInt64 |      | 磁盘大小。应用所在盘                       |
+| AvailableFreeSpace | UInt64 |      | 磁盘可用空间。应用所在盘                   |
+| CpuRate            | Double |      | CPU占用率                                  |
+| Temperature        | Double |      | 温度                                       |
+| Battery            | Double |      | 电量                                       |
+| Signal             | Int32  |      | 信号强度。WiFi/4G                          |
+| UplinkSpeed        | UInt64 |      | 上行速度。网络发送速度，字节每秒           |
+| DownlinkSpeed      | UInt64 |      | 下行速度。网络接收速度，字节每秒           |
+| IP                 | String |      | 本地IP地址。随着网卡变动，可能改变         |
+| Uptime             | Int32  |      | 开机时间，单位s                            |
+| Delay              | Int32  |      | 延迟。请求到服务端并返回的延迟时间。单位ms |
+
+
+
+​	**响应**（IPingResponse）：
+
+| 名字       | 类型           | 必要 | 说明                                              |
+| ---------- | -------------- | :--: | ------------------------------------------------- |
+| Time       | Int64          |  √   | 本地时间。客户端用于计算延迟，Unix毫秒（UTC）     |
+| ServerTime | Int64          |  √   | 服务器时间。客户端用于计算时间差，Unix毫秒（UTC） |
+| Period     | Int32          |      | 心跳周期。单位秒                                  |
+| Token      | String         |      | 令牌。现有令牌即将过期时，颁发新的令牌            |
+| Commands   | CommandModel[] |      | 下发命令                                          |
+| NewServer  | String         |      | 新服务器地址。用于服务器迁移                      |
+
+
+
+​	CommandModel：
+
+```c#
+/// <summary>命令模型</summary>
+public class CommandModel
+{
+    /// <summary>序号</summary>
+    public Int64 Id { get; set; }
+
+    /// <summary>命令</summary>
+    public String Command { get; set; } = null!;
+
+    /// <summary>参数</summary>
+    public String? Argument { get; set; }
+
+    /// <summary>开始执行时间。用于提前下发指令后延期执行，暂时不支持取消</summary>
+    /// <remarks>
+    /// 使用UTC时间传输，客户端转本地时间，避免时区差异。
+    /// 有些序列化框架可能不支持带时区信息的序列化，因此约定使用UTC时间传输。
+    /// </remarks>
+    public DateTime StartTime { get; set; }
+
+    /// <summary>过期时间。未指定时表示不限制</summary>
+    /// <remarks>
+    /// 使用UTC时间传输，客户端转本地时间，避免时区差异。
+    /// 有些序列化框架可能不支持带时区信息的序列化，因此约定使用UTC时间传输。
+    /// </remarks>
+    public DateTime Expire { get; set; }
+
+    /// <summary>跟踪标识。传输traceParent，用于建立全局调用链，便于查找问题</summary>
+    public String? TraceId { get; set; }
+}
+```
+
+
+
+### 升级更新Upgrade
+
+​	**地址**：`GET /{Prefix}/Upgrade`
+
+​	**功能**：定时请求服务端更新接口，获取满足当前客户端条件的升级更新信息，并根据信息执行自动更新流程。
+
+
+
+​	**请求**：
+
+| 名字    | 类型   | 必要 | 说明     |
+| ------- | ------ | :--: | -------- |
+| channel | String |      | 更新通道 |
+
+
+
+
+​	**响应**（IUpgradeInfo）：
+
+| 名字  | 类型   | 必要 | 说明                 |
+| ----- | ------ | :--: | -------------------- |
+| Token | String |  √   | 令牌。清空令牌后返回 |
+
+
+
+### 下行通知Notify
+
+​	**地址**：`WS /{Prefix}/Notify`
+
+​	**功能**：向服务端建立WebSocket连接，服务端通过下行链路（HTTP是WebSocket，RPC是TCP/UDP）向客户端发送命令，指示客户端即时执行特定流程。
+
+​	**方向**：服务端->客户端
+
+
+
+​	**下发**（ILoginRequest）：
+
+| 名字     | 类型   | 必要 | 说明                                    |
+| -------- | ------ | :--: | --------------------------------------- |
+| Code     | String |  √   | 编码                                    |
+| Secret   | String |  √   | 密钥                                    |
+| ClientId | String |  √   | 实例。应用可能多实例部署，ip@proccessid |
+| Version  | String |      | 版本                                    |
+| Compile  | Int64  |      | 编译时间。UTC毫秒                       |
+| IP       | String |      | 本地IP地址                              |
+| Macs     | String |      | MAC地址                                 |
+| UUID     | String |      | 唯一标识                                |
+| Time     | Int64  |      | 本地时间。UTC毫秒                       |
+
+
+
+### 命令响应CommandReply
+
+​	**地址**：`POST /{Prefix}/CommandReply`
+
+​	**功能**：客户端执行完成服务端下发的命令后，通过CommandReply接口向上汇报执行状态与结果。
 
 
 
@@ -175,39 +366,38 @@ public AppClient()
 
 
 
-### 注销Logout
-
-​	**功能**：向服务端申请，注销当前令牌。
-
-
-
-### 心跳Ping
-
-​	**功能**：定时向服务端发送心跳，主要目的是链路保活，同时上报客户端的一些性能数据。
-
-
-
-### 升级更新Upgrade
-
-​	**功能**：定时请求服务端更新接口，获取满足当前客户端条件的升级更新信息，并根据信息执行自动更新流程。
-
-
-
-### 下行通知Notify
-
-​	**功能**：服务端通过下行链路（HTTP是WebSocket，RPC是TCP/UDP）向客户端发送命令，指示客户端即时执行特定流程。
-
-​	**方向**：服务端->客户端
-
-
-
-### 命令响应CommandReply
-
-​	**功能**：客户端执行完成服务端下发的命令后，通过CommandReply接口向上汇报执行状态与结果。
-
-
-
 ### 上报事件PostEvent
 
+​	**地址**：`POST /{Prefix}/PostEvent`
+
 ​	功能：客户端批量上报带有时间戳的事件日志。
+
+
+
+​	**请求**（ILoginRequest）：
+
+| 名字     | 类型   | 必要 | 说明                                    |
+| -------- | ------ | :--: | --------------------------------------- |
+| Code     | String |  √   | 编码                                    |
+| Secret   | String |  √   | 密钥                                    |
+| ClientId | String |  √   | 实例。应用可能多实例部署，ip@proccessid |
+| Version  | String |      | 版本                                    |
+| Compile  | Int64  |      | 编译时间。UTC毫秒                       |
+| IP       | String |      | 本地IP地址                              |
+| Macs     | String |      | MAC地址                                 |
+| UUID     | String |      | 唯一标识                                |
+| Time     | Int64  |      | 本地时间。UTC毫秒                       |
+
+
+
+​	**响应**：
+
+| 名字       | 类型   | 必要 | 说明                                              |
+| ---------- | ------ | :--: | ------------------------------------------------- |
+| Code       | String |      | 编码。平台下发新编码，仅用于自动注册              |
+| Secret     | String |      | 密钥。平台下发新密钥，仅用于自动注册              |
+| Token      | String |  √   | 令牌。后续所有接口调用均需要在请求头携带该令牌。  |
+| Expire     | Int32  |      | 令牌过期时间。单位秒。默认7200秒                  |
+| Time       | Int64  |      | 本地时间。客户端用于计算延迟，Unix毫秒（UTC）     |
+| ServerTime | Int64  |      | 服务器时间。客户端用于计算时间差，Unix毫秒（UTC） |
 
