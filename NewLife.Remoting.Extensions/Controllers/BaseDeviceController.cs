@@ -207,7 +207,9 @@ public class BaseDeviceController : BaseController
 
         var ip = UserHost;
         var sid = Rand.Next();
-        WriteLog("WebSocket连接", true, $"State={socket.State} sid={sid}");
+        var connection = HttpContext.Connection;
+        var remote = new IPEndPoint(connection.RemoteIpAddress, connection.RemotePort);
+        WriteLog("WebSocket连接", true, $"State={socket.State} sid={sid} Remote={remote}");
 
         // 长连接上线
         _deviceService.SetOnline(device, true, token, ip);
@@ -229,7 +231,7 @@ public class BaseDeviceController : BaseController
             }
         }, source);
 
-        WriteLog("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid}");
+        WriteLog("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
 
         // 长连接下线
         _deviceService.SetOnline(device, false, token, ip);
