@@ -208,7 +208,9 @@ public class BaseDeviceController : BaseController
         var ip = UserHost;
         var sid = Rand.Next();
         var connection = HttpContext.Connection;
-        var remote = new IPEndPoint(connection.RemoteIpAddress, connection.RemotePort);
+        var address = connection.RemoteIpAddress ?? IPAddress.Loopback;
+        if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
+        var remote = new IPEndPoint(address, connection.RemotePort);
         WriteLog("WebSocket连接", true, $"State={socket.State} sid={sid} Remote={remote}");
 
         // 长连接上线
