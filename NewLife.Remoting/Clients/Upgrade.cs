@@ -411,8 +411,10 @@ public class Upgrade
                     //{
                     // 直接Move文件，不要删除，否则Linux上可能导致当前进程退出
                     WriteLog("Move {0}", item);
-                    var del = dst + ".del";
-                    if (File.Exists(del)) File.Delete(del);
+                    var del = $"{dst}.del";
+                    //if (File.Exists(del)) File.Delete(del);
+                    // 如果.del文件已存在，不能直接删，因为进程可能正在使用（上次升级未完成）。
+                    if (File.Exists(del)) del = $"{dst}_{DateTime.Now:yyMMddHHmmss}.del";
                     File.Move(dst, del);
                     //}
 
