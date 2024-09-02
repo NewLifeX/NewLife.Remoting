@@ -19,7 +19,7 @@ Nuget：NewLife.Remoting / NewLife.Remoting.Extensions
 
 参考目录：
 
-- [Remoting接口文档](Doc/RemotingAPI.MD)
+- [Remoting接口文档](Doc/RemotingApi.MD)
 - [SRMP简易远程消息协议](Doc/SRMP.MD)
 
 
