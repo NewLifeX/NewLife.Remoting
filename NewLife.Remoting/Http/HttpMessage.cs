@@ -5,7 +5,7 @@ using NewLife.Messaging;
 namespace NewLife.Remoting.Http;
 
 /// <summary>Http消息</summary>
-public class HttpMessage : IMessage
+public class HttpMessage : IMessage, IDisposable
 {
     #region 属性
     /// <summary>是否响应</summary>
@@ -18,10 +18,10 @@ public class HttpMessage : IMessage
     public Boolean OneWay => false;
 
     /// <summary>头部数据</summary>
-    public Packet? Header { get; set; }
+    public IPacket? Header { get; set; }
 
     /// <summary>负载数据</summary>
-    public Packet? Payload { get; set; }
+    public IPacket? Payload { get; set; }
 
     /// <summary>请求方法</summary>
     public String? Method { get; set; }
@@ -34,6 +34,15 @@ public class HttpMessage : IMessage
 
     /// <summary>头部集合</summary>
     public IDictionary<String, String>? Headers { get; set; }
+    #endregion
+
+    #region 构造
+    /// <summary>销毁</summary>
+    public void Dispose()
+    {
+        Header.TryDispose();
+        Payload.TryDispose();
+    }
     #endregion
 
     #region 方法
@@ -51,13 +60,13 @@ public class HttpMessage : IMessage
         return msg;
     }
 
-    private static readonly Byte[] NewLine = new[] { (Byte)'\r', (Byte)'\n', (Byte)'\r', (Byte)'\n' };
+    private static readonly Byte[] NewLine = [(Byte)'\r', (Byte)'\n', (Byte)'\r', (Byte)'\n'];
     /// <summary>从数据包中读取消息</summary>
     /// <param name="pk"></param>
     /// <returns>是否成功</returns>
-    public virtual Boolean Read(Packet pk)
+    public virtual Boolean Read(IPacket pk)
     {
-        var p = pk.IndexOf(NewLine);
+        var p = pk.GetSpan().IndexOf(NewLine);
         if (p < 0) return false;
 
         Header = pk.Slice(0, p);
@@ -101,13 +110,13 @@ public class HttpMessage : IMessage
 
     /// <summary>把消息转为封包</summary>
     /// <returns></returns>
-    public virtual Packet ToPacket()
+    public virtual IPacket ToPacket()
     {
         if (Header == null) throw new ArgumentNullException(nameof(Header));
 
         // 使用子数据区，不改变原来的头部对象
         var pk = Header.Slice(0, -1);
-        pk.Next = NewLine;
+        pk.Append(NewLine);
         //pk.Next = new[] { (Byte)'\r', (Byte)'\n' };
 
         var pay = Payload;

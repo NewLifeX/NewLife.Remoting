@@ -300,6 +300,7 @@ public class ApiClient : ApiHost, IApiClient
             throw new ApiException(message.Code, message.Data?.ToStr().Trim('\"') ?? "") { Source = invoker + "/" + action };
 
         if (message.Data == null) return default;
+        if (resultType == typeof(IPacket)) return (TResult)(Object)message.Data;
         if (resultType == typeof(Packet)) return (TResult)(Object)message.Data;
 
         // 解码结果

@@ -25,11 +25,11 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <param name="code"></param>
     /// <param name="value"></param>
     /// <returns></returns>
-    public virtual Packet? Encode(String action, Int32 code, Object? value)
+    public virtual IPacket? Encode(String action, Int32 code, Object? value)
     {
         //if (value == null) return null;
 
-        if (value is Packet pk) return pk;
+        if (value is IPacket pk) return pk;
         if (value is IAccessor acc) return acc.ToPacket();
 
         // 不支持序列化异常
@@ -42,7 +42,7 @@ public class HttpEncoder : EncoderBase, IEncoder
             JsonHost.Write(new { action, code, data = value }, false, true, false);
         WriteLog("{0}=>{1}", action, json);
 
-        return json.GetBytes();
+        return (ArrayPacket)json.GetBytes();
     }
 
     /// <summary>解码参数</summary>
@@ -50,7 +50,7 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <param name="data"></param>
     /// <param name="msg"></param>
     /// <returns></returns>
-    public virtual Object? DecodeParameters(String action, Packet? data, IMessage msg)
+    public virtual Object? DecodeParameters(String action, IPacket? data, IMessage msg)
     {
         if (data == null || data.Total == 0) return null;
 
@@ -104,7 +104,7 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <param name="msg">消息</param>
     /// <param name="returnType">返回类型</param>
     /// <returns></returns>
-    public virtual Object? DecodeResult(String action, Packet data, IMessage msg, Type returnType)
+    public virtual Object? DecodeResult(String action, IPacket data, IMessage msg, Type returnType)
     {
         var json = data?.ToStr();
         WriteLog("{0}<={1}", action, json);
@@ -143,21 +143,21 @@ public class HttpEncoder : EncoderBase, IEncoder
         sb.Append(action);
 
         // 准备参数，二进制优先
-        Packet? pk = null;
+        IPacket? pk = null;
         if (args != null)
         {
-            if (args is Packet pk2)
+            if (args is IPacket pk2)
                 pk = pk2;
             else if (args is IAccessor acc)
                 pk = acc.ToPacket();
             else if (args is Byte[] buf)
-                pk = new Packet(buf);
+                pk = new ArrayPacket(buf);
             else if (args is String str2)
-                pk = str2.GetBytes();
+                pk = (ArrayPacket)str2.GetBytes();
             else if (args is DateTime dt)
-                pk = dt.ToFullString().GetBytes();
+                pk = (ArrayPacket)dt.ToFullString().GetBytes();
             else if (args.GetType().GetTypeCode() != TypeCode.Object)
-                pk = (args + "").GetBytes();
+                pk = (ArrayPacket)(args + "").GetBytes();
             else
             {
                 // url参数
@@ -184,7 +184,7 @@ public class HttpEncoder : EncoderBase, IEncoder
         }
         sb.Append("Connection:keep-alive");
 
-        req.Header = sb.Put(true).GetBytes();
+        req.Header = (ArrayPacket)sb.Return(true).GetBytes();
 
         return req;
     }
@@ -230,11 +230,12 @@ public class HttpEncoder : EncoderBase, IEncoder
         sb.AppendLine("Content-Type:application/json");
         sb.Append("Connection:keep-alive");
 
-        rs.Header = sb.Put(true).GetBytes();
+        rs.Header = (ArrayPacket)sb.Return(true).GetBytes();
 
         return rs;
     }
 
+    private static Byte[] NewLife => "\r\n"u8.ToArray();
     /// <summary>解码 请求/响应</summary>
     /// <param name="msg">消息</param>
     /// <returns>请求响应报文</returns>
@@ -243,10 +244,11 @@ public class HttpEncoder : EncoderBase, IEncoder
         if (msg is not HttpMessage http || http.Header == null) return null;
 
         // 分析请求方法 GET / HTTP/1.1
-        var p = http.Header.IndexOf(new[] { (Byte)'\r', (Byte)'\n' });
+        var span = http.Header.GetSpan();
+        var p = span.IndexOf(NewLife);
         if (p <= 0) return null;
 
-        var line = http.Header.ToStr(null, 0, p);
+        var line = span[..p].ToStr();
 
         var ss = line.Split(' ');
         if (ss.Length < 3) return null;
@@ -262,7 +264,7 @@ public class HttpEncoder : EncoderBase, IEncoder
             if (p > 0)
             {
                 message.Action = url.Substring(1, p - 1);
-                message.Data = url.Substring(p + 1).GetBytes();
+                message.Data = (ArrayPacket)url.Substring(p + 1).GetBytes();
             }
             else
             {
@@ -275,7 +277,7 @@ public class HttpEncoder : EncoderBase, IEncoder
             if (!uri.Query.IsNullOrEmpty())
             {
                 message.Action = uri.AbsolutePath;
-                message.Data = uri.Query.GetBytes();
+                message.Data = (ArrayPacket)uri.Query.GetBytes();
             }
             else
             {

@@ -1,4 +1,5 @@
-﻿using NewLife.Log;
+﻿using NewLife.Data;
+using NewLife.Log;
 using NewLife.Messaging;
 using NewLife.Model;
 using NewLife.Net;
@@ -91,11 +92,14 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
         {
             // 如果消息使用了原来SEAE的数据包，需要拷贝，避免多线程冲突
             // 也可能在粘包处理时，已经拷贝了一次
-            if (e.Packet != null)
+            if (e.Packet is ArrayPacket ap)
             {
-                if (msg.Payload != null && e.Packet.Data == msg.Payload.Data)
+                if (msg.Payload is ArrayPacket ap2 && ap.Buffer == ap2.Buffer)
                 {
-                    msg.Payload = msg.Payload.Clone();
+                    var ap3 = new ArrayPacket(ap2.Length);
+                    ap2.GetSpan().CopyTo(ap3.GetSpan());
+
+                    msg.Payload = ap3;
                 }
             }
 

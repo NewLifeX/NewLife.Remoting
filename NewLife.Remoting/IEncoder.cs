@@ -45,7 +45,7 @@ public interface IEncoder
     /// <param name="data">数据</param>
     /// <param name="msg">消息</param>
     /// <returns></returns>
-    Object? DecodeParameters(String action, Packet? data, IMessage msg);
+    Object? DecodeParameters(String action, IPacket? data, IMessage msg);
 
     /// <summary>解码结果</summary>
     /// <param name="action"></param>
@@ -53,7 +53,7 @@ public interface IEncoder
     /// <param name="msg">消息</param>
     /// <param name="returnType">返回类型</param>
     /// <returns></returns>
-    Object? DecodeResult(String action, Packet data, IMessage msg, Type returnType);
+    Object? DecodeResult(String action, IPacket data, IMessage msg, Type returnType);
 
     /// <summary>转换为目标类型</summary>
     /// <param name="obj"></param>

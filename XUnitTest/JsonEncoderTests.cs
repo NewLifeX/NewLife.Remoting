@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using NewLife;
+using NewLife.Buffers;
 using NewLife.Data;
 using NewLife.Messaging;
 using NewLife.Remoting;
@@ -25,37 +26,47 @@ public class JsonEncoderTests
         // 简洁请求
         {
             value = null;
-            var pk = encoder.Encode(name, null, value);
+            var pk = (ArrayPacket)encoder.Encode(name, null, value);
             Assert.Equal(1 + name.Length, pk.Total);
             Assert.Null(pk.Next);
             Assert.Equal(8, pk.Offset);
 
-            Assert.Equal(name, pk.Slice(1, name.Length).ToStr());
-            Assert.Equal(0, (Int32)pk.Slice(1 + name.Length, 4).ReadUInt32());
+            var reader = new SpanReader(pk.GetSpan());
+            reader.Advance(1);
+
+            Assert.Equal(name, reader.ReadString(name.Length, null));
+            Assert.Equal(0u, reader.ReadUInt32());
         }
         // 简洁请求，带空数据
         {
             value = new Byte[0];
-            var pk = encoder.Encode(name, null, value);
+            var pk = (ArrayPacket)encoder.Encode(name, null, value);
             Assert.Equal(1 + name.Length + 4, pk.Total);
             Assert.NotNull(pk.Next);
             Assert.Equal(value, pk.Next);
             Assert.Equal(8, pk.Offset);
 
-            Assert.Equal(name, pk.Slice(1, name.Length).ToStr());
-            Assert.Equal(0, (Int32)pk.Slice(1 + name.Length, 4).ReadUInt32());
+            var reader = new SpanReader(pk.GetSpan());
+            reader.Advance(1);
+
+            Assert.Equal(name, reader.ReadString(name.Length, null));
+            Assert.Equal(0u, reader.ReadUInt32());
         }
         // 标准请求，带数据体
         {
             value = Rand.NextBytes(64);
-            var pk = encoder.Encode(name, null, value);
+            var pk = (ArrayPacket)encoder.Encode(name, null, value);
             Assert.Equal(1 + name.Length + 4 + value.Count, pk.Total);
             Assert.NotNull(pk.Next);
             Assert.Equal(value, pk.Next);
             Assert.Equal(8, pk.Offset);
 
-            Assert.Equal(name, pk.Slice(1, name.Length).ToStr());
-            Assert.Equal(value.ToHex(), pk.Slice(1 + name.Length + 4, value.Count).ToHex());
+            var reader = new SpanReader(pk.GetSpan());
+            reader.Advance(1);
+
+            Assert.Equal(name, reader.ReadString(name.Length, null));
+            Assert.Equal(0u, reader.ReadUInt32());
+            Assert.Equal(value.ToHex(), reader.ReadBytes(-1).ToHex());
         }
     }
 
@@ -71,40 +82,51 @@ public class JsonEncoderTests
         {
             // 错误码200等同于0，表示成功
             value = null;
-            var pk = encoder.Encode(name, 200, value);
+            var pk = (ArrayPacket)encoder.Encode(name, 200, value);
             Assert.Equal(1 + name.Length, pk.Total);
             Assert.Null(pk.Next);
             Assert.Equal(8, pk.Offset);
 
-            Assert.Equal(name, pk.Slice(1, name.Length).ToStr());
-            Assert.Equal(0, (Int32)pk.Slice(1 + name.Length, 4).ReadUInt32());
+            var reader = new SpanReader(pk.GetSpan());
+            reader.Advance(1);
+
+            Assert.Equal(name, reader.ReadString(name.Length, null));
+            Assert.Equal(0u, reader.ReadUInt32());
         }
         // 简洁响应，带异常
         {
             value = new Byte[0];
-            var pk = encoder.Encode(name, 500, value);
+            var pk = (ArrayPacket)encoder.Encode(name, 500, value);
             Assert.Equal(1 + name.Length + 4 + 4 + value.Count, pk.Total);
             Assert.NotNull(pk.Next);
             Assert.Equal(value, pk.Next);
             Assert.Equal(8, pk.Offset);
 
-            Assert.Equal(name, pk.Slice(1, name.Length).ToStr());
+            var reader = new SpanReader(pk.GetSpan());
+            reader.Advance(1);
+
+            Assert.Equal(name, reader.ReadString(name.Length, null));
             // 错误码占4字节
-            Assert.Equal(500, (Int32)pk.Slice(1 + name.Length, 4).ReadUInt32());
+            Assert.Equal(500u, reader.ReadUInt32());
         }
         // 标准响应，带数据体
         {
             value = Rand.NextBytes(64);
-            var pk = encoder.Encode(name, 0, value);
+            var pk = (ArrayPacket)encoder.Encode(name, 0, value);
             Assert.Equal(1 + name.Length + 4 + value.Count, pk.Total);
             Assert.NotNull(pk.Next);
             Assert.Equal(value, pk.Next);
             Assert.Equal(8, pk.Offset);
 
-            Assert.Equal(name, pk.Slice(1, name.Length).ToStr());
+            var reader = new SpanReader(pk.GetSpan());
+            reader.Advance(1);
+
+            Assert.Equal(name, reader.ReadString(name.Length, null));
             // 正常响应不需要错误码，直接写数据体长度
-            Assert.Equal(value.Count, (Int32)pk.Slice(1 + name.Length, 4).ReadUInt32());
-            Assert.Equal(value.ToHex(), pk.Slice(1 + name.Length + 4, value.Count).ToHex());
+            Assert.Equal(value.Count, reader.ReadInt32());
+            Assert.Equal(value.ToHex(), reader.ReadBytes(value.Count).ToHex());
+            //Assert.Equal(value.Count, (Int32)pk.Slice(1 + name.Length, 4).ReadUInt32());
+            //Assert.Equal(value.ToHex(), pk.Slice(1 + name.Length + 4, value.Count).ToHex());
         }
     }
 
@@ -118,13 +140,16 @@ public class JsonEncoderTests
         // 简洁请求
         {
             var req = encoder.CreateRequest(name, null);
-            var pk = req.Payload;
+            var pk = (ArrayPacket)req.Payload;
             Assert.Equal(1 + name.Length, pk.Total);
             Assert.Null(pk.Next);
             Assert.Equal(8, pk.Offset);
 
-            Assert.Equal(name, pk.Slice(1, name.Length).ToStr());
-            Assert.Equal(0, (Int32)pk.Slice(1 + name.Length, 4).ReadUInt32());
+            var reader = new SpanReader(pk.GetSpan());
+            reader.Advance(1);
+
+            Assert.Equal(name, reader.ReadString(name.Length, null));
+            Assert.Equal(0u, reader.ReadUInt32());
 
             var am = encoder.Decode(req);
             Assert.Equal(name, am.Action);
@@ -148,14 +173,19 @@ public class JsonEncoderTests
         {
             var args = new Object();
             var req = encoder.CreateRequest(name, args);
-            var pk = req.Payload;
+            var pk = (ArrayPacket)req.Payload;
             Assert.Equal(1 + name.Length + 4 + args.ToJson().Length, pk.Total);
             Assert.NotNull(pk.Next);
             Assert.Equal(8, pk.Offset);
 
-            Assert.Equal(name, pk.Slice(1, name.Length).ToStr());
+            var reader = new SpanReader(pk.GetSpan());
+            reader.Advance(1);
+
+            Assert.Equal(name, reader.ReadString(name.Length, null));
+            Assert.Equal(0u, reader.ReadUInt32());
+
             var json = args.ToJson();
-            Assert.Equal(json, pk.Slice(1 + name.Length + 4, json.Length).ToStr());
+            Assert.Equal(json, reader.ReadString(-1, null));
 
             var am = encoder.Decode(req);
             Assert.Equal(name, am.Action);
@@ -180,7 +210,7 @@ public class JsonEncoderTests
         {
             var args = new UserInfo { Name = "Stone", Age = 18 };
             var req = encoder.CreateRequest(name, args);
-            var pk = req.Payload;
+            var pk = (ArrayPacket)req.Payload;
             Assert.Equal(1 + name.Length + 4 + args.ToJson().Length, pk.Total);
             Assert.NotNull(pk.Next);
             Assert.Equal(8, pk.Offset);
@@ -219,13 +249,16 @@ public class JsonEncoderTests
         {
             // 错误码200等同于0，表示成功
             var res = encoder.CreateResponse(req, name, 200, null);
-            var pk = res.Payload;
+            var pk = (ArrayPacket)res.Payload;
             Assert.Equal(1 + name.Length, pk.Total);
             Assert.Null(pk.Next);
             Assert.Equal(8, pk.Offset);
 
-            Assert.Equal(name, pk.Slice(1, name.Length).ToStr());
-            Assert.Equal(0, (Int32)pk.Slice(1 + name.Length, 4).ReadUInt32());
+            var reader = new SpanReader(pk.GetSpan());
+            reader.Advance(1);
+
+            Assert.Equal(name, reader.ReadString(name.Length, null));
+            Assert.Equal(0u, reader.ReadUInt32());
 
             var dm = res as DefaultMessage;
             Assert.True(dm.Reply);
@@ -255,15 +288,17 @@ public class JsonEncoderTests
         {
             var value = "this is an error message";
             var res = encoder.CreateResponse(req, name, 500, value);
-            var pk = res.Payload;
+            var pk = (ArrayPacket)res.Payload;
             Assert.Equal(1 + name.Length + 4 + 4 + value.Length, pk.Total);
             Assert.NotNull(pk.Next);
             Assert.Equal(8, pk.Offset);
 
-            Assert.Equal(name, pk.Slice(1, name.Length).ToStr());
-            // 错误码占4字节
-            Assert.Equal(500, (Int32)pk.Slice(1 + name.Length, 4).ReadUInt32());
-            Assert.Equal(value, pk.Slice(1 + name.Length + 4 + 4, value.Length).ToStr());
+            var reader = new SpanReader(pk.GetSpan());
+            reader.Advance(1);
+
+            Assert.Equal(name, reader.ReadString(name.Length, null));
+            Assert.Equal(500, reader.ReadInt32());
+            Assert.Equal(value, reader.ReadString(-1, null));
 
             var dm = res as DefaultMessage;
             Assert.True(dm.Reply);
@@ -293,16 +328,19 @@ public class JsonEncoderTests
         {
             var value = new UserInfo { Name = "Stone", Age = 18 };
             var res = encoder.CreateResponse(req, name, 0, value);
-            var pk = res.Payload;
+            var pk = (ArrayPacket)res.Payload;
             Assert.Equal(1 + name.Length + 4 + value.ToJson().Length, pk.Total);
             Assert.NotNull(pk.Next);
             Assert.Equal(8, pk.Offset);
 
-            Assert.Equal(name, pk.Slice(1, name.Length).ToStr());
+            var reader = new SpanReader(pk.GetSpan());
+            reader.Advance(1);
+
+            Assert.Equal(name, reader.ReadString(name.Length, null));
+
             var json = value.ToJson();
-            // 正常响应不需要错误码，直接写数据体长度
-            Assert.Equal(json.Length, (Int32)pk.Slice(1 + name.Length, 4).ReadUInt32());
-            Assert.Equal(json, pk.Slice(1 + name.Length + 4, json.Length).ToStr());
+            Assert.Equal(json.Length, reader.ReadInt32());
+            Assert.Equal(json, reader.ReadString(-1, null));
 
             var dm = res as DefaultMessage;
             Assert.True(dm.Reply);

@@ -53,11 +53,11 @@ public class ApiAction
         var ps = method.GetParameters();
         if (ps != null && ps.Length == 1)
         {
-            if (ps[0].ParameterType == typeof(Packet)) IsPacketParameter = true;
+            if (ps[0].ParameterType.As<IPacket>()) IsPacketParameter = true;
             if (ps[0].ParameterType.As<IAccessor>()) IsAccessorParameter = true;
         }
 
-        if (method.ReturnType == typeof(Packet)) IsPacketReturn = true;
+        if (method.ReturnType.As<IPacket>()) IsPacketReturn = true;
         if (method.ReturnType.As<IAccessor>()) IsAccessorReturn = true;
     }
 

@@ -12,7 +12,7 @@ public class ApiMessage
     public Int32 Code { get; set; }
 
     /// <summary>数据。请求参数或响应内容</summary>
-    public Packet? Data { get; set; }
+    public IPacket? Data { get; set; }
 
     /// <summary>已重载。友好表示该消息</summary>
     /// <returns></returns>

@@ -242,7 +242,7 @@ public class WsClient : ApiHost, IApiClient
             //todo 通过websocket收发数据
             var codec = GetMessageCodec();
             var context = new NetHandlerContext();
-            var pk = codec.Write(context, msg) as Packet;
+            var pk = codec.Write(context, msg) as IPacket;
             await client.SendAsync(pk!.ToSegment(), WebSocketMessageType.Binary, true, default);
 
             var buf = new Byte[64 * 1024];
@@ -285,7 +285,7 @@ public class WsClient : ApiHost, IApiClient
         // 特殊返回类型
         var resultType = typeof(TResult);
         if (resultType == typeof(IMessage)) return (TResult)rs;
-        //if (resultType == typeof(Packet)) return rs.Payload;
+        //if (resultType == typeof(IPacket)) return rs.Payload;
         if (rs.Payload == null) return default;
 
         // 解码响应得到SRMP报文
@@ -296,7 +296,7 @@ public class WsClient : ApiHost, IApiClient
             throw new ApiException(message.Code, message.Data?.ToStr().Trim('\"') ?? "") { Source = invoker + "/" + action };
 
         if (message.Data == null) return default;
-        if (resultType == typeof(Packet)) return (TResult)(Object)message.Data;
+        if (resultType == typeof(IPacket)) return (TResult)(Object)message.Data;
 
         // 解码结果
         var result = enc.DecodeResult(action, message.Data, rs, resultType);
@@ -338,7 +338,7 @@ public class WsClient : ApiHost, IApiClient
         {
             //return client.SendMessage(msg);
             var codec = GetMessageCodec();
-            var pk = codec.Write(null, msg) as Packet;
+            var pk = codec.Write(null, msg) as IPacket;
             client.SendAsync(pk.ToSegment(), WebSocketMessageType.Binary, true, default).Wait();
 
             return pk.Total;

@@ -27,7 +27,7 @@ public class WebSocketServerCodec : Handler
     /// <returns></returns>
     public override Object? Read(IHandlerContext context, Object message)
     {
-        if (message is not Packet pk) return base.Read(context, message);
+        if (message is not IPacket pk) return base.Read(context, message);
         if (context.Owner is not IExtend ss) return base.Read(context, message);
 
         // 连接必须是ws/wss协议
@@ -76,7 +76,11 @@ public class WebSocketServerCodec : Handler
             ss["isWs"] = false;
         }
 
-        return base.Read(context, message);
+        try
+        {
+            return base.Read(context, message);
+        }
+        finally { message.TryDispose(); }
     }
 
     /// <summary>发送消息时，写入数据</summary>
@@ -88,7 +92,7 @@ public class WebSocketServerCodec : Handler
         // 仅编码websocket连接
         if (context.Owner is IExtend ss && ss["_websocket"] is WebSocket)
         {
-            if (message is Packet pk)
+            if (message is IPacket pk)
             {
                 var msg = new WebSocketMessage
                 {
@@ -99,6 +103,10 @@ public class WebSocketServerCodec : Handler
             }
         }
 
-        return base.Write(context, message);
+        try
+        {
+            return base.Write(context, message);
+        }
+        finally { message.TryDispose(); }
     }
 }

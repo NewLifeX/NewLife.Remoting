@@ -267,7 +267,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <returns></returns>
     protected virtual async Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken)
     {
-        if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]=>{1}", action, args is Packet or Byte[]? "" : args?.ToJson());
+        if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]=>{1}", action, args is IPacket or Byte[]? "" : args?.ToJson());
 
         Init();
 
@@ -284,7 +284,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         else
             rs = await _client.InvokeAsync<TResult>(action, args, cancellationToken);
 
-        if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]<={1}", action, rs is Packet or Byte[]? "" : rs?.ToJson());
+        if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]<={1}", action, rs is IPacket or Byte[]? "" : rs?.ToJson());
 
         return rs!;
     }
@@ -298,7 +298,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <exception cref="NotSupportedException"></exception>
     protected virtual async Task<TResult> GetAsync<TResult>(String action, Object? args, CancellationToken cancellationToken = default)
     {
-        if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]=>{1}", action, args is Packet or Byte[]? "" : args?.ToJson());
+        if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]=>{1}", action, args is IPacket or Byte[]? "" : args?.ToJson());
 
         Init();
 
@@ -311,7 +311,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         // GET请求
         var rs = await http.InvokeAsync<TResult>(HttpMethod.Get, action, args, null, cancellationToken);
 
-        if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]<={1}", action, rs is Packet or Byte[]? "" : rs?.ToJson());
+        if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]<={1}", action, rs is IPacket or Byte[]? "" : rs?.ToJson());
 
         return rs!;
     }

@@ -1,11 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net40;net45;net461;netstandard2.0;netstandard2.1;net5.0;net6.0;net7.0;net8.0</TargetFrameworks>
+    <TargetFrameworks>net45;net461;netstandard2.0;netstandard2.1;net5.0;net6.0;net7.0;net8.0</TargetFrameworks>
     <AssemblyTitle>协议通信库</AssemblyTitle>
     <Description>提供高性能RPC客户端服务端，提供Http/WebSocket客户端服务端，提供应用级客户端</Description>
     <Company>新生命开发团队</Company>
     <Copyright>©2002-2024 新生命开发团队</Copyright>
-    <VersionPrefix>3.0</VersionPrefix>
+    <VersionPrefix>3.1</VersionPrefix>
     <VersionSuffix>$([System.DateTime]::Now.ToString(`yyyy.MMdd`))</VersionSuffix>
     <Version>$(VersionPrefix).$(VersionSuffix)</Version>
     <FileVersion>$(Version)</FileVersion>
@@ -28,7 +28,7 @@
     <RepositoryUrl>https://github.com/NewLifeX/NewLife.Remoting</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>新生命团队;X组件;NewLife;$(AssemblyName)</PackageTags>
-    <PackageReleaseNotes>第三代协议通信库，增强RPC，引入主流Http/WebSockt/WebApi应用级封装</PackageReleaseNotes>
+    <PackageReleaseNotes>对标v11核心库，提升内存效率，降低GC</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -51,11 +51,8 @@
     </PackageReference>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)'!='net40'">
-    <PackageReference Include="NewLife.Core" Version="10.10.2024.902" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)'=='net40'">
-    <PackageReference Include="NewLife.Core" Version="10.10.2024.0801-net40" />
+  <ItemGroup>
+    <PackageReference Include="NewLife.Core" Version="11.0.2024.911-beta0752" />
   </ItemGroup>
 
   <ItemGroup>
