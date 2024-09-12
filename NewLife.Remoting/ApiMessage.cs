@@ -3,7 +3,7 @@
 namespace NewLife.Remoting;
 
 /// <summary>Api请求/响应</summary>
-public class ApiMessage
+public class ApiMessage : IDisposable
 {
     /// <summary>动作</summary>
     public String Action { get; set; } = null!;
@@ -17,4 +17,7 @@ public class ApiMessage
     /// <summary>已重载。友好表示该消息</summary>
     /// <returns></returns>
     public override String ToString() => Code > 0 ? $"{Action}[{Code}]" : Action;
+
+    /// <summary>销毁。回收内存到缓冲池</summary>
+    public void Dispose() => Data.TryDispose();
 }

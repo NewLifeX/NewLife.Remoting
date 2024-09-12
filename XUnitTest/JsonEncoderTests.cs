@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using NewLife;
@@ -32,10 +31,9 @@ public class JsonEncoderTests
             Assert.Equal(8, pk.Offset);
 
             var reader = new SpanReader(pk.GetSpan());
-            reader.Advance(1);
 
-            Assert.Equal(name, reader.ReadString(name.Length, null));
-            Assert.Equal(0u, reader.ReadUInt32());
+            Assert.Equal(name, reader.ReadString());
+            if (reader.FreeCapacity > 0) Assert.Equal(0u, reader.ReadUInt32());
         }
         // 简洁请求，带空数据
         {
@@ -47,10 +45,9 @@ public class JsonEncoderTests
             Assert.Equal(8, pk.Offset);
 
             var reader = new SpanReader(pk.GetSpan());
-            reader.Advance(1);
 
-            Assert.Equal(name, reader.ReadString(name.Length, null));
-            Assert.Equal(0u, reader.ReadUInt32());
+            Assert.Equal(name, reader.ReadString());
+            if (reader.FreeCapacity > 0) Assert.Equal(0u, reader.ReadUInt32());
         }
         // 标准请求，带数据体
         {
@@ -61,12 +58,16 @@ public class JsonEncoderTests
             Assert.Equal(value, pk.Next);
             Assert.Equal(8, pk.Offset);
 
+            // 拷贝一次，拉平。因为SpanReader不支持跨包读取
+            pk = (ArrayPacket)pk.ToArray();
             var reader = new SpanReader(pk.GetSpan());
-            reader.Advance(1);
 
-            Assert.Equal(name, reader.ReadString(name.Length, null));
-            Assert.Equal(0u, reader.ReadUInt32());
-            Assert.Equal(value.ToHex(), reader.ReadBytes(-1).ToHex());
+            Assert.Equal(name, reader.ReadString());
+
+            var len = reader.ReadInt32();
+            Assert.Equal(value.Total, len);
+            var buf = reader.ReadBytes(len);
+            Assert.Equal(value.ToHex(64), buf.ToHex(64));
         }
     }
 
@@ -88,10 +89,9 @@ public class JsonEncoderTests
             Assert.Equal(8, pk.Offset);
 
             var reader = new SpanReader(pk.GetSpan());
-            reader.Advance(1);
 
-            Assert.Equal(name, reader.ReadString(name.Length, null));
-            Assert.Equal(0u, reader.ReadUInt32());
+            Assert.Equal(name, reader.ReadString());
+            if (reader.FreeCapacity > 0) Assert.Equal(0u, reader.ReadUInt32());
         }
         // 简洁响应，带异常
         {
@@ -103,9 +103,8 @@ public class JsonEncoderTests
             Assert.Equal(8, pk.Offset);
 
             var reader = new SpanReader(pk.GetSpan());
-            reader.Advance(1);
 
-            Assert.Equal(name, reader.ReadString(name.Length, null));
+            Assert.Equal(name, reader.ReadString());
             // 错误码占4字节
             Assert.Equal(500u, reader.ReadUInt32());
         }
@@ -118,13 +117,20 @@ public class JsonEncoderTests
             Assert.Equal(value, pk.Next);
             Assert.Equal(8, pk.Offset);
 
+            // 拷贝一次，拉平。因为SpanReader不支持跨包读取
+            pk = (ArrayPacket)pk.ToArray();
             var reader = new SpanReader(pk.GetSpan());
-            reader.Advance(1);
 
-            Assert.Equal(name, reader.ReadString(name.Length, null));
+            Assert.Equal(name, reader.ReadString());
             // 正常响应不需要错误码，直接写数据体长度
             Assert.Equal(value.Count, reader.ReadInt32());
-            Assert.Equal(value.ToHex(), reader.ReadBytes(value.Count).ToHex());
+
+            var span = reader.ReadBytes(value.Count);
+            Assert.Equal(value.ToArray(), span);
+
+            var hex1 = value.ToHex(64);
+            var hex2 = span.ToHex(64);
+            Assert.Equal(hex1, hex2);
             //Assert.Equal(value.Count, (Int32)pk.Slice(1 + name.Length, 4).ReadUInt32());
             //Assert.Equal(value.ToHex(), pk.Slice(1 + name.Length + 4, value.Count).ToHex());
         }
@@ -146,10 +152,9 @@ public class JsonEncoderTests
             Assert.Equal(8, pk.Offset);
 
             var reader = new SpanReader(pk.GetSpan());
-            reader.Advance(1);
 
-            Assert.Equal(name, reader.ReadString(name.Length, null));
-            Assert.Equal(0u, reader.ReadUInt32());
+            Assert.Equal(name, reader.ReadString());
+            if (reader.FreeCapacity > 0) Assert.Equal(0u, reader.ReadUInt32());
 
             var am = encoder.Decode(req);
             Assert.Equal(name, am.Action);
@@ -178,14 +183,18 @@ public class JsonEncoderTests
             Assert.NotNull(pk.Next);
             Assert.Equal(8, pk.Offset);
 
+            // 拷贝一次，拉平。因为SpanReader不支持跨包读取
+            pk = (ArrayPacket)req.Payload.ToArray();
             var reader = new SpanReader(pk.GetSpan());
-            reader.Advance(1);
 
-            Assert.Equal(name, reader.ReadString(name.Length, null));
-            Assert.Equal(0u, reader.ReadUInt32());
+            Assert.Equal(name, reader.ReadString());
+
+            // 2字节长度，就是{}
+            Assert.Equal(2, reader.ReadInt32());
 
             var json = args.ToJson();
-            Assert.Equal(json, reader.ReadString(-1, null));
+            Assert.Equal(2, json.Length);
+            Assert.Equal(json, reader.ReadString(-1));
 
             var am = encoder.Decode(req);
             Assert.Equal(name, am.Action);
@@ -255,10 +264,9 @@ public class JsonEncoderTests
             Assert.Equal(8, pk.Offset);
 
             var reader = new SpanReader(pk.GetSpan());
-            reader.Advance(1);
 
-            Assert.Equal(name, reader.ReadString(name.Length, null));
-            Assert.Equal(0u, reader.ReadUInt32());
+            Assert.Equal(name, reader.ReadString());
+            if (reader.FreeCapacity > 0) Assert.Equal(0, reader.ReadInt32());
 
             var dm = res as DefaultMessage;
             Assert.True(dm.Reply);
@@ -293,12 +301,16 @@ public class JsonEncoderTests
             Assert.NotNull(pk.Next);
             Assert.Equal(8, pk.Offset);
 
+            // 拷贝一次，拉平。因为SpanReader不支持跨包读取
+            pk = (ArrayPacket)pk.ToArray();
             var reader = new SpanReader(pk.GetSpan());
-            reader.Advance(1);
 
-            Assert.Equal(name, reader.ReadString(name.Length, null));
+            Assert.Equal(name, reader.ReadString());
             Assert.Equal(500, reader.ReadInt32());
-            Assert.Equal(value, reader.ReadString(-1, null));
+
+            var len = reader.ReadInt32();
+            Assert.Equal(value.Length, len);
+            Assert.Equal(value, reader.ReadString(len));
 
             var dm = res as DefaultMessage;
             Assert.True(dm.Reply);
@@ -333,14 +345,15 @@ public class JsonEncoderTests
             Assert.NotNull(pk.Next);
             Assert.Equal(8, pk.Offset);
 
+            // 拷贝一次，拉平。因为SpanReader不支持跨包读取
+            pk = (ArrayPacket)pk.ToArray();
             var reader = new SpanReader(pk.GetSpan());
-            reader.Advance(1);
 
-            Assert.Equal(name, reader.ReadString(name.Length, null));
+            Assert.Equal(name, reader.ReadString());
 
             var json = value.ToJson();
             Assert.Equal(json.Length, reader.ReadInt32());
-            Assert.Equal(json, reader.ReadString(-1, null));
+            Assert.Equal(json, reader.ReadString(-1));
 
             var dm = res as DefaultMessage;
             Assert.True(dm.Reply);
