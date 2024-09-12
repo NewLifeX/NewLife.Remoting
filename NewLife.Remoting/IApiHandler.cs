@@ -250,7 +250,8 @@ public class ApiHandler : IApiHandler
                 // 例如接口 Say(String text)，客户端可用 InvokeAsync<Object>("Say", "Hello NewLife!")
                 else if (args != null)
                 {
-                    ps[pi.Name] = args.ToStr().ChangeType(pi.ParameterType);
+                    //ps[pi.Name] = args.ToStr().ChangeType(pi.ParameterType);
+                    ps[pi.Name] = raw == null ? null : encoder.Convert(raw, pi.ParameterType);
 
                     return ps;
                 }

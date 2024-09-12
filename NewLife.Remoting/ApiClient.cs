@@ -305,7 +305,12 @@ public class ApiClient : ApiHost, IApiClient
 
             if (message.Data == null) return default;
             if (resultType == typeof(IPacket)) return (TResult)(Object)message.Data;
-            if (resultType == typeof(Packet)) return (TResult)(Object)message.Data;
+            if (resultType == typeof(Packet))
+            {
+                if (message.Data is Packet) return (TResult)(Object)message.Data;
+
+                return (TResult)(Object)new Packet(message.Data.ToArray());
+            }
 
             try
             {

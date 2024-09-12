@@ -162,16 +162,16 @@ public class ApiTest : DisposeBase
 
     class BigController
     {
-        public Packet Test(Packet pk)
+        public IPacket Test(IPacket pk)
         {
             Assert.Equal(5 * 8 * 1024, pk.Total);
 
             var buf = pk.ReadBytes().Select(e => (Byte)(e ^ 'x')).ToArray();
 
-            return buf;
+            return (ArrayPacket)buf;
         }
 
-        public void TestOneWay(Packet pk)
+        public void TestOneWay(IPacket pk)
         {
             Assert.Equal(5 * 8 * 1024, pk.Total);
         }
