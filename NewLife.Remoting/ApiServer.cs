@@ -225,7 +225,7 @@ public class ApiServer : ApiHost, IServer
         if (msg.Reply) return null;
 
         var enc = session["Encoder"] as IEncoder ?? Encoder;
-        var request = enc.Decode(msg);
+        using var request = enc.Decode(msg);
         if (request == null) return null;
 
         // 根据动作名，开始跟踪

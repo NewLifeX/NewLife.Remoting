@@ -280,6 +280,8 @@ public class ApiClient : ApiHost, IApiClient
         }
         finally
         {
+            msg.Payload.TryDispose();
+
             var msCost = st.StopCount(sw) / 1000;
             if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢调用[{action}]({msg})，耗时{msCost:n0}ms");
 
@@ -292,25 +294,39 @@ public class ApiClient : ApiHost, IApiClient
         //if (resultType == typeof(Packet)) return rs.Payload;
         if (rs.Payload == null) return default;
 
-        // 解码响应得到SRMP报文
-        var message = enc.Decode(rs) ?? throw new InvalidOperationException();
+        try
+        {
+            // 解码响应得到SRMP报文
+            var message = enc.Decode(rs) ?? throw new InvalidOperationException();
 
-        // 是否成功
-        if (message.Code is not ApiCode.Ok and not ApiCode.Ok200)
-            throw new ApiException(message.Code, message.Data?.ToStr().Trim('\"') ?? "") { Source = invoker + "/" + action };
+            // 是否成功
+            if (message.Code is not ApiCode.Ok and not ApiCode.Ok200)
+                throw new ApiException(message.Code, message.Data?.ToStr().Trim('\"') ?? "") { Source = invoker + "/" + action };
 
-        if (message.Data == null) return default;
-        if (resultType == typeof(IPacket)) return (TResult)(Object)message.Data;
-        if (resultType == typeof(Packet)) return (TResult)(Object)message.Data;
+            if (message.Data == null) return default;
+            if (resultType == typeof(IPacket)) return (TResult)(Object)message.Data;
+            if (resultType == typeof(Packet)) return (TResult)(Object)message.Data;
 
-        // 解码结果
-        var result = enc.DecodeResult(action, message.Data, rs, resultType);
-        if (result == null) return default;
-        if (resultType == typeof(Object)) return (TResult)result;
+            try
+            {
+                // 解码结果
+                var result = enc.DecodeResult(action, message.Data, rs, resultType);
+                if (result == null) return default;
+                if (resultType == typeof(Object)) return (TResult)result;
 
-        // 返回
-        //return (TResult?)enc.Convert(result, resultType);
-        return (TResult?)result;
+                // 返回
+                //return (TResult?)enc.Convert(result, resultType);
+                return (TResult?)result;
+            }
+            finally
+            {
+                message.TryDispose();
+            }
+        }
+        finally
+        {
+            rs.Payload.TryDispose();
+        }
     }
 
     /// <summary>单向调用，不等待返回</summary>
@@ -352,6 +368,8 @@ public class ApiClient : ApiHost, IApiClient
         }
         finally
         {
+            msg.Payload.TryDispose();
+
             var msCost = st.StopCount(sw) / 1000;
             if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢调用[{action}]，耗时{msCost:n0}ms");
         }
@@ -371,7 +389,7 @@ public class ApiClient : ApiHost, IApiClient
         // Api解码消息得到Action和参数
         if (e.Message is not IMessage msg) return;
 
-        var apiMessage = Encoder.Decode(msg);
+        using var apiMessage = Encoder.Decode(msg);
         var e2 = new ApiReceivedEventArgs
         {
             Remote = sender as ISocketRemote,

@@ -155,5 +155,9 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
 
             throw;
         }
+        finally
+        {
+            msg.Payload.TryDispose();
+        }
     }
 }
