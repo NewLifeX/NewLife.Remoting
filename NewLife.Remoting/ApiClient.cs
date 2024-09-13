@@ -243,7 +243,7 @@ public class ApiClient : ApiHost, IApiClient
 
         // 编码请求，构造消息
         var enc = Encoder;
-        var msg = enc.CreateRequest(action, args);
+        using var msg = enc.CreateRequest(action, args);
         if (flag > 0 && msg is DefaultMessage dm) dm.Flag = flag;
 
         var invoker = client.Remote + "";
@@ -280,7 +280,7 @@ public class ApiClient : ApiHost, IApiClient
         }
         finally
         {
-            msg.Payload.TryDispose();
+            //msg.Payload.TryDispose();
 
             var msCost = st.StopCount(sw) / 1000;
             if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢调用[{action}]({msg})，耗时{msCost:n0}ms");
@@ -351,7 +351,7 @@ public class ApiClient : ApiHost, IApiClient
         if (args != null && span != null) args = span.Attach(args);
 
         // 编码请求
-        var msg = Encoder.CreateRequest(action, args);
+        using var msg = Encoder.CreateRequest(action, args);
 
         if (msg is DefaultMessage dm)
         {
@@ -373,7 +373,7 @@ public class ApiClient : ApiHost, IApiClient
         }
         finally
         {
-            msg.Payload.TryDispose();
+            //msg.Payload.TryDispose();
 
             var msCost = st.StopCount(sw) / 1000;
             if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢调用[{action}]，耗时{msCost:n0}ms");
@@ -474,7 +474,7 @@ public class ApiClient : ApiHost, IApiClient
         var pf1 = StatInvoke;
         if (pf1 != null && pf1.Value > 0) sb.AppendFormat("请求：{0} ", pf1);
 
-        var msg = sb.Put(true);
+        var msg = sb.Return(true);
         if (msg.IsNullOrEmpty() || msg == _Last) return;
         _Last = msg;
 

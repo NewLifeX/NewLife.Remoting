@@ -331,7 +331,7 @@ public class ApiServer : ApiHost, IServer
         if (Server is NetServer ns)
             sb.Append(ns.GetStat());
 
-        var msg = sb.Put(true);
+        var msg = sb.Return(true);
         //var msg = this.GetStat();
         if (msg.IsNullOrEmpty() || msg == _Last) return;
         _Last = msg;

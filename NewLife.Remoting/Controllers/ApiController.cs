@@ -60,7 +60,7 @@ public class ApiController : IApi
             var des = mi.GetDescription();
             if (!des.IsNullOrEmpty()) sb.AppendFormat(" {0}", des);
 
-            list.Add(sb.Put(true));
+            list.Add(sb.Return(true));
         }
 
         return _all = list.ToArray();

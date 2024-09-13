@@ -108,7 +108,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
             {
                 try
                 {
-                    var rs = _Host.Process(this, (m as IMessage)!);
+                    using var rs = _Host.Process(this, (m as IMessage)!);
                     if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
                 }
                 catch (Exception ex)
@@ -120,7 +120,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
         }
         else
         {
-            var rs = _Host.Process(this, msg);
+            using var rs = _Host.Process(this, msg);
             if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
         }
     }
@@ -136,7 +136,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
         if (args != null && span != null) args = span.Attach(args);
 
         // 编码请求
-        var msg = Host.Host.Encoder.CreateRequest(action, args);
+        using var msg = Host.Host.Encoder.CreateRequest(action, args);
 
         if (msg is DefaultMessage dm)
         {
@@ -157,7 +157,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
         }
         finally
         {
-            msg.Payload.TryDispose();
+            //msg.Payload.TryDispose();
         }
     }
 }

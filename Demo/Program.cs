@@ -36,7 +36,7 @@ internal class Program
         };
         client.Received += (s, e) =>
         {
-            XTrace.WriteLine("通知：{0} 参数：{1}", e.ApiMessage.Action, e.ApiMessage.Data.ToStr());
+            XTrace.WriteLine("通知：{0} 参数：{1}", e.ApiMessage?.Action, e.ApiMessage?.Data?.ToStr());
         };
 
         var rs = client.Invoke<Int32>("Big/Sum", new { a = 123, b = 456 });
@@ -66,11 +66,11 @@ internal class Program
         }
         public String ToUpper(String str) => str.ToUpper();
 
-        public Packet Test(Packet pk)
+        public IPacket Test(IPacket pk)
         {
             var buf = pk.ReadBytes().Select(e => (Byte)(e ^ 'x')).ToArray();
 
-            return buf;
+            return (ArrayPacket)buf;
         }
     }
 }
