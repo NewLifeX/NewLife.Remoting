@@ -1,4 +1,5 @@
-﻿using NewLife.Http;
+﻿using NewLife.Data;
+using NewLife.Http;
 using NewLife.Log;
 using NewLife.Net;
 using NewLife.Remoting.Models;
@@ -84,7 +85,7 @@ class WsChannel : DisposeBase
             var buf = new Byte[64 * 1024];
             while (!source.IsCancellationRequested && !socket.Disposed)
             {
-                var rs = await socket.ReceiveMessageAsync(source.Token);
+                using var rs = await socket.ReceiveMessageAsync(source.Token);
                 if (rs == null) continue;
 
                 if (rs.Type == WebSocketMessageType.Close) break;

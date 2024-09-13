@@ -41,13 +41,21 @@ public class WebSocketClientCodec : Handler
     /// <returns></returns>
     public override Object? Read(IHandlerContext context, Object message)
     {
-        if (message is Packet pk)
+        if (message is IPacket pk)
         {
             var msg = new WebSocketMessage();
             if (msg.Read(pk)) message = msg.Payload!;
         }
 
-        return base.Read(context, message);
+        try
+        {
+            return base.Read(context, message);
+        }
+        finally
+        {
+            // 下游可能忘记释放内存
+            message.TryDispose();
+        }
     }
 
     /// <summary>发送消息时，写入数据</summary>
@@ -56,12 +64,20 @@ public class WebSocketClientCodec : Handler
     /// <returns></returns>
     public override Object? Write(IHandlerContext context, Object message)
     {
-        if (message is Packet pk)
+        if (message is IPacket pk)
             message = new WebSocketMessage { Type = WebSocketMessageType.Binary, Payload = pk };
 
         if (message is WebSocketMessage msg)
             message = msg.ToPacket();
 
-        return base.Write(context, message);
+        try
+        {
+            return base.Write(context, message);
+        }
+        finally
+        {
+            // 下游可能忘记释放内存
+            message.TryDispose();
+        }
     }
 }

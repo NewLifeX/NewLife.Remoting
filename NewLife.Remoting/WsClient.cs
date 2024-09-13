@@ -242,7 +242,7 @@ public class WsClient : ApiHost, IApiClient
             //todo 通过websocket收发数据
             var codec = GetMessageCodec();
             var context = new NetHandlerContext();
-            var pk = codec.Write(context, msg) as Packet;
+            var pk = codec.Write(context, msg) as IPacket;
             await client.SendAsync(pk!.ToSegment(), WebSocketMessageType.Binary, true, default);
 
             var buf = new Byte[64 * 1024];
@@ -276,6 +276,8 @@ public class WsClient : ApiHost, IApiClient
         }
         finally
         {
+            msg.Payload.TryDispose();
+
             var msCost = st.StopCount(sw) / 1000;
             if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢调用[{action}]({msg})，耗时{msCost:n0}ms");
 
@@ -285,27 +287,42 @@ public class WsClient : ApiHost, IApiClient
         // 特殊返回类型
         var resultType = typeof(TResult);
         if (resultType == typeof(IMessage)) return (TResult)rs;
-        //if (resultType == typeof(Packet)) return rs.Payload;
+        //if (resultType == typeof(IPacket)) return rs.Payload;
         if (rs.Payload == null) return default;
 
-        // 解码响应得到SRMP报文
-        var message = enc.Decode(rs) ?? throw new InvalidOperationException();
+        try
+        {
+            // 解码响应得到SRMP报文
+            var message = enc.Decode(rs) ?? throw new InvalidOperationException();
 
-        // 是否成功
-        if (message.Code is not ApiCode.Ok and not ApiCode.Ok200)
-            throw new ApiException(message.Code, message.Data?.ToStr().Trim('\"') ?? "") { Source = invoker + "/" + action };
+            // 是否成功
+            if (message.Code is not ApiCode.Ok and not ApiCode.Ok200)
+                throw new ApiException(message.Code, message.Data?.ToStr().Trim('\"') ?? "") { Source = invoker + "/" + action };
 
-        if (message.Data == null) return default;
-        if (resultType == typeof(Packet)) return (TResult)(Object)message.Data;
+            if (message.Data == null) return default;
+            if (resultType == typeof(IPacket)) return (TResult)(Object)message.Data;
+            if (resultType == typeof(Packet)) return (TResult)(Object)message.Data;
 
-        // 解码结果
-        var result = enc.DecodeResult(action, message.Data, rs, resultType);
-        if (result == null) return default;
-        if (resultType == typeof(Object)) return (TResult)result;
+            try
+            {
+                // 解码结果
+                var result = enc.DecodeResult(action, message.Data, rs, resultType);
+                if (result == null) return default;
+                if (resultType == typeof(Object)) return (TResult)result;
 
-        // 返回
-        //return (TResult?)enc.Convert(result, resultType);
-        return (TResult?)result;
+                // 返回
+                //return (TResult?)enc.Convert(result, resultType);
+                return (TResult?)result;
+            }
+            finally
+            {
+                message.TryDispose();
+            }
+        }
+        finally
+        {
+            rs.Payload.TryDispose();
+        }
     }
 
     /// <summary>单向调用，不等待返回</summary>
@@ -338,10 +355,10 @@ public class WsClient : ApiHost, IApiClient
         {
             //return client.SendMessage(msg);
             var codec = GetMessageCodec();
-            var pk = codec.Write(null, msg) as Packet;
-            client.SendAsync(pk.ToSegment(), WebSocketMessageType.Binary, true, default).Wait();
+            var pk = codec.Write(null!, msg) as IPacket;
+            client.SendAsync(pk!.ToSegment(), WebSocketMessageType.Binary, true, default).Wait();
 
-            return pk.Total;
+            return pk!.Total;
         }
         catch (Exception ex)
         {
@@ -352,6 +369,8 @@ public class WsClient : ApiHost, IApiClient
         }
         finally
         {
+            msg.Payload.TryDispose();
+
             var msCost = st.StopCount(sw) / 1000;
             if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢调用[{action}]，耗时{msCost:n0}ms");
         }
@@ -371,7 +390,7 @@ public class WsClient : ApiHost, IApiClient
         // Api解码消息得到Action和参数
         if (e.Message is not IMessage msg) return;
 
-        var apiMessage = Encoder.Decode(msg);
+        using var apiMessage = Encoder.Decode(msg);
         var e2 = new ApiReceivedEventArgs
         {
             Remote = sender as ISocketRemote,

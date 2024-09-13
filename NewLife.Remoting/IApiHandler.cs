@@ -20,7 +20,7 @@ public interface IApiHandler
     /// <param name="args">参数</param>
     /// <param name="msg">消息</param>
     /// <returns></returns>
-    Object? Execute(IApiSession session, String action, Packet? args, IMessage msg);
+    Object? Execute(IApiSession session, String action, IPacket? args, IMessage msg);
 }
 
 /// <summary>默认处理器</summary>
@@ -41,7 +41,7 @@ public class ApiHandler : IApiHandler
     /// <param name="args">参数</param>
     /// <param name="msg">消息</param>
     /// <returns></returns>
-    public virtual Object? Execute(IApiSession session, String action, Packet? args, IMessage msg)
+    public virtual Object? Execute(IApiSession session, String action, IPacket? args, IMessage msg)
     {
         if (action.IsNullOrEmpty()) action = "Api/Info";
 
@@ -79,10 +79,10 @@ public class ApiHandler : IApiHandler
             // 执行动作
             if (rs == null)
             {
-                // 特殊处理参数和返回类型都是Packet的服务
+                // 特殊处理参数和返回类型都是IPacket的服务
                 if (api.IsPacketParameter && api.IsPacketReturn)
                 {
-                    var func = api.Method.As<Func<Packet?, Packet?>>(controller)
+                    var func = api.Method.As<Func<IPacket?, IPacket?>>(controller)
                         ?? throw new ArgumentOutOfRangeException(nameof(api.Method));
                     rs = func(args);
                 }
@@ -139,7 +139,7 @@ public class ApiHandler : IApiHandler
     /// <param name="api"></param>
     /// <param name="msg">消息内容，辅助数据解析</param>
     /// <returns></returns>
-    public virtual ControllerContext Prepare(IApiSession session, String action, Packet? args, ApiAction api, IMessage msg)
+    public virtual ControllerContext Prepare(IApiSession session, String action, IPacket? args, ApiAction api, IMessage msg)
     {
         //var enc = Host.Encoder;
         var enc = session["Encoder"] as IEncoder ?? Host.Encoder;
@@ -225,7 +225,7 @@ public class ApiHandler : IApiHandler
     /// <param name="args"></param>
     /// <param name="encoder"></param>
     /// <returns></returns>
-    protected virtual IDictionary<String, Object?> GetParams(MethodInfo method, IDictionary<String, Object?> dic, Object? raw, Packet? args, IEncoder encoder)
+    protected virtual IDictionary<String, Object?> GetParams(MethodInfo method, IDictionary<String, Object?> dic, Object? raw, IPacket? args, IEncoder encoder)
     {
         var ps = new Dictionary<String, Object?>();
 
@@ -250,7 +250,8 @@ public class ApiHandler : IApiHandler
                 // 例如接口 Say(String text)，客户端可用 InvokeAsync<Object>("Say", "Hello NewLife!")
                 else if (args != null)
                 {
-                    ps[pi.Name] = args.ToStr().ChangeType(pi.ParameterType);
+                    //ps[pi.Name] = args.ToStr().ChangeType(pi.ParameterType);
+                    ps[pi.Name] = raw == null ? null : encoder.Convert(raw, pi.ParameterType);
 
                     return ps;
                 }
@@ -307,7 +308,7 @@ public class TokenApiHandler : ApiHandler
     /// <param name="api"></param>
     /// <param name="msg"></param>
     /// <returns></returns>
-    public override ControllerContext Prepare(IApiSession session, String action, Packet? args, ApiAction api, IMessage msg)
+    public override ControllerContext Prepare(IApiSession session, String action, IPacket? args, ApiAction api, IMessage msg)
     {
         var ctx = base.Prepare(session, action, args, api, msg);
 

@@ -1,5 +1,6 @@
 ﻿using Moq;
 using NewLife;
+using NewLife.Data;
 using NewLife.Model;
 using NewLife.Reflection;
 using NewLife.Remoting;
@@ -25,6 +26,6 @@ public class ApiHandlerTests
         var session = Mock.Of<IApiSession>();
         var handler = new ApiHandler { Host = host };
         //handler.Invoke("Prepare", null, "App/PostDatas", js.GetBytes(), null, null);
-        handler.Prepare(session, "App/PostDatas", js.GetBytes(), action, null);
+        handler.Prepare(session, "App/PostDatas", (ArrayPacket)js.GetBytes(), action, null);
     }
 }

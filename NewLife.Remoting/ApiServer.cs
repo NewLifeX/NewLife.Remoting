@@ -225,7 +225,7 @@ public class ApiServer : ApiHost, IServer
         if (msg.Reply) return null;
 
         var enc = session["Encoder"] as IEncoder ?? Encoder;
-        var request = enc.Decode(msg);
+        using var request = enc.Decode(msg);
         if (request == null) return null;
 
         // 根据动作名，开始跟踪
@@ -293,7 +293,7 @@ public class ApiServer : ApiHost, IServer
     /// <param name="args">参数</param>
     /// <param name="msg">消息</param>
     /// <returns></returns>
-    protected virtual Object? OnProcess(IApiSession session, String action, Packet? args, IMessage msg) => Handler?.Execute(session, action, args, msg);
+    protected virtual Object? OnProcess(IApiSession session, String action, IPacket? args, IMessage msg) => Handler?.Execute(session, action, args, msg);
     #endregion
 
     #region 广播

@@ -46,11 +46,11 @@ public class HttpCodec : Handler
         if (context.Owner is ISocket sock && sock.Local != null && sock.Local.Type != NetType.Tcp)
             return base.Read(context, message);
 
-        if (message is not Packet pk) return base.Read(context, message);
+        if (message is not IPacket pk) return base.Read(context, message);
 
         // 是否Http请求
-        var isGet = pk.Count >= 4 && pk[0] == 'G' && pk[1] == 'E' && pk[2] == 'T' && pk[3] == ' ';
-        var isPost = pk.Count >= 5 && pk[0] == 'P' && pk[1] == 'O' && pk[2] == 'S' && pk[3] == 'T' && pk[4] == ' ';
+        var isGet = pk.Length >= 4 && pk[0] == 'G' && pk[1] == 'E' && pk[2] == 'T' && pk[3] == ' ';
+        var isPost = pk.Length >= 5 && pk[0] == 'P' && pk[1] == 'O' && pk[2] == 'S' && pk[3] == 'T' && pk[4] == ' ';
 
         // 该连接第一包检查是否Http
         var ext = context.Owner as IExtend ?? throw new ArgumentOutOfRangeException(nameof(context.Owner));
@@ -114,7 +114,7 @@ public class HttpCodec : Handler
                     if (msg.Payload != null)
                     {
                         // payload有长度时才能复制，否则会造成数据错误
-                        if (msg.Payload.Count > 0)
+                        if (msg.Payload.Length > 0)
                         {
                             msg.Payload = msg.Payload.Clone();
                         }
