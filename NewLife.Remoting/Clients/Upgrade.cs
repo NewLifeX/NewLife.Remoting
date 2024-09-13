@@ -1,7 +1,9 @@
 ﻿using System.Diagnostics;
 using System.Net.Http;
 using System.Reflection;
+using System.Security.Cryptography;
 using NewLife.Log;
+using NewLife.Remoting.Models;
 
 namespace NewLife.Remoting.Clients;
 
@@ -29,6 +31,9 @@ public class Upgrade
 
     /// <summary>解压缩的临时目录</summary>
     public String? TempPath { get; set; }
+
+    /// <summary>更新模式</summary>
+    public UpdateModes Mode { get; set; } = UpdateModes.Standard;
     #endregion
 
     #region 构造
@@ -132,11 +137,13 @@ public class Upgrade
             foreach (var item in dest.AsDirectory().GetAllFiles("*.exe;*.dll", false))
             {
                 var ori = item.FullName;
-                var del = item.FullName + ".del";
+                var del = $"{item.FullName}.del";
                 WriteLog("MoveTo {0}", del);
                 try
                 {
-                    if (File.Exists(del)) File.Delete(del);
+                    //if (File.Exists(del)) File.Delete(del);
+                    // 如果.del文件已存在，不能直接删，因为进程可能正在使用（上次升级未完成）。
+                    if (File.Exists(del)) del = $"{item.FullName}_{DateTime.Now:yyMMddHHmmss}.del";
                     item.MoveTo(del);
 
                     dic[ori] = del;
