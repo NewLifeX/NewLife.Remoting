@@ -67,7 +67,7 @@ public class JsonEncoderTests
             var len = reader.ReadInt32();
             Assert.Equal(value.Total, len);
             var buf = reader.ReadBytes(len);
-            Assert.Equal(value.ToHex(64), buf.ToHex(64));
+            Assert.Equal(value.ToHex(64), buf.ToHex(null, 0, 64));
         }
     }
 
@@ -129,7 +129,7 @@ public class JsonEncoderTests
             Assert.Equal(value.ToArray(), span);
 
             var hex1 = value.ToHex(64);
-            var hex2 = span.ToHex(64);
+            var hex2 = span.ToHex();
             Assert.Equal(hex1, hex2);
             //Assert.Equal(value.Count, (Int32)pk.Slice(1 + name.Length, 4).ReadUInt32());
             //Assert.Equal(value.ToHex(), pk.Slice(1 + name.Length + 4, value.Count).ToHex());

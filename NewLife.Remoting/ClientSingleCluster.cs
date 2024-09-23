@@ -53,7 +53,7 @@ public class ClientSingleCluster<T> : ICluster<String, T>
 
     /// <summary>归还</summary>
     /// <param name="value"></param>
-    public virtual Boolean Put(T value) => true;
+    public virtual Boolean Return(T value) => true;
 
     /// <summary>Round-Robin 负载均衡</summary>
     private Int32 _index = -1;

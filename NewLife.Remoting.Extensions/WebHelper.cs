@@ -49,7 +49,7 @@ public static class WebHelper
         if (port > 0 && port != 80 && port != 443)
         {
             uriInfo.Port = port;
-            uri = new Uri(uriInfo.ToString());
+            uri = new Uri(uriInfo.ToString()!);
         }
 
         return uri;

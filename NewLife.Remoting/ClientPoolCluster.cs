@@ -35,11 +35,11 @@ public class ClientPoolCluster<T> : ICluster<String, T> where T : class
 
     /// <summary>归还</summary>
     /// <param name="value"></param>
-    public virtual Boolean Put(T value)
+    public virtual Boolean Return(T value)
     {
         if (value == null) return false;
 
-        return Pool.Put(value);
+        return Pool.Return(value);
     }
 
     /// <summary>Round-Robin 负载均衡</summary>
@@ -101,7 +101,7 @@ public class ClientPoolCluster<T> : ICluster<String, T> where T : class
 
         /// <summary>释放时，返回是否有效。无效对象将会被抛弃</summary>
         /// <param name="value"></param>
-        protected override Boolean OnPut(T value) => value != null && (value is not IDisposable2 ds || !ds.Disposed);
+        protected override Boolean OnReturn(T value) => value != null && (value is not IDisposable2 ds || !ds.Disposed);
     }
 
     #region 日志

@@ -22,6 +22,7 @@
     <PackageReference Include="NewLife.Cube.Core" Version="6.1.2024.902" />
     <PackageReference Include="NewLife.Redis" Version="5.7.2024.801" />
     <PackageReference Include="NewLife.Stardust.Extensions" Version="3.0.2024.902" />
+    <PackageReference Include="NewLife.XCode" Version="11.16.2024.917-beta0218" />
   </ItemGroup>
 
   <ItemGroup>

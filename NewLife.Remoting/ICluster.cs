@@ -25,7 +25,7 @@ public interface ICluster<TKey, TValue>
 
     /// <summary>归还</summary>
     /// <param name="value"></param>
-    Boolean Put(TValue value);
+    Boolean Return(TValue value);
 }
 
 /// <summary>集群助手</summary>
@@ -47,7 +47,7 @@ public static class ClusterHelper
         }
         finally
         {
-            cluster.Put(item);
+            cluster.Return(item);
         }
     }
 
@@ -67,7 +67,7 @@ public static class ClusterHelper
         }
         finally
         {
-            cluster.Put(item);
+            cluster.Return(item);
         }
     }
 }

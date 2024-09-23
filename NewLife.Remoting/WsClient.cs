@@ -175,7 +175,7 @@ public class WsClient : ApiHost, IApiClient
         }
         finally
         {
-            Cluster.Put(client);
+            Cluster.Return(client);
         }
     }
 

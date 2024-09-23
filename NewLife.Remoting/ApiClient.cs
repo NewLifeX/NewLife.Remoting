@@ -189,7 +189,7 @@ public class ApiClient : ApiHost, IApiClient
         }
         finally
         {
-            Cluster.Put(client);
+            Cluster.Return(client);
         }
     }
 
