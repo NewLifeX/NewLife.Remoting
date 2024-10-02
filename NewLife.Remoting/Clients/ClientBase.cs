@@ -983,7 +983,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             var now = GetNow();
             var expire = model.Expire.ToLocalTime();
             WriteLog("[{0}] Got Command: {1}", source, model.ToJson());
-            if (model.Expire.Year < 2000 || model.Expire > now)
+            if (expire.Year < 2000 || expire > now)
             {
                 // 延迟执行
                 var startTime = model.StartTime.ToLocalTime();

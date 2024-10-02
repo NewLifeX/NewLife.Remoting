@@ -77,13 +77,14 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
             if (online?.Node != null)
             {
                 //ts.Add(_starFactory.SendNodeCommand(online.Node.Code, "node/upgrade", null, 600, 0));
-                var cmd = new CommandInModel
+                var code = online.Node.Code;
+                var cmd = new CommandModel
                 {
-                    Code = online.Node.Code,
+                    //Code = online.Node.Code,
                     Command = "node/upgrade",
-                    Expire = 600,
+                    Expire = DateTime.Now.AddSeconds(600),
                 };
-                var queue = _deviceService.GetQueue(online.Node.Code);
+                var queue = _deviceService.GetQueue(code);
                 queue.Add(cmd.ToJson());
             }
         }
@@ -107,12 +108,12 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
             if (online != null && online.Node != null)
             {
                 //ts.Add(_starFactory.SendNodeCommand(online.Node.Code, command, argument, 30, 0));
-                var cmd = new CommandInModel
+                var cmd = new CommandModel
                 {
-                    Code = online.Node.Code,
+                    //Code = online.Node.Code,
                     Command = command,
                     Argument = argument,
-                    Expire = 30,
+                    Expire = DateTime.Now.AddSeconds(30),
                 };
                 var queue = _deviceService.GetQueue(online.Node.Code);
                 queue.Add(cmd.ToJson());

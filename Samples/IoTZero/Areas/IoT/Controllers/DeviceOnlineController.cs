@@ -68,13 +68,14 @@ public class DeviceOnlineController : EntityController<DeviceOnline>
             if (online?.Device != null)
             {
                 //ts.Add(_starFactory.SendNodeCommand(online.Device.Code, "device/upgrade", null, 600, 0));
-                var cmd = new CommandInModel
+                var code = online.Device.Code;
+                var cmd = new CommandModel
                 {
-                    Code = online.Device.Code,
+                    //Code = online.Device.Code,
                     Command = "device/upgrade",
-                    Expire = 600,
+                    Expire = DateTime.Now.AddSeconds(600),
                 };
-                var queue = _deviceService.GetQueue(cmd.Code);
+                var queue = _deviceService.GetQueue(code);
                 queue.Add(cmd.ToJson());
             }
         }
@@ -98,14 +99,15 @@ public class DeviceOnlineController : EntityController<DeviceOnline>
             if (online?.Device != null)
             {
                 //ts.Add(_starFactory.SendNodeCommand(online.Device.Code, command, argument, 30, 0));
-                var cmd = new CommandInModel
+                var code = online.Device.Code;
+                var cmd = new CommandModel
                 {
-                    Code = online.Device.Code,
+                    //Code = online.Device.Code,
                     Command = command,
                     Argument = argument,
-                    Expire = 30,
+                    Expire = DateTime.Now.AddSeconds(30),
                 };
-                var queue = _deviceService.GetQueue(cmd.Code);
+                var queue = _deviceService.GetQueue(code);
                 queue.Add(cmd.ToJson());
                 ts.Add(Task.FromResult(1));
             }
