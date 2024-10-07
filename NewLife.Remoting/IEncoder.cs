@@ -83,7 +83,7 @@ public abstract class EncoderBase
         //ms.Seek(8, SeekOrigin.Begin);
 
         var len = 8 + 1 + Encoding.UTF8.GetByteCount(action) + 4 + 4;
-        var pk = new ArrayPacket(len);
+        var pk = new OwnerPacket(len);
 
         // 请求：action + args
         // 响应：action + code + result

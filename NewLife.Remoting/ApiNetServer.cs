@@ -96,10 +96,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
             {
                 if (msg.Payload is ArrayPacket ap2 && ap.Buffer == ap2.Buffer)
                 {
-                    var ap3 = new ArrayPacket(ap2.Length);
-                    ap2.GetSpan().CopyTo(ap3.GetSpan());
-
-                    msg.Payload = ap3;
+                    msg.Payload = ap2.Clone();
                 }
             }
 

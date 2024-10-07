@@ -25,7 +25,7 @@ public class JsonEncoderTests
         // 简洁请求
         {
             value = null;
-            var pk = (ArrayPacket)encoder.Encode(name, null, value);
+            var pk = (OwnerPacket)encoder.Encode(name, null, value);
             Assert.Equal(1 + name.Length, pk.Total);
             Assert.Null(pk.Next);
             Assert.Equal(8, pk.Offset);
@@ -38,7 +38,7 @@ public class JsonEncoderTests
         // 简洁请求，带空数据
         {
             value = new Byte[0];
-            var pk = (ArrayPacket)encoder.Encode(name, null, value);
+            var pk = (OwnerPacket)encoder.Encode(name, null, value);
             Assert.Equal(1 + name.Length + 4, pk.Total);
             Assert.NotNull(pk.Next);
             Assert.Equal(value, pk.Next);
@@ -52,15 +52,15 @@ public class JsonEncoderTests
         // 标准请求，带数据体
         {
             value = Rand.NextBytes(64);
-            var pk = (ArrayPacket)encoder.Encode(name, null, value);
+            var pk = (OwnerPacket)encoder.Encode(name, null, value);
             Assert.Equal(1 + name.Length + 4 + value.Count, pk.Total);
             Assert.NotNull(pk.Next);
             Assert.Equal(value, pk.Next);
             Assert.Equal(8, pk.Offset);
 
             // 拷贝一次，拉平。因为SpanReader不支持跨包读取
-            pk = (ArrayPacket)pk.ToArray();
-            var reader = new SpanReader(pk.GetSpan());
+            var pk2 = (ArrayPacket)pk.ToArray();
+            var reader = new SpanReader(pk2.GetSpan());
 
             Assert.Equal(name, reader.ReadString());
 
@@ -83,7 +83,7 @@ public class JsonEncoderTests
         {
             // 错误码200等同于0，表示成功
             value = null;
-            var pk = (ArrayPacket)encoder.Encode(name, 200, value);
+            var pk = (OwnerPacket)encoder.Encode(name, 200, value);
             Assert.Equal(1 + name.Length, pk.Total);
             Assert.Null(pk.Next);
             Assert.Equal(8, pk.Offset);
@@ -96,7 +96,7 @@ public class JsonEncoderTests
         // 简洁响应，带异常
         {
             value = new Byte[0];
-            var pk = (ArrayPacket)encoder.Encode(name, 500, value);
+            var pk = (OwnerPacket)encoder.Encode(name, 500, value);
             Assert.Equal(1 + name.Length + 4 + 4 + value.Count, pk.Total);
             Assert.NotNull(pk.Next);
             Assert.Equal(value, pk.Next);
@@ -111,15 +111,15 @@ public class JsonEncoderTests
         // 标准响应，带数据体
         {
             value = Rand.NextBytes(64);
-            var pk = (ArrayPacket)encoder.Encode(name, 0, value);
+            var pk = (OwnerPacket)encoder.Encode(name, 0, value);
             Assert.Equal(1 + name.Length + 4 + value.Count, pk.Total);
             Assert.NotNull(pk.Next);
             Assert.Equal(value, pk.Next);
             Assert.Equal(8, pk.Offset);
 
             // 拷贝一次，拉平。因为SpanReader不支持跨包读取
-            pk = (ArrayPacket)pk.ToArray();
-            var reader = new SpanReader(pk.GetSpan());
+            var pk2 = (ArrayPacket)pk.ToArray();
+            var reader = new SpanReader(pk2.GetSpan());
 
             Assert.Equal(name, reader.ReadString());
             // 正常响应不需要错误码，直接写数据体长度
