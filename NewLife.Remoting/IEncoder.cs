@@ -76,7 +76,7 @@ public abstract class EncoderBase
     /// <param name="code"></param>
     /// <param name="value"></param>
     /// <returns></returns>
-    public virtual IOwnerPacket Encode(String action, Int32? code, IPacket? value)
+    public virtual IPacket Encode(String action, Int32? code, IPacket? value)
     {
         // 内存流，前面留空8字节用于协议头4字节（超长8字节）
         //var ms = new MemoryStream();
@@ -97,10 +97,10 @@ public abstract class EncoderBase
         // 参数或结果。长度部分定长4字节
         if (value != null) writer.Write(value.Total);
 
-        pk = pk.Slice(8, writer.Position - 8);
-        if (value != null) pk.Next = value;
+        var pk2 = pk.Slice(8, writer.Position - 8);
+        if (value != null) pk2.Next = value;
 
-        return pk;
+        return pk2;
     }
 
     /// <summary>解码 请求/响应</summary>

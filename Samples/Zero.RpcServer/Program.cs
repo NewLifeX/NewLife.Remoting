@@ -23,7 +23,7 @@ services.AddSingleton<ICacheProvider, RedisCacheProvider>();
 var port = 8080;
 
 // 实例化RPC服务端，指定端口，同时在Tcp/Udp/IPv4/IPv6上监听
-var server = new ApiServer(port)
+using var server = new ApiServer(port)
 {
     Name = "银河服务端",
 
