@@ -69,8 +69,8 @@ public class HttpMessage : IMessage, IDisposable
         var p = pk.GetSpan().IndexOf(NewLine);
         if (p < 0) return false;
 
-        Header = pk.Slice(0, p);
-        Payload = pk.Slice(p + 4);
+        Header = pk.Slice(0, p, false);
+        Payload = pk.Slice(p + 4, -1, false);
 
         return true;
     }
@@ -115,7 +115,7 @@ public class HttpMessage : IMessage, IDisposable
         if (Header == null) throw new ArgumentNullException(nameof(Header));
 
         // 使用子数据区，不改变原来的头部对象
-        var pk = Header.Slice(0, -1);
+        var pk = Header.Slice(0, -1, false);
         pk.Append(NewLine);
         //pk.Next = new[] { (Byte)'\r', (Byte)'\n' };
 

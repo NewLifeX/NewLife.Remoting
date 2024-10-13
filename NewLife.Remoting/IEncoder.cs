@@ -97,7 +97,7 @@ public abstract class EncoderBase
         // 参数或结果。长度部分定长4字节
         if (value != null) writer.Write(value.Total);
 
-        var pk2 = pk.Slice(8, writer.Position - 8);
+        var pk2 = pk.Slice(8, writer.Position - 8, true);
         if (value != null) pk2.Next = value;
 
         return pk2;
