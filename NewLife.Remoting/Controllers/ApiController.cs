@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Net;
 using System.Net.NetworkInformation;
 using System.Reflection;
 using NewLife.Collections;
@@ -19,13 +20,30 @@ public class ApiController : IApi
 
     static ApiController()
     {
-        RefreshLocalIP();
-
-        NetworkChange.NetworkAddressChanged += (s, e) => RefreshLocalIP();
-        NetworkChange.NetworkAvailabilityChanged += (s, e) => RefreshLocalIP();
+        NetworkChange.NetworkAddressChanged += (s, e) => _ips = null;
+        NetworkChange.NetworkAvailabilityChanged += (s, e) => _ips = null;
     }
 
-    static void RefreshLocalIP() => _LocalIP = null;
+    private static String? _ips;
+    /// <summary>
+    /// 获取本地IP地址
+    /// </summary>
+    /// <returns></returns>
+    public static String? GetIps()
+    {
+        try
+        {
+            var ips = _ips.IsNullOrEmpty() ? NetHelper.GetIPs().ToArray() : NetHelper.GetIPsWithCache();
+
+            return _ips = ips
+                .Where(ip => ip.IsIPv4() && !IPAddress.IsLoopback(ip) && ip.GetAddressBytes()[0] != 169)
+                .Join();
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     private String[]? _all;
     /// <summary>获取所有接口</summary>
@@ -70,7 +88,7 @@ public class ApiController : IApi
     //private readonly static String _OS = Environment.OSVersion + "";
     private static readonly String _MachineName = Environment.MachineName;
     //private readonly static String _UserName = Environment.UserName;
-    private static String? _LocalIP;
+    //private static String? _LocalIP;
     /// <summary>服务器信息，用户健康检测</summary>
     /// <param name="state">状态信息</param>
     /// <returns></returns>
@@ -89,13 +107,6 @@ public class ApiController : IApi
         var asmx2 = AssemblyX.Create(Assembly.GetExecutingAssembly());
         var mi = MachineInfo.Current;
 
-        // 尝试获取本地IP，如果网卡变动，可能会有问题
-        try
-        {
-            _LocalIP ??= NetHelper.GetIPs().Where(e => e.IsIPv4()).Join();
-        }
-        catch { }
-
         var rs = new
         {
             Id = _pid,
@@ -108,7 +119,7 @@ public class ApiController : IApi
             //UserName = _UserName,
             ApiVersion = asmx2?.FileVersion,
 
-            LocalIP = _LocalIP,
+            LocalIP = GetIps(),
             Remote = ns?.Remote?.EndPoint + "",
             State = state,
             //LastState = Session?["State"],
