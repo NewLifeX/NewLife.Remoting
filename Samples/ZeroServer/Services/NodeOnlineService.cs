@@ -1,5 +1,6 @@
 ﻿using NewLife;
 using NewLife.Log;
+using NewLife.Remoting.Extensions.Models;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Threading;
 using Zero.Data.Nodes;
@@ -12,7 +13,7 @@ public class NodeOnlineService : IHostedService
     #region 属性
     private TimerX _timer;
     private readonly IDeviceService _nodeService;
-    private readonly IoTSetting _setting;
+    private readonly ITokenSetting _setting;
     private readonly ITracer _tracer;
     #endregion
 
@@ -23,7 +24,7 @@ public class NodeOnlineService : IHostedService
     /// <param name="nodeService"></param>
     /// <param name="setting"></param>
     /// <param name="tracer"></param>
-    public NodeOnlineService(IDeviceService nodeService, IoTSetting setting, ITracer tracer)
+    public NodeOnlineService(IDeviceService nodeService, ITokenSetting setting, ITracer tracer)
     {
         _nodeService = nodeService;
         _setting = setting;

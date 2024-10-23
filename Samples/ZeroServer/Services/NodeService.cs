@@ -4,6 +4,7 @@ using NewLife.Caching;
 using NewLife.Caching.Queues;
 using NewLife.Log;
 using NewLife.Remoting;
+using NewLife.Remoting.Extensions.Models;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using NewLife.Security;
@@ -21,7 +22,7 @@ public class NodeService : IDeviceService
     private readonly ICacheProvider _cacheProvider;
     private readonly ICache _cache;
     private readonly IPasswordProvider _passwordProvider;
-    private readonly IoTSetting _setting;
+    private readonly ITokenSetting _setting;
     private readonly ITracer _tracer;
 
     /// <summary>
@@ -31,7 +32,7 @@ public class NodeService : IDeviceService
     /// <param name="cacheProvider"></param>
     /// <param name="setting"></param>
     /// <param name="tracer"></param>
-    public NodeService(IPasswordProvider passwordProvider, ICacheProvider cacheProvider, IoTSetting setting, ITracer tracer)
+    public NodeService(IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting, ITracer tracer)
     {
         _passwordProvider = passwordProvider;
         _cacheProvider = cacheProvider;
@@ -329,7 +330,7 @@ public class NodeService : IDeviceService
     /// <param name="name"></param>
     /// <param name="set"></param>
     /// <returns></returns>
-    public TokenModel IssueToken(String name, IoTSetting set)
+    public TokenModel IssueToken(String name, ITokenSetting set)
     {
         // 颁发令牌
         var ss = set.TokenSecret.Split(':');
