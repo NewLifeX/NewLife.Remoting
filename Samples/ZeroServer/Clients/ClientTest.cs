@@ -9,7 +9,7 @@ public static class ClientTest
     private static ITracer _tracer;
     private static NodeClient _device;
 
-    public static async Task Main(IServiceProvider serviceProvider)
+    public static async Task Process(IServiceProvider serviceProvider)
     {
         await Task.Delay(3_000);
 

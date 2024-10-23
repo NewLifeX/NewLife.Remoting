@@ -28,7 +28,6 @@ public class NodeService : IDeviceService
     /// 实例化设备服务
     /// </summary>
     /// <param name="passwordProvider"></param>
-    /// <param name="dataService"></param>
     /// <param name="cacheProvider"></param>
     /// <param name="setting"></param>
     /// <param name="tracer"></param>
@@ -112,7 +111,7 @@ public class NodeService : IDeviceService
     /// <param name="ip"></param>
     /// <returns></returns>
     /// <exception cref="ApiException"></exception>
-    public Node AutoRegister(Node? node, LoginInfo inf, String ip)
+    public Node AutoRegister(Node node, LoginInfo inf, String ip)
     {
         // 全局开关，是否允许自动注册新产品
         if (!_setting.AutoRegister) throw new ApiException(12, "禁止自动注册");

@@ -16,7 +16,7 @@ namespace ZeroServer.Controllers;
 public class NodeController : BaseDeviceController
 {
     /// <summary>当前设备</summary>
-    public Node? Node { get; set; }
+    public Node Node { get; set; }
 
     private readonly NodeService _nodeService;
     private readonly ITracer _tracer;
@@ -24,9 +24,6 @@ public class NodeController : BaseDeviceController
     #region 构造
     /// <summary>实例化设备控制器</summary>
     /// <param name="serviceProvider"></param>
-    /// <param name="queue"></param>
-    /// <param name="deviceService"></param>
-    /// <param name="thingService"></param>
     /// <param name="tracer"></param>
     public NodeController(IServiceProvider serviceProvider, ITracer tracer) : base(serviceProvider)
     {
@@ -47,7 +44,7 @@ public class NodeController : BaseDeviceController
     /// <summary>心跳</summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    protected override IPingResponse OnPing(IPingRequest? request)
+    protected override IPingResponse OnPing(IPingRequest request)
     {
         var rs = base.OnPing(request);
 

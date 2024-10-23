@@ -1,8 +1,6 @@
-﻿using NewLife;
-using NewLife.IoT.Models;
+﻿using NewLife.IoT.Models;
 using NewLife.IoT.ThingModels;
 using NewLife.Model;
-using NewLife.Remoting;
 using NewLife.Remoting.Clients;
 using NewLife.Remoting.Models;
 using NewLife.Security;

@@ -1,10 +1,10 @@
 ﻿using NewLife.Collections;
 using NewLife.Data;
-using NewLife.Http;
 using NewLife.Log;
 using NewLife.Messaging;
 using NewLife.Model;
 using NewLife.Net;
+using NewLife.Remoting.Http;
 using NewLife.Serialization;
 using NewLife.Threading;
 

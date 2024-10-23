@@ -15,20 +15,6 @@ public class IoTSetting : Config<IoTSetting>, ITokenSetting
     static IoTSetting() => Provider = new DbConfigProvider { UserId = 0, Category = "IoTServer" };
     #endregion
 
-    #region 属性
-    ///// <summary>MQTT服务端口。默认1883</summary>
-    //[Description("MQTT服务端口。默认1883")]
-    //public Int32 MqttPort { get; set; } = 1883;
-
-    ///// <summary>MQTT证书地址。设置了才启用安全连接，默认为空</summary>
-    //[Description("MQTT证书地址。设置了才启用安全连接，默认为空")]
-    //public String MqttCertPath { get; set; }
-
-    ///// <summary>MMQTT证书密码</summary>
-    //[Description("MQTT证书密码")]
-    //public String MqttCertPassword { get; set; }
-    #endregion
-
     #region 设备管理
     /// <summary>令牌密钥。用于生成JWT令牌的算法和密钥，如HS256:ABCD1234</summary>
     [Description("令牌密钥。用于生成JWT令牌的算法和密钥，如HS256:ABCD1234")]

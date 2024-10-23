@@ -27,7 +27,6 @@ public class MyDeviceService : IDeviceService
     /// 实例化设备服务
     /// </summary>
     /// <param name="passwordProvider"></param>
-    /// <param name="dataService"></param>
     /// <param name="cacheProvider"></param>
     /// <param name="setting"></param>
     /// <param name="tracer"></param>
@@ -219,11 +218,12 @@ public class MyDeviceService : IDeviceService
 
     #region 心跳保活
     /// <summary>心跳</summary>
-    /// <param name="inf"></param>
+    /// <param name="device"></param>
+    /// <param name="request"></param>
     /// <param name="token"></param>
     /// <param name="ip"></param>
     /// <returns></returns>
-    public IOnlineModel Ping(IDeviceModel device, IPingRequest? request, String token, String ip)
+    public IOnlineModel Ping(IDeviceModel device, IPingRequest request, String token, String ip)
     {
         var dv = device as Device;
         var inf = request as PingInfo;
@@ -424,7 +424,7 @@ public class MyDeviceService : IDeviceService
     /// <param name="deviceCode"></param>
     /// <param name="token"></param>
     /// <returns></returns>
-    public TokenModel ValidAndIssueToken(String deviceCode, String? token)
+    public TokenModel ValidAndIssueToken(String deviceCode, String token)
     {
         if (token.IsNullOrEmpty()) return null;
 

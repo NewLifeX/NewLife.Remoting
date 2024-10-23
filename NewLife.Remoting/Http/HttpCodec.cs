@@ -1,5 +1,4 @@
 ﻿using NewLife.Data;
-using NewLife.Http;
 using NewLife.Model;
 using NewLife.Net;
 using NewLife.Serialization;

@@ -1,6 +1,6 @@
-﻿using NewLife.Http;
-using NewLife.Model;
+﻿using NewLife.Model;
 using NewLife.Net;
+using NewLife.Remoting.Http;
 using NewLife.Serialization;
 using HttpCodec = NewLife.Remoting.Http.HttpCodec;
 

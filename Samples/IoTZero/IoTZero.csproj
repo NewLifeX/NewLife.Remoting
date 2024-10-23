@@ -19,12 +19,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Cube.Core" Version="6.1.2024.1013-beta0604" />
+    <PackageReference Include="NewLife.Cube.Core" Version="6.1.2024.1015-beta0533" />
     <PackageReference Include="NewLife.IoT" Version="2.2.2024.1004-beta0943" />
     <PackageReference Include="NewLife.MQTT" Version="2.0.2024.1013-beta0757" />
-    <PackageReference Include="NewLife.Redis" Version="6.0.2024.1009-beta0730" />
-    <PackageReference Include="NewLife.Stardust.Extensions" Version="3.1.2024.1012-beta1536" />
-    <PackageReference Include="NewLife.XCode" Version="11.16.2024.1005" />
+    <PackageReference Include="NewLife.Redis" Version="6.0.2024.1022-beta1409" />
+    <PackageReference Include="NewLife.Stardust.Extensions" Version="3.1.2024.1023-beta0712" />
+    <PackageReference Include="NewLife.XCode" Version="11.16.2024.1020-beta0457" />
   </ItemGroup>
 
   <ItemGroup>

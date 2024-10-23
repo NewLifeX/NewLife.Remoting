@@ -158,7 +158,7 @@ public class ApiController : IApi
         return dic;
     }
 
-    private Object? GetStat()
+    private Dictionary<String, Object>? GetStat()
     {
         if (Host is not ApiServer svc) return null;
 

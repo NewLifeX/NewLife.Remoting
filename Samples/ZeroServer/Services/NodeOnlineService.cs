@@ -59,33 +59,33 @@ public class NodeOnlineService : IHostedService
     private void CheckOnline(Object state)
     {
         // 节点超时
-        if (_setting.SessionTimeout > 0)
+        if (_setting.SessionTimeout <= 0) return;
+
+        using var span = _tracer?.NewSpan(nameof(CheckOnline));
+
+        var rs = NodeOnline.ClearExpire(TimeSpan.FromSeconds(_setting.SessionTimeout));
+        if (rs == null) return;
+
+        foreach (var olt in rs)
         {
-            using var span = _tracer?.NewSpan(nameof(CheckOnline));
+            var node = olt?.Node;
+            var msg = $"[{node}]登录于{olt.CreateTime.ToFullString()}，最后活跃于{olt.UpdateTime.ToFullString()}";
+            _nodeService.WriteHistory(node, "超时下线", true, msg, olt.CreateIP);
 
-            var rs = NodeOnline.ClearExpire(TimeSpan.FromSeconds(_setting.SessionTimeout));
-            if (rs != null)
-                foreach (var olt in rs)
+            if (_nodeService is NodeService ds)
+                ds.RemoveOnline(olt.NodeId, olt.CreateIP);
+
+            if (node != null)
+            {
+                // 计算在线时长
+                if (olt.CreateTime.Year > 2000 && olt.UpdateTime.Year > 2000)
                 {
-                    var node = olt?.Node;
-                    var msg = $"[{node}]登录于{olt.CreateTime.ToFullString()}，最后活跃于{olt.UpdateTime.ToFullString()}";
-                    _nodeService.WriteHistory(node, "超时下线", true, msg, olt.CreateIP);
-
-                    if (_nodeService is NodeService ds)
-                        ds.RemoveOnline(olt.NodeId, olt.CreateIP);
-
-                    if (node != null)
-                    {
-                        // 计算在线时长
-                        if (olt.CreateTime.Year > 2000 && olt.UpdateTime.Year > 2000)
-                        {
-                            node.OnlineTime += (Int32)(olt.UpdateTime - olt.CreateTime).TotalSeconds;
-                            node.Update();
-                        }
-
-                        CheckOffline(node, "超时下线");
-                    }
+                    node.OnlineTime += (Int32)(olt.UpdateTime - olt.CreateTime).TotalSeconds;
+                    node.Update();
                 }
+
+                CheckOffline(node, "超时下线");
+            }
         }
     }
 

@@ -1,5 +1,4 @@
-﻿using System.IO;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using NewLife;
 using NewLife.Model;
 using NewLife.Remoting.Clients;
@@ -15,10 +14,10 @@ public class NodeClient : ClientBase
 {
     #region 属性
     /// <summary>产品编码</summary>
-    public String? ProductCode { get; set; }
+    public String ProductCode { get; set; }
 
     /// <summary>服务迁移</summary>
-    public event EventHandler<MigrationEventArgs>? OnMigration;
+    public event EventHandler<MigrationEventArgs> OnMigration;
 
     private readonly ClientSetting _setting;
     #endregion
@@ -91,7 +90,7 @@ public class NodeClient : ClientBase
 
     /// <summary>心跳</summary>
     /// <returns></returns>
-    public override async Task<IPingResponse?> Ping(CancellationToken cancellationToken = default)
+    public override async Task<IPingResponse> Ping(CancellationToken cancellationToken = default)
     {
         var rs = await base.Ping(cancellationToken);
         if (rs != null)

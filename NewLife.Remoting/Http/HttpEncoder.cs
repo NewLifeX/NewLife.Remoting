@@ -1,13 +1,12 @@
 ﻿using System.Web;
+using NewLife;
 using NewLife.Collections;
 using NewLife.Data;
 using NewLife.Messaging;
 using NewLife.Reflection;
-using NewLife.Remoting;
-using NewLife.Remoting.Http;
 using NewLife.Serialization;
 
-namespace NewLife.Http;
+namespace NewLife.Remoting.Http;
 
 /// <summary>Http编码器</summary>
 public class HttpEncoder : EncoderBase, IEncoder
@@ -64,9 +63,7 @@ public class HttpEncoder : EncoderBase, IEncoder
 
         var ctype = new String[0];
         if (msg is HttpMessage hmsg && str[0] == '{')
-        {
             if (hmsg.ParseHeaders()) ctype = (hmsg.Headers["Content-type"] + "").Split(';');
-        }
 
         if (ctype.Contains("application/json"))
         {
@@ -78,12 +75,10 @@ public class HttpEncoder : EncoderBase, IEncoder
 
             var rs = new Dictionary<String, Object?>(StringComparer.OrdinalIgnoreCase);
             foreach (var item in dic)
-            {
                 if (item.Value is String str2)
                     rs[item.Key] = HttpUtility.UrlDecode(str2);
                 else
                     rs[item.Key] = item.Value;
-            }
             return rs;
         }
         else
@@ -91,9 +86,7 @@ public class HttpEncoder : EncoderBase, IEncoder
             var dic = str.SplitAsDictionary("=", "&");
             var rs = new Dictionary<String, Object?>(StringComparer.OrdinalIgnoreCase);
             foreach (var item in dic)
-            {
                 rs[item.Key] = HttpUtility.UrlDecode(item.Value);
-            }
             return rs;
         }
     }
@@ -145,7 +138,6 @@ public class HttpEncoder : EncoderBase, IEncoder
         // 准备参数，二进制优先
         IPacket? pk = null;
         if (args != null)
-        {
             if (args is IPacket pk2)
                 pk = pk2;
             else if (args is IAccessor acc)
@@ -163,18 +155,11 @@ public class HttpEncoder : EncoderBase, IEncoder
                 // url参数
                 sb.Append('?');
                 if (args.GetType().GetTypeCode() != TypeCode.Object)
-                {
                     sb.Append(args);
-                }
                 else
-                {
                     foreach (var item in args.ToDictionary())
-                    {
                         sb.AppendFormat("{0}={1}", item.Key, item.Value);
-                    }
-                }
             }
-        }
         sb.AppendLine(" HTTP/1.1");
 
         if (pk != null && pk.Total > 0)
@@ -222,9 +207,7 @@ public class HttpEncoder : EncoderBase, IEncoder
                 sb.AppendLine(" Error");
         }
         else
-        {
             sb.AppendLine("200 OK");
-        }
 
         sb.AppendFormat("Content-Length:{0}\r\n", pk?.Total ?? 0);
         sb.AppendLine("Content-Type:application/json");

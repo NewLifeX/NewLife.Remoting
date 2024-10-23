@@ -23,8 +23,7 @@ public class AppController : BaseController
     /// <summary>
     /// 实例化应用管理服务
     /// </summary>
-    /// <param name="queue"></param>
-    /// <param name="deviceService"></param>
+    /// <param name="serviceProvider"></param>
     /// <param name="thingService"></param>
     /// <param name="tracer"></param>
     public AppController(IServiceProvider serviceProvider, ThingService thingService, ITracer tracer) : base(serviceProvider)

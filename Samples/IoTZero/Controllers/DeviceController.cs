@@ -28,8 +28,6 @@ public class DeviceController : BaseDeviceController
     #region 构造
     /// <summary>实例化设备控制器</summary>
     /// <param name="serviceProvider"></param>
-    /// <param name="queue"></param>
-    /// <param name="deviceService"></param>
     /// <param name="thingService"></param>
     /// <param name="tracer"></param>
     public DeviceController(IServiceProvider serviceProvider, ThingService thingService, ITracer tracer) : base(serviceProvider)
