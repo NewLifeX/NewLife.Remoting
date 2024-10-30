@@ -89,7 +89,7 @@ class WsChannelCore : WsChannel
                 if (data.MessageType == WebSocketMessageType.Text)
                 {
                     var txt = buf.ToStr(null, 0, data.Count);
-                    await OnReceive(txt);
+                    if (txt != null) await OnReceive(txt);
                 }
             }
 
@@ -100,7 +100,7 @@ class WsChannelCore : WsChannel
         }
         catch (TaskCanceledException) { }
         catch (OperationCanceledException) { }
-        catch (WebSocketException ex)
+        catch (Exception ex)
         {
             _client.Log?.Error("WebSocket异常 {0}", ex.Message);
         }
