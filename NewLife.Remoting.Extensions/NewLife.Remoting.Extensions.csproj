@@ -48,18 +48,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="Properties\**" />
-    <Content Remove="Properties\**" />
-    <EmbeddedResource Remove="Properties\**" />
-    <None Remove="Properties\**" />
-    <_WebToolingArtifacts Remove="Properties\**" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Remove="Services\ServicModelMetadataProvider.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Content Include="..\Doc\leaf.png" Link="leaf.png" PackagePath="\" />
   </ItemGroup>
   <ItemGroup>

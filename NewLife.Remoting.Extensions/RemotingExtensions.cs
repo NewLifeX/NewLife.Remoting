@@ -12,7 +12,7 @@ namespace NewLife.Remoting.Extensions;
 /// <summary>远程通信框架扩展</summary>
 public static class RemotingExtensions
 {
-    /// <summary>添加远程通信服务端</summary>
+    /// <summary>添加远程通信服务端，注册BaseDeviceController所需类型服务</summary>
     /// <param name="services"></param>
     /// <param name="setting"></param>
     /// <returns></returns>

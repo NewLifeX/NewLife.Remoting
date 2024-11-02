@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using NewLife.Log;
-using NewLife.Remoting;
 using NewLife.Remoting.Extensions;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
@@ -54,9 +53,7 @@ public class NodeController : BaseDeviceController
             rs.Period = node.Period;
 
             if (rs is PingResponse rs2)
-            {
                 rs2.NewServer = node.NewServer;
-            }
         }
 
         return rs;
