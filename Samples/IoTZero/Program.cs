@@ -3,6 +3,7 @@ using IoTZero.Services;
 using NewLife.Cube;
 using NewLife.Log;
 using NewLife.Reflection;
+using NewLife.Remoting.Extensions;
 using XCode;
 
 // 日志输出到控制台，并拦截全局异常
@@ -50,10 +51,7 @@ else
 if (Environment.GetEnvironmentVariable("__ASPNETCORE_BROWSER_TOOLS") is null)
     app.UseResponseCompression();
 
-app.UseWebSockets(new WebSocketOptions()
-{
-    KeepAliveInterval = TimeSpan.FromSeconds(60),
-});
+app.UseRemoting();
 
 // 使用魔方
 app.UseCube(app.Environment);
@@ -64,7 +62,7 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=CubeHome}/{action=Index}/{id?}");
 
-app.RegisterService("IoTZero", null, app.Environment.EnvironmentName);
+app.RegisterService(star.AppId, null, app.Environment.EnvironmentName);
 
 // 反射查找并调用客户端测试，该代码仅用于测试，实际项目中不要这样做
 var clientType = "IoTZero.Clients.ClientTest".GetTypeEx();

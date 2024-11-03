@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebSockets;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NewLife.Caching;
 using NewLife.Remoting.Extensions.ModelBinders;
@@ -13,6 +14,12 @@ namespace NewLife.Remoting.Extensions;
 public static class RemotingExtensions
 {
     /// <summary>添加远程通信服务端，注册BaseDeviceController所需类型服务</summary>
+    /// <remarks>
+    /// 注册登录心跳等模型类，可再次扩展模型类，传输更多内容；
+    /// 注册TokenService令牌服务，提供令牌颁发与验证服务；
+    /// 注册密码提供者，用于通信过程中保护密钥，避免明文传输；
+    /// 注册缓存提供者的默认实现；
+    /// </remarks>
     /// <param name="services"></param>
     /// <param name="setting"></param>
     /// <returns></returns>
@@ -50,5 +57,20 @@ public static class RemotingExtensions
         //services.AddSingleton<IModelMetadataProvider, ServicModelMetadataProvider>();
 
         return services;
+    }
+
+    /// <summary>使用远程通信服务端，注册WebSocket中间件</summary>
+    /// <param name="app"></param>
+    public static void UseRemoting(this IApplicationBuilder app)
+    {
+        // 判断是否已经添加了WebSocket中间件
+        if (!app.Properties.TryGetValue("__MiddlewareDescriptions", out var value) ||
+            value is not IList<String> result || !result.Contains(typeof(WebSocketMiddleware).FullName!))
+        {
+            app.UseWebSockets(new WebSocketOptions()
+            {
+                KeepAliveInterval = TimeSpan.FromSeconds(60),
+            });
+        }
     }
 }
