@@ -163,21 +163,19 @@ public class ApiClient : ApiHost, IApiClient
 
         if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
 
-        var act = action;
         var client = Cluster.Get();
         try
         {
-            return await InvokeWithClientAsync<TResult>(client, act, args, 0, cancellationToken).ConfigureAwait(false);
+            return await InvokeWithClientAsync<TResult>(client, action, args, 0, cancellationToken).ConfigureAwait(false);
         }
         catch (ApiException ex)
         {
             // 这个连接没有鉴权，重新登录后再次调用
             if (ex.Code == ApiCode.Unauthorized)
             {
-                //await Cluster.InvokeAsync(client => OnLoginAsync(client, true)).ConfigureAwait(false);
-                await OnLoginAsync(client, true).ConfigureAwait(false);
+                await OnLoginAsync(client, true, cancellationToken).ConfigureAwait(false);
 
-                return await InvokeWithClientAsync<TResult>(client, act, args, 0, cancellationToken).ConfigureAwait(false);
+                return await InvokeWithClientAsync<TResult>(client, action, args, 0, cancellationToken).ConfigureAwait(false);
             }
 
             throw;
@@ -185,7 +183,7 @@ public class ApiClient : ApiHost, IApiClient
         // 截断任务取消异常，避免过长
         catch (TaskCanceledException)
         {
-            throw new TaskCanceledException($"[{act}]超时[{Timeout:n0}ms]取消");
+            throw new TaskCanceledException($"[{action}]超时[{Timeout:n0}ms]取消");
         }
         finally
         {
@@ -197,7 +195,11 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
     /// <returns></returns>
-    public virtual TResult? Invoke<TResult>(String action, Object? args = null) => TaskEx.Run(() => InvokeAsync<TResult>(action, args)).Result;
+    public virtual TResult? Invoke<TResult>(String action, Object? args = null)
+    {
+        using var source = new CancellationTokenSource(Timeout);
+        return InvokeAsync<TResult>(action, args, source.Token).ConfigureAwait(false).GetAwaiter().GetResult();
+    }
 
     /// <summary>单向发送。同步调用，不等待返回</summary>
     /// <param name="action">服务操作</param>
@@ -280,8 +282,6 @@ public class ApiClient : ApiHost, IApiClient
         }
         finally
         {
-            //msg.Payload.TryDispose();
-
             var msCost = st.StopCount(sw) / 1000;
             if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢调用[{action}]({msg})，耗时{msCost:n0}ms");
 
@@ -346,20 +346,29 @@ public class ApiClient : ApiHost, IApiClient
 
         // 性能计数器，次数、TPS、平均耗时
         var st = StatInvoke;
+        var sw = st.StartCount();
+
+        LastActive = DateTime.Now;
+
+        // 令牌
+        if (!Token.IsNullOrEmpty() && args != null)
+        {
+            var dic = args.ToDictionary();
+            if (!dic.ContainsKey("Token")) dic["Token"] = Token;
+            args = dic;
+        }
 
         using var span = Tracer?.NewSpan("rpc:" + action, args);
         if (args != null && span != null) args = span.Attach(args);
 
         // 编码请求
         using var msg = Encoder.CreateRequest(action, args);
-
         if (msg is DefaultMessage dm)
         {
             dm.OneWay = true;
             if (flag > 0) dm.Flag = flag;
         }
 
-        var sw = st.StartCount();
         try
         {
             return client.SendMessage(msg);
@@ -373,8 +382,6 @@ public class ApiClient : ApiHost, IApiClient
         }
         finally
         {
-            //msg.Payload.TryDispose();
-
             var msCost = st.StopCount(sw) / 1000;
             if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢调用[{action}]，耗时{msCost:n0}ms");
         }
@@ -415,15 +422,16 @@ public class ApiClient : ApiHost, IApiClient
     /// <summary>连接后自动登录</summary>
     /// <param name="client">客户端</param>
     /// <param name="force">强制登录</param>
-    protected virtual Task<Object?> OnLoginAsync(ISocketClient client, Boolean force) => TaskEx.FromResult<Object?>(null);
+    /// <param name="cancellationToken"></param>
+    protected virtual Task<Object?> OnLoginAsync(ISocketClient client, Boolean force, CancellationToken cancellationToken = default) => TaskEx.FromResult<Object?>(null);
 
     /// <summary>登录</summary>
     /// <returns></returns>
-    public virtual async Task<Object?> LoginAsync()
+    public virtual async Task<Object?> LoginAsync(CancellationToken cancellationToken = default)
     {
         if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
 
-        return await Cluster.InvokeAsync(client => OnLoginAsync(client, false)).ConfigureAwait(false);
+        return await Cluster.InvokeAsync(client => OnLoginAsync(client, false, cancellationToken)).ConfigureAwait(false);
     }
     #endregion
 
