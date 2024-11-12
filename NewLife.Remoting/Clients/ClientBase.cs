@@ -441,10 +441,11 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (Status == LoginStatus.LoggedIn) return null;
         if (Status == LoginStatus.LoggingIn)
         {
-            for (var i = 0; i < 10; i++)
+            for (var i = 0; i < 50; i++)
             {
                 await TaskEx.Delay(100);
                 if (Status == LoginStatus.LoggedIn) return null;
+                if (Status != LoginStatus.LoggingIn) break;
             }
         }
 
@@ -476,6 +477,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
         catch (Exception ex)
         {
+            Status = LoginStatus.Ready;
             span?.SetError(ex, null);
             throw;
         }
