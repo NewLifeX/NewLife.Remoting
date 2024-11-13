@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "NewLife.Remoting.Extensions": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:59975;http://localhost:59976"
+    }
+  }
+}
