@@ -221,7 +221,14 @@ public class Upgrade
     }
 
     /// <summary>启动当前应用的新进程。当前进程退出</summary>
-    public Boolean Run(String name, String args)
+    public Boolean Run(String name, String args) => Run(name, args, 3_000);
+
+    /// <summary>启动当前应用的新进程。当前进程退出</summary>
+    /// <param name="name"></param>
+    /// <param name="args"></param>
+    /// <param name="msWait"></param>
+    /// <returns></returns>
+    public Boolean Run(String name, String args, Int32 msWait)
     {
         var file = "";
         if (Runtime.Windows || Runtime.Mono)
@@ -245,12 +252,20 @@ public class Upgrade
         }
 
         WriteLog("拉起进程 {0} {1}", file, args);
-        var p = file.EndsWithIgnoreCase(".dll") ?
-            RunShell("dotnet", $"{file} {args}") :
-            RunShell(file, args);
+        try
+        {
+            var p = file.EndsWithIgnoreCase(".dll") ?
+                RunShell("dotnet", $"{file} {args}") :
+                RunShell(file, args);
 
-        // 如果进程在指定时间退出，说明启动失败
-        return p != null && (!p.WaitForExit(1000) || p.ExitCode == 0);
+            // 如果进程在指定时间退出，说明启动失败
+            return p != null && (!p.WaitForExit(msWait) || p.ExitCode == 0);
+        }
+        catch (Exception ex)
+        {
+            WriteLog("启动进程失败：{0}", ex.Message);
+            return false;
+        }
     }
 
     static Process? RunShell(String fileName, String args) => Process.Start(new ProcessStartInfo(fileName, args) { UseShellExecute = true });

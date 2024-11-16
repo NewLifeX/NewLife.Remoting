@@ -841,7 +841,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     // 执行更新，解压缩覆盖文件
                     var rs = ug.Update();
 
-                    // 执行前置命令
+                    // 执行更新后命令
                     if (rs && !info.Executor.IsNullOrEmpty()) ug.Run(info.Executor);
                     _lastVersion = info.Version;
 
@@ -854,6 +854,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         {
             span?.SetError(ex, null);
             //Log?.Error(ex.ToString());
+            this.WriteErrorEvent("Upgrade", $"更新失败！{ex.Message}");
             throw;
         }
 
@@ -870,12 +871,21 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         var name = asm.GetName().Name;
         if (name.IsNullOrEmpty()) return;
 
-        // 重新拉起进程
+        // 重新拉起进程。对于大多数应用，都是拉起新进程，然后退出当前进程；对于星尘代理，通过新进程来重启服务。
         var args = Environment.GetCommandLineArgs();
         if (args == null || args.Length == 0) args = new String[1];
         args[0] = "-upgrade";
+        var gs = args.Join(" ");
 
-        var rs = upgrade.Run(name, args.Join(" "));
+        // 执行重启，如果失败，延迟后再次尝试
+        var rs = upgrade.Run(name, gs, 3_000);
+        if (!rs)
+        {
+            var delay = 3_000;
+            this.WriteInfoEvent("Upgrade", $"拉起新进程失败，延迟{delay}ms后重试");
+            Thread.Sleep(delay);
+            rs = upgrade.Run(name, gs, 1_000);
+        }
 
         if (rs)
         {

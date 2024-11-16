@@ -99,7 +99,7 @@ public class MyDeviceService : IDeviceService
         //SetChildOnline(dv, ip);
 
         // 登录历史
-        WriteHistory(dv, source + "设备鉴权", true, $"[{dv.Name}/{dv.Code}]鉴权成功 " + inf.ToJson(false, false, false), ip);
+        WriteHistory(dv, source + "登录", true, $"[{dv.Name}/{dv.Code}]鉴权成功 " + inf.ToJson(false, false, false), ip);
 
         var rs = new LoginResponse
         {
