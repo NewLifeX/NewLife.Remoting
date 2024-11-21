@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using System.Text;
 using NewLife.Data;
 using NewLife.Log;
 using NewLife.Net;
@@ -41,6 +42,10 @@ internal class Program
 
         var rs = client.Invoke<Int32>("Big/Sum", new { a = 123, b = 456 });
         XTrace.WriteLine("{0}+{1}={2}", 123, 456, rs);
+
+        //Big Json Test
+        var resBigJsonTest = client.Invoke<string>("Big/BigJsonTest");
+        XTrace.WriteLine($"resBigJsonTest.Length={resBigJsonTest.Length}");
     }
 
     class MyClient : ApiClient
@@ -66,11 +71,25 @@ internal class Program
         }
         public String ToUpper(String str) => str.ToUpper();
 
+
         public IPacket Test(IPacket pk)
         {
             var buf = pk.ReadBytes().Select(e => (Byte)(e ^ 'x')).ToArray();
 
             return (ArrayPacket)buf;
+        }
+        public string BigJsonTest()
+        {
+            StringBuilder sb = new StringBuilder();
+            //拼接10万次   就报错了
+            for (int i = 0; i < 100000; i++)
+            {
+                sb.AppendLine("big json big json big json big json big json big json big json big json big json big json big json big json big json big json big json big json big json big json big json ");
+            }
+            string str = sb.ToString();
+            File.WriteAllText(AppDomain.CurrentDomain.BaseDirectory + "bigJsonTest.txt", str);
+            Console.WriteLine($"sb.Length={str.Length}");
+            return str;
         }
     }
 }
