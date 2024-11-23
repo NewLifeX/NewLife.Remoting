@@ -30,6 +30,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IoTZero", "Samples\IoTZero\
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ZeroServer", "Samples\ZeroServer\ZeroServer.csproj", "{95AA14E4-6771-487B-886E-251C785624E6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Zero.Desktop", "ZeroClient\Zero.Desktop.csproj", "{C9E9BE11-9B06-483D-86C1-3C11D1A5907A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -68,6 +70,10 @@ Global
 		{95AA14E4-6771-487B-886E-251C785624E6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{95AA14E4-6771-487B-886E-251C785624E6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{95AA14E4-6771-487B-886E-251C785624E6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C9E9BE11-9B06-483D-86C1-3C11D1A5907A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C9E9BE11-9B06-483D-86C1-3C11D1A5907A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C9E9BE11-9B06-483D-86C1-3C11D1A5907A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C9E9BE11-9B06-483D-86C1-3C11D1A5907A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -77,6 +83,7 @@ Global
 		{8351AC88-1955-48AD-B6F4-26959E1A0C4C} = {8DB8495C-1EB6-41AE-83DD-55DBBB0E6FA2}
 		{1DEAF969-F093-4D99-80C9-1CEA3BD06ABB} = {8DB8495C-1EB6-41AE-83DD-55DBBB0E6FA2}
 		{95AA14E4-6771-487B-886E-251C785624E6} = {8DB8495C-1EB6-41AE-83DD-55DBBB0E6FA2}
+		{C9E9BE11-9B06-483D-86C1-3C11D1A5907A} = {8DB8495C-1EB6-41AE-83DD-55DBBB0E6FA2}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {323831A1-A95B-40AB-B9AD-36A0BC10C2CB}
