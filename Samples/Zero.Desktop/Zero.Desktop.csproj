@@ -13,7 +13,7 @@
     <FileVersion>$(Version)</FileVersion>
     <AssemblyVersion>$(VersionPrefix).*</AssemblyVersion>
     <Deterministic>false</Deterministic>
-    <OutputPath>..\Bin\Desktop</OutputPath>
+    <OutputPath>..\..\Bin\Desktop</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
@@ -31,7 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\NewLife.Remoting\NewLife.Remoting.csproj" />
+    <ProjectReference Include="..\..\NewLife.Remoting\NewLife.Remoting.csproj" />
   </ItemGroup>
 
 </Project>
