@@ -64,8 +64,7 @@ public class Upgrade
         var sw = Stopwatch.StartNew();
 
         var web = CreateClient();
-        //await web.DownloadFileAsync(url, file);
-        file = await DownloadFileAsync(web, url, file, cancellationToken);
+        file = await DownloadFileAsync(web, url, file, cancellationToken).ConfigureAwait(false);
 
         sw.Stop();
         WriteLog("下载完成！{2} 大小{0:n0}字节，耗时{1:n0}ms", file.AsFile().Length, sw.ElapsedMilliseconds, file);
@@ -341,7 +340,7 @@ public class Upgrade
     public static async Task<String> DownloadFileAsync(HttpClient client, String address, String fileName, CancellationToken cancellationToken = default)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, address);
-        var rs = await client.SendAsync(request, cancellationToken);
+        var rs = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
         rs.EnsureSuccessStatusCode();
 
         // 从Http响应头中获取文件名
@@ -359,7 +358,8 @@ public class Upgrade
 
         var ms = rs.Content;
         using var fs = new FileStream(fileName, FileMode.OpenOrCreate, FileAccess.ReadWrite);
-        await ms.CopyToAsync(fs);
+        await ms.CopyToAsync(fs).ConfigureAwait(false);
+        await fs.FlushAsync(cancellationToken).ConfigureAwait(false);
 
         // 截断文件，如果前面删除失败，这里就可能使用旧文件，需要把多余部分截断
         fs.SetLength(fs.Position);

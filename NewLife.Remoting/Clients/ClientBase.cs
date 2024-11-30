@@ -262,7 +262,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     {
         public ClientBase Client { get; set; } = null!;
 
-        protected override async Task<Object?> OnLoginAsync(ISocketClient client, Boolean force, CancellationToken cancellationToken) => await InvokeWithClientAsync<Object>(client, Client.Actions[Features.Login], Client.BuildLoginRequest(), 0, cancellationToken);
+        protected override Task<Object?> OnLoginAsync(ISocketClient client, Boolean force, CancellationToken cancellationToken) => InvokeWithClientAsync<Object>(client, Client.Actions[Features.Login], Client.BuildLoginRequest(), 0, cancellationToken);
     }
 
     /// <summary>异步调用。HTTP默认POST，自动识别GET</summary>
@@ -284,10 +284,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             if (args == null || args.GetType().IsBaseType() || action.StartsWithIgnoreCase("Get") || action.ToLower().Contains("/get"))
                 method = HttpMethod.Get;
 
-            rs = await http.InvokeAsync<TResult>(method, action, args, null, cancellationToken);
+            rs = await http.InvokeAsync<TResult>(method, action, args, null, cancellationToken).ConfigureAwait(false);
         }
         else
-            rs = await _client.InvokeAsync<TResult>(action, args, cancellationToken);
+            rs = await _client.InvokeAsync<TResult>(action, args, cancellationToken).ConfigureAwait(false);
 
         if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]<={1}", action, rs is IPacket or Byte[]? "" : rs?.ToJson());
 
@@ -311,10 +311,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         // 验证登录
         var needLogin = !Actions[Features.Login].EqualIgnoreCase(action);
-        if (!Logined && needLogin && Features.HasFlag(Features.Login)) await Login(cancellationToken);
+        if (!Logined && needLogin && Features.HasFlag(Features.Login)) await Login(cancellationToken).ConfigureAwait(false);
 
         // GET请求
-        var rs = await http.InvokeAsync<TResult>(HttpMethod.Get, action, args, null, cancellationToken);
+        var rs = await http.InvokeAsync<TResult>(HttpMethod.Get, action, args, null, cancellationToken).ConfigureAwait(false);
 
         if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]<={1}", action, rs is IPacket or Byte[]? "" : rs?.ToJson());
 
@@ -334,11 +334,11 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     {
         // 验证登录。如果该接口需要登录，且未登录，则先登录
         var needLogin = !Actions[Features.Login].EqualIgnoreCase(action);
-        if (needLogin && !Logined && Features.HasFlag(Features.Login)) await Login(cancellationToken);
+        if (needLogin && !Logined && Features.HasFlag(Features.Login)) await Login(cancellationToken).ConfigureAwait(false);
 
         try
         {
-            return await OnInvokeAsync<TResult>(action, args, cancellationToken);
+            return await OnInvokeAsync<TResult>(action, args, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -353,10 +353,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     {
                         Log?.Debug("{0}", ex);
                         WriteLog("重新登录，因调用[{0}]失败：{1}", action, ex.Message);
-                        await Login(cancellationToken);
+                        await Login(cancellationToken).ConfigureAwait(false);
 
                         // 再次执行当前请求
-                        return await OnInvokeAsync<TResult>(action, args, cancellationToken);
+                        return await OnInvokeAsync<TResult>(action, args, cancellationToken).ConfigureAwait(false);
                     }
                 }
 
@@ -410,7 +410,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         var timer = _timerLogin;
         try
         {
-            if (!Logined) await Login();
+            if (!Logined) await Login().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -443,7 +443,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         {
             for (var i = 0; i < 50; i++)
             {
-                await TaskEx.Delay(100);
+                await TaskEx.Delay(100, cancellationToken).ConfigureAwait(false);
                 if (Status == LoginStatus.LoggedIn) return null;
                 if (Status != LoginStatus.LoggingIn) break;
             }
@@ -465,7 +465,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             // 登录前清空令牌，避免服务端使用上一次信息
             SetToken(null);
 
-            response = await LoginAsync(request, cancellationToken);
+            response = await LoginAsync(request, cancellationToken).ConfigureAwait(false);
             if (response == null) return null;
 
             WriteLog("登录成功：{0}", response);
@@ -586,7 +586,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         try
         {
-            var rs = await LogoutAsync(reason, cancellationToken);
+            var rs = await LogoutAsync(reason, cancellationToken).ConfigureAwait(false);
 
             // 更新令牌
             SetToken(rs?.Token);
@@ -617,9 +617,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     protected virtual async Task<ILogoutResponse?> LogoutAsync(String? reason, CancellationToken cancellationToken)
     {
         if (_client is ApiHttpClient)
-            return await GetAsync<ILogoutResponse>(Actions[Features.Logout], new { reason }, cancellationToken);
+            return await GetAsync<ILogoutResponse>(Actions[Features.Logout], new { reason }, cancellationToken).ConfigureAwait(false);
 
-        return await InvokeAsync<ILogoutResponse>(Actions[Features.Logout], new { reason }, cancellationToken);
+        return await InvokeAsync<ILogoutResponse>(Actions[Features.Logout], new { reason }, cancellationToken).ConfigureAwait(false);
     }
     #endregion
 
@@ -651,7 +651,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             IPingResponse? response = null;
             try
             {
-                response = await PingAsync(request, cancellationToken);
+                response = await PingAsync(request, cancellationToken).ConfigureAwait(false);
                 if (response != null)
                 {
                     // 由服务器改变采样频率
@@ -667,7 +667,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     {
                         foreach (var model in response.Commands)
                         {
-                            await ReceiveCommand(model, "Pong", cancellationToken);
+                            await ReceiveCommand(model, "Pong", cancellationToken).ConfigureAwait(false);
                         }
                     }
                 }
@@ -684,7 +684,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             // 上报正常，处理历史，失败则丢弃
             while (_fails.TryDequeue(out var info))
             {
-                await PingAsync(info, cancellationToken);
+                await PingAsync(info, cancellationToken).ConfigureAwait(false);
             }
 
             return response;
@@ -700,7 +700,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 if (Features.HasFlag(Features.Login))
                 {
                     WriteLog("重新登录，因心跳失败：{0}", ex.Message);
-                    await Login(cancellationToken);
+                    await Login(cancellationToken).ConfigureAwait(false);
                 }
 
                 return null;
@@ -776,14 +776,14 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     {
         if (!NetworkInterface.GetIsNetworkAvailable()) return;
 
-        await Upgrade(null);
+        await Upgrade(null).ConfigureAwait(false);
     }
 
     private async Task<String?> ReceiveUpgrade(String? arguments)
     {
         // 参数作为通道
         var channel = arguments;
-        var rs = await Upgrade(channel);
+        var rs = await Upgrade(channel).ConfigureAwait(false);
         if (rs == null) return "没有可用更新！";
 
         return $"成功更新到[{rs.Version}]";
@@ -802,7 +802,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         ug.DeleteBackup(".");
 
         // 调用接口查询思否存在更新信息
-        var info = await UpgradeAsync(channel, cancellationToken);
+        var info = await UpgradeAsync(channel, cancellationToken).ConfigureAwait(false);
         if (info == null || info.Version == _lastVersion) return info;
 
         // _lastVersion避免频繁更新同一个版本
@@ -813,7 +813,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         {
             // 下载文件包
             ug.Url = BuildUrl(info.Source!);
-            await ug.Download(cancellationToken);
+            await ug.Download(cancellationToken).ConfigureAwait(false);
 
             // 检查文件完整性
             if (!info.FileHash.IsNullOrEmpty() && !ug.CheckFileHash(info.FileHash))
@@ -905,9 +905,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     protected virtual async Task<IUpgradeInfo?> UpgradeAsync(String? channel, CancellationToken cancellationToken)
     {
         if (_client is ApiHttpClient)
-            return await GetAsync<IUpgradeInfo>(Actions[Features.Upgrade], new { channel }, cancellationToken);
+            return await GetAsync<IUpgradeInfo>(Actions[Features.Upgrade], new { channel }, cancellationToken).ConfigureAwait(false);
 
-        return await InvokeAsync<IUpgradeInfo>(Actions[Features.Upgrade], new { channel }, cancellationToken);
+        return await InvokeAsync<IUpgradeInfo>(Actions[Features.Upgrade], new { channel }, cancellationToken).ConfigureAwait(false);
     }
     #endregion
 
@@ -958,7 +958,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         using var span = Tracer?.NewSpan(Name + "Ping");
         try
         {
-            if (Features.HasFlag(Features.Ping)) await Ping();
+            if (Features.HasFlag(Features.Ping)) await Ping().ConfigureAwait(false);
 
             if (_client is ApiHttpClient http && Features.HasFlag(Features.Notify))
             {
@@ -968,7 +968,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 #else
                 _ws ??= new WsChannel(this);
 #endif
-                if (_ws != null) await _ws.ValidWebSocket(http);
+                if (_ws != null) await _ws.ValidWebSocket(http).ConfigureAwait(false);
             }
         }
         catch (Exception ex)
@@ -1024,19 +1024,19 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     };
 
                     if (Features.HasFlag(Features.CommandReply))
-                        await CommandReply(reply, cancellationToken);
+                        await CommandReply(reply, cancellationToken).ConfigureAwait(false);
 
                     return reply;
                 }
                 else
-                    return await OnReceiveCommand(model, cancellationToken);
+                    return await OnReceiveCommand(model, cancellationToken).ConfigureAwait(false);
             }
             else
             {
                 var reply = new CommandReplyModel { Id = model.Id, Status = CommandStatus.取消 };
 
                 if (Features.HasFlag(Features.CommandReply))
-                    await CommandReply(reply, cancellationToken);
+                    await CommandReply(reply, cancellationToken).ConfigureAwait(false);
 
                 return reply;
             }
@@ -1057,11 +1057,11 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         var e = new CommandEventArgs { Model = model };
         Received?.Invoke(this, e);
 
-        var rs = await this.ExecuteCommand(model, cancellationToken);
+        var rs = await this.ExecuteCommand(model, cancellationToken).ConfigureAwait(false);
         e.Reply ??= rs;
 
         if (e.Reply != null && e.Reply.Id > 0 && Features.HasFlag(Features.CommandReply))
-            await CommandReply(e.Reply, cancellationToken);
+            await CommandReply(e.Reply, cancellationToken).ConfigureAwait(false);
 
         return e.Reply;
     }
@@ -1071,7 +1071,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="argument"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public virtual async Task<CommandReplyModel?> SendCommand(String command, String argument, CancellationToken cancellationToken = default) => await OnReceiveCommand(new CommandModel { Command = command, Argument = argument }, cancellationToken);
+    public virtual Task<CommandReplyModel?> SendCommand(String command, String argument, CancellationToken cancellationToken = default) => OnReceiveCommand(new CommandModel { Command = command, Argument = argument }, cancellationToken);
 
     /// <summary>上报命令调用结果</summary>
     /// <param name="model"></param>
@@ -1120,7 +1120,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             if (tid != null) span?.Detach(tid);
             try
             {
-                if (list.Count > 0) await PostEvents(list.ToArray());
+                if (list.Count > 0) await PostEvents(list.ToArray()).ConfigureAwait(false);
 
                 // 成功后读取本地缓存
                 while (_failEvents.TryDequeue(out var ev))

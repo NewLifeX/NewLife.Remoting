@@ -43,7 +43,7 @@ class WsChannel : DisposeBase
             try
             {
                 // 在websocket链路上定时发送心跳，避免长连接被断开
-                await _websocket.SendTextAsync("Ping");
+                await _websocket.SendTextAsync("Ping").ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -85,20 +85,20 @@ class WsChannel : DisposeBase
             var buf = new Byte[64 * 1024];
             while (!source.IsCancellationRequested && !socket.Disposed)
             {
-                using var rs = await socket.ReceiveMessageAsync(source.Token);
+                using var rs = await socket.ReceiveMessageAsync(source.Token).ConfigureAwait(false);
                 if (rs == null) continue;
 
                 if (rs.Type == WebSocketMessageType.Close) break;
                 if (rs.Type == WebSocketMessageType.Text)
                 {
                     var txt = rs.Payload?.ToStr();
-                    if (txt != null) await OnReceive(txt);
+                    if (txt != null) await OnReceive(txt).ConfigureAwait(false);
                 }
             }
 
             if (!source.IsCancellationRequested) source.Cancel();
 
-            if (!socket.Disposed) await socket.CloseAsync(1000, "finish", default);
+            if (!socket.Disposed) await socket.CloseAsync(1000, "finish", default).ConfigureAwait(false);
         }
         catch (TaskCanceledException) { }
         catch (OperationCanceledException) { }
@@ -123,7 +123,7 @@ class WsChannel : DisposeBase
         else
         {
             var model = message.ToJsonEntity<CommandModel>();
-            if (model != null) await _client.ReceiveCommand(model, "WebSocket");
+            if (model != null) await _client.ReceiveCommand(model, "WebSocket").ConfigureAwait(false);
         }
     }
 
@@ -134,7 +134,7 @@ class WsChannel : DisposeBase
         try
         {
             if (_websocket != null && !_websocket.Disposed)
-                _websocket.CloseAsync(1000, "finish", default);
+                _websocket.CloseAsync(1000, "finish", default).Wait(1000);
         }
         catch { }
 

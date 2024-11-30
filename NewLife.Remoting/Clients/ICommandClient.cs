@@ -112,7 +112,7 @@ public static class CommandClientHelper
         var rs = new CommandReplyModel { Id = model.Id, Status = CommandStatus.已完成 };
         try
         {
-            var result = await OnCommand(client, model, cancellationToken);
+            var result = await OnCommand(client, model, cancellationToken).ConfigureAwait(false);
             if (result is CommandReplyModel reply)
             {
                 reply.Id = model.Id;
@@ -152,16 +152,17 @@ public static class CommandClientHelper
         if (!client.Commands.TryGetValue(model.Command, out var d))
             throw new ApiException(ApiCode.NotFound, $"找不到服务[{model.Command}]");
 
-        if (d is Func<String?, Task<String?>> func1) return await func1(model.Argument);
-        //if (d is Func<String, Task<Object>> func2) return await func2(model.Argument);
-        if (d is Func<CommandModel, Task<CommandReplyModel>> func3) return await func3(model);
-        if (d is Func<CommandModel, CancellationToken, Task<CommandReplyModel>> func4) return await func4(model, cancellationToken);
+        if (d is Func<String?, Task<String?>> func1)
+            return await func1(model.Argument).ConfigureAwait(false);
+        if (d is Func<CommandModel, Task<CommandReplyModel>> func3)
+            return await func3(model).ConfigureAwait(false);
+        if (d is Func<CommandModel, CancellationToken, Task<CommandReplyModel>> func4)
+            return await func4(model, cancellationToken).ConfigureAwait(false);
 
         if (d is Action<CommandModel> func21) func21(model);
 
         if (d is Func<CommandModel, CommandReplyModel> func31) return func31(model);
         if (d is Func<String?, String?> func32) return func32(model.Argument);
-        //if (d is Func<String, Object> func33) return func33(model.Argument);
 
         //return null;
         throw new ApiException(ApiCode.InternalServerError, $"服务[{model.Command}]的签名[{d}]不正确");

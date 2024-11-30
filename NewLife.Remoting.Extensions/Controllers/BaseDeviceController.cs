@@ -188,9 +188,9 @@ public class BaseDeviceController : BaseController
 
         if (HttpContext.WebSockets.IsWebSocketRequest)
         {
-            using var socket = await HttpContext.WebSockets.AcceptWebSocketAsync();
+            using var socket = await HttpContext.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
 
-            await HandleNotify(socket, Token);
+            await HandleNotify(socket, Token).ConfigureAwait(false);
         }
         else
             HttpContext.Response.StatusCode = 400;
@@ -231,7 +231,7 @@ public class BaseDeviceController : BaseController
                 // 长连接上线。可能客户端心跳已经停了，WS还在，这里重新上线
                 _deviceService.SetOnline(device, true, token, ip);
             }
-        }, source);
+        }, source).ConfigureAwait(false);
 
         WriteLog("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
 
@@ -248,7 +248,7 @@ public class BaseDeviceController : BaseController
             while (!cancellationToken.IsCancellationRequested && socket.State == WebSocketState.Open)
             {
                 ISpan? span = null;
-                var mqMsg = await queue.TakeOneAsync(15, cancellationToken);
+                var mqMsg = await queue.TakeOneAsync(15, cancellationToken).ConfigureAwait(false);
                 if (mqMsg != null)
                 {
                     // 埋点
@@ -274,14 +274,14 @@ public class BaseDeviceController : BaseController
                     {
                         WriteLog("WebSocket发送", true, mqMsg);
 
-                        await socket.SendAsync(mqMsg.GetBytes(), WebSocketMessageType.Text, true, cancellationToken);
+                        await socket.SendAsync(mqMsg.GetBytes(), WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
                     }
 
                     span?.Dispose();
                 }
                 else
                 {
-                    await Task.Delay(1_000, cancellationToken);
+                    await Task.Delay(1_000, cancellationToken).ConfigureAwait(false);
                 }
             }
         }

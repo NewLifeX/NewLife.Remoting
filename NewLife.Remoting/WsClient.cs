@@ -243,10 +243,10 @@ public class WsClient : ApiHost, IApiClient
             var codec = GetMessageCodec();
             var context = new NetHandlerContext();
             var pk = codec.Write(context, msg) as IPacket;
-            await client.SendAsync(pk!.ToSegment(), WebSocketMessageType.Binary, true, default);
+            await client.SendAsync(pk!.ToSegment(), WebSocketMessageType.Binary, true, default).ConfigureAwait(false);
 
             var buf = new Byte[64 * 1024];
-            var data = await client.ReceiveAsync(new ArraySegment<Byte>(buf), default);
+            var data = await client.ReceiveAsync(new ArraySegment<Byte>(buf), default).ConfigureAwait(false);
             rs = codec.Read(context, data) as IMessage;
 
             if (rs == null) return default;

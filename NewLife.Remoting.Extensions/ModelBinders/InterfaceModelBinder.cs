@@ -19,7 +19,7 @@ public class InterfaceModelBinder : IModelBinder
         try
         {
             var req = bindingContext.HttpContext.Request;
-            var entityBody = await req.ReadFromJsonAsync(model!.GetType());
+            var entityBody = await req.ReadFromJsonAsync(model!.GetType()).ConfigureAwait(false);
 
             bindingContext.Result = ModelBindingResult.Success(entityBody);
         }

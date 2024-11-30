@@ -42,7 +42,7 @@ class WsChannelCore : WsChannel
             {
                 // 在websocket链路上定时发送心跳，避免长连接被断开
                 var str = "Ping";
-                await _websocket.SendAsync(new ArraySegment<Byte>(str.GetBytes()), WebSocketMessageType.Text, true, default);
+                await _websocket.SendAsync(new ArraySegment<Byte>(str.GetBytes()), WebSocketMessageType.Text, true, default).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -65,7 +65,7 @@ class WsChannelCore : WsChannel
             client.Options.SetRequestHeader("Authorization", "Bearer " + token);
 
             span?.AppendTag($"WebSocket.Connect {uri}");
-            await client.ConnectAsync(uri, default);
+            await client.ConnectAsync(uri, default).ConfigureAwait(false);
 
             _websocket = client;
 
@@ -84,19 +84,19 @@ class WsChannelCore : WsChannel
             var buf = new Byte[64 * 1024];
             while (!source.IsCancellationRequested && socket.State == WebSocketState.Open)
             {
-                var data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), source.Token);
+                var data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), source.Token).ConfigureAwait(false);
                 if (data.MessageType == WebSocketMessageType.Close) break;
                 if (data.MessageType == WebSocketMessageType.Text)
                 {
                     var txt = buf.ToStr(null, 0, data.Count);
-                    if (txt != null) await OnReceive(txt);
+                    if (txt != null) await OnReceive(txt).ConfigureAwait(false);
                 }
             }
 
             if (!source.IsCancellationRequested) source.Cancel();
 
             if (socket.State == WebSocketState.Open)
-                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default);
+                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default).ConfigureAwait(false);
         }
         catch (TaskCanceledException) { }
         catch (OperationCanceledException) { }
@@ -120,8 +120,8 @@ class WsChannelCore : WsChannel
         }
         else
         {
-            var model = _client.JsonHost.Read(message, typeof(CommandModel)) as CommandModel;
-            if (model != null) await _client.ReceiveCommand(model, "WebSocket");
+            var model = _client.JsonHost.Read<CommandModel>(message);
+            if (model != null) await _client.ReceiveCommand(model, "WebSocket").ConfigureAwait(false);
         }
     }
 
