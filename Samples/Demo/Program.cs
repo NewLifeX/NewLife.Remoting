@@ -87,7 +87,7 @@ internal class Program
         {
             StringBuilder sb = new StringBuilder();
             //拼接10万次   就报错了
-            for (int i = 0; i < 100; i++)
+            for (int i = 0; i < 10000; i++)
             {
                 sb.AppendLine("big json big json big json big json big json big json big json big json big json big json big json big json big json big json big json big json big json big json big json ");
             }
