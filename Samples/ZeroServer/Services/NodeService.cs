@@ -84,7 +84,7 @@ public class NodeService : IDeviceService
             }
         }
 
-        if (node == null) throw new ApiException(ApiCode.Unauthorized, "节点鉴权失败");
+        if (node == null) throw new ApiException(ApiCode.Unauthorized, "登录失败");
 
         node.Login(inf, ip);
 
@@ -93,7 +93,7 @@ public class NodeService : IDeviceService
         olt.Save(inf, null, null, ip);
 
         // 登录历史
-        WriteHistory(node, source + "节点鉴权", true, $"[{node.Name}/{node.Code}]鉴权成功 " + inf.ToJson(false, false, false), ip);
+        WriteHistory(node, source + "登录", true, $"[{node.Name}/{node.Code}]登录成功 " + inf.ToJson(false, false, false), ip);
 
         var rs = new LoginResponse
         {

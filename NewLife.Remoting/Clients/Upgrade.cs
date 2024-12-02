@@ -1,7 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Net.Http;
 using System.Reflection;
-using System.Security.Cryptography;
 using NewLife.Log;
 using NewLife.Remoting.Models;
 

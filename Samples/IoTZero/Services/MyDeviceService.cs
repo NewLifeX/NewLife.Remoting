@@ -88,7 +88,7 @@ public class MyDeviceService : IDeviceService
 
         //if (dv != null && !dv.Enable) throw new ApiException(99, "禁止登录");
 
-        if (dv == null) throw new ApiException(ApiCode.Unauthorized, "节点鉴权失败");
+        if (dv == null) throw new ApiException(ApiCode.Unauthorized, "登录失败");
 
         dv.Login(inf, ip);
 
@@ -99,7 +99,7 @@ public class MyDeviceService : IDeviceService
         //SetChildOnline(dv, ip);
 
         // 登录历史
-        WriteHistory(dv, source + "登录", true, $"[{dv.Name}/{dv.Code}]鉴权成功 " + inf.ToJson(false, false, false), ip);
+        WriteHistory(dv, source + "登录", true, $"[{dv.Name}/{dv.Code}]登录成功 " + inf.ToJson(false, false, false), ip);
 
         var rs = new LoginResponse
         {
