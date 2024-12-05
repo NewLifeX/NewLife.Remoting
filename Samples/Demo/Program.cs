@@ -78,6 +78,7 @@ internal class Program
 
             return (ArrayPacket)buf;
         }
+
         /// <summary>
         /// 当循环1000次 拼接 就报错超时了， System.TimeoutException:“请求[Big/BigJsonTest]超时(01 Seq=02 [32](8, 16)<16>)！”
         /// 当循环10次拼接  正常
