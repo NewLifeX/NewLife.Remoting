@@ -146,9 +146,9 @@ public class ApiTest : DisposeBase
         server.Start();
 
         using var client = new ApiClient("tcp://127.0.0.1:12399");
-        client.Timeout = 60_000;
 
         var buf = new Byte[5 * 8 * 1024];
+        Array.Fill(buf, (Byte)'a');
         var rs = await client.InvokeAsync<Packet>("big/test", buf);
 
         Assert.NotNull(rs);
@@ -158,16 +158,40 @@ public class ApiTest : DisposeBase
         Assert.True(rs.ToArray().SequenceEqual(buf2));
 
         var ret = client.InvokeOneWay("big/TestOneWay", buf);
+    }
 
+    [Fact]
+    public async void BigMessage64k()
+    {
+        using var server = new ApiServer(12399);
+        server.Log = XTrace.Log;
+        server.EncoderLog = XTrace.Log;
+        server.Register<BigController>();
+        server.Start();
+
+        using var client = new ApiClient("tcp://127.0.0.1:12399");
+
+        var buf = new Byte[65 * 1024];
+        Array.Fill(buf, (Byte)'a');
+        var rs = await client.InvokeAsync<Packet>("big/test", buf);
+
+        Assert.NotNull(rs);
+        Assert.Equal(buf.Length, rs.Total);
+
+        var buf2 = buf.Select(e => (Byte)(e ^ 'x')).ToArray();
+        Assert.True(rs.ToArray().SequenceEqual(buf2));
+
+        var ret = client.InvokeOneWay("big/TestOneWay", buf);
     }
 
     class BigController
     {
         public IPacket Test(IPacket pk)
         {
-            Assert.Equal(5 * 8 * 1024, pk.Total);
+            //Assert.Equal(5 * 8 * 1024, pk.Total);
 
-            var buf = pk.ReadBytes().Select(e => (Byte)(e ^ 'x')).ToArray();
+            var buf = pk.ReadBytes();
+            buf = buf.Select(e => (Byte)(e ^ 'x')).ToArray();
 
             return (ArrayPacket)buf;
         }
