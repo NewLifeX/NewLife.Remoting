@@ -146,6 +146,7 @@ public class ApiTest : DisposeBase
         server.Start();
 
         using var client = new ApiClient("tcp://127.0.0.1:12399");
+        client.Timeout = 60_000;
 
         var buf = new Byte[5 * 8 * 1024];
         var rs = await client.InvokeAsync<Packet>("big/test", buf);

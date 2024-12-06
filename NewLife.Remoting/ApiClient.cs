@@ -308,6 +308,7 @@ public class ApiClient : ApiHost, IApiClient
             if (resultType == typeof(Packet))
             {
                 if (message.Data is Packet) return (TResult)(Object)message.Data;
+                if(message.Data.TryGetArray(out var segment)) return (TResult)(Object)new Packet(segment);
 
                 return (TResult)(Object)new Packet(message.Data.ToArray());
             }

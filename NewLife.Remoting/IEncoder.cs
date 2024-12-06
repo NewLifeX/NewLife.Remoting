@@ -82,7 +82,8 @@ public abstract class EncoderBase
         //var ms = new MemoryStream();
         //ms.Seek(8, SeekOrigin.Begin);
 
-        var len = 8 + 1 + Encoding.UTF8.GetByteCount(action) + 4 + 4;
+        var len = 8 + 1 + Encoding.UTF8.GetByteCount(action) + 4;
+        if (code != null && code.Value is not ApiCode.Ok and not 200) len += 4;
         var pk = new OwnerPacket(len);
 
         // 请求：action + args
