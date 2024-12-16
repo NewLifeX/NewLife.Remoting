@@ -234,9 +234,9 @@ public class ApiServer : ApiHost, IServer
         var code = 0;
         var st = StatProcess;
         var sw = st.StartCount();
+        Object? result = null;
         try
         {
-            Object? result;
             try
             {
                 Received?.Invoke(this, new ApiReceivedEventArgs { Session = session, Message = msg, ApiMessage = request });
@@ -284,6 +284,9 @@ public class ApiServer : ApiHost, IServer
         {
             var msCost = st.StopCount(sw) / 1000;
             if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢处理[{request?.Action}]，Code={code}，耗时{msCost:n0}ms");
+
+            // 响应结果可能是 IOwnerPacket，需要释放资源，把缓冲区还给池
+            result.TryDispose();
         }
     }
 
