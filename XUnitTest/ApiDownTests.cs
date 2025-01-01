@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Threading;
+using System.Threading.Tasks;
 using NewLife;
 using NewLife.Data;
 using NewLife.Log;

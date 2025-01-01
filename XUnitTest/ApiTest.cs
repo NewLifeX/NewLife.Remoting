@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using NewLife;
 using NewLife.Caching;
 using NewLife.Data;
@@ -58,7 +59,7 @@ public class ApiTest : DisposeBase
 
     //[Order(1)]
     [Fact(DisplayName = "基础Api测试")]
-    public async void BasicTest()
+    public async Task BasicTest()
     {
         var apis = await _Client.InvokeAsync<String[]>("api/all");
         Assert.NotNull(apis);
@@ -72,7 +73,7 @@ public class ApiTest : DisposeBase
     [Theory(DisplayName = "参数测试")]
     [InlineData("12345678", "ABCDEFG")]
     [InlineData("ABCDEFG", "12345678")]
-    public async void InfoTest(String state, String state2)
+    public async Task InfoTest(String state, String state2)
     {
         var infs = await _Client.InvokeAsync<IDictionary<String, Object>>("api/info", new { state, state2 });
         Assert.NotNull(infs);
@@ -85,7 +86,7 @@ public class ApiTest : DisposeBase
 
     ////[Order(3)]
     //[Fact(DisplayName = "二进制测试")]
-    //public async void Info2Test()
+    //public async Task Info2Test()
     //{
     //    var buf = Rand.NextBytes(32);
 
@@ -97,7 +98,7 @@ public class ApiTest : DisposeBase
 
     //[Order(4)]
     [Fact(DisplayName = "异常请求")]
-    public async void ErrorTest()
+    public async Task ErrorTest()
     {
         var ex = await Assert.ThrowsAsync<ApiException>(() => _Client.InvokeAsync<Object>("api/info3"));
 
@@ -112,7 +113,7 @@ public class ApiTest : DisposeBase
     [Theory(DisplayName = "令牌测试")]
     [InlineData("12345678", "ABCDEFG")]
     [InlineData("ABCDEFG", "12345678")]
-    public async void TokenTest(String token, String state)
+    public async Task TokenTest(String token, String state)
     {
         var client = new ApiClient(_Uri)
         {
@@ -137,11 +138,11 @@ public class ApiTest : DisposeBase
     }
 
     [Fact]
-    public async void BigMessage()
+    public async Task BigMessage()
     {
         using var server = new ApiServer(12399);
         server.Log = XTrace.Log;
-        server.EncoderLog = XTrace.Log;
+        //server.EncoderLog = XTrace.Log;
         server.Register<BigController>();
         server.Start();
 
@@ -161,11 +162,11 @@ public class ApiTest : DisposeBase
     }
 
     [Fact]
-    public async void BigMessage64k()
+    public async Task BigMessage64k()
     {
         using var server = new ApiServer(12399);
         server.Log = XTrace.Log;
-        server.EncoderLog = XTrace.Log;
+        //server.EncoderLog = XTrace.Log;
         server.Register<BigController>();
         server.Start();
 
@@ -246,7 +247,7 @@ public class ApiTest : DisposeBase
     }
 
     [Fact]
-    public async void SimpleType()
+    public async Task SimpleType()
     {
         using var server = new ApiServer(12377);
         server.Log = XTrace.Log;

@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Runtime.Serialization;
+using System.Threading.Tasks;
 using NewLife;
 using NewLife.Data;
 using NewLife.Remoting;
@@ -75,7 +76,7 @@ public class ApiHelperTest : DisposeBase
     [InlineData("Put", "api/info", "[packet]")]
     [InlineData("Put", "api/info", "[object]")]
     [InlineData("Put", "api/info", "[dictionary]")]
-    public async void BuildRequestTest2(String method, String action, String argKind)
+    public async Task BuildRequestTest2(String method, String action, String argKind)
     {
         // 几大类型参数
         Object args = null;
@@ -161,7 +162,7 @@ public class ApiHelperTest : DisposeBase
     [Theory(DisplayName = "处理Http错误响应")]
     [InlineData(null)]
     [InlineData("12345678")]
-    public async void ProcessErrorResponseTest(String content)
+    public async Task ProcessErrorResponseTest(String content)
     {
         var msg = new HttpResponseMessage(HttpStatusCode.BadRequest);
         if (!content.IsNullOrEmpty()) msg.Content = new StringContent(content);
@@ -171,9 +172,9 @@ public class ApiHelperTest : DisposeBase
         Assert.Equal(msg, rs);
 
         // 捕获Api异常
-        var ex = await Assert.ThrowsAsync<ApiException>(() => ApiHelper.ProcessResponse<String>(msg));
+        var ex = await Assert.ThrowsAsync<HttpRequestException>(() => ApiHelper.ProcessResponse<String>(msg));
 
-        Assert.Equal(HttpStatusCode.BadRequest, (HttpStatusCode)ex.Code);
+        Assert.Equal(HttpStatusCode.BadRequest, (HttpStatusCode)ex.StatusCode);
         if (!content.IsNullOrEmpty())
             Assert.Equal(content, ex.Message);
         else
@@ -184,7 +185,7 @@ public class ApiHelperTest : DisposeBase
     [InlineData("{code:500,data:\"Stone\"}")]
     [InlineData("{code:501,message:\"error\"}")]
     [InlineData("{code:502,data:\"Stone\",msg:\"error\"}")]
-    public async void ProcessErrorResponseTest2(String content)
+    public async Task ProcessErrorResponseTest2(String content)
     {
         var msg = new HttpResponseMessage(HttpStatusCode.OK);
         if (!content.IsNullOrEmpty()) msg.Content = new StringContent(content);
@@ -207,7 +208,7 @@ public class ApiHelperTest : DisposeBase
     [Theory(DisplayName = "处理Byte响应")]
     [InlineData(null)]
     [InlineData("12345678")]
-    public async void ProcessByteResponseTest(String content)
+    public async Task ProcessByteResponseTest(String content)
     {
         var msg = new HttpResponseMessage(HttpStatusCode.OK);
         if (!content.IsNullOrEmpty()) msg.Content = new ByteArrayContent(content.ToHex());
@@ -228,7 +229,7 @@ public class ApiHelperTest : DisposeBase
     [Theory(DisplayName = "处理Packet响应")]
     [InlineData(null)]
     [InlineData("12345678")]
-    public async void ProcessPacketResponseTest(String content)
+    public async Task ProcessPacketResponseTest(String content)
     {
         var msg = new HttpResponseMessage(HttpStatusCode.OK);
         if (!content.IsNullOrEmpty()) msg.Content = new ByteArrayContent(content.ToHex());
@@ -251,7 +252,7 @@ public class ApiHelperTest : DisposeBase
     [InlineData("{code:0,data:\"Stone\"}")]
     [InlineData("{code:0,data:{aaa:\"bbb\",xxx:1234}}")]
     [InlineData("{code:0,data:{OSName:\"win10\",OSVersion:\"10.0\"}}")]
-    public async void ProcessResponseTest(String content)
+    public async Task ProcessResponseTest(String content)
     {
         var msg = new HttpResponseMessage(HttpStatusCode.OK);
         if (!content.IsNullOrEmpty()) msg.Content = new StringContent(content);
@@ -293,7 +294,7 @@ public class ApiHelperTest : DisposeBase
 
     [Theory(DisplayName = "处理复杂响应")]
     [InlineData("{errcode:0,errmsg:\"ok\",access_token:\"12345678\"}")]
-    public async void ProcessResponse_OtherData(String content)
+    public async Task ProcessResponse_OtherData(String content)
     {
         var msg = new HttpResponseMessage(HttpStatusCode.OK);
         if (!content.IsNullOrEmpty()) msg.Content = new StringContent(content);
@@ -321,7 +322,7 @@ public class ApiHelperTest : DisposeBase
 
     [Theory(DisplayName = "处理异常响应")]
     [InlineData("{errcode:500,errmsg:\"valid data\"}")]
-    public async void ProcessResponse_Error(String content)
+    public async Task ProcessResponse_Error(String content)
     {
         var msg = new HttpResponseMessage(HttpStatusCode.OK);
         if (!content.IsNullOrEmpty()) msg.Content = new StringContent(content);
@@ -333,7 +334,7 @@ public class ApiHelperTest : DisposeBase
     }
 
     //[Fact]
-    public async void ProcessResponse_DingTalk()
+    public async Task ProcessResponse_DingTalk()
     {
         var key = "dingbvcq0mz3pidpwtch";
         var secret = "7OTdnimQwf5LJnVp8e0udX1wPxKyCsspLqM2YcBDawvg3BlIkzxIsOs1YhDjiOxj";
@@ -354,7 +355,7 @@ public class ApiHelperTest : DisposeBase
     }
 
     [Fact(DisplayName = "异步请求")]
-    public async void SendAsyncTest()
+    public async Task SendAsyncTest()
     {
         var dic = await _Client.GetAsync<IDictionary<String, Object>>("api/info");
         Assert.NotNull(dic);
@@ -371,7 +372,7 @@ public class ApiHelperTest : DisposeBase
     }
 
     [Fact(DisplayName = "异常请求")]
-    public async void ErrorTest()
+    public async Task ErrorTest()
     {
         var msg = await _Client.GetAsync<HttpResponseMessage>("api/info");
         Assert.NotNull(msg);
@@ -392,7 +393,7 @@ public class ApiHelperTest : DisposeBase
     }
 
     [Fact(DisplayName = "上传数据")]
-    public async void PostAsyncTest()
+    public async Task PostAsyncTest()
     {
         var state = Rand.NextString(8);
         var state2 = Rand.NextString(8);
@@ -412,7 +413,7 @@ public class ApiHelperTest : DisposeBase
     }
 
     [Fact(DisplayName = "令牌请求")]
-    public async void TokenTest()
+    public async Task TokenTest()
     {
         var auth = new AuthenticationHeaderValue("Bearer", "12345678");
         //var headers = new Dictionary<String, String>();
