@@ -12,6 +12,6 @@ public enum LoginStatus
     /// <summary>已登录</summary>
     LoggedIn = 2,
 
-    /// <summary>已注销</summary>
-    LoggedOut = 3,
+    ///// <summary>已注销</summary>
+    //LoggedOut = 3,
 }

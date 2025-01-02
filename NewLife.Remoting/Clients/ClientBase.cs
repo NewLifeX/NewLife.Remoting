@@ -152,7 +152,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         StopTimer();
 
-        Status = LoginStatus.LoggedOut;
+        Status = LoginStatus.Ready;
 
         _timerLogin.TryDispose();
         _timerLogin = null;
@@ -435,18 +435,14 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <returns></returns>
     public virtual async Task<ILoginResponse?> Login(CancellationToken cancellationToken = default)
     {
-        if (Status >= LoginStatus.LoggedOut) return null;
+        //if (Status >= LoginStatus.LoggedOut) return null;
 
         // 如果已登录，直接返回。如果正在登录，则稍等一会，避免重复登录。
-        if (Status == LoginStatus.LoggedIn) return null;
-        if (Status == LoginStatus.LoggingIn)
+        if (Status >= LoginStatus.LoggedIn) return null;
+        for (var i = 0; Status == LoginStatus.LoggingIn && i < 50; i++)
         {
-            for (var i = 0; i < 50; i++)
-            {
-                await TaskEx.Delay(100, cancellationToken).ConfigureAwait(false);
-                if (Status == LoginStatus.LoggedIn) return null;
-                if (Status != LoginStatus.LoggingIn) break;
-            }
+            await TaskEx.Delay(100, cancellationToken).ConfigureAwait(false);
+            if (Status == LoginStatus.LoggedIn) return null;
         }
 
         if (Status != LoginStatus.LoggedIn) Status = LoginStatus.LoggingIn;
@@ -593,7 +589,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
             StopTimer();
 
-            Status = LoginStatus.LoggedOut;
+            Status = LoginStatus.Ready;
 
             return rs;
         }
