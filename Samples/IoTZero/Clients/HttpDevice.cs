@@ -1,4 +1,5 @@
-﻿using NewLife.IoT.Models;
+﻿using NewLife;
+using NewLife.IoT.Models;
 using NewLife.IoT.ThingModels;
 using NewLife.Model;
 using NewLife.Remoting.Clients;

@@ -1,4 +1,5 @@
 ﻿using IoT.Data;
+using NewLife;
 using NewLife.Cube;
 using NewLife.Web;
 
