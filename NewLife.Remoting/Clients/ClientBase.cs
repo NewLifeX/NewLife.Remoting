@@ -386,7 +386,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (_client != null) _client.Token = token;
     }
 
-    /// <summary>获取相对于服务器的当前时间，避免两端时间差</summary>
+    /// <summary>获取相对于服务器的当前时间，本地时区，避免两端时间差</summary>
     /// <returns></returns>
     public DateTime GetNow() => DateTime.Now.Add(_span);
     #endregion

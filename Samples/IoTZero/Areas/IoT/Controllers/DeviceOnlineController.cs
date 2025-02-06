@@ -73,7 +73,7 @@ public class DeviceOnlineController : EntityController<DeviceOnline>
                 {
                     //Code = online.Device.Code,
                     Command = "device/upgrade",
-                    Expire = DateTime.Now.AddSeconds(600),
+                    Expire = DateTime.UtcNow.AddSeconds(600),
                 };
                 var queue = _deviceService.GetQueue(code);
                 queue.Add(cmd.ToJson());
@@ -105,7 +105,7 @@ public class DeviceOnlineController : EntityController<DeviceOnline>
                     //Code = online.Device.Code,
                     Command = command,
                     Argument = argument,
-                    Expire = DateTime.Now.AddSeconds(30),
+                    Expire = DateTime.UtcNow.AddSeconds(30),
                 };
                 var queue = _deviceService.GetQueue(code);
                 queue.Add(cmd.ToJson());

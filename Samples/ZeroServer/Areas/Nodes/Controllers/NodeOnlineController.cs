@@ -82,7 +82,7 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
                 {
                     //Code = online.Node.Code,
                     Command = "node/upgrade",
-                    Expire = DateTime.Now.AddSeconds(600),
+                    Expire = DateTime.UtcNow.AddSeconds(600),
                 };
                 var queue = _deviceService.GetQueue(code);
                 queue.Add(cmd.ToJson());
@@ -113,7 +113,7 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
                     //Code = online.Node.Code,
                     Command = command,
                     Argument = argument,
-                    Expire = DateTime.Now.AddSeconds(30),
+                    Expire = DateTime.UtcNow.AddSeconds(30),
                 };
                 var queue = _deviceService.GetQueue(online.Node.Code);
                 queue.Add(cmd.ToJson());
