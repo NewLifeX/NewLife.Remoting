@@ -992,14 +992,15 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (model.Id > 0 && !_cache.Add($"cmd:{model.Id}", model, 3600)) return null;
 
         // 埋点，建立调用链
-        using var span = Tracer?.NewSpan("cmd:" + model.Command, model);
+        var json = model.ToJson();
+        using var span = Tracer?.NewSpan("cmd:" + model.Command, json);
         if (!model.TraceId.IsNullOrEmpty()) span?.Detach(model.TraceId);
         try
         {
             // 有效期判断前把UTC转为本地时间
             var now = GetNow();
             var expire = model.Expire.ToLocalTime();
-            WriteLog("[{0}] Got Command: {1}", source, model.ToJson());
+            WriteLog("[{0}] Got Command: {1}", source, json);
             if (expire.Year < 2000 || expire > now)
             {
                 // 延迟执行
@@ -1007,10 +1008,16 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 var ts = startTime - now;
                 if (ts.TotalMilliseconds > 0)
                 {
-                    TimerX.Delay(s =>
+                    //TimerX.Delay(s =>
+                    //{
+                    //    _ = OnReceiveCommand(model, CancellationToken.None);
+                    //}, (Int32)ts.TotalMilliseconds);
+                    _ = Task.Run(async () =>
                     {
-                        _ = OnReceiveCommand(model, CancellationToken.None);
-                    }, (Int32)ts.TotalMilliseconds);
+                        await TaskEx.Delay((Int32)ts.TotalMilliseconds).ConfigureAwait(false);
+                        WriteLog("[{0}] 延迟执行: {1}", source, json);
+                        await OnReceiveCommand(model, CancellationToken.None).ConfigureAwait(false);
+                    }, cancellationToken);
 
                     var reply = new CommandReplyModel
                     {
