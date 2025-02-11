@@ -917,7 +917,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         {
             lock (this)
             {
-                _timerPing ??= new TimerX(OnPing, null, 1000, 60_000, Name ?? "Client") { Async = true };
+                _timerPing ??= new TimerX(OnPing, null, 1000, 60_000) { Async = true };
             }
         }
 
@@ -925,7 +925,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         {
             lock (this)
             {
-                _timerUpgrade ??= new TimerX(CheckUpgrade, null, 5_000, 600_000, Name ?? "Client") { Async = true };
+                _timerUpgrade ??= new TimerX(CheckUpgrade, null, 5_000, 600_000) { Async = true };
             }
         }
     }
@@ -1089,7 +1089,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     private TimerX? _eventTimer;
     private String? _eventTraceId;
 
-    void InitEvent() => _eventTimer ??= new TimerX(DoPostEvent, null, 3_000, 60_000, Name ?? "Client") { Async = true };
+    void InitEvent() => _eventTimer ??= new TimerX(DoPostEvent, null, 3_000, 60_000) { Async = true };
 
     /// <summary>批量上报事件</summary>
     /// <param name="events"></param>
