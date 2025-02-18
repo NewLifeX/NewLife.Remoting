@@ -264,9 +264,10 @@ public class BaseDeviceController : BaseController
                     {
                         if (msg.StartTime.Year < 2000) msg.StartTime = DateTime.MinValue;
                         if (msg.Expire.Year < 2000) msg.Expire = DateTime.MinValue;
+                        msg.Expire = msg.Expire.ToUniversalTime();
                     }
 
-                    if (msg == null || /*msg.Id == 0 ||*/ msg.Expire.Year > 2000 && msg.Expire < DateTime.Now)
+                    if (msg == null || msg.Expire.Year > 2000 && msg.Expire < Runtime.UtcNow)
                     {
                         WriteLog("WebSocket发送", false, "消息无效或已过期。" + mqMsg);
                     }
