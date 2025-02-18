@@ -25,6 +25,7 @@ public class BaseDeviceController : BaseController
 
     private readonly IDeviceService _deviceService;
     private readonly TokenService _tokenService;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ITracer? _tracer;
     private readonly ILog? _log;
 
@@ -35,6 +36,7 @@ public class BaseDeviceController : BaseController
     {
         _deviceService = serviceProvider.GetRequiredService<IDeviceService>();
         _tokenService = serviceProvider.GetRequiredService<TokenService>();
+        _serviceProvider = serviceProvider;
         _tracer = serviceProvider.GetService<ITracer>();
         _log = serviceProvider.GetService<ILog>();
     }
@@ -205,6 +207,9 @@ public class BaseDeviceController : BaseController
     {
         var device = _device ?? throw new InvalidOperationException("未登录！");
 
+        //var sessionManager = _serviceProvider.GetService<SessionManager>() ??
+        //    throw new InvalidOperationException("未找到SessionManager服务");
+
         var ip = UserHost;
         var sid = Rand.Next();
         var connection = HttpContext.Connection;
@@ -216,27 +221,33 @@ public class BaseDeviceController : BaseController
         // 长连接上线
         _deviceService.SetOnline(device, true, token, ip);
 
-        var source = new CancellationTokenSource();
-        var queue = _deviceService.GetQueue(device.Code);
-        //_ = Task.Run(() => socket.ConsumeAndPushAsync(queue, onProcess: null, source));
-        _ = Task.Run(() => ConsumeMessage(socket, device.Code, queue, ip, source));
-
-        //await socket.WaitForClose(null, source);
-        await socket.WaitForClose(txt =>
+        try
         {
-            if (txt == "Ping")
+            var source = new CancellationTokenSource();
+            var queue = _deviceService.GetQueue(device.Code);
+            _ = Task.Run(() => ConsumeMessage(socket, device.Code, queue, ip, source));
+
+            //using var session = sessionManager?.Create(device.Code);
+            //session?.Start(source);
+
+            await socket.WaitForClose(txt =>
             {
-                socket.SendAsync("Pong".GetBytes(), WebSocketMessageType.Text, true, source.Token);
+                if (txt == "Ping")
+                {
+                    socket.SendAsync("Pong".GetBytes(), WebSocketMessageType.Text, true, source.Token);
 
-                // 长连接上线。可能客户端心跳已经停了，WS还在，这里重新上线
-                _deviceService.SetOnline(device, true, token, ip);
-            }
-        }, source).ConfigureAwait(false);
+                    // 长连接上线。可能客户端心跳已经停了，WS还在，这里重新上线
+                    _deviceService.SetOnline(device, true, token, ip);
+                }
+            }, source).ConfigureAwait(false);
+        }
+        finally
+        {
+            WriteLog("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
 
-        WriteLog("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
-
-        // 长连接下线
-        _deviceService.SetOnline(device, false, token, ip);
+            // 长连接下线
+            _deviceService.SetOnline(device, false, token, ip);
+        }
     }
 
     private async Task ConsumeMessage(WebSocket socket, String code, IProducerConsumer<String> queue, String ip, CancellationTokenSource source)
