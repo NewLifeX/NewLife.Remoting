@@ -26,7 +26,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Stardust" Version="3.3.2025.119-beta1552" />
+    <PackageReference Include="NewLife.Stardust" Version="3.3.2025.202" />
     <PackageReference Include="System.Speech" Version="9.0.0" />
   </ItemGroup>
 
