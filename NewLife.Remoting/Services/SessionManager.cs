@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 using NewLife.Caching;
 using NewLife.Log;
 using NewLife.Messaging;
@@ -82,9 +83,9 @@ public class SessionManager : DisposeBase
         {
             if (Bus != null) return;
 
-            // 事件总线
+            // 创建事件总线，指定队列消费组
             if (_cache is not MemoryCache && _cache is Cache cache)
-                Bus = cache.GetEventBus<String>(Topic);
+                Bus = cache.GetEventBus<String>(Topic, $"{Environment.MachineName}-{Process.GetCurrentProcess().Id}");
             else
                 Bus = new EventBus<String>();
 
