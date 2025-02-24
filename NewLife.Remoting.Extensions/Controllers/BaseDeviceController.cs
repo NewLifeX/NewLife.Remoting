@@ -1,14 +1,12 @@
 ﻿using System.Net;
-using System.Net.WebSockets;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using NewLife.Caching;
 using NewLife.Http;
 using NewLife.Log;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
+using NewLife.Remoting.Services;
 using NewLife.Security;
-using NewLife.Serialization;
 using WebSocket = System.Net.WebSockets.WebSocket;
 using WebSocketMessageType = System.Net.WebSockets.WebSocketMessageType;
 
@@ -207,8 +205,8 @@ public class BaseDeviceController : BaseController
     {
         var device = _device ?? throw new InvalidOperationException("未登录！");
 
-        //var sessionManager = _serviceProvider.GetService<SessionManager>() ??
-        //    throw new InvalidOperationException("未找到SessionManager服务");
+        var sessionManager = _serviceProvider.GetService<ISessionManager>() ??
+            throw new InvalidOperationException("未找到SessionManager服务");
 
         var ip = UserHost;
         var sid = Rand.Next();
@@ -223,12 +221,10 @@ public class BaseDeviceController : BaseController
 
         try
         {
-            var source = new CancellationTokenSource();
-            var queue = _deviceService.GetQueue(device.Code);
-            _ = Task.Run(() => ConsumeMessage(socket, device.Code, queue, ip, source));
+            using var source = new CancellationTokenSource();
 
-            //using var session = sessionManager?.Create(device.Code);
-            //session?.Start(source);
+            using var session = new WsDeviceSession(socket) { Code = device.Code };
+            sessionManager.Add(session);
 
             await socket.WaitForClose(txt =>
             {
@@ -247,67 +243,6 @@ public class BaseDeviceController : BaseController
 
             // 长连接下线
             _deviceService.SetOnline(device, false, token, ip);
-        }
-    }
-
-    private async Task ConsumeMessage(WebSocket socket, String code, IProducerConsumer<String> queue, String ip, CancellationTokenSource source)
-    {
-        DefaultSpan.Current = null;
-        var cancellationToken = source.Token;
-        try
-        {
-            while (!cancellationToken.IsCancellationRequested && socket.State == WebSocketState.Open)
-            {
-                ISpan? span = null;
-                var mqMsg = await queue.TakeOneAsync(15, cancellationToken).ConfigureAwait(false);
-                if (mqMsg != null)
-                {
-                    // 埋点
-                    span = _tracer?.NewSpan($"mq:Command", mqMsg);
-
-                    // 解码
-                    var dic = JsonParser.Decode(mqMsg)!;
-                    var msg = JsonHelper.Convert<CommandModel>(dic);
-                    span?.Detach(dic);
-
-                    // 修正时间
-                    if (msg != null)
-                    {
-                        if (msg.StartTime.Year < 2000) msg.StartTime = DateTime.MinValue;
-                        if (msg.Expire.Year < 2000) msg.Expire = DateTime.MinValue;
-                        msg.Expire = msg.Expire.ToUniversalTime();
-                    }
-
-                    if (msg == null || msg.Expire.Year > 2000 && msg.Expire < Runtime.UtcNow)
-                    {
-                        WriteLog("WebSocket发送", false, "消息无效或已过期。" + mqMsg);
-                    }
-                    else
-                    {
-                        WriteLog("WebSocket发送", true, mqMsg);
-
-                        await socket.SendAsync(mqMsg.GetBytes(), WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
-                    }
-
-                    span?.Dispose();
-                }
-                else
-                {
-                    await Task.Delay(1_000, cancellationToken).ConfigureAwait(false);
-                }
-            }
-        }
-        catch (TaskCanceledException) { }
-        catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-            _log?.Error("WebSocket异常 client={0} ip={1}", code, ip);
-            _log?.Error(ex.ToString());
-            WriteLog("WebSocket断开", false, $"State={socket.State} CloseStatus={socket.CloseStatus} {ex}");
-        }
-        finally
-        {
-            source.Cancel();
         }
     }
 

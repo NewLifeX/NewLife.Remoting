@@ -9,6 +9,7 @@ using NewLife.Remoting;
 using NewLife.Remoting.Extensions.Models;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
+using NewLife.Remoting.Services;
 using NewLife.Security;
 using NewLife.Serialization;
 using NewLife.Web;
@@ -20,6 +21,7 @@ public class MyDeviceService : IDeviceService
 {
     private readonly ICacheProvider _cacheProvider;
     private readonly ICache _cache;
+    private readonly ISessionManager _sessionManager;
     private readonly IPasswordProvider _passwordProvider;
     private readonly ITokenSetting _setting;
     private readonly ITracer _tracer;
@@ -31,8 +33,9 @@ public class MyDeviceService : IDeviceService
     /// <param name="cacheProvider"></param>
     /// <param name="setting"></param>
     /// <param name="tracer"></param>
-    public MyDeviceService(IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting, ITracer tracer)
+    public MyDeviceService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting, ITracer tracer)
     {
+        _sessionManager = sessionManager;
         _passwordProvider = passwordProvider;
         _cacheProvider = cacheProvider;
         _cache = cacheProvider.InnerCache;
@@ -331,17 +334,26 @@ public class MyDeviceService : IDeviceService
     #endregion
 
     #region 下行通知
-    /// <summary>
-    /// 获取指定设备的命令队列
-    /// </summary>
-    /// <param name="deviceCode"></param>
-    /// <returns></returns>
-    public IProducerConsumer<String> GetQueue(String deviceCode)
-    {
-        var q = _cacheProvider.GetQueue<String>($"cmd:{deviceCode}");
-        if (q is QueueBase qb) qb.TraceName = "ServiceQueue";
+    ///// <summary>
+    ///// 获取指定设备的命令队列
+    ///// </summary>
+    ///// <param name="deviceCode"></param>
+    ///// <returns></returns>
+    //public IProducerConsumer<String> GetQueue(String deviceCode)
+    //{
+    //    var q = _cacheProvider.GetQueue<String>($"cmd:{deviceCode}");
+    //    if (q is QueueBase qb) qb.TraceName = "ServiceQueue";
 
-        return q;
+    //    return q;
+    //}
+
+    /// <summary>发送命令</summary>
+    /// <param name="device"></param>
+    /// <param name="command"></param>
+    /// <returns></returns>
+    public Int32 SendCommand(IDeviceModel device, CommandModel command)
+    {
+        return _sessionManager.PublishAsync(device.Code, command.ToJson()).ConfigureAwait(false).GetAwaiter().GetResult();
     }
     #endregion
 

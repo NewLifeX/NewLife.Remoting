@@ -6,6 +6,7 @@ using NewLife.Remoting.Extensions.ModelBinders;
 using NewLife.Remoting.Extensions.Models;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
+using NewLife.Remoting.Services;
 using NewLife.Security;
 
 namespace NewLife.Remoting.Extensions;
@@ -33,6 +34,8 @@ public static class RemotingExtensions
         services.TryAddTransient<ILogoutResponse, LogoutResponse>();
         services.TryAddTransient<IPingRequest, PingRequest>();
         services.TryAddTransient<IPingResponse, PingResponse>();
+
+        services.TryAddSingleton<ISessionManager, SessionManager>();
 
         // 注册Remoting所必须的服务
         if (setting != null)

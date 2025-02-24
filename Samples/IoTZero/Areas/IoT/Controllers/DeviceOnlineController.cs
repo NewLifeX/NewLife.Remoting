@@ -6,7 +6,6 @@ using NewLife.Cube;
 using NewLife.Cube.ViewModels;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
-using NewLife.Serialization;
 using NewLife.Web;
 using XCode.Membership;
 
@@ -75,8 +74,9 @@ public class DeviceOnlineController : EntityController<DeviceOnline>
                     Command = "device/upgrade",
                     Expire = DateTime.UtcNow.AddSeconds(600),
                 };
-                var queue = _deviceService.GetQueue(code);
-                queue.Add(cmd.ToJson());
+                //var queue = _deviceService.GetQueue(code);
+                //queue.Add(cmd.ToJson());
+                _deviceService.SendCommand(online.Device, cmd);
             }
         }
 
@@ -107,8 +107,9 @@ public class DeviceOnlineController : EntityController<DeviceOnline>
                     Argument = argument,
                     Expire = DateTime.UtcNow.AddSeconds(30),
                 };
-                var queue = _deviceService.GetQueue(code);
-                queue.Add(cmd.ToJson());
+                //var queue = _deviceService.GetQueue(code);
+                //queue.Add(cmd.ToJson());
+                _deviceService.SendCommand(online.Device, cmd);
                 ts.Add(Task.FromResult(1));
             }
         }

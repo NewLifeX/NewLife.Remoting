@@ -46,6 +46,12 @@ public interface IDeviceService
     /// <returns></returns>
     IOnlineModel SetOnline(IDeviceModel device, Boolean online, String token, String ip);
 
+    /// <summary>发送命令</summary>
+    /// <param name="device"></param>
+    /// <param name="command"></param>
+    /// <returns></returns>
+    Int32 SendCommand(IDeviceModel device, CommandModel command);
+
     /// <summary>命令响应</summary>
     /// <param name="device"></param>
     /// <param name="model"></param>
@@ -72,11 +78,6 @@ public interface IDeviceService
     /// <param name="token"></param>
     /// <returns></returns>
     TokenModel ValidAndIssueToken(String deviceCode, String? token);
-
-    /// <summary>获取指定设备的命令队列</summary>
-    /// <param name="deviceCode"></param>
-    /// <returns></returns>
-    IProducerConsumer<String> GetQueue(String deviceCode);
 
     /// <summary>写入历史</summary>
     /// <param name="device"></param>

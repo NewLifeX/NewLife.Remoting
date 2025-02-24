@@ -14,28 +14,8 @@ using TaskEx=System.Threading.Tasks.Task;
 
 namespace NewLife.Remoting.Services;
 
-/// <summary>命令会话</summary>
-public interface IDeviceSession : IDisposable
-{
-    /// <summary>最后一次通信时间，主要表示会话活跃时间，包括收发</summary>
-    DateTime LastTime { get; }
-
-    /// <summary>开始数据交互</summary>
-    /// <param name="source"></param>
-    void Start(CancellationTokenSource source);
-
-    /// <summary>处理事件</summary>
-    Task HandleAsync(CommandModel command);
-}
-
-//class DeviceEventContext(IEventBus<String> bus, String code) : EventContext<String>(bus)
-//{
-//    /// <summary>设备编码</summary>
-//    public String Code { get; set; } = code;
-//}
-
 /// <summary>会话管理器</summary>
-public class SessionManager : DisposeBase
+public class SessionManager : DisposeBase, ISessionManager
 {
     /// <summary>主题</summary>
     public String Topic { get; set; } = "Commands";
@@ -91,56 +71,31 @@ public class SessionManager : DisposeBase
 
             // 订阅总线事件到OnMessage
             Bus.Subscribe(OnMessage);
-
-            //_source = new CancellationTokenSource();
-
-            //_ = Task.Run(() => ConsumeMessage(_queue2, _source));
         }
     }
 
     /// <summary>创建会话</summary>
-    /// <param name="code"></param>
-    /// <returns></returns>
-    public IDeviceSession Create(String code)
+    /// <param name="session"></param>
+    public void Add(IDeviceSession session)
     {
         Init();
 
-        var session = new DeviceSession
-        {
-            Code = code
-        };
+        _dic.AddOrUpdate(session.Code, session, (k, s) => s);
 
-        _dic.AddOrUpdate(code, session, (k, s) => s);
-
-        session.OnDisposed += (s, e) =>
-        {
-            _dic.Remove((s as DeviceSession)?.Code + "");
-            //Bus.Unsubscribe(code);
-        };
+        if (session is IDisposable2 ds)
+            ds.OnDisposed += (s, e) => _dic.Remove((s as IDeviceSession)?.Code + "");
 
         var p = ClearPeriod * 1000;
         if (p > 0)
             _clearTimer ??= new TimerX(RemoveNotAlive, null, p, p) { Async = true, };
-
-        return session;
     }
 
     /// <summary>向设备发送消息</summary>
     /// <param name="code"></param>
     /// <param name="message"></param>
     /// <returns></returns>
-    public Task PublishAsync(String code, String message)
+    public Task<Int32> PublishAsync(String code, String message)
     {
-        //// 如果有缓存提供者，则使用缓存提供者的队列，否则直接进入事件总线
-        //_queue ??= _cache?.GetQueue<String>(Topic);
-
-        //if (_queue != null)
-        //{
-        //    _queue.Add($"{code}#{message}");
-
-        //    return TaskEx.CompletedTask;
-        //}
-
         message = $"{code}#{message}";
 
         return Bus.PublishAsync(message);
@@ -174,11 +129,11 @@ public class SessionManager : DisposeBase
         if (msg != null && (msg.Expire.Year <= 2000 || msg.Expire >= Runtime.UtcNow))
         {
             var session = Get(code);
-            if (session != null) await session.HandleAsync(msg).ConfigureAwait(false);
+            if (session != null) await session.HandleAsync(msg, message).ConfigureAwait(false);
         }
     }
 
-    /// <summary>获取会话，加锁</summary>
+    /// <summary>获取会话</summary>
     /// <param name="key"></param>
     /// <returns></returns>
     public IDeviceSession? Get(String key)
@@ -191,7 +146,7 @@ public class SessionManager : DisposeBase
     /// <summary>关闭所有</summary>
     public void CloseAll(String reason)
     {
-        if (!_dic.Any()) return;
+        if (_dic.IsEmpty) return;
 
         foreach (var item in _dic.ToValueArray())
         {
@@ -207,39 +162,33 @@ public class SessionManager : DisposeBase
     /// <summary>移除不活动的会话</summary>
     private void RemoveNotAlive(Object? state)
     {
-        if (!_dic.Any()) return;
+        if (_dic.IsEmpty) return;
 
-        var timeout = Timeout;
-        var keys = new List<String>();
-        var values = new List<IDeviceSession>();
+        var todel = new Dictionary<String, IDeviceSession>();
 
         foreach (var elm in _dic)
         {
-            var item = elm.Value;
-            // 判断是否已超过最大不活跃时间
-            if (item == null || item is IDisposable2 ds && ds.Disposed || timeout > 0 && IsNotAlive(item, timeout))
+            var session = elm.Value;
+            // 判断是否活跃
+            if (session == null || session is IDisposable2 ds && ds.Disposed || !session.Active)
             {
-                keys.Add(elm.Key);
-                values.Add(elm.Value);
+                todel.Add(elm.Key, elm.Value);
             }
         }
         // 从会话集合里删除这些键值，并行字典操作安全
-        foreach (var item in keys)
+        foreach (var item in todel)
         {
-            _dic.Remove(item);
+            _dic.Remove(item.Key);
         }
 
-        // 已经离开了锁，慢慢释放各个会话
-        foreach (var item in values)
+        // 慢慢释放各个会话
+        foreach (var item in todel)
         {
-            if (item is ILogFeature lf)
-                lf.Log?.Info("超过{0}秒不活跃销毁 {1}", timeout, item);
+            if (item.Value is ILogFeature lf)
+                lf.Log?.Info("[{0}]不活跃销毁", item.Key);
 
-            if (item is INetSession ss) ss.Close(nameof(RemoveNotAlive));
-            //item.Dispose();
-            item.TryDispose();
+            if (item.Value is INetSession ss) ss.Close(nameof(RemoveNotAlive));
+            item.Value.TryDispose();
         }
     }
-
-    private static Boolean IsNotAlive(IDeviceSession session, Int32 timeout) => session.LastTime > DateTime.MinValue && session.LastTime.AddSeconds(timeout) < DateTime.Now;
 }

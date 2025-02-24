@@ -84,8 +84,9 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
                     Command = "node/upgrade",
                     Expire = DateTime.UtcNow.AddSeconds(600),
                 };
-                var queue = _deviceService.GetQueue(code);
-                queue.Add(cmd.ToJson());
+                //var queue = _deviceService.GetQueue(code);
+                //queue.Add(cmd.ToJson());
+                _deviceService.SendCommand(online.Node, cmd);
             }
         }
 
@@ -115,8 +116,9 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
                     Argument = argument,
                     Expire = DateTime.UtcNow.AddSeconds(30),
                 };
-                var queue = _deviceService.GetQueue(online.Node.Code);
-                queue.Add(cmd.ToJson());
+                //var queue = _deviceService.GetQueue(online.Node.Code);
+                //queue.Add(cmd.ToJson());
+                _deviceService.SendCommand(online.Node, cmd);
                 ts.Add(Task.FromResult(1));
             }
         }
