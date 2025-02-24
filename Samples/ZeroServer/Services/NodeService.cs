@@ -284,27 +284,11 @@ public class NodeService : IDeviceService
     #endregion
 
     #region 下行通知
-    ///// <summary>
-    ///// 获取指定设备的命令队列
-    ///// </summary>
-    ///// <param name="deviceCode"></param>
-    ///// <returns></returns>
-    //public IProducerConsumer<String> GetQueue(String deviceCode)
-    //{
-    //    var q = _cacheProvider.GetQueue<String>($"cmd:{deviceCode}");
-    //    if (q is QueueBase qb) qb.TraceName = "ServiceQueue";
-
-    //    return q;
-    //}
-
     /// <summary>发送命令</summary>
     /// <param name="device"></param>
     /// <param name="command"></param>
     /// <returns></returns>
-    public Int32 SendCommand(IDeviceModel device, CommandModel command)
-    {
-        return _sessionManager.PublishAsync(device.Code, command.ToJson()).ConfigureAwait(false).GetAwaiter().GetResult();
-    }
+    public Task<Int32> SendCommand(IDeviceModel device, CommandModel command) => _sessionManager.PublishAsync(device.Code, command.ToJson());
     #endregion
 
     #region 升级更新

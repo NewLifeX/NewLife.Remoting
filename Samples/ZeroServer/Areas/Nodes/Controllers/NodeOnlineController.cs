@@ -76,17 +76,12 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
             var online = NodeOnline.FindById(item.ToInt());
             if (online?.Node != null)
             {
-                //ts.Add(_starFactory.SendNodeCommand(online.Node.Code, "node/upgrade", null, 600, 0));
-                var code = online.Node.Code;
                 var cmd = new CommandModel
                 {
-                    //Code = online.Node.Code,
                     Command = "node/upgrade",
                     Expire = DateTime.UtcNow.AddSeconds(600),
                 };
-                //var queue = _deviceService.GetQueue(code);
-                //queue.Add(cmd.ToJson());
-                _deviceService.SendCommand(online.Node, cmd);
+                ts.Add(_deviceService.SendCommand(online.Node, cmd));
             }
         }
 
@@ -108,18 +103,13 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
             var online = NodeOnline.FindById(item.ToInt());
             if (online != null && online.Node != null)
             {
-                //ts.Add(_starFactory.SendNodeCommand(online.Node.Code, command, argument, 30, 0));
                 var cmd = new CommandModel
                 {
-                    //Code = online.Node.Code,
                     Command = command,
                     Argument = argument,
                     Expire = DateTime.UtcNow.AddSeconds(30),
                 };
-                //var queue = _deviceService.GetQueue(online.Node.Code);
-                //queue.Add(cmd.ToJson());
-                _deviceService.SendCommand(online.Node, cmd);
-                ts.Add(Task.FromResult(1));
+                ts.Add(_deviceService.SendCommand(online.Node, cmd));
             }
         }
 

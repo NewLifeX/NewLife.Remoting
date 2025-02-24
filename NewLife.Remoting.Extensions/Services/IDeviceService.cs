@@ -1,5 +1,4 @@
-﻿using NewLife.Caching;
-using NewLife.Remoting.Models;
+﻿using NewLife.Remoting.Models;
 using NewLife.Web;
 
 namespace NewLife.Remoting.Extensions.Services;
@@ -50,7 +49,7 @@ public interface IDeviceService
     /// <param name="device"></param>
     /// <param name="command"></param>
     /// <returns></returns>
-    Int32 SendCommand(IDeviceModel device, CommandModel command);
+    Task<Int32> SendCommand(IDeviceModel device, CommandModel command);
 
     /// <summary>命令响应</summary>
     /// <param name="device"></param>
