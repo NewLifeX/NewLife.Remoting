@@ -95,13 +95,14 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     /// <returns></returns>
     public virtual Task<Int32> PublishAsync(String code, CommandModel command, String message, CancellationToken cancellationToken)
     {
-        if (message.IsNullOrEmpty())
-        {
-            if (command.TraceId.IsNullOrEmpty()) command.TraceId = DefaultSpan.Current?.TraceId;
-            message = command.ToJson();
-        }
+        if (command == null && message.IsNullOrEmpty()) throw new ArgumentNullException(nameof(command), "命令和消息不能同时为空");
+
+        if (command != null && command.TraceId.IsNullOrEmpty()) command.TraceId = DefaultSpan.Current?.TraceId;
+        if (message.IsNullOrEmpty()) message = command!.ToJson();
 
         message = $"{code}#{message}";
+
+        Init();
 
         return Bus.PublishAsync(message, null, cancellationToken);
     }
