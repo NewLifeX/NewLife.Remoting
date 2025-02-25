@@ -51,6 +51,7 @@ public abstract class BaseController : ControllerBase, IWebFilter
 
         try
         {
+            // 验证令牌。即使允许匿名访问，也要验证令牌，以便获取用户信息
             var rs = !token.IsNullOrEmpty() && OnAuthorize(token);
 
             if (!rs && context.ActionDescriptor is ControllerActionDescriptor act && !act.MethodInfo.IsDefined(typeof(AllowAnonymousAttribute)))
