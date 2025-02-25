@@ -51,12 +51,12 @@ public abstract class BaseController : ControllerBase, IWebFilter
 
         try
         {
-            // 验证令牌。即使允许匿名访问，也要验证令牌，以便获取用户信息
-            var rs = !token.IsNullOrEmpty() && OnAuthorize(token);
 
-            if (!rs && context.ActionDescriptor is ControllerActionDescriptor act && !act.MethodInfo.IsDefined(typeof(AllowAnonymousAttribute)))
+            if (context.ActionDescriptor is ControllerActionDescriptor act && !act.MethodInfo.IsDefined(typeof(AllowAnonymousAttribute)))
             {
-                throw new ApiException(ApiCode.Forbidden, "认证失败");
+                // 匿名访问接口无需验证。例如星尘Node的SendCommand接口，并不使用Node令牌，而是使用App令牌
+                var rs = !token.IsNullOrEmpty() && OnAuthorize(token);
+                if (!rs) throw new ApiException(ApiCode.Forbidden, "认证失败");
             }
         }
         catch (Exception ex)
