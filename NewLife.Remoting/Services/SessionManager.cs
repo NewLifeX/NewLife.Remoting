@@ -31,7 +31,7 @@ public class SessionManager : DisposeBase, ISessionManager
 
     /// <summary>清理会话计时器</summary>
     private TimerX? _clearTimer;
-    private readonly ConcurrentDictionary<String, IDeviceSession> _dic = new();
+    private readonly ConcurrentDictionary<String, ICommandSession> _dic = new();
 
     private readonly ICache? _cache;
     private readonly ITracer _tracer;
@@ -76,26 +76,39 @@ public class SessionManager : DisposeBase, ISessionManager
 
     /// <summary>创建会话</summary>
     /// <param name="session"></param>
-    public void Add(IDeviceSession session)
+    public void Add(ICommandSession session)
     {
         Init();
 
         _dic.AddOrUpdate(session.Code, session, (k, s) => s);
 
         if (session is IDisposable2 ds)
-            ds.OnDisposed += (s, e) => _dic.Remove((s as IDeviceSession)?.Code + "");
+            ds.OnDisposed += (s, e) => _dic.Remove((s as ICommandSession)?.Code + "");
 
         var p = ClearPeriod * 1000;
         if (p > 0)
             _clearTimer ??= new TimerX(RemoveNotAlive, null, p, p) { Async = true, };
     }
 
+    /// <summary>销毁会话</summary>
+    public void Remove(ICommandSession session)
+    {
+        if (session != null) _dic.Remove(session.Code);
+    }
+
     /// <summary>向设备发送消息</summary>
     /// <param name="code"></param>
+    /// <param name="command"></param>
     /// <param name="message"></param>
     /// <returns></returns>
-    public Task<Int32> PublishAsync(String code, String message)
+    public Task<Int32> PublishAsync(String code, CommandModel command, String message)
     {
+        if (message.IsNullOrEmpty())
+        {
+            if (command.TraceId.IsNullOrEmpty()) command.TraceId = DefaultSpan.Current?.TraceId;
+            message = command.ToJson();
+        }
+
         message = $"{code}#{message}";
 
         return Bus.PublishAsync(message);
@@ -103,7 +116,7 @@ public class SessionManager : DisposeBase, ISessionManager
 
     private async Task OnMessage(String message)
     {
-        using var span = _tracer?.NewSpan($"mq:Command", message);
+        using var span = _tracer?.NewSpan($"cmd:{Topic}", message);
 
         var code = "";
         var p = message.IndexOf('#');
@@ -136,7 +149,7 @@ public class SessionManager : DisposeBase, ISessionManager
     /// <summary>获取会话</summary>
     /// <param name="key"></param>
     /// <returns></returns>
-    public IDeviceSession? Get(String key)
+    public ICommandSession? Get(String key)
     {
         if (!_dic.TryGetValue(key, out var session)) return null;
 
@@ -164,7 +177,7 @@ public class SessionManager : DisposeBase, ISessionManager
     {
         if (_dic.IsEmpty) return;
 
-        var todel = new Dictionary<String, IDeviceSession>();
+        var todel = new Dictionary<String, ICommandSession>();
 
         foreach (var elm in _dic)
         {

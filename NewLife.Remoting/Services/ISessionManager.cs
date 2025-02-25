@@ -3,7 +3,7 @@
 namespace NewLife.Remoting.Services;
 
 /// <summary>命令会话</summary>
-public interface IDeviceSession : IDisposable
+public interface ICommandSession : IDisposable
 {
     /// <summary>设备编码。用于识别指令归属</summary>
     String Code { get; set; }
@@ -20,16 +20,20 @@ public interface ISessionManager
 {
     /// <summary>添加会话</summary>
     /// <param name="session"></param>
-    void Add(IDeviceSession session);
+    void Add(ICommandSession session);
+
+    /// <summary>销毁会话</summary>
+    void Remove(ICommandSession session);
 
     /// <summary>获取会话</summary>
     /// <param name="key"></param>
     /// <returns></returns>
-    IDeviceSession? Get(String key);
+    ICommandSession? Get(String key);
 
     /// <summary>向设备发送消息</summary>
     /// <param name="code"></param>
+    /// <param name="command"></param>
     /// <param name="message"></param>
     /// <returns></returns>
-    Task<Int32> PublishAsync(String code, String message);
+    Task<Int32> PublishAsync(String code, CommandModel command, String message);
 }

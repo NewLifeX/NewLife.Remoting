@@ -190,7 +190,7 @@ public class BaseDeviceController : BaseController
         {
             using var socket = await HttpContext.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
 
-            await HandleNotify(socket, Token).ConfigureAwait(false);
+            await HandleNotify(socket, Token, HttpContext.RequestAborted).ConfigureAwait(false);
         }
         else
             HttpContext.Response.StatusCode = 400;
@@ -199,9 +199,10 @@ public class BaseDeviceController : BaseController
     /// <summary>长连接处理</summary>
     /// <param name="socket"></param>
     /// <param name="token"></param>
+    /// <param name="cancellationToken"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    protected virtual async Task HandleNotify(WebSocket socket, String token)
+    protected virtual async Task HandleNotify(WebSocket socket, String token, CancellationToken cancellationToken)
     {
         var device = _device ?? throw new InvalidOperationException("未登录！");
 
@@ -219,13 +220,13 @@ public class BaseDeviceController : BaseController
         // 长连接上线
         _deviceService.SetOnline(device, true, token, ip);
 
+        using var session = new WsCommandSession(socket) { Code = device.Code };
         try
         {
-            using var source = new CancellationTokenSource();
-
-            using var session = new WsDeviceSession(socket) { Code = device.Code };
             sessionManager.Add(session);
 
+            // 链接取消令牌。当客户端断开时，触发取消，结束长连接
+            using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             await socket.WaitForClose(txt =>
             {
                 if (txt == "Ping")
@@ -243,6 +244,8 @@ public class BaseDeviceController : BaseController
 
             // 长连接下线
             _deviceService.SetOnline(device, false, token, ip);
+
+            sessionManager.Remove(session);
         }
     }
 

@@ -6,7 +6,7 @@ using TaskEx=System.Threading.Tasks.Task;
 namespace NewLife.Remoting.Services;
 
 /// <summary>设备会话</summary>
-public class DeviceSession : DisposeBase, IDeviceSession
+public class CommandSession : DisposeBase, ICommandSession
 {
     #region 属性
     /// <summary>设备编码。用于识别指令归属</summary>

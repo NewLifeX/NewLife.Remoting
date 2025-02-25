@@ -337,7 +337,7 @@ public class MyDeviceService : IDeviceService
     /// <param name="device"></param>
     /// <param name="command"></param>
     /// <returns></returns>
-    public Task<Int32> SendCommand(IDeviceModel device, CommandModel command) => _sessionManager.PublishAsync(device.Code, command.ToJson());
+    public Task<Int32> SendCommand(IDeviceModel device, CommandModel command) => _sessionManager.PublishAsync(device.Code, command, null);
     #endregion
 
     #region 事件上报
