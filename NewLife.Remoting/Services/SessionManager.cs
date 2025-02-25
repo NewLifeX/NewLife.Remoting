@@ -15,7 +15,8 @@ using TaskEx=System.Threading.Tasks.Task;
 namespace NewLife.Remoting.Services;
 
 /// <summary>会话管理器</summary>
-public class SessionManager : DisposeBase, ISessionManager
+/// <remarks>实例化</remarks>
+public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISessionManager
 {
     /// <summary>主题</summary>
     public String Topic { get; set; } = "Commands";
@@ -26,26 +27,16 @@ public class SessionManager : DisposeBase, ISessionManager
     /// <summary>清理周期。单位毫秒，默认10秒。</summary>
     public Int32 ClearPeriod { get; set; } = 10;
 
-    /// <summary>会话超时时间。默认30秒</summary>
-    public Int32 Timeout { get; set; } = 30;
+    private readonly ConcurrentDictionary<String, ICommandSession> _dic = new();
+    /// <summary>会话集合</summary>
+    public IDictionary<String, ICommandSession> Sessions => _dic;
 
     /// <summary>清理会话计时器</summary>
     private TimerX? _clearTimer;
-    private readonly ConcurrentDictionary<String, ICommandSession> _dic = new();
 
-    private readonly ICache? _cache;
-    private readonly ITracer _tracer;
-    private readonly ILog _log;
-
-    /// <summary>实例化</summary>
-    public SessionManager(ITracer tracer, ILog log, IServiceProvider serviceProvider)
-    {
-        _tracer = tracer;
-        _log = log;
-        var cacheProvider = serviceProvider.GetService<ICacheProvider>();
-        var cache = cacheProvider?.Cache;
-        if (cache != null && cache is not MemoryCache) _cache = cache;
-    }
+    private readonly ICache? _cache = serviceProvider.GetService<ICacheProvider>()?.Cache;
+    private readonly ITracer? _tracer = serviceProvider.GetService<ITracer>();
+    private readonly ILog? _log = serviceProvider.GetService<ILog>();
 
     /// <summary>销毁</summary>
     /// <param name="disposing"></param>
@@ -76,7 +67,7 @@ public class SessionManager : DisposeBase, ISessionManager
 
     /// <summary>创建会话</summary>
     /// <param name="session"></param>
-    public void Add(ICommandSession session)
+    public virtual void Add(ICommandSession session)
     {
         Init();
 
@@ -91,7 +82,7 @@ public class SessionManager : DisposeBase, ISessionManager
     }
 
     /// <summary>销毁会话</summary>
-    public void Remove(ICommandSession session)
+    public virtual void Remove(ICommandSession session)
     {
         if (session != null) _dic.Remove(session.Code);
     }
@@ -102,7 +93,7 @@ public class SessionManager : DisposeBase, ISessionManager
     /// <param name="message"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public Task<Int32> PublishAsync(String code, CommandModel command, String message, CancellationToken cancellationToken)
+    public virtual Task<Int32> PublishAsync(String code, CommandModel command, String message, CancellationToken cancellationToken)
     {
         if (message.IsNullOrEmpty())
         {
@@ -115,7 +106,12 @@ public class SessionManager : DisposeBase, ISessionManager
         return Bus.PublishAsync(message, null, cancellationToken);
     }
 
-    private async Task OnMessage(String message, IEventContext<String> context, CancellationToken cancellationToken)
+    /// <summary>从事件总线收到事件</summary>
+    /// <param name="message"></param>
+    /// <param name="context"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    protected virtual async Task OnMessage(String message, IEventContext<String> context, CancellationToken cancellationToken)
     {
         using var span = _tracer?.NewSpan($"cmd:{Topic}", message);
 
@@ -139,8 +135,8 @@ public class SessionManager : DisposeBase, ISessionManager
             if (msg.Expire.Year < 2000) msg.Expire = DateTime.MinValue;
         }
 
-        // 交由设备会话处理
-        if (msg != null && (msg.Expire.Year <= 2000 || msg.Expire >= Runtime.UtcNow))
+        // 交由命令会话处理，包括过期处理，因其内部可能需要写过期日志
+        //if (msg != null && (msg.Expire.Year <= 2000 || msg.Expire >= Runtime.UtcNow))
         {
             var session = Get(code);
             if (session != null) await session.HandleAsync(msg, message, cancellationToken).ConfigureAwait(false);
@@ -150,7 +146,7 @@ public class SessionManager : DisposeBase, ISessionManager
     /// <summary>获取会话</summary>
     /// <param name="key"></param>
     /// <returns></returns>
-    public ICommandSession? Get(String key)
+    public virtual ICommandSession? Get(String key)
     {
         if (!_dic.TryGetValue(key, out var session)) return null;
 
@@ -158,7 +154,7 @@ public class SessionManager : DisposeBase, ISessionManager
     }
 
     /// <summary>关闭所有</summary>
-    public void CloseAll(String reason)
+    public virtual void CloseAll(String reason)
     {
         if (_dic.IsEmpty) return;
 
