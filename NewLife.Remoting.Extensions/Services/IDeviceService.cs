@@ -48,8 +48,9 @@ public interface IDeviceService
     /// <summary>发送命令</summary>
     /// <param name="device"></param>
     /// <param name="command"></param>
+    /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    Task<Int32> SendCommand(IDeviceModel device, CommandModel command);
+    Task<Int32> SendCommand(IDeviceModel device, CommandModel command, CancellationToken cancellationToken = default);
 
     /// <summary>命令响应</summary>
     /// <param name="device"></param>

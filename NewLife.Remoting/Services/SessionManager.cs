@@ -100,8 +100,9 @@ public class SessionManager : DisposeBase, ISessionManager
     /// <param name="code"></param>
     /// <param name="command"></param>
     /// <param name="message"></param>
+    /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public Task<Int32> PublishAsync(String code, CommandModel command, String message)
+    public Task<Int32> PublishAsync(String code, CommandModel command, String message, CancellationToken cancellationToken)
     {
         if (message.IsNullOrEmpty())
         {
@@ -111,10 +112,10 @@ public class SessionManager : DisposeBase, ISessionManager
 
         message = $"{code}#{message}";
 
-        return Bus.PublishAsync(message);
+        return Bus.PublishAsync(message, null, cancellationToken);
     }
 
-    private async Task OnMessage(String message)
+    private async Task OnMessage(String message, IEventContext<String> context, CancellationToken cancellationToken)
     {
         using var span = _tracer?.NewSpan($"cmd:{Topic}", message);
 
@@ -142,7 +143,7 @@ public class SessionManager : DisposeBase, ISessionManager
         if (msg != null && (msg.Expire.Year <= 2000 || msg.Expire >= Runtime.UtcNow))
         {
             var session = Get(code);
-            if (session != null) await session.HandleAsync(msg, message).ConfigureAwait(false);
+            if (session != null) await session.HandleAsync(msg, message, cancellationToken).ConfigureAwait(false);
         }
     }
 

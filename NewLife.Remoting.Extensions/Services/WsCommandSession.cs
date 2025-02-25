@@ -14,10 +14,11 @@ public class WsCommandSession(WebSocket socket) : CommandSession
     /// <summary>处理事件消息，通过WebSocket向下发送</summary>
     /// <param name="command"></param>
     /// <param name="message"></param>
+    /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public override async Task HandleAsync(CommandModel command, String message)
+    public override Task HandleAsync(CommandModel command, String message, CancellationToken cancellationToken)
     {
         message ??= command.ToJson();
-        await socket.SendAsync(message.GetBytes(), WebSocketMessageType.Text, true, default).ConfigureAwait(false);
+        return socket.SendAsync(message.GetBytes(), WebSocketMessageType.Text, true, cancellationToken);
     }
 }

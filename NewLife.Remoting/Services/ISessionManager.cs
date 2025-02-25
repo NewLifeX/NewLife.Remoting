@@ -12,7 +12,7 @@ public interface ICommandSession : IDisposable
     Boolean Active { get; }
 
     /// <summary>处理事件</summary>
-    Task HandleAsync(CommandModel command, String message);
+    Task HandleAsync(CommandModel command, String message, CancellationToken cancellationToken);
 }
 
 /// <summary>会话管理器接口</summary>
@@ -34,6 +34,7 @@ public interface ISessionManager
     /// <param name="code"></param>
     /// <param name="command"></param>
     /// <param name="message"></param>
+    /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    Task<Int32> PublishAsync(String code, CommandModel command, String message);
+    Task<Int32> PublishAsync(String code, CommandModel command, String message, CancellationToken cancellationToken);
 }

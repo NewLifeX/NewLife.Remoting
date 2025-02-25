@@ -71,7 +71,7 @@ public class DeviceOnlineController : EntityController<DeviceOnline>
                     Command = "device/upgrade",
                     Expire = DateTime.UtcNow.AddSeconds(600),
                 };
-                ts.Add(_deviceService.SendCommand(online.Device, cmd));
+                ts.Add(_deviceService.SendCommand(online.Device, cmd, HttpContext.RequestAborted));
             }
         }
 
@@ -99,7 +99,7 @@ public class DeviceOnlineController : EntityController<DeviceOnline>
                     Argument = argument,
                     Expire = DateTime.UtcNow.AddSeconds(30),
                 };
-                ts.Add(_deviceService.SendCommand(online.Device, cmd));
+                ts.Add(_deviceService.SendCommand(online.Device, cmd, HttpContext.RequestAborted));
             }
         }
 

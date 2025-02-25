@@ -81,7 +81,7 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
                     Command = "node/upgrade",
                     Expire = DateTime.UtcNow.AddSeconds(600),
                 };
-                ts.Add(_deviceService.SendCommand(online.Node, cmd));
+                ts.Add(_deviceService.SendCommand(online.Node, cmd, HttpContext.RequestAborted));
             }
         }
 
@@ -109,7 +109,7 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
                     Argument = argument,
                     Expire = DateTime.UtcNow.AddSeconds(30),
                 };
-                ts.Add(_deviceService.SendCommand(online.Node, cmd));
+                ts.Add(_deviceService.SendCommand(online.Node, cmd, HttpContext.RequestAborted));
             }
         }
 

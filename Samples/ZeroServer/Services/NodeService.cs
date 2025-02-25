@@ -288,7 +288,7 @@ public class NodeService : IDeviceService
     /// <param name="device"></param>
     /// <param name="command"></param>
     /// <returns></returns>
-    public Task<Int32> SendCommand(IDeviceModel device, CommandModel command) => _sessionManager.PublishAsync(device.Code, command, null);
+    public Task<Int32> SendCommand(IDeviceModel device, CommandModel command, CancellationToken cancellationToken) => _sessionManager.PublishAsync(device.Code, command, null, cancellationToken);
     #endregion
 
     #region 升级更新
