@@ -18,6 +18,7 @@ namespace NewLife.Remoting.Services;
 /// <remarks>实例化</remarks>
 public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISessionManager
 {
+    #region 属性
     /// <summary>主题</summary>
     public String Topic { get; set; } = "Commands";
 
@@ -37,7 +38,9 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     private readonly ICache? _cache = serviceProvider.GetService<ICacheProvider>()?.Cache;
     private readonly ITracer? _tracer = serviceProvider.GetService<ITracer>();
     private readonly ILog? _log = serviceProvider.GetService<ILog>();
+    #endregion
 
+    #region 方法
     /// <summary>销毁</summary>
     /// <param name="disposing"></param>
     protected override void Dispose(Boolean disposing)
@@ -54,40 +57,60 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         {
             if (Bus != null) return;
 
-            // 创建事件总线，指定队列消费组
-            if (_cache is not MemoryCache && _cache is Cache cache)
-                Bus = cache.GetEventBus<String>(Topic, $"{Environment.MachineName}-{Process.GetCurrentProcess().Id}");
-            else
-                Bus = new EventBus<String>();
-
-            // 订阅总线事件到OnMessage
-            Bus.Subscribe(OnMessage);
+            Bus = Create();
         }
+    }
+
+    /// <summary>创建事件总线，用于转发会话消息</summary>
+    /// <returns></returns>
+    protected virtual IEventBus<String> Create()
+    {
+        var clientId = $"{Environment.MachineName}-{Process.GetCurrentProcess().Id}";
+        using var span = _tracer?.NewSpan($"cmd:{Topic}:Create", clientId);
+
+        // 创建事件总线，指定队列消费组
+        IEventBus<String> bus;
+        if (_cache is not MemoryCache && _cache is Cache cache)
+            bus = cache.GetEventBus<String>(Topic, clientId);
+        else
+            bus = new EventBus<String>();
+
+        // 订阅总线事件到OnMessage
+        bus.Subscribe(OnMessage);
+
+        return bus;
     }
 
     /// <summary>创建会话</summary>
     /// <param name="session"></param>
     public virtual void Add(ICommandSession session)
     {
+        using var span = _tracer?.NewSpan($"cmd:{Topic}:Add", session.Code);
+
         Init();
 
         _dic.AddOrUpdate(session.Code, session, (k, s) => s);
 
         if (session is IDisposable2 ds)
-            ds.OnDisposed += (s, e) => _dic.Remove((s as ICommandSession)?.Code + "");
+            ds.OnDisposed += (s, e) => Remove((s as ICommandSession)!);
 
         var p = ClearPeriod * 1000;
         if (p > 0)
             _clearTimer ??= new TimerX(RemoveNotAlive, null, p, p) { Async = true, };
     }
 
-    /// <summary>销毁会话</summary>
+    /// <summary>删除会话</summary>
     public virtual void Remove(ICommandSession session)
     {
-        if (session != null) _dic.Remove(session.Code);
+        if (session != null)
+        {
+            using var span = _tracer?.NewSpan($"cmd:{Topic}:Remove", session.Code);
+
+            if (_dic.TryRemove(session.Code, out _)) span?.AppendTag(null!, 1);
+        }
     }
 
-    /// <summary>向设备发送消息</summary>
+    /// <summary>向目标会话发送事件。进程内转发，或通过Redis队列</summary>
     /// <param name="code"></param>
     /// <param name="command"></param>
     /// <param name="message"></param>
@@ -101,6 +124,8 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         if (message.IsNullOrEmpty()) message = command!.ToJson();
 
         message = $"{code}#{message}";
+
+        using var span = _tracer?.NewSpan($"cmd:{Topic}:Publish", message);
 
         Init();
 
@@ -140,7 +165,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         //if (msg != null && (msg.Expire.Year <= 2000 || msg.Expire >= Runtime.UtcNow))
         {
             var session = Get(code);
-            if (session != null) await session.HandleAsync(msg, message, cancellationToken).ConfigureAwait(false);
+            if (session != null) await session.HandleAsync(msg!, message, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -159,7 +184,12 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     {
         if (_dic.IsEmpty) return;
 
-        foreach (var item in _dic.ToValueArray())
+        using var span = _tracer?.NewSpan($"cmd:{Topic}:CloseAll", reason);
+
+        var arr = _dic.ToValueArray();
+        _dic.Clear();
+
+        foreach (var item in arr)
         {
             if (item is IDisposable2 ds && !ds.Disposed)
             {
@@ -179,17 +209,23 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
         foreach (var elm in _dic)
         {
-            var session = elm.Value;
             // 判断是否活跃
+            var session = elm.Value;
             if (session == null || session is IDisposable2 ds && ds.Disposed || !session.Active)
             {
                 todel.Add(elm.Key, elm.Value);
             }
         }
+
+        if (todel.Count == 0) return;
+
+        using var span = _tracer?.NewSpan($"cmd:{Topic}:RemoveNotAlive", todel.Keys, todel.Count);
+
         // 从会话集合里删除这些键值，并行字典操作安全
         foreach (var item in todel)
         {
-            _dic.Remove(item.Key);
+            //_dic.Remove(item.Key);
+            Remove(item.Value);
         }
 
         // 慢慢释放各个会话
@@ -202,4 +238,5 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
             item.Value.TryDispose();
         }
     }
+    #endregion
 }

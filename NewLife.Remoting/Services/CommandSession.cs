@@ -9,7 +9,7 @@ namespace NewLife.Remoting.Services;
 public class CommandSession : DisposeBase, ICommandSession
 {
     #region 属性
-    /// <summary>设备编码。用于识别指令归属</summary>
+    /// <summary>会话编码。用于识别指令归属</summary>
     public String Code { get; set; } = null!;
 
     /// <summary>是否活动中</summary>

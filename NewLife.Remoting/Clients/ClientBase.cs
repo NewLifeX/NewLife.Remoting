@@ -1154,7 +1154,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         InitEvent();
 
         // 记录追踪标识，上报的时候带上，尽可能让源头和下游串联起来
-        _eventTraceId = DefaultSpan.Current?.ToString();
+        _eventTraceId = DefaultSpan.Current?.TraceId;
 
         // 获取相对于服务器的当前时间，避免两端时间差。转为UTC毫秒，作为事件时间。
         var now = GetNow().ToUniversalTime();
