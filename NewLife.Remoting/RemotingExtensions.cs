@@ -35,7 +35,7 @@ public static class RemotingExtensions
             }
         }
 
-        if (uid.Contains('{') || uid.Contains('}')) XTrace.WriteLine("编码公式有误，存在未解析变量，uid={0}", uid);
+        //if (uid.Contains('{') || uid.Contains('}')) XTrace.WriteLine("编码公式有误，存在未解析变量，uid={0}", uid);
         if (!uid.IsNullOrEmpty())
         {
             // 使用产品类别加密一下，确保不同类别有不同编码
