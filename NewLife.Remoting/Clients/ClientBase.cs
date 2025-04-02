@@ -376,7 +376,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     public virtual TResult Invoke<TResult>(String action, Object? args = null)
     {
         using var source = new CancellationTokenSource(Timeout);
-        return InvokeAsync<TResult>(action, args, source.Token).GetAwaiter().GetResult();
+        return InvokeAsync<TResult>(action, args, source.Token).ConfigureAwait(false).GetAwaiter().GetResult();
     }
 
     /// <summary>设置令牌。派生类可重定义逻辑</summary>
