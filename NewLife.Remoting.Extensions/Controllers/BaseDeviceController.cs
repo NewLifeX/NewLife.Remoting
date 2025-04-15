@@ -210,44 +210,17 @@ public class BaseDeviceController : BaseController
             throw new InvalidOperationException("未找到SessionManager服务");
 
         var ip = UserHost;
-        var sid = Rand.Next();
-        var connection = HttpContext.Connection;
-        var address = connection.RemoteIpAddress ?? IPAddress.Loopback;
-        if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
-        var remote = new IPEndPoint(address, connection.RemotePort);
-        WriteLog("WebSocket连接", true, $"State={socket.State} sid={sid} Remote={remote}");
 
-        // 长连接上线
-        _deviceService.SetOnline(device, true, token, ip);
-
-        using var session = new WsCommandSession(socket) { Code = device.Code };
-        try
+        using var session = new WsCommandSession(socket)
         {
-            sessionManager.Add(session);
+            Code = device.Code,
+            WriteLog = WriteLog,
+            SetOnline = online => _deviceService.SetOnline(device, online, token, ip)
+        };
 
-            // 链接取消令牌。当客户端断开时，触发取消，结束长连接
-            using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            await socket.WaitForClose(txt =>
-            {
-                if (txt == "Ping")
-                {
-                    socket.SendAsync("Pong".GetBytes(), WebSocketMessageType.Text, true, source.Token);
+        sessionManager.Add(session);
 
-                    // 长连接上线。可能客户端心跳已经停了，WS还在，这里重新上线
-                    _deviceService.SetOnline(device, true, token, ip);
-                }
-            }, source).ConfigureAwait(false);
-        }
-        finally
-        {
-            WriteLog("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
-
-            // 长连接下线
-            _deviceService.SetOnline(device, false, token, ip);
-
-            // 前面有using语句，session会自动Dispose，并从SessionManager中移除
-            //sessionManager.Remove(session);
-        }
+        await session.WaitAsync(HttpContext, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>设备端响应服务调用</summary>

@@ -14,6 +14,12 @@ public class CommandSession : DisposeBase, ICommandSession
 
     /// <summary>是否活动中</summary>
     public virtual Boolean Active { get; } = true;
+
+    /// <summary>写日志</summary>
+    public Action<String, Boolean, String>? WriteLog { get; set; }
+
+    /// <summary>设置 在线/离线</summary>
+    public Action<Boolean>? SetOnline { get; set; }
     #endregion
 
     /// <summary>处理事件</summary>
