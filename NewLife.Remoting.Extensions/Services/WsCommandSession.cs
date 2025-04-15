@@ -1,12 +1,10 @@
 ﻿using System.Net;
 using System.Net.WebSockets;
-using NewLife.Http;
+using NewLife.Log;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
 using NewLife.Serialization;
-using WebSocket = System.Net.WebSockets.WebSocket;
-using WebSocketMessageType = System.Net.WebSockets.WebSocketMessageType;
 
 namespace NewLife.Remoting.Extensions.Services;
 
@@ -44,23 +42,42 @@ public class WsCommandSession(WebSocket socket) : CommandSession
         // 长连接上线  
         SetOnline?.Invoke(true);
 
+        // 链接取消令牌。当客户端断开时，触发取消，结束长连接  
+        using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
         {
-            // 链接取消令牌。当客户端断开时，触发取消，结束长连接  
-            using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            await socket.WaitForClose(txt =>
+            var buf = new Byte[64];
+            while (!source.IsCancellationRequested && socket.State == WebSocketState.Open)
             {
-                if (txt == "Ping")
+                var data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), source.Token).ConfigureAwait(false);
+                if (data.MessageType == WebSocketMessageType.Close) break;
+                if (data.MessageType is WebSocketMessageType.Text or WebSocketMessageType.Binary)
                 {
-                    socket.SendAsync("Pong".GetBytes(), WebSocketMessageType.Text, true, source.Token);
+                    var txt = buf.ToStr(null, 0, data.Count);
+                    if (txt == "Ping")
+                    {
+                        await socket.SendAsync("Pong".GetBytes(), WebSocketMessageType.Text, true, source.Token).ConfigureAwait(false);
 
-                    // 长连接上线。可能客户端心跳已经停了，WS还在，这里重新上线  
-                    SetOnline?.Invoke(true);
+                        // 长连接上线。可能客户端心跳已经停了，WS还在，这里重新上线  
+                        SetOnline?.Invoke(true);
+                    }
                 }
-            }, source).ConfigureAwait(false);
+            }
+
+            if (!source.IsCancellationRequested) source.Cancel();
+
+            if (socket.State == WebSocketState.Open)
+                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default).ConfigureAwait(false);
+        }
+        catch (TaskCanceledException) { }
+        catch (OperationCanceledException) { }
+        catch (WebSocketException ex)
+        {
+            WriteLog?.Invoke("WebSocket异常", false, ex.Message);
         }
         finally
         {
+            source.Cancel();
             WriteLog?.Invoke("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
 
             // 长连接下线  
