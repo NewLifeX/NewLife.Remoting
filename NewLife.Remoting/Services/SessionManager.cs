@@ -143,16 +143,21 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
         var code = "";
         var p = message.IndexOf('#');
-        if (p > 0 && p < 32)
+        if (p > 0 && p < 256)
         {
             code = message[..p];
             message = message[(p + 1)..];
         }
 
-        // 解码
-        var dic = JsonParser.Decode(message)!;
-        var msg = JsonHelper.Convert<CommandModel>(dic);
-        span?.Detach(dic);
+        // 解码。即使失败，也要继续处理
+        CommandModel? msg = null;
+        try
+        {
+            var dic = JsonParser.Decode(message)!;
+            msg = JsonHelper.Convert<CommandModel>(dic);
+            span?.Detach(dic);
+        }
+        catch { }
 
         // 修正时间
         if (msg != null)
