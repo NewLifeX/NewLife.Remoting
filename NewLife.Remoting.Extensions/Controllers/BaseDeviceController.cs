@@ -245,7 +245,8 @@ public class BaseDeviceController : BaseController
             // 长连接下线
             _deviceService.SetOnline(device, false, token, ip);
 
-            sessionManager.Remove(session);
+            // 前面有using语句，session会自动Dispose，并从SessionManager中移除
+            //sessionManager.Remove(session);
         }
     }
 
