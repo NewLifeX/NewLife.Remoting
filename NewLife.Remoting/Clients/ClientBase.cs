@@ -1000,7 +1000,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             // 有效期判断前把UTC转为本地时间
             var now = GetNow();
             var expire = model.Expire.ToLocalTime();
-            WriteLog("[{0}] Got Command: {1}", source, json);
+            WriteLog("[{0}] 收到命令: {1}", source, json);
             if (expire.Year < 2000 || expire > now)
             {
                 // 延迟执行
@@ -1201,6 +1201,6 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>写日志</summary>
     /// <param name="format"></param>
     /// <param name="args"></param>
-    public void WriteLog(String format, params Object?[] args) => Log?.Info(format, args);
+    public void WriteLog(String format, params Object?[] args) => Log?.Info($"[{Name}]{format}", args);
     #endregion
 }
