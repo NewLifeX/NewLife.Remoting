@@ -126,8 +126,6 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     public ClientBase()
     {
         Name = GetType().Name.TrimEnd("Client");
-
-        SetActions("Device/");
     }
 
     /// <summary>通过客户端设置实例化</summary>
@@ -185,6 +183,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (_client != null) return;
 
         OnInit();
+
+        if (Actions == null || Actions.Count == 0) SetActions("Device/");
     }
 
     /// <summary>初始化对象容器以及客户端</summary>
