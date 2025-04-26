@@ -311,7 +311,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         // 验证登录
         var needLogin = !Actions[Features.Login].EqualIgnoreCase(action);
-        if (!Logined && needLogin && Features.HasFlag(Features.Login)) await Login(cancellationToken).ConfigureAwait(false);
+        if (!Logined && needLogin && Features.HasFlag(Features.Login)) await Login(action, cancellationToken).ConfigureAwait(false);
 
         // GET请求
         var rs = await http.InvokeAsync<TResult>(HttpMethod.Get, action, args, null, cancellationToken).ConfigureAwait(false);
@@ -334,7 +334,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     {
         // 验证登录。如果该接口需要登录，且未登录，则先登录
         var needLogin = !Actions[Features.Login].EqualIgnoreCase(action);
-        if (needLogin && !Logined && Features.HasFlag(Features.Login)) await Login(cancellationToken).ConfigureAwait(false);
+        if (needLogin && !Logined && Features.HasFlag(Features.Login)) await Login(action, cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -353,7 +353,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     {
                         Log?.Debug("{0}", ex);
                         WriteLog("重新登录，因调用[{0}]失败：{1}", action, ex.Message);
-                        await Login(cancellationToken).ConfigureAwait(false);
+                        await Login(action, cancellationToken).ConfigureAwait(false);
 
                         // 再次执行当前请求
                         return await OnInvokeAsync<TResult>(action, args, cancellationToken).ConfigureAwait(false);
@@ -410,7 +410,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         var timer = _timerLogin;
         try
         {
-            if (!Logined) await Login().ConfigureAwait(false);
+            if (!Logined) await Login(nameof(TryConnectServer)).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -432,17 +432,25 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// 用户可重载Login实现自定义登录逻辑，通过Logined判断是否登录成功。
     /// 也可以在OnLogined事件中处理登录成功后的逻辑。
     /// </remarks>
+    /// <param name="source">来源。标记从哪里发起登录请求</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
-    public virtual async Task<ILoginResponse?> Login(CancellationToken cancellationToken = default)
+    public virtual async Task<ILoginResponse?> Login(String? source = null, CancellationToken cancellationToken = default)
     {
         //if (Status >= LoginStatus.LoggedOut) return null;
 
         // 如果已登录，直接返回。如果正在登录，则稍等一会，避免重复登录。
         if (Status >= LoginStatus.LoggedIn) return null;
-        for (var i = 0; Status == LoginStatus.LoggingIn && i < 50; i++)
+
+        // 如果正在登录，则稍等一会，避免重复登录。
+        if (Status == LoginStatus.LoggingIn)
         {
-            await TaskEx.Delay(100, cancellationToken).ConfigureAwait(false);
-            if (Status == LoginStatus.LoggedIn) return null;
+            WriteLog("正在登录，请稍等！来源：{0}", source);
+            for (var i = 0; Status == LoginStatus.LoggingIn && i < 50; i++)
+            {
+                await TaskEx.Delay(100, cancellationToken).ConfigureAwait(false);
+                if (Status == LoginStatus.LoggedIn) return null;
+            }
         }
 
         if (Status != LoginStatus.LoggedIn) Status = LoginStatus.LoggingIn;
@@ -451,8 +459,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         ILoginRequest? request = null;
         ILoginResponse? response = null;
-        using var span = Tracer?.NewSpan(nameof(Login), Code);
-        WriteLog("登录：{0}", Code);
+        using var span = Tracer?.NewSpan(nameof(Login), new { Code, source, Server });
+        WriteLog("登录：{0}，来源：{1}", Code, source);
         try
         {
             // 创建登录请求，用户可重载BuildLoginRequest实现自定义登录请求，填充更多参数
@@ -464,7 +472,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             response = await LoginAsync(request, cancellationToken).ConfigureAwait(false);
             if (response == null) return null;
 
-            WriteLog("登录成功：{0}", response);
+            WriteLog("登录成功：{0}，来源：{1}", response, source);
 
             // 登录后设置用于用户认证的token
             SetToken(response.Token);
@@ -696,7 +704,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 if (Features.HasFlag(Features.Login))
                 {
                     WriteLog("重新登录，因心跳失败：{0}", ex.Message);
-                    await Login(cancellationToken).ConfigureAwait(false);
+                    await Login(nameof(Ping), cancellationToken).ConfigureAwait(false);
                 }
 
                 return null;

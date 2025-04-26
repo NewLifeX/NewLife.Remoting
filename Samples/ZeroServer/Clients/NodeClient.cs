@@ -111,7 +111,7 @@ public class NodeClient : ClientBase
                     Client = null;
 
                     if (Features.HasFlag(Features.Login))
-                        await Login(cancellationToken);
+                        await Login("切换新服务器", cancellationToken);
                 }
             }
         }
