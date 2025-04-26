@@ -393,6 +393,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     #region 登录注销
     private TimerX? _timerLogin;
+    private Int32 _times;
     /// <summary>打开连接，尝试登录服务端。在网络未就绪之前反复尝试</summary>
     public virtual void Open()
     {
@@ -410,7 +411,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         var timer = _timerLogin;
         try
         {
-            if (!Logined) await Login(nameof(TryConnectServer)).ConfigureAwait(false);
+            var source = new CancellationTokenSource(Timeout);
+            if (!Logined) await Login(nameof(TryConnectServer), source.Token).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -437,15 +439,16 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <returns></returns>
     public virtual async Task<ILoginResponse?> Login(String? source = null, CancellationToken cancellationToken = default)
     {
-        //if (Status >= LoginStatus.LoggedOut) return null;
+        // 如果已登录，直接返回
+        if (Status == LoginStatus.LoggedIn) return null;
 
-        // 如果已登录，直接返回。如果正在登录，则稍等一会，避免重复登录。
-        if (Status >= LoginStatus.LoggedIn) return null;
+        //!!! 这里的多线程登录设计不采取共用Task的架构，因为首次登录可能会失败，后续其它线程需要重新登录，而不是共用失败结果。
 
         // 如果正在登录，则稍等一会，避免重复登录。
+        var times = Interlocked.Increment(ref _times);
         if (Status == LoginStatus.LoggingIn)
         {
-            WriteLog("正在登录，请稍等！来源：{0}", source);
+            WriteLog("正在登录，请稍等{0}ms！序号：{1}，来源：{2}", 50 * 100, times, source);
             for (var i = 0; Status == LoginStatus.LoggingIn && i < 50; i++)
             {
                 await TaskEx.Delay(100, cancellationToken).ConfigureAwait(false);
@@ -460,7 +463,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         ILoginRequest? request = null;
         ILoginResponse? response = null;
         using var span = Tracer?.NewSpan(nameof(Login), new { Code, source, Server });
-        WriteLog("登录：{0}，来源：{1}", Code, source);
+        WriteLog("登录：{0}，序号：{1}，来源：{2}", Code, times, source);
         try
         {
             // 创建登录请求，用户可重载BuildLoginRequest实现自定义登录请求，填充更多参数
@@ -469,10 +472,15 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             // 登录前清空令牌，避免服务端使用上一次信息
             SetToken(null);
 
-            response = await LoginAsync(request, cancellationToken).ConfigureAwait(false);
+            // 滚动的登录超时时间，实际上只对StarServer有效
+            var timeout = times * 1000;
+            if (timeout > Timeout) timeout = Timeout;
+            var ts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, new CancellationTokenSource(timeout).Token);
+
+            response = await LoginAsync(request, ts.Token).ConfigureAwait(false);
             if (response == null) return null;
 
-            WriteLog("登录成功：{0}，来源：{1}", response, source);
+            WriteLog("登录成功：{0}，序号：{1}，来源：{2}", response, times, source);
 
             // 登录后设置用于用户认证的token
             SetToken(response.Token);
@@ -481,6 +489,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
         catch (Exception ex)
         {
+            WriteLog("登录失败：{0}，序号：{1}，来源：{2}", ex.Message, times, source);
+
             Status = LoginStatus.Ready;
             span?.SetError(ex, null);
             throw;
