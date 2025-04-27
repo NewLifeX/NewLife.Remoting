@@ -37,7 +37,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession
         var address = connection.RemoteIpAddress ?? IPAddress.Loopback;
         if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
         var remote = new IPEndPoint(address, connection.RemotePort);
-        WriteLog?.Invoke("WebSocket连接", true, $"State={socket.State} sid={sid} Remote={remote}");
+        Log?.WriteLog("WebSocket连接", true, $"State={socket.State} sid={sid} Remote={remote}");
 
         // 长连接上线  
         SetOnline?.Invoke(true);
@@ -73,12 +73,12 @@ public class WsCommandSession(WebSocket socket) : CommandSession
         catch (OperationCanceledException) { }
         catch (WebSocketException ex)
         {
-            WriteLog?.Invoke("WebSocket异常", false, ex.Message);
+            Log?.WriteLog("WebSocket异常", false, ex.Message);
         }
         finally
         {
             source.Cancel();
-            WriteLog?.Invoke("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
+            Log?.WriteLog("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
 
             // 长连接下线  
             SetOnline?.Invoke(false);

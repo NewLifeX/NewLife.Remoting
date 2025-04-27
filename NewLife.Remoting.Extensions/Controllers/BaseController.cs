@@ -17,7 +17,7 @@ namespace NewLife.Remoting.Extensions;
 /// </remarks>
 [ApiFilter]
 [Route("[controller]")]
-public abstract class BaseController : ControllerBase, IWebFilter
+public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
 {
     #region 属性
     /// <summary>令牌</summary>
@@ -106,6 +106,6 @@ public abstract class BaseController : ControllerBase, IWebFilter
     /// <param name="action"></param>
     /// <param name="success"></param>
     /// <param name="message"></param>
-    protected virtual void WriteLog(String action, Boolean success, String message) => XTrace.WriteLine($"[{action}]{message}");
+    public virtual void WriteLog(String action, Boolean success, String message) => XTrace.WriteLine($"[{action}]{message}");
     #endregion
 }

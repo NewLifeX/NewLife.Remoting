@@ -1,4 +1,5 @@
-﻿using NewLife.Remoting.Models;
+﻿using NewLife.Log;
+using NewLife.Remoting.Models;
 #if !NET45
 using TaskEx=System.Threading.Tasks.Task;
 #endif
@@ -16,7 +17,7 @@ public class CommandSession : DisposeBase, ICommandSession
     public virtual Boolean Active { get; } = true;
 
     /// <summary>写日志</summary>
-    public Action<String, Boolean, String>? WriteLog { get; set; }
+    public ILogProvider? Log { get; set; }
 
     /// <summary>设置 在线/离线</summary>
     public Action<Boolean>? SetOnline { get; set; }

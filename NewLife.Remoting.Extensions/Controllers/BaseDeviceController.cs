@@ -1,14 +1,11 @@
 ﻿using System.Net;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using NewLife.Http;
 using NewLife.Log;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
-using NewLife.Security;
 using WebSocket = System.Net.WebSockets.WebSocket;
-using WebSocketMessageType = System.Net.WebSockets.WebSocketMessageType;
 
 namespace NewLife.Remoting.Extensions;
 
@@ -214,7 +211,7 @@ public class BaseDeviceController : BaseController
         using var session = new WsCommandSession(socket)
         {
             Code = device.Code,
-            WriteLog = WriteLog,
+            Log = this,
             SetOnline = online => _deviceService.SetOnline(device, online, token, ip)
         };
 
@@ -243,6 +240,6 @@ public class BaseDeviceController : BaseController
     /// <param name="action"></param>
     /// <param name="success"></param>
     /// <param name="message"></param>
-    protected override void WriteLog(String action, Boolean success, String message) => _deviceService.WriteHistory(_device, action, success, message, UserHost);
+    public override void WriteLog(String action, Boolean success, String message) => _deviceService.WriteHistory(_device, action, success, message, UserHost);
     #endregion
 }
