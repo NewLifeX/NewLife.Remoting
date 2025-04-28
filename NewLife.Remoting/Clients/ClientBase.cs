@@ -176,11 +176,29 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         this.RegisterCommand(prefix + "Upgrade", ReceiveUpgrade);
     }
 
+    private String? _lastServer;
     /// <summary>初始化</summary>
     [MemberNotNull(nameof(_client))]
     protected void Init()
     {
-        if (_client != null) return;
+        if (_client != null)
+        {
+            // 如果配置中的服务端地址与当前不一致，则需要同步修改客户端的服务地址
+            var urls = Server ?? Setting?.Server;
+            if (!urls.IsNullOrEmpty() && urls != _lastServer)
+            {
+                using var span = Tracer?.NewSpan("ChangeServer", new { urls, _lastServer });
+
+                if (_client is ApiHttpClient http)
+                    http.SetServer(urls);
+                else if (_client is ApiClient rpc)
+                    rpc.SetServer(urls);
+
+                _lastServer = urls;
+            }
+
+            return;
+        }
 
         OnInit();
 
@@ -215,6 +233,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             if (urls.IsNullOrEmpty()) throw new ArgumentNullException(nameof(Setting), "未指定服务端地址");
 
             _client = urls.StartsWithIgnoreCase("http", "https") ? CreateHttp(urls) : CreateRpc(urls);
+            _lastServer = urls;
         }
     }
 

@@ -67,10 +67,7 @@ public class ApiClient : ApiHost, IApiClient
 
     /// <summary>实例化应用接口客户端</summary>
     /// <param name="uris">服务端地址集合，逗号分隔</param>
-    public ApiClient(String uris) : this()
-    {
-        if (!uris.IsNullOrEmpty()) Servers = uris.Split(",", ";");
-    }
+    public ApiClient(String uris) : this() => SetServer(uris);
 
     /// <summary>销毁</summary>
     /// <param name="disposing"></param>
@@ -101,7 +98,7 @@ public class ApiClient : ApiHost, IApiClient
 
             // 集群
             Cluster = InitCluster();
-            WriteLog("集群：{0}", Cluster);
+            WriteLog("集群模式：{0}", Cluster?.GetType().GetDisplayName() ?? Cluster?.ToString());
 
             Encoder.Log = EncoderLog;
 
@@ -126,6 +123,20 @@ public class ApiClient : ApiHost, IApiClient
         Cluster?.Close(reason ?? (GetType().Name + "Close"));
 
         Active = false;
+    }
+
+    private String? _lastUrls;
+    /// <summary>设置服务端地址。如果新地址跟旧地址不同，将会替换旧地址构造的Servers</summary>
+    /// <param name="uris"></param>
+    public void SetServer(String uris)
+    {
+        if (!uris.IsNullOrEmpty() && uris != _lastUrls)
+        {
+            Servers = uris.Split(",", ";");
+            _lastUrls = uris;
+
+            Cluster?.Reset();
+        }
     }
 
     /// <summary>初始化集群</summary>
@@ -308,7 +319,7 @@ public class ApiClient : ApiHost, IApiClient
             if (resultType == typeof(Packet))
             {
                 if (message.Data is Packet) return (TResult)(Object)message.Data;
-                if(message.Data.TryGetArray(out var segment)) return (TResult)(Object)new Packet(segment);
+                if (message.Data.TryGetArray(out var segment)) return (TResult)(Object)new Packet(segment);
 
                 return (TResult)(Object)new Packet(message.Data.ToArray());
             }

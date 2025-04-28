@@ -26,6 +26,9 @@ public interface ICluster<TKey, TValue>
     /// <summary>归还</summary>
     /// <param name="value"></param>
     Boolean Return(TValue value);
+
+    /// <summary>重置集群。清空已缓存对象</summary>
+    void Reset();
 }
 
 /// <summary>集群助手</summary>

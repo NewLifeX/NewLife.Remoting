@@ -1,9 +1,11 @@
-﻿using NewLife.Log;
+﻿using System.ComponentModel;
+using NewLife.Log;
 using NewLife.Net;
 
 namespace NewLife.Remoting;
 
 /// <summary>客户端单连接故障转移集群</summary>
+[DisplayName("故障转移")]
 public class ClientSingleCluster<T> : ICluster<String, T>
 {
     /// <summary>最后使用资源</summary>
@@ -55,6 +57,9 @@ public class ClientSingleCluster<T> : ICluster<String, T>
     /// <param name="value"></param>
     public virtual Boolean Return(T value) => true;
 
+    /// <summary>重置集群。清空已缓存对象</summary>
+    public virtual void Reset() => _Client = default;
+
     /// <summary>Round-Robin 负载均衡</summary>
     private Int32 _index = -1;
 
@@ -78,7 +83,10 @@ public class ClientSingleCluster<T> : ICluster<String, T>
             var svr = svrs[k];
             try
             {
-                WriteLog("集群转移：{0}", svr);
+                if (idx == 0)
+                    WriteLog("集群连接：{0}", svr);
+                else
+                    WriteLog("集群转移：{0}", svr);
 
                 var client = OnCreate(svr);
                 //client.Open();

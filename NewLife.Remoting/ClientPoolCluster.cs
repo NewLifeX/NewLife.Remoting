@@ -1,9 +1,11 @@
-﻿using NewLife.Collections;
+﻿using System.ComponentModel;
+using NewLife.Collections;
 using NewLife.Log;
 
 namespace NewLife.Remoting;
 
 /// <summary>客户端连接池负载均衡集群</summary>
+[DisplayName("负载均衡")]
 public class ClientPoolCluster<T> : ICluster<String, T> where T : class
 {
     /// <summary>最后使用资源</summary>
@@ -41,6 +43,9 @@ public class ClientPoolCluster<T> : ICluster<String, T> where T : class
 
         return Pool.Return(value);
     }
+
+    /// <summary>重置集群。清空已缓存对象</summary>
+    public virtual void Reset() => Pool.Clear();
 
     /// <summary>Round-Robin 负载均衡</summary>
     private Int32 _index = -1;
