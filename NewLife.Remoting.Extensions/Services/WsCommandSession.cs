@@ -1,6 +1,5 @@
 ﻿using System.Net;
 using System.Net.WebSockets;
-using NewLife.Log;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
@@ -13,6 +12,23 @@ public class WsCommandSession(WebSocket socket) : CommandSession
 {
     /// <summary>是否活动中</summary>
     public override Boolean Active => socket != null && socket.State == WebSocketState.Open;
+
+    /// <summary>销毁</summary>
+    protected override void Dispose(Boolean disposing)
+    {
+        base.Dispose(disposing);
+
+        try
+        {
+            if (socket != null && socket.State == WebSocketState.Open)
+                socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Dispose", default);
+        }
+        catch { }
+        finally
+        {
+            socket?.Dispose();
+        }
+    }
 
     /// <summary>处理事件消息，通过WebSocket向下发送</summary>
     /// <param name="command"></param>

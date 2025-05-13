@@ -75,5 +75,17 @@ public static class RemotingExtensions
                 KeepAliveInterval = TimeSpan.FromSeconds(60),
             });
         }
+
+        // 应用停止时，关闭会话管理器，清除所有会话
+        var sessionManager = app.ApplicationServices.GetService<ISessionManager>();
+        if (sessionManager != null)
+        {
+            var lifeTime = app.ApplicationServices.GetService<IHostApplicationLifetime>();
+            lifeTime?.ApplicationStopping.Register(() =>
+            {
+                // 关闭时，清除所有会话
+                sessionManager.TryDispose();
+            });
+        }
     }
 }
