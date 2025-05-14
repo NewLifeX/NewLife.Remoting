@@ -667,7 +667,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     {
         Init();
 
-        using var span = Tracer?.NewSpan(nameof(Ping));
+        //using var span = Tracer?.NewSpan(nameof(Ping));
         try
         {
             // 创建心跳请求。支持重载后使用自定义的心跳请求对象，填充更多参数
@@ -724,7 +724,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
         catch (Exception ex)
         {
-            span?.SetError(ex, null);
+            //span?.SetError(ex, null);
 
             var ex2 = ex.GetTrue();
             if (ex2 is ApiException aex && (aex.Code == ApiCode.Unauthorized || aex.Code == ApiCode.Forbidden))
@@ -981,33 +981,37 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         _ws = null;
     }
 
+    private async Task DoPing(Object state)
+    {
+        using var span = Tracer?.NewSpan(Name + "Ping");
+        try
+        {
+            await OnPing(state).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            span?.SetError(ex, null);
+            Log?.Debug("{0}", ex);
+        }
+    }
+
     private WsChannel? _ws;
     /// <summary>定时心跳</summary>
     /// <param name="state"></param>
     /// <returns></returns>
     protected virtual async Task OnPing(Object state)
     {
-        //DefaultSpan.Current = null;
-        using var span = Tracer?.NewSpan(Name + "Ping");
-        try
-        {
-            if (Features.HasFlag(Features.Ping)) await Ping().ConfigureAwait(false);
+        if (Features.HasFlag(Features.Ping)) await Ping().ConfigureAwait(false);
 
-            if (_client is ApiHttpClient http && Features.HasFlag(Features.Notify))
-            {
-                // 非NetCore平台，使用自研轻量级WebSocket
-#if NETCOREAPP
-                _ws ??= new WsChannelCore(this);
-#else
-                _ws ??= new WsChannel(this);
-#endif
-                if (_ws != null) await _ws.ValidWebSocket(http).ConfigureAwait(false);
-            }
-        }
-        catch (Exception ex)
+        if (_client is ApiHttpClient http && Features.HasFlag(Features.Notify))
         {
-            span?.SetError(ex, null);
-            Log?.Debug("{0}", ex);
+            // 非NetCore平台，使用自研轻量级WebSocket
+#if NETCOREAPP
+            _ws ??= new WsChannelCore(this);
+#else
+            _ws ??= new WsChannel(this);
+#endif
+            if (_ws != null) await _ws.ValidWebSocket(http).ConfigureAwait(false);
         }
     }
 
