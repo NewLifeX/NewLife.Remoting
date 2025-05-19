@@ -8,6 +8,10 @@ namespace NewLife.Remoting.Http;
 /// <summary>WebSocket消息编码器</summary>
 public class WebSocketClientCodec : Handler
 {
+    /// <summary>用户数据包。写入时数据包转消息，读取时消息自动解包返回数据负载</summary>
+    /// <remarks>一般用于上层还有其它编码器时，实现编码器级联</remarks>
+    public Boolean UserPacket { get; set; }
+
     /// <summary>打开连接</summary>
     /// <param name="context">上下文</param>
     public override Boolean Open(IHandlerContext context)
@@ -44,18 +48,16 @@ public class WebSocketClientCodec : Handler
         if (message is IPacket pk)
         {
             var msg = new WebSocketMessage();
-            if (msg.Read(pk)) message = msg.Payload!;
+            if (msg.Read(pk))
+            {
+                if (UserPacket)
+                    message = msg.Payload!;
+                else
+                    message = msg;
+            }
         }
 
-        try
-        {
-            return base.Read(context, message);
-        }
-        finally
-        {
-            // 下游可能忘记释放内存
-            message.TryDispose();
-        }
+        return base.Read(context, message);
     }
 
     /// <summary>发送消息时，写入数据</summary>
@@ -64,11 +66,13 @@ public class WebSocketClientCodec : Handler
     /// <returns></returns>
     public override Object? Write(IHandlerContext context, Object message)
     {
-        if (message is IPacket pk)
+        if (UserPacket && message is IPacket pk)
             message = new WebSocketMessage { Type = WebSocketMessageType.Binary, Payload = pk };
 
+        // 谁申请，谁归还
+        IPacket? owner = null;
         if (message is WebSocketMessage msg)
-            message = msg.ToPacket();
+            message = owner = msg.ToPacket();
 
         try
         {
@@ -76,8 +80,8 @@ public class WebSocketClientCodec : Handler
         }
         finally
         {
-            // 下游可能忘记释放内存
-            message.TryDispose();
+            // 下游可能忘了释放内存，这里兜底释放
+            owner.TryDispose();
         }
     }
 }
