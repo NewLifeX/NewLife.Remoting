@@ -10,6 +10,17 @@ namespace NewLife.Remoting.Http;
 /// <summary>WebSocket消息编码器</summary>
 public class WebSocketServerCodec : Handler
 {
+    #region 属性
+    /// <summary>服务器名</summary>
+    public String? Server { get; set; }
+
+    /// <summary>版本</summary>
+    public String? Version { get; set; }
+
+    /// <summary>协议。如mqtt</summary>
+    public String? Protocol { get; set; }
+    #endregion
+
     /// <summary>连接关闭时，清空粘包编码器</summary>
     /// <param name="context"></param>
     /// <param name="reason"></param>
@@ -49,20 +60,14 @@ public class WebSocketServerCodec : Handler
                 };
 
                 // 处理 WebSocket 握手
-                websocket = WebSocket.Handshake(ctx);
+                websocket = OnHandshake(ctx);
                 if (websocket != null)
                 {
-                    var rs = ctx.Response;
-                    if (rs != null)
-                    {
-                        session.Send(rs.Build());
+                    ss["_websocket"] = websocket;
+                    ss["isWs"] = true;
 
-                        ss["_websocket"] = websocket;
-                        ss["isWs"] = true;
-
-                        // 禁止向后传递
-                        return null;
-                    }
+                    // 禁止向后传递
+                    return null;
                 }
             }
         }
@@ -81,6 +86,29 @@ public class WebSocketServerCodec : Handler
             return base.Read(context, message);
         }
         finally { message.TryDispose(); }
+    }
+
+    /// <summary>处理 WebSocket 握手请求</summary>
+    /// <param name="context"></param>
+    /// <returns></returns>
+    protected virtual WebSocket? OnHandshake(IHttpContext context)
+    {
+        var rs = context.Response;
+        if (rs == null) return null;
+
+        var websocket = new WebSocket
+        {
+            Version = Version,
+            Protocol = Protocol
+        };
+        if (!websocket.ProcessRequest(context)) return null;
+
+        if (!Server.IsNullOrEmpty() && !rs.Headers.ContainsKey("Server"))
+            rs.Headers["Server"] = Server;
+
+        context.Socket!.Send(rs.Build());
+
+        return websocket;
     }
 
     /// <summary>发送消息时，写入数据</summary>

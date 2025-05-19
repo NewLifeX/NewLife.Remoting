@@ -19,10 +19,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Cube.Core" Version="6.4.2025.422-beta0338" />
-    <PackageReference Include="NewLife.Redis" Version="6.1.2025.426-beta0321" />
-    <PackageReference Include="NewLife.Stardust.Extensions" Version="3.3.2025.428-beta0228" />
-    <PackageReference Include="NewLife.XCode" Version="11.18.2025.416-beta1256" />
+    <PackageReference Include="NewLife.Cube.Core" Version="6.4.2025.513" />
+    <PackageReference Include="NewLife.Redis" Version="6.2.2025.503" />
+    <PackageReference Include="NewLife.Stardust.Extensions" Version="3.3.2025.506" />
+    <PackageReference Include="NewLife.XCode" Version="11.19.2025.501" />
   </ItemGroup>
 
   <ItemGroup>

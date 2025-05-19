@@ -6,6 +6,7 @@ using NewLife.Net;
 namespace NewLife.Remoting.Http;
 
 /// <summary>WebSocket消息编码器</summary>
+/// <remarks>参考核心库 WebSocketCodec</remarks>
 public class WebSocketClientCodec : Handler
 {
     /// <summary>用户数据包。写入时数据包转消息，读取时消息自动解包返回数据负载</summary>
