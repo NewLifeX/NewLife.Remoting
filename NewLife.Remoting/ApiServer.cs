@@ -260,6 +260,10 @@ public class ApiServer : ApiHost, IServer
                 {
                     code = 500;
                     result = ex.Message;
+
+                    // 特殊处理数据库异常，避免泄漏SQL语句
+                    if (ex.GetType().FullName == "XCode.Exceptions.XSqlException")
+                        result = "数据库SQL错误";
                 }
 
                 // 跟踪异常

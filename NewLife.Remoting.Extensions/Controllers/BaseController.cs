@@ -61,10 +61,16 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
         }
         catch (Exception ex)
         {
+            var msg = ex.Message;
+
+            // 特殊处理数据库异常，避免泄漏SQL语句
+            if (ex.GetType().FullName == "XCode.Exceptions.XSqlException")
+                msg = "数据库SQL错误";
+
             var traceId = DefaultSpan.Current?.TraceId;
             context.Result = ex is ApiException aex
-                ? new JsonResult(new { code = aex.Code, data = aex.Message, traceId })
-                : new JsonResult(new { code = 500, data = ex.Message, traceId });
+                ? new JsonResult(new { code = aex.Code, data = msg, traceId })
+                : new JsonResult(new { code = 500, data = msg, traceId });
 
             WriteError(ex, context);
         }
