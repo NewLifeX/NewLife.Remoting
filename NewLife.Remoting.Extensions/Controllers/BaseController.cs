@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using NewLife.Log;
+using NewLife.Reflection;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Serialization;
 using NewLife.Web;
@@ -27,13 +28,19 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
     public JwtBuilder Jwt { get; set; } = null!;
 
     /// <summary>用户主机</summary>
-    public String UserHost => HttpContext.GetUserHost();
+    public String UserHost { get; set; } = null!;
 
     private IDictionary<String, Object?>? _args;
     private readonly TokenService _tokenService;
+    private static Action<String>? _setip;
     #endregion
 
     #region 构造
+    static BaseController()
+    {
+        _setip = "ManageProvider".GetTypeEx()?.GetPropertyEx("UserHost")?.SetMethod?.CreateDelegate<Action<String>>();
+    }
+
     /// <summary>实例化</summary>
     /// <param name="serviceProvider"></param>
     public BaseController(IServiceProvider serviceProvider)
@@ -46,6 +53,11 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
     void IWebFilter.OnActionExecuting(ActionExecutingContext context)
     {
         _args = context.ActionArguments;
+
+        // 向ManageProvider.UserHost写入用户主机IP地址
+        var ip = UserHost = HttpContext.GetUserHost();
+        //ManageProvider.UserHost = UserHost;
+        if (!ip.IsNullOrEmpty()) _setip?.Invoke(ip);
 
         var token = Token = ApiFilterAttribute.GetToken(context.HttpContext);
 
