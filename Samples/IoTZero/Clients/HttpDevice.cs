@@ -25,7 +25,7 @@ public class HttpDevice : ClientBase
     public HttpDevice(ClientSetting setting) : base(setting)
     {
         // 设置动作，开启下行通知
-        Features = Features.Login | Features.Logout | Features.Ping | Features.Notify | Features.Upgrade;
+        Features = Features.Login | Features.Logout | Features.Ping | Features.Notify | Features.Upgrade | Features.PostEvent;
         SetActions("Device/");
         Actions[Features.CommandReply] = "Thing/ServiceReply";
 

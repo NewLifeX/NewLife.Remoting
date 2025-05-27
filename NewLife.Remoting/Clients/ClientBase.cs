@@ -1191,6 +1191,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="remark"></param>
     public virtual Boolean WriteEvent(String type, String name, String? remark)
     {
+        // 如果没有事件上报功能，直接返回
+        if (!Features.HasFlag(Features.PostEvent)) return false;
+
         // 使用时才创建定时器
         InitEvent();
 
