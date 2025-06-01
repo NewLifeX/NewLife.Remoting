@@ -460,7 +460,7 @@ public class ApiClient : ApiHost, IApiClient
         if (uri.Type == NetType.WebSocket && client.Pipeline is Pipeline pipe)
         {
             pipe.Handlers.Clear();
-            client.Add<WebSocketClientCodec>();
+            client.Add(new WebSocketClientCodec { UserPacket = true });
         }
 
         // 网络层采用消息层超时
