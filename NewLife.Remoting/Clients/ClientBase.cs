@@ -732,14 +732,14 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 Status = LoginStatus.Ready;
                 if (Features.HasFlag(Features.Login))
                 {
-                    WriteLog("重新登录，因心跳失败：{0}", ex.Message);
+                    Log?.Debug("重新登录，因心跳失败：{0}", ex.Message);
                     await Login(nameof(Ping), cancellationToken).ConfigureAwait(false);
                 }
 
                 return null;
             }
 
-            WriteLog("心跳异常 {0}", ex.GetTrue().Message);
+            Log?.Debug("心跳异常 {0}", ex.GetTrue().Message);
 
             throw;
         }
