@@ -383,7 +383,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 throw new ApiException(aex.Code, $"[{action}]{aex.Message}");
             }
 
-            throw new XException($"[{action}]{ex.Message}", ex);
+            if (Log != null && Log.Enable && Log.Level <= LogLevel.Debug)
+                throw new XException($"[{action}]{ex.Message}", ex);
+            else
+                throw new XException($"[{action}]{ex.Message}");
         }
     }
 

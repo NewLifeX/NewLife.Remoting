@@ -260,14 +260,20 @@ public class WsClient : ApiHost, IApiClient
 
             if (ex is TaskCanceledException)
             {
-                throw new TimeoutException($"请求[{action}]超时({msg})！", ex);
+                if (Log != null && Log.Enable && Log.Level <= LogLevel.Debug)
+                    throw new TimeoutException($"请求[{action}]超时({msg})！", ex);
+                else
+                    throw new TimeoutException($"请求[{action}]超时({msg})！");
             }
             throw;
         }
         catch (TaskCanceledException ex)
         {
             span?.SetError(ex, args);
-            throw new TimeoutException($"请求[{action}]超时({msg})！", ex);
+            if (Log != null && Log.Enable && Log.Level <= LogLevel.Debug)
+                throw new TimeoutException($"请求[{action}]超时({msg})！", ex);
+            else
+                throw new TimeoutException($"请求[{action}]超时({msg})！");
         }
         catch (Exception ex)
         {
