@@ -4,9 +4,10 @@ using NewLife.Caching;
 using NewLife.Data;
 using NewLife.IoT.ThingModels;
 using NewLife.Log;
-using NewLife.Remoting.Extensions.Models;
-using NewLife.Remoting.Extensions.Services;
+using NewLife.Remoting.Models;
+using NewLife.Remoting.Services;
 using NewLife.Security;
+using EventModel = NewLife.Remoting.Models.EventModel;
 
 namespace IoTZero.Services;
 

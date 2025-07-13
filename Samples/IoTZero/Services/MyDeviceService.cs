@@ -5,8 +5,6 @@ using NewLife.Caching;
 using NewLife.IoT.Models;
 using NewLife.Log;
 using NewLife.Remoting;
-using NewLife.Remoting.Extensions.Models;
-using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
@@ -63,7 +61,7 @@ public class MyDeviceService : IDeviceService
         var autoReg = false;
         if (dv == null)
         {
-            if (inf.ProductKey.IsNullOrEmpty()) throw new ApiException(ApiCode.NotFound, "找不到设备，且产品证书为空，无法登录");
+            if (inf.ProductKey.IsNullOrEmpty()) throw new ApiException(ApiCode.BadRequest, "找不到设备，且产品证书为空，无法登录");
 
             dv = AutoRegister(null, inf, ip);
             autoReg = true;
@@ -143,12 +141,12 @@ public class MyDeviceService : IDeviceService
     public Device AutoRegister(Device device, LoginInfo inf, String ip)
     {
         // 全局开关，是否允许自动注册新产品
-        if (!_setting.AutoRegister) throw new ApiException(12, "禁止自动注册");
+        if (!_setting.AutoRegister) throw new ApiException(ApiCode.Forbidden, "禁止自动注册");
 
         // 验证产品，即使产品不给自动注册，也会插入一个禁用的设备
         var product = Product.FindByCode(inf.ProductKey);
         if (product == null || !product.Enable)
-            throw new ApiException(13, $"无效产品[{inf.ProductKey}]！");
+            throw new ApiException(ApiCode.NotFound, $"无效产品[{inf.ProductKey}]！");
         //if (!product.Secret.IsNullOrEmpty() && !_passwordProvider.Verify(product.Secret, inf.ProductSecret))
         //    throw new ApiException(13, $"非法产品[{product}]！");
 

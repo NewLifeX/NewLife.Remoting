@@ -5,7 +5,7 @@
     <Description>提供高性能RPC客户端服务端，提供Http/WebSocket客户端服务端，提供应用级客户端</Description>
     <Company>新生命开发团队</Company>
     <Copyright>©2002-2025 新生命开发团队</Copyright>
-    <VersionPrefix>3.3</VersionPrefix>
+    <VersionPrefix>3.4</VersionPrefix>
     <VersionSuffix>$([System.DateTime]::Now.ToString(`yyyy.MMdd`))</VersionSuffix>
     <Version>$(VersionPrefix).$(VersionSuffix)</Version>
     <FileVersion>$(Version)</FileVersion>
@@ -54,7 +54,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Core" Version="11.5.2025.701" />
+    <PackageReference Include="NewLife.Core" Version="11.5.2025.713-beta1307" />
   </ItemGroup>
 
   <ItemGroup>

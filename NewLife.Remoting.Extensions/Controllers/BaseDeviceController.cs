@@ -1,7 +1,6 @@
 ﻿using System.Net;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using NewLife.Log;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
@@ -13,16 +12,15 @@ namespace NewLife.Remoting.Extensions;
 [ApiFilter]
 [ApiController]
 [Route("[controller]")]
-public class BaseDeviceController : BaseController
+public abstract class BaseDeviceController : BaseController
 {
     /// <summary>设备</summary>
     protected IDeviceModel _device = null!;
 
     private readonly IDeviceService _deviceService;
     private readonly TokenService _tokenService;
+    private readonly ISessionManager _sessionManager;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ITracer? _tracer;
-    private readonly ILog? _log;
 
     #region 构造
     /// <summary>实例化设备控制器</summary>
@@ -31,9 +29,21 @@ public class BaseDeviceController : BaseController
     {
         _deviceService = serviceProvider.GetRequiredService<IDeviceService>();
         _tokenService = serviceProvider.GetRequiredService<TokenService>();
+        _sessionManager = serviceProvider.GetRequiredService<ISessionManager>();
         _serviceProvider = serviceProvider;
-        _tracer = serviceProvider.GetService<ITracer>();
-        _log = serviceProvider.GetService<ILog>();
+    }
+
+    /// <summary>实例化设备控制器</summary>
+    /// <param name="deviceService"></param>
+    /// <param name="tokenService"></param>
+    /// <param name="sessionManager"></param>
+    /// <param name="serviceProvider"></param>
+    public BaseDeviceController(IDeviceService deviceService, TokenService tokenService, ISessionManager sessionManager, IServiceProvider serviceProvider) : base(serviceProvider)
+    {
+        _deviceService = deviceService;
+        _tokenService = tokenService;
+        _sessionManager = sessionManager;
+        _serviceProvider = serviceProvider;
     }
 
     /// <summary>验证身份</summary>
@@ -203,8 +213,9 @@ public class BaseDeviceController : BaseController
     {
         var device = _device ?? throw new InvalidOperationException("未登录！");
 
-        var sessionManager = _serviceProvider.GetService<ISessionManager>() ??
-            throw new InvalidOperationException("未找到SessionManager服务");
+        //var sessionManager = _serviceProvider.GetService<ISessionManager>() ??
+        //    throw new InvalidOperationException("未找到SessionManager服务");
+        var sessionManager = _sessionManager ?? throw new InvalidOperationException("未找到SessionManager服务");
 
         var ip = UserHost;
 

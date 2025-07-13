@@ -1,5 +1,5 @@
 ﻿using System.Reflection;
-using NewLife.Remoting.Extensions.Models;
+using NewLife.Remoting.Models;
 using NewLife.Security;
 using NewLife.Web;
 

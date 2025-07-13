@@ -52,7 +52,7 @@ public partial class DeviceGroup : Entity<DeviceGroup>
         // 建议先调用基类方法，基类方法会做一些统一处理
         base.Valid(isNew);
 
-        if (Name.IsNullOrEmpty()) throw new ApiException(500, "名称不能为空");
+        if (Name.IsNullOrEmpty()) throw new ApiException(ApiCode.InternalServerError, "名称不能为空");
     }
 
     /// <summary>首次连接数据库时初始化数据，仅用于实体类重载，用户不应该调用该方法</summary>

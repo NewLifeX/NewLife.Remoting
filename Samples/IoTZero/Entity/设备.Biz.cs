@@ -43,10 +43,10 @@ public partial class Device : Entity<Device>, IDeviceModel
         // 如果没有脏数据，则不需要进行任何处理
         if (!HasDirty) return;
 
-        if (ProductId <= 0) throw new ApiException(500, "产品Id错误");
+        if (ProductId <= 0) throw new ApiException(ApiCode.BadRequest, "产品Id错误");
 
         var product = Product.FindById(ProductId);
-        if (product == null) throw new ApiException(500, "产品Id错误");
+        if (product == null) throw new ApiException(ApiCode.NotFound, "产品Id错误");
 
         var len = _.IP.Length;
         if (len > 0 && !IP.IsNullOrEmpty() && IP.Length > len) IP = IP[..len];

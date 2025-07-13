@@ -90,25 +90,25 @@ public class DeviceDataController : EntityController<DeviceData>
 
                     if (step < 60)
                     {
-                        chart.XAxis = new
+                        chart.XAxis = [new XAxis
                         {
-                            data = times.Select(e => e.ToString("HH:mm:ss")).ToArray(),
-                        };
+                            Data = times.Select(e => e.ToString("HH:mm:ss")).ToArray(),
+                        }];
                     }
                     else
                     {
-                        chart.XAxis = new
+                        chart.XAxis = [new XAxis
                         {
-                            data = times.Select(e => e.ToString("dd-HH:mm")).ToArray(),
-                        };
+                            Data = times.Select(e => e.ToString("dd-HH:mm")).ToArray(),
+                        }];
                     }
                 }
                 else
                 {
-                    chart.XAxis = new
+                    chart.XAxis = [new XAxis
                     {
-                        data = datax.Keys.Select(e => e.ToString("HH:mm:ss")).ToArray(),
-                    };
+                        Data = datax.Keys.Select(e => e.ToString("HH:mm:ss")).ToArray(),
+                    }];
                 }
                 chart.SetY("数值");
 
@@ -125,7 +125,7 @@ public class DeviceDataController : EntityController<DeviceData>
                     var dp = dps.FirstOrDefault(e => e.Name == item);
                     if (dp != null && !dp.NickName.IsNullOrEmpty()) name2 = dp.NickName;
 
-                    var series = new Series
+                    var series = new SeriesLine
                     {
                         Name = name2,
                         Type = "line",
@@ -147,7 +147,7 @@ public class DeviceDataController : EntityController<DeviceData>
 
                         var tps2 = sample.Process(tps.ToArray(), step);
 
-                        series.Data = tps2.Select(e => Math.Round(e.Value, 2)).ToArray();
+                        series.Data = tps2.Select(e => (Object)Math.Round(e.Value, 2)).ToArray();
 
                         var m1 = tps2.Select(e => e.Value).Min();
                         if (m1 < min) min = m1;
@@ -166,7 +166,7 @@ public class DeviceDataController : EntityController<DeviceData>
                             else
                                 list3.Add('-');
                         }
-                        series.Data = list3;
+                        series.Data = list3.ToArray();
 
                         var m1 = list3.Where(e => e + "" != "-").Select(e => e.ToDouble()).Min();
                         if (m1 < min) min = m1;
@@ -203,13 +203,13 @@ public class DeviceDataController : EntityController<DeviceData>
                     chart.Add(series);
                 }
                 chart.SetTooltip();
-                chart.YAxis = new
+                chart.YAxis = [new YAxis
                 {
-                    name = "数值",
-                    type = "value",
-                    min = Math.Ceiling(min) - 1,
-                    max = Math.Ceiling(max),
-                };
+                    Name = "数值",
+                    Type = "value",
+                    Min = Math.Ceiling(min) - 1,
+                    Max = Math.Ceiling(max),
+                }];
                 ViewBag.Charts = new[] { chart };
 
                 // 减少数据显示，避免卡页面

@@ -38,7 +38,7 @@ public class ThingController : BaseController
         if (!base.OnAuthorize(token) || Jwt == null) return false;
 
         var dv = Device.FindByCode(Jwt.Subject);
-        if (dv == null || !dv.Enable) throw new ApiException(ApiCode.Forbidden, "无效设备！");
+        if (dv == null || !dv.Enable) throw new ApiException(ApiCode.Unauthorized, "无效设备！");
 
         Device = dv;
 

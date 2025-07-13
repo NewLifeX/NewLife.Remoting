@@ -1,7 +1,7 @@
 ﻿using NewLife;
 using NewLife.Log;
-using NewLife.Remoting.Extensions.Models;
-using NewLife.Remoting.Extensions.Services;
+using NewLife.Remoting.Models;
+using NewLife.Remoting.Services;
 using NewLife.Threading;
 using Zero.Data.Nodes;
 

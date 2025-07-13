@@ -9,6 +9,7 @@ using NewLife.Remoting;
 using NewLife.Remoting.Extensions;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
+using NewLife.Remoting.Services;
 
 namespace IoTZero.Controllers;
 

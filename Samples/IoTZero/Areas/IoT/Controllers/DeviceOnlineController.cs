@@ -6,6 +6,7 @@ using NewLife.Cube;
 using NewLife.Cube.ViewModels;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
+using NewLife.Remoting.Services;
 using NewLife.Web;
 using XCode.Membership;
 

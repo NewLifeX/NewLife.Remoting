@@ -115,7 +115,7 @@ public abstract class BaseOAuthController : ControllerBase
         // 检查应用有效性
         if (!app.Enable) throw new ApiException(ApiCode.Forbidden, $"[{username}]已禁用！");
         //if (!app.Secret.IsNullOrEmpty() && password != app.Secret) throw new ApiException(401, $"非法访问应用[{username}]！");
-        if (!OnAuthorize(app, password, ip)) throw new ApiException(ApiCode.Unauthorized, $"非法访问[{username}]！");
+        if (!OnAuthorize(app, password, ip)) throw new ApiException(ApiCode.Forbidden, $"非法访问[{username}]！");
 
         return app;
     }

@@ -68,7 +68,7 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
             {
                 // 匿名访问接口无需验证。例如星尘Node的SendCommand接口，并不使用Node令牌，而是使用App令牌
                 var rs = !token.IsNullOrEmpty() && OnAuthorize(token);
-                if (!rs) throw new ApiException(ApiCode.Forbidden, "认证失败");
+                if (!rs) throw new ApiException(ApiCode.Unauthorized, "认证失败");
             }
         }
         catch (Exception ex)

@@ -3,8 +3,6 @@ using NewLife;
 using NewLife.Caching;
 using NewLife.Log;
 using NewLife.Remoting;
-using NewLife.Remoting.Extensions.Models;
-using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
@@ -60,7 +58,7 @@ public class NodeService : IDeviceService
         var secret = inf.Secret;
 
         var node = Node.FindByCode(code!, true);
-        if (node != null && !node.Enable) throw new ApiException(99, "禁止登录");
+        if (node != null && !node.Enable) throw new ApiException(ApiCode.Forbidden, "禁止登录");
 
         var autoReg = false;
         if (node == null)
@@ -117,7 +115,7 @@ public class NodeService : IDeviceService
     public Node AutoRegister(Node node, LoginInfo inf, String ip)
     {
         // 全局开关，是否允许自动注册新产品
-        if (!_setting.AutoRegister) throw new ApiException(12, "禁止自动注册");
+        if (!_setting.AutoRegister) throw new ApiException(ApiCode.Forbidden, "禁止自动注册");
 
         var code = inf.Code;
         if (code.IsNullOrEmpty()) code = inf.UUID.GetBytes().Crc().ToString("X8");
