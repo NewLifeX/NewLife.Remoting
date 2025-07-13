@@ -80,7 +80,7 @@ public abstract class BaseDeviceController : BaseController
 
         rs.Code = dv.Code;
 
-        if (request is LoginRequest req) rs.Time = req.Time;
+        if (request is ILoginRequest2 req) rs.Time = req.Time;
         rs.ServerTime = DateTime.UtcNow.ToLong();
 
         // 动态注册的设备不可用时，不要发令牌，只发证书

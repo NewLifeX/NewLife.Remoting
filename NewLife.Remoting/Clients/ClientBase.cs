@@ -603,7 +603,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (!Secret.IsNullOrEmpty())
             request.Secret = PasswordProvider?.Hash(Secret) ?? Secret;
 
-        if (request is LoginRequest info)
+        if (request is ILoginRequest2 info)
         {
             var asm = AssemblyX.Entry ?? AssemblyX.Create(Assembly.GetExecutingAssembly());
             if (asm != null)
@@ -710,9 +710,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     if (!response.Token.IsNullOrEmpty()) SetToken(response.Token);
 
                     // 心跳响应携带的命令，推送到队列
-                    if (response.Commands != null && response.Commands.Length > 0)
+                    var commands = (response as PingResponse)?.Commands;
+                    if (commands != null && commands.Length > 0)
                     {
-                        foreach (var model in response.Commands)
+                        foreach (var model in commands)
                         {
                             await ReceiveCommand(model, "Pong", cancellationToken).ConfigureAwait(false);
                         }
@@ -785,7 +786,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     {
         request.Time = DateTime.UtcNow.ToLong();
 
-        if (request is PingRequest req)
+        if (request is IPingRequest2 req)
         {
             var path = ".".GetFullPath();
             var driveInfo = DriveInfo.GetDrives().FirstOrDefault(e => path.StartsWithIgnoreCase(e.Name));
@@ -799,8 +800,12 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             req.CpuRate = Math.Round(mi.CpuRate, 3);
             req.Temperature = Math.Round(mi.Temperature, 1);
             req.Battery = Math.Round(mi.Battery, 3);
-            req.UplinkSpeed = mi.UplinkSpeed;
-            req.DownlinkSpeed = mi.DownlinkSpeed;
+
+            if (request is PingRequest preq)
+            {
+                preq.UplinkSpeed = mi.UplinkSpeed;
+                preq.DownlinkSpeed = mi.DownlinkSpeed;
+            }
 
             var ip = NetHelper.GetIPs().Where(ip => ip.IsIPv4() && !IPAddress.IsLoopback(ip) && ip.GetAddressBytes()[0] != 169).Join();
             req.IP = ip;
@@ -812,6 +817,12 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             // 后来在 netcore3.0 增加了Environment.TickCount64
             // 现在借助 Stopwatch 来解决
             if (Stopwatch.IsHighResolution) req.Uptime = (Int32)(Stopwatch.GetTimestamp() / Stopwatch.Frequency);
+
+            if (mi is IExtend ext)
+            {
+                // 读取无线信号强度
+                if (ext.Items.TryGetValue("Signal", out var value)) req.Signal = value.ToInt();
+            }
         }
     }
 
@@ -880,7 +891,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 }
                 else
                 {
-                    if (info is UpgradeInfo info2 && !info2.Preinstall.IsNullOrEmpty())
+                    var info2 = info as IUpgradeInfo2;
+                    if (info2 != null && !info2.Preinstall.IsNullOrEmpty())
                     {
                         this.WriteInfoEvent("Upgrade", "执行预安装脚本");
 
@@ -893,11 +905,11 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     var rs = ug.Update();
 
                     // 执行更新后命令
-                    if (rs && !info.Executor.IsNullOrEmpty()) ug.Run(info.Executor);
+                    if (rs && info2 != null && !info2.Executor.IsNullOrEmpty()) ug.Run(info2.Executor);
                     _lastVersion = info.Version;
 
                     // 强制更新时，马上重启
-                    if (rs && info.Force) Restart(ug);
+                    if (rs && info2 != null && info2.Force) Restart(ug);
                 }
             }
         }

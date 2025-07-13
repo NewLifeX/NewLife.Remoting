@@ -13,8 +13,45 @@ public interface IPingRequest
     //Int32 Delay { get; set; }
 }
 
+/// <summary>扩展的心跳请求。便于ClientBase填充数据</summary>
+public interface IPingRequest2 : IPingRequest
+{
+    /// <summary>内存大小</summary>
+    UInt64 Memory { get; set; }
+
+    /// <summary>可用内存大小</summary>
+    UInt64 AvailableMemory { get; set; }
+
+    /// <summary>磁盘大小。应用所在盘</summary>
+    UInt64 TotalSize { get; set; }
+
+    /// <summary>磁盘可用空间。应用所在盘</summary>
+    UInt64 AvailableFreeSpace { get; set; }
+
+    /// <summary>CPU占用率</summary>
+    Double CpuRate { get; set; }
+
+    /// <summary>温度</summary>
+    Double Temperature { get; set; }
+
+    /// <summary>电量</summary>
+    Double Battery { get; set; }
+
+    /// <summary>信号强度。WiFi/4G</summary>
+    Int32 Signal { get; set; }
+
+    /// <summary>本地IP地址。随着网卡变动，可能改变</summary>
+    String? IP { get; set; }
+
+    /// <summary>开机时间，单位s</summary>
+    Int32 Uptime { get; set; }
+
+    /// <summary>延迟。请求到服务端并返回的延迟时间。单位ms</summary>
+    Int32 Delay { get; set; }
+}
+
 /// <summary>心跳请求</summary>
-public class PingRequest : IPingRequest
+public class PingRequest : IPingRequest, IPingRequest2
 {
     #region 属性
     /// <summary>内存大小</summary>

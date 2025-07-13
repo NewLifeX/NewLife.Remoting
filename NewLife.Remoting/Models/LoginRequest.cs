@@ -19,8 +19,30 @@ public interface ILoginRequest
     //Int64 Time { get; set; }
 }
 
+/// <summary>扩展的登录请求。便于ClientBase填充数据</summary>
+public interface ILoginRequest2 : ILoginRequest
+{
+    /// <summary>版本</summary>
+    String? Version { get; set; }
+
+    /// <summary>编译时间。UTC毫秒</summary>
+    Int64 Compile { get; set; }
+
+    /// <summary>本地IP地址</summary>
+    String? IP { get; set; }
+
+    /// <summary>MAC地址</summary>
+    String? Macs { get; set; }
+
+    /// <summary>唯一标识</summary>
+    String? UUID { get; set; }
+
+    /// <summary>本地时间。UTC毫秒</summary>
+    Int64 Time { get; set; }
+}
+
 /// <summary>登录请求</summary>
-public class LoginRequest : ILoginRequest
+public class LoginRequest : ILoginRequest, ILoginRequest2
 {
     #region 属性
     /// <summary>编码</summary>

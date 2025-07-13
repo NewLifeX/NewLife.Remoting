@@ -15,8 +15,8 @@ public interface IPingResponse
     /// <summary>令牌。现有令牌即将过期时，颁发新的令牌</summary>
     String? Token { get; set; }
 
-    /// <summary>下发命令</summary>
-    CommandModel[]? Commands { get; set; }
+    ///// <summary>下发命令</summary>
+    //CommandModel[]? Commands { get; set; }
 }
 
 /// <summary>心跳响应</summary>
