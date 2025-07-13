@@ -331,7 +331,12 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         // 验证登录
         var needLogin = !Actions[Features.Login].EqualIgnoreCase(action);
-        if (!Logined && needLogin && Features.HasFlag(Features.Login)) await Login(action, cancellationToken).ConfigureAwait(false);
+        if (!Logined && needLogin && Features.HasFlag(Features.Login))
+        {
+            if (Disposed) throw new ObjectDisposedException(GetType().Name);
+
+            await Login(action, cancellationToken).ConfigureAwait(false);
+        }
 
         // GET请求
         var rs = await http.InvokeAsync<TResult>(HttpMethod.Get, action, args, null, cancellationToken).ConfigureAwait(false);
@@ -354,7 +359,12 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     {
         // 验证登录。如果该接口需要登录，且未登录，则先登录
         var needLogin = !Actions[Features.Login].EqualIgnoreCase(action);
-        if (needLogin && !Logined && Features.HasFlag(Features.Login)) await Login(action, cancellationToken).ConfigureAwait(false);
+        if (needLogin && !Logined && Features.HasFlag(Features.Login))
+        {
+            if (Disposed) throw new ObjectDisposedException(GetType().Name);
+
+            await Login(action, cancellationToken).ConfigureAwait(false);
+        }
 
         try
         {

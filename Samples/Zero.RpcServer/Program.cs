@@ -61,4 +61,5 @@ _ = Task.Run(() => ClientTest.HttpTest(port));
 
 // 阻塞，等待友好退出
 var host = services.BuildHost();
+(host as Host).MaxTime = 10_000;
 await host.RunAsync();
