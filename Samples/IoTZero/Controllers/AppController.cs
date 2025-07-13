@@ -1,38 +1,24 @@
 ﻿using IoT.Data;
 using IoTZero.Services;
 using Microsoft.AspNetCore.Mvc;
-using NewLife;
 using NewLife.IoT.Models;
 using NewLife.IoT.ThingModels;
-using NewLife.Log;
 using NewLife.Remoting;
 using NewLife.Remoting.Extensions;
 
 namespace IoTZero.Controllers;
 
 /// <summary>物模型Api控制器。用于应用系统调用</summary>
+/// <remarks>
+/// 实例化应用管理服务
+/// </remarks>
+/// <param name="serviceProvider"></param>
+/// <param name="thingService"></param>
 [ApiFilter]
 [ApiController]
 [Route("[controller]")]
-public class AppController : BaseController
+public class AppController(IServiceProvider serviceProvider, ThingService thingService) : BaseController(serviceProvider)
 {
-    private readonly ThingService _thingService;
-    private readonly ITracer _tracer;
-
-    #region 构造
-    /// <summary>
-    /// 实例化应用管理服务
-    /// </summary>
-    /// <param name="serviceProvider"></param>
-    /// <param name="thingService"></param>
-    /// <param name="tracer"></param>
-    public AppController(IServiceProvider serviceProvider, ThingService thingService, ITracer tracer) : base(serviceProvider)
-    {
-        _thingService = thingService;
-        _tracer = tracer;
-    }
-    #endregion
-
     #region 物模型
     /// <summary>获取设备属性</summary>
     /// <param name="deviceId">设备编号</param>
@@ -44,7 +30,7 @@ public class AppController : BaseController
         var dv = Device.FindById(deviceId) ?? Device.FindByCode(deviceCode);
         if (dv == null) return null;
 
-        return _thingService.QueryProperty(dv, null);
+        return thingService.QueryProperty(dv, null);
     }
 
     /// <summary>设置设备属性</summary>
@@ -77,7 +63,7 @@ public class AppController : BaseController
 
         if (dv == null) throw new ArgumentException($"找不到该设备：DeviceId={service.DeviceId}，DeviceCode={service.DeviceCode}");
 
-        return await _thingService.InvokeServiceAsync(dv, service.ServiceName, service.InputData, service.Expire, service.Timeout);
+        return await thingService.InvokeServiceAsync(dv, service.ServiceName, service.InputData, service.Expire, service.Timeout);
     }
     #endregion
 }

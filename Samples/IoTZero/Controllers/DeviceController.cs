@@ -1,43 +1,26 @@
 ﻿using IoT.Data;
-using IoTZero.Services;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.IoT.Drivers;
 using NewLife.IoT.Models;
 using NewLife.IoT.ThingModels;
-using NewLife.Log;
 using NewLife.Remoting;
 using NewLife.Remoting.Extensions;
-using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
-using NewLife.Remoting.Services;
 
 namespace IoTZero.Controllers;
 
 /// <summary>设备控制器</summary>
+/// <remarks>实例化设备控制器</remarks>
+/// <param name="serviceProvider"></param>
 [ApiFilter]
 [ApiController]
 [Route("[controller]")]
-public class DeviceController : BaseDeviceController
+public class DeviceController(IServiceProvider serviceProvider) : BaseDeviceController(serviceProvider)
 {
     /// <summary>当前设备</summary>
     public Device Device { get; set; }
 
-    private readonly MyDeviceService _deviceService;
-    private readonly ThingService _thingService;
-    private readonly ITracer _tracer;
-
     #region 构造
-    /// <summary>实例化设备控制器</summary>
-    /// <param name="serviceProvider"></param>
-    /// <param name="thingService"></param>
-    /// <param name="tracer"></param>
-    public DeviceController(IServiceProvider serviceProvider, ThingService thingService, ITracer tracer) : base(serviceProvider)
-    {
-        _deviceService = serviceProvider.GetRequiredService<IDeviceService>() as MyDeviceService;
-        _thingService = thingService;
-        _tracer = tracer;
-    }
-
     protected override Boolean OnAuthorize(String token)
     {
         if (!base.OnAuthorize(token)) return false;

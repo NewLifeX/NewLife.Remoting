@@ -1,7 +1,6 @@
 ﻿using IoT.Data;
 using NewLife;
 using NewLife.Log;
-using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Threading;
@@ -81,10 +80,9 @@ public class DeviceOnlineService : IHostedService
                     {
                         // 计算在线时长
                         if (olt.CreateTime.Year > 2000 && olt.UpdateTime.Year > 2000)
-                        {
                             device.OnlineTime += (Int32)(olt.UpdateTime - olt.CreateTime).TotalSeconds;
-                            device.Logout();
-                        }
+
+                        device.Logout();
 
                         CheckOffline(device, "超时下线");
                     }

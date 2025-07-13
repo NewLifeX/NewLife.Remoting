@@ -1,7 +1,6 @@
 ﻿using IoT.Data;
 using IoTZero.Services;
 using Microsoft.AspNetCore.Mvc;
-using NewLife;
 using NewLife.IoT.Models;
 using NewLife.IoT.ThingModels;
 using NewLife.IoT.ThingSpecification;
@@ -11,28 +10,18 @@ using NewLife.Remoting.Extensions;
 namespace IoTZero.Controllers;
 
 /// <summary>物模型控制器</summary>
+/// <remarks>实例化物模型控制器</remarks>
+/// <param name="serviceProvider"></param>
+/// <param name="thingService"></param>
 [ApiFilter]
 [ApiController]
 [Route("[controller]")]
-public class ThingController : BaseController
+public class ThingController(IServiceProvider serviceProvider, ThingService thingService) : BaseController(serviceProvider)
 {
     /// <summary>当前设备</summary>
     public Device Device { get; set; }
 
-    private readonly QueueService _queue;
-    private readonly ThingService _thingService;
-
     #region 构造
-    /// <summary>实例化物模型控制器</summary>
-    /// <param name="serviceProvider"></param>
-    /// <param name="queue"></param>
-    /// <param name="thingService"></param>
-    public ThingController(IServiceProvider serviceProvider, QueueService queue, ThingService thingService) : base(serviceProvider)
-    {
-        _queue = queue;
-        _thingService = thingService;
-    }
-
     protected override Boolean OnAuthorize(String token)
     {
         if (!base.OnAuthorize(token) || Jwt == null) return false;
@@ -73,7 +62,7 @@ public class ThingController : BaseController
     {
         var device = GetDevice(model.DeviceCode);
 
-        return _thingService.PostData(device, model, "PostData", UserHost);
+        return thingService.PostData(device, model, "PostData", UserHost);
     }
 
     /// <summary>批量设备数据上报，融合多个子设备数据批量上传</summary>
@@ -147,7 +136,6 @@ public class ThingController : BaseController
     #endregion
 
     #region 辅助
-
     /// <summary>
     /// 查找子设备
     /// </summary>

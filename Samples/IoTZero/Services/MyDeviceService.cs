@@ -205,10 +205,9 @@ public class MyDeviceService : IDeviceService
 
             // 计算在线时长
             if (olt.CreateTime.Year > 2000)
-            {
                 dv.OnlineTime += (Int32)(DateTime.Now - olt.CreateTime).TotalSeconds;
-                dv.Logout();
-            }
+
+            dv.Logout();
 
             //DeviceOnlineService.CheckOffline(device, "注销");
         }

@@ -1,5 +1,4 @@
 ﻿using IoT.Data;
-using NewLife;
 using NewLife.Caching;
 using NewLife.Data;
 using NewLife.IoT.ThingModels;
@@ -104,7 +103,7 @@ public class ThingService
         // 检查是否锁定
         if (!entity.Enable)
         {
-            _tracer?.NewError($"{nameof(BuildDataPoint)}-NotEnable", new { name, entity.Enable });
+            _tracer?.NewError($"{nameof(BuildDataPoint)}-NotEnable", new { deviceId = device.Id, name, entity.Enable });
             return null;
         }
 
