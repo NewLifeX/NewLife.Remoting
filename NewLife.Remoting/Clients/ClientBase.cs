@@ -984,7 +984,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         {
             lock (this)
             {
-                _timerPing ??= new TimerX(DoPing, null, 1000, 60_000) { Async = true };
+                _timerPing ??= new TimerX(DoPing, null, DateTime.Now.AddSeconds(1), 60_000) { Async = true };
             }
         }
 
