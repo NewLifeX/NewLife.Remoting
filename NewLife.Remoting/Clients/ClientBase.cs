@@ -784,8 +784,6 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="request"></param>
     protected virtual void FillPingRequest(IPingRequest request)
     {
-        request.Time = DateTime.UtcNow.ToLong();
-
         if (request is IPingRequest2 req)
         {
             var path = ".".GetFullPath();
@@ -824,6 +822,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 if (ext.Items.TryGetValue("Signal", out var value)) req.Signal = value.ToInt();
             }
         }
+
+        // 最后设置时间，避免因为代码执行原因导致误差过大
+        request.Time = DateTime.UtcNow.ToLong();
     }
 
     /// <summary>发起心跳异步请求。由Ping内部调用</summary>
