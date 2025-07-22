@@ -33,7 +33,7 @@ public interface IUpgradeInfo2 : IUpgradeInfo
 }
 
 /// <summary>更新响应</summary>
-public class UpgradeInfo : IUpgradeInfo
+public class UpgradeInfo : IUpgradeInfo, IUpgradeInfo2
 {
     /// <summary>版本号</summary>
     public String? Version { get; set; }
