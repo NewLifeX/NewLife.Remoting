@@ -11,11 +11,9 @@ using TaskEx = System.Threading.Tasks.Task;
 namespace NewLife.Remoting.Clients;
 
 /// <summary>WebSocket</summary>
-class WsChannel : DisposeBase
+class WsChannel(ClientBase client) : DisposeBase
 {
-    private readonly ClientBase _client;
-
-    public WsChannel(ClientBase client) => _client = client;
+    private readonly ClientBase _client = client;
 
     protected override void Dispose(Boolean disposing)
     {
@@ -104,7 +102,7 @@ class WsChannel : DisposeBase
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            _client.Log?.Error("WebSocket异常 {0}", ex.Message);
+            _client.Log?.Error("WebSocket异常[{0}]: {1}", ex.GetType().Name, ex.Message);
         }
         finally
         {

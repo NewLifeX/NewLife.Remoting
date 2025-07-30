@@ -10,10 +10,9 @@ using WebSocketMessageType = System.Net.WebSockets.WebSocketMessageType;
 namespace NewLife.Remoting.Clients;
 
 /// <summary>WebSocket</summary>
-class WsChannelCore : WsChannel
+class WsChannelCore(ClientBase client) : WsChannel(client)
 {
-    private readonly ClientBase _client;
-    public WsChannelCore(ClientBase client) : base(client) => _client = client;
+    private readonly ClientBase _client = client;
 
     protected override void Dispose(Boolean disposing)
     {
@@ -102,7 +101,8 @@ class WsChannelCore : WsChannel
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            _client.Log?.Error("WebSocket异常 {0}", ex.Message);
+            if (ex is not WebSocketException || socket.State != WebSocketState.Aborted)
+                _client.Log?.Error("WebSocket异常[{0}]: {1}", ex.GetType().Name, ex.Message);
         }
         finally
         {
