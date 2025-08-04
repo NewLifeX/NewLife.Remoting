@@ -60,10 +60,10 @@ public sealed class ApiFilterAttribute : ActionFilterAttribute
             {
                 var ex = context.Exception.GetTrue();
                 if (ex is ApiException aex)
-                    context.Result = new JsonResult(new { code = aex.Code, data = aex.Message });
+                    context.Result = new JsonResult(new { code = aex.Code, message = aex.Message });
                 else
                 {
-                    context.Result = new JsonResult(new { code = 500, data = ex.Message });
+                    context.Result = new JsonResult(new { code = 500, message = ex.Message });
 
                     // 埋点拦截业务异常
                     var action = context.HttpContext.Request.Path + "";

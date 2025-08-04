@@ -81,8 +81,8 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
 
             var traceId = DefaultSpan.Current?.TraceId;
             context.Result = ex is ApiException aex
-                ? new JsonResult(new { code = aex.Code, data = msg, traceId })
-                : new JsonResult(new { code = 500, data = msg, traceId });
+                ? new JsonResult(new { code = aex.Code, message = msg, traceId })
+                : new JsonResult(new { code = 500, message = msg, traceId });
 
             WriteError(ex, context);
         }
