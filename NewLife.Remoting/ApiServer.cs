@@ -116,7 +116,7 @@ public class ApiServer : ApiHost, IServer
             var max = ms.Max(e => e.Key.Length);
             foreach (var item in ms)
             {
-                Log.Info("\t{0,-" + (max + 1) + "}{1}\t{2}", item.Key, item.Value, item.Value.Type.FullName);
+                Log.Info("\t{0,-" + (max + 1) + "}{1}", item.Key, item.Value);
             }
         }
     }

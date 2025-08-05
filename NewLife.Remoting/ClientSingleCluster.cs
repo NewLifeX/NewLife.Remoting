@@ -8,6 +8,9 @@ namespace NewLife.Remoting;
 [DisplayName("故障转移")]
 public class ClientSingleCluster<T> : ICluster<String, T>
 {
+    /// <summary>名称</summary>
+    public String Name { get; set; } = null!;
+
     /// <summary>最后使用资源</summary>
     public KeyValuePair<String, T> Current { get; private set; }
 
@@ -55,12 +58,23 @@ public class ClientSingleCluster<T> : ICluster<String, T>
 
     /// <summary>归还</summary>
     /// <param name="value"></param>
-    public virtual Boolean Return(T value) => true;
+    public virtual Boolean Return(T value)
+    {
+        // 归还时，如果对象有效，说明正常使用，重置索引，下次从头开始
+        if (value != null && (value is not DisposeBase ds || !ds.Disposed))
+            _index = -1;
+
+        return true;
+    }
 
     /// <summary>重置集群。清空已缓存对象</summary>
-    public virtual void Reset() => _Client = default;
+    public virtual void Reset()
+    {
+        _Client = default;
+        _index = -1;
+    }
 
-    /// <summary>Round-Robin 负载均衡</summary>
+    /// <summary>Round-Robin 故障转移</summary>
     private Int32 _index = -1;
 
     /// <summary>为连接池创建连接</summary>
@@ -78,15 +92,15 @@ public class ClientSingleCluster<T> : ICluster<String, T>
         Exception? last = null;
         for (var i = 0; i < svrs.Length; i++)
         {
-            // Round-Robin 负载均衡
+            // Round-Robin 故障转移
             var k = (idx + i) % svrs.Length;
             var svr = svrs[k];
             try
             {
-                if (idx == 0)
-                    WriteLog("集群连接：{0}", svr);
+                if (k == 0)
+                    WriteLog("[{0}]集群连接：{1}", Name, svr);
                 else
-                    WriteLog("集群转移：{0}", svr);
+                    WriteLog("[{0}]集群转移：{1}", Name, svr);
 
                 var client = OnCreate(svr);
                 //client.Open();

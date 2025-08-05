@@ -8,6 +8,9 @@ namespace NewLife.Remoting;
 [DisplayName("负载均衡")]
 public class ClientPoolCluster<T> : ICluster<String, T> where T : class
 {
+    /// <summary>名称</summary>
+    public String Name { get; set; } = null!;
+
     /// <summary>最后使用资源</summary>
     public KeyValuePair<String, T> Current { get; private set; }
 
@@ -70,7 +73,7 @@ public class ClientPoolCluster<T> : ICluster<String, T> where T : class
             var svr = svrs[k];
             try
             {
-                WriteLog("集群均衡：{0}", svr);
+                WriteLog("[{0}]集群均衡：{1}", Name, svr);
 
                 var client = OnCreate(svr);
                 //client.Open();

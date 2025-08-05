@@ -144,8 +144,8 @@ public class ApiClient : ApiHost, IApiClient
     {
         var cluster = Cluster;
         cluster ??= UsePool ?
-                new ClientPoolCluster<ISocketClient> { Log = Log } :
-                new ClientSingleCluster<ISocketClient> { Log = Log };
+                new ClientPoolCluster<ISocketClient> { Name = Name, Log = Log } :
+                new ClientSingleCluster<ISocketClient> { Name = Name, Log = Log };
 
         if (cluster is ClientSingleCluster<ISocketClient> sc && sc.OnCreate == null) sc.OnCreate = OnCreate;
         if (cluster is ClientPoolCluster<ISocketClient> pc && pc.OnCreate == null) pc.OnCreate = OnCreate;

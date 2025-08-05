@@ -119,8 +119,8 @@ public class WsClient : ApiHost, IApiClient
     {
         var cluster = Cluster;
         cluster ??= UsePool ?
-                new ClientPoolCluster<WebSocket> { Log = Log } :
-                new ClientSingleCluster<WebSocket> { Log = Log };
+                new ClientPoolCluster<WebSocket> { Name = Name, Log = Log } :
+                new ClientSingleCluster<WebSocket> { Name = Name, Log = Log };
 
         if (cluster is ClientSingleCluster<WebSocket> sc && sc.OnCreate == null) sc.OnCreate = OnCreate;
         if (cluster is ClientPoolCluster<WebSocket> pc && pc.OnCreate == null) pc.OnCreate = OnCreate;
