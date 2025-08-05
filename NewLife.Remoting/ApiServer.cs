@@ -112,7 +112,7 @@ public class ApiServer : ApiHost, IServer
         var ms = Manager.Services;
         if (ms.Count > 0)
         {
-            Log.Info("可用服务{0}个：", ms.Count);
+            Log.Info("{0} 可用服务{1}个：", Name, ms.Count);
             var max = ms.Max(e => e.Key.Length);
             foreach (var item in ms)
             {
@@ -128,6 +128,13 @@ public class ApiServer : ApiHost, IServer
     public IApiServer? Use(NetUri uri)
     {
         var svr = uri.Type == NetType.Http ? new ApiHttpServer() : new ApiNetServer();
+
+        // 此时设置用处不大，因为可能是构造函数里调用Use，还没有指定Name等属性
+        svr.Name = Name;
+        svr.Log = Log;
+        svr.SessionLog = Log;
+        svr.Tracer = Tracer;
+        svr.ReuseAddress = ReuseAddress;
 
         if (!svr.Init(uri, this)) return null;
 
@@ -179,6 +186,14 @@ public class ApiServer : ApiHost, IServer
         Log.Info("处理：{0}", Handler);
 
         var svr = EnsureCreate();
+
+        if (svr is ApiNetServer ns)
+        {
+            ns.Name = Name;
+            ns.SessionLog = Log;
+            ns.Tracer = Tracer;
+            ns.ReuseAddress = ReuseAddress;
+        }
 
         svr.Host = this;
         svr.Log = Log;
