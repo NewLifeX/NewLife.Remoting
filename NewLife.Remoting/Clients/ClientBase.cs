@@ -486,11 +486,13 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         //!!! 这里的多线程登录设计不采取共用Task的架构，因为首次登录可能会失败，后续其它线程需要重新登录，而不是共用失败结果。
 
-        // 如果正在登录，则稍等一会，避免重复登录。
         var times = Interlocked.Increment(ref _times);
+        var level = times < 10 ? LogLevel.Info : LogLevel.Debug;
+
+        // 如果正在登录，则稍等一会，避免重复登录。
         if (Status == LoginStatus.LoggingIn)
         {
-            WriteLog("正在登录，请稍等{0}ms！序号：{1}，来源：{2}", 50 * 100, times, source);
+            Log?.Write(level, "正在登录，请稍等{0}ms！序号：{1}，来源：{2}", 50 * 100, times, source);
             for (var i = 0; Status == LoginStatus.LoggingIn && i < 50; i++)
             {
                 await TaskEx.Delay(100, cancellationToken).ConfigureAwait(false);
@@ -505,7 +507,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         ILoginRequest? request = null;
         ILoginResponse? response = null;
         using var span = Tracer?.NewSpan(nameof(Login), new { Code, source, Server });
-        WriteLog("登录：{0}，序号：{1}，来源：{2}", Code, times, source);
+        Log?.Write(level, "登录：{0}，序号：{1}，来源：{2}", Code, times, source);
         try
         {
             // 创建登录请求，用户可重载BuildLoginRequest实现自定义登录请求，填充更多参数
@@ -522,7 +524,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             response = await LoginAsync(request, ts.Token).ConfigureAwait(false);
             if (response == null) return null;
 
-            WriteLog("登录成功：{0}，序号：{1}，来源：{2}", response, times, source);
+            Log?.Write(level, "登录成功：{0}，序号：{1}，来源：{2}", response, times, source);
 
             // 登录后设置用于用户认证的token
             SetToken(response.Token);
@@ -531,7 +533,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
         catch (Exception ex)
         {
-            WriteLog("登录失败：{0}，序号：{1}，来源：{2}", ex.Message, times, source);
+            Log?.Write(level, "登录失败：{0}，序号：{1}，来源：{2}", ex.Message, times, source);
 
             Status = LoginStatus.Ready;
             span?.SetError(ex, null);
