@@ -4,6 +4,7 @@ using NewLife.Collections;
 using NewLife.Data;
 using NewLife.Log;
 using NewLife.Messaging;
+using NewLife.Model;
 using NewLife.Net;
 using NewLife.Reflection;
 using NewLife.Remoting.Http;
@@ -19,8 +20,9 @@ public interface IApiHandler
     /// <param name="action">动作</param>
     /// <param name="args">参数</param>
     /// <param name="msg">消息</param>
+    /// <param name="serviceProvider">当前作用域的服务提供者</param>
     /// <returns></returns>
-    Object? Execute(IApiSession session, String action, IPacket? args, IMessage msg);
+    Object? Execute(IApiSession session, String action, Object? args, IMessage msg, IServiceProvider serviceProvider);
 }
 
 /// <summary>默认处理器</summary>
@@ -40,16 +42,19 @@ public class ApiHandler : IApiHandler
     /// <param name="action">动作</param>
     /// <param name="args">参数</param>
     /// <param name="msg">消息</param>
+    /// <param name="serviceProvider">当前作用域的服务提供者</param>
     /// <returns></returns>
-    public virtual Object? Execute(IApiSession session, String action, IPacket? args, IMessage msg)
+    public virtual Object? Execute(IApiSession session, String action, Object? args, IMessage msg, IServiceProvider serviceProvider)
     {
         if (action.IsNullOrEmpty()) action = "Api/Info";
 
-        var manager = (Host as ApiServer)?.Manager;
+        serviceProvider ??= (Host as IServiceProvider)!;
+        var manager = serviceProvider.GetService<IApiManager>();
         var api = manager?.Find(action) ?? throw new ApiException(ApiCode.NotFound, $"无法找到名为[{action}]的服务！");
 
         // 全局共用控制器，或者每次创建对象实例
-        var controller = manager.CreateController(api) ?? throw new ApiException(ApiCode.Forbidden, $"无法创建名为[{api.Name}]的服务！");
+        var controller = manager.CreateController(api, serviceProvider)
+            ?? throw new ApiException(ApiCode.Forbidden, $"无法创建名为[{api.Name}]的服务！");
         if (controller is IApi capi) capi.Session = session;
         if (session is INetSession ss)
             api.LastSession = ss.Remote + "";
@@ -84,7 +89,7 @@ public class ApiHandler : IApiHandler
                 {
                     var func = api.Method.As<Func<IPacket?, IPacket?>>(controller)
                         ?? throw new ArgumentOutOfRangeException(nameof(api.Method));
-                    rs = func(args);
+                    rs = func(args as IPacket);
                 }
                 else if (api.IsPacketParameter)
                 {
@@ -133,13 +138,13 @@ public class ApiHandler : IApiHandler
     }
 
     /// <summary>准备上下文，可以借助Token重写Session会话集合</summary>
-    /// <param name="session"></param>
-    /// <param name="action"></param>
-    /// <param name="args"></param>
-    /// <param name="api"></param>
+    /// <param name="session">Api会话</param>
+    /// <param name="action">接口名</param>
+    /// <param name="args">参数</param>
+    /// <param name="api">Api接口</param>
     /// <param name="msg">消息内容，辅助数据解析</param>
     /// <returns></returns>
-    public virtual ControllerContext Prepare(IApiSession session, String action, IPacket? args, ApiAction api, IMessage msg)
+    public virtual ControllerContext Prepare(IApiSession session, String action, Object? args, ApiAction api, IMessage msg)
     {
         //var enc = Host.Encoder;
         var enc = session["Encoder"] as IEncoder ?? Host.Encoder;
@@ -168,9 +173,9 @@ public class ApiHandler : IApiHandler
             if (pi != null && !pi.Name.IsNullOrEmpty())
             {
                 var value = pi.ParameterType.CreateInstance();
-                if (value is IAccessor accessor)
+                if (value is IAccessor accessor && args is IPacket pk2)
                 {
-                    if (accessor.Read(args.GetStream(), args))
+                    if (accessor.Read(pk2.GetStream(), args))
                     {
                         ctx.ActionParameters = new NullableDictionary<String, Object?>(StringComparer.OrdinalIgnoreCase)
                         {
@@ -186,46 +191,44 @@ public class ApiHandler : IApiHandler
         // 不允许参数字典为空。接口只有一个入参时，客户端可能用基础类型封包传递
         IDictionary<String, Object?>? dic = null;
         Object? raw = null;
-        if (args != null && args.Total > 0)
+        if (args is IPacket pk && pk.Total > 0)
         {
-            raw = enc.DecodeParameters(action, args, msg);
+            raw = enc.DecodeParameters(action, pk, msg);
             if (raw is IDictionary<String, Object?> dic2)
                 dic = dic2;
         }
 
         dic ??= new NullableDictionary<String, Object?>(StringComparer.OrdinalIgnoreCase);
-        if (dic != null)
+
+        ctx.Parameters = dic;
+        //session.Parameters = dic;
+
+        // 令牌，作为参数或者http头传递
+        if (dic.TryGetValue("Token", out var token)) session.Token = token + "";
+        if (session.Token.IsNullOrEmpty() && msg is HttpMessage hmsg && hmsg.Headers != null)
         {
-            ctx.Parameters = dic;
-            //session.Parameters = dic;
-
-            // 令牌，作为参数或者http头传递
-            if (dic.TryGetValue("Token", out var token)) session.Token = token + "";
-            if (session.Token.IsNullOrEmpty() && msg is HttpMessage hmsg && hmsg.Headers != null)
-            {
-                // post、package、byte三种情况将token 写入请求头
-                if (hmsg.Headers.TryGetValue("x-token", out var token2))
-                    session.Token = token2;
-                else if (hmsg.Headers.TryGetValue("Authorization", out token2))
-                    session.Token = token2.TrimStart("Bearer ");
-            }
-
-            // 准备好参数
-            var ps = GetParams(api.Method, dic, raw, args, enc);
-            ctx.ActionParameters = ps;
+            // post、package、byte三种情况将token 写入请求头
+            if (hmsg.Headers.TryGetValue("x-token", out var token2))
+                session.Token = token2;
+            else if (hmsg.Headers.TryGetValue("Authorization", out token2))
+                session.Token = token2.TrimStart("Bearer ");
         }
+
+        // 准备好参数
+        var ps = GetParameterValues(api.Method, dic, raw, args, enc);
+        ctx.ActionParameters = ps;
 
         return ctx;
     }
 
-    /// <summary>获取参数</summary>
-    /// <param name="method"></param>
-    /// <param name="dic"></param>
-    /// <param name="raw"></param>
-    /// <param name="args"></param>
-    /// <param name="encoder"></param>
+    /// <summary>获取接口方法对应的参数值集合</summary>
+    /// <param name="method">接口方法</param>
+    /// <param name="dic">请求参数</param>
+    /// <param name="raw">原始的请求解码参数</param>
+    /// <param name="args">原始参数</param>
+    /// <param name="encoder">编解码器</param>
     /// <returns></returns>
-    protected virtual IDictionary<String, Object?> GetParams(MethodInfo method, IDictionary<String, Object?> dic, Object? raw, IPacket? args, IEncoder encoder)
+    protected virtual IDictionary<String, Object?> GetParameterValues(MethodInfo method, IDictionary<String, Object?> dic, Object? raw, Object? args, IEncoder encoder)
     {
         var ps = new Dictionary<String, Object?>();
 
@@ -302,13 +305,13 @@ public class TokenApiHandler : ApiHandler
     //public ICache Cache { get; set; } = new MemoryCache { Expire = 20 * 60 };
 
     /// <summary>准备上下文，可以借助Token重写Session会话集合</summary>
-    /// <param name="session"></param>
-    /// <param name="action"></param>
-    /// <param name="args"></param>
-    /// <param name="api"></param>
-    /// <param name="msg"></param>
+    /// <param name="session">Api会话</param>
+    /// <param name="action">接口名</param>
+    /// <param name="args">参数</param>
+    /// <param name="api">Api接口</param>
+    /// <param name="msg">消息内容，辅助数据解析</param>
     /// <returns></returns>
-    public override ControllerContext Prepare(IApiSession session, String action, IPacket? args, ApiAction api, IMessage msg)
+    public override ControllerContext Prepare(IApiSession session, String action, Object? args, ApiAction api, IMessage msg)
     {
         var ctx = base.Prepare(session, action, args, api, msg);
 

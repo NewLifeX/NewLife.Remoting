@@ -93,7 +93,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
             {
                 try
                 {
-                    using var rs = _Host.Process(this, (m as IMessage)!);
+                    using var rs = _Host.Process(this, (m as IMessage)!, this);
                     if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
                 }
                 catch (Exception ex)
@@ -105,7 +105,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
         }
         else
         {
-            using var rs = _Host.Process(this, msg);
+            using var rs = _Host.Process(this, msg, this);
             if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
         }
     }

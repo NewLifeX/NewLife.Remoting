@@ -135,6 +135,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         svr.SessionLog = Log;
         svr.Tracer = Tracer;
         svr.ReuseAddress = ReuseAddress;
+        svr.ServiceProvider = this;
 
         if (!svr.Init(uri, this)) return null;
 
@@ -156,6 +157,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         {
             Name = Name,
             Host = this,
+            ServiceProvider = this,
 
             Log = Log,
             SessionLog = Log,
@@ -234,14 +236,15 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// </remarks>
     /// <param name="session">网络会话</param>
     /// <param name="msg">消息</param>
+    /// <param name="serviceProvider">当前作用域的服务提供者</param>
     /// <returns>要应答对方的消息，为空表示不应答</returns>
-    public virtual IMessage? Process(IApiSession session, IMessage msg)
+    public virtual IMessage? Process(IApiSession session, IMessage msg, IServiceProvider serviceProvider)
     {
         if (msg.Reply) return null;
 
         var enc = session["Encoder"] as IEncoder ?? Encoder;
         using var request = enc.Decode(msg);
-        if (request == null) return null;
+        if (request == null || request.Action.IsNullOrEmpty()) return null;
 
         // 根据动作名，开始跟踪
         using var span = Tracer?.NewSpan("rps:" + request.Action, request.Data);
@@ -257,7 +260,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
                 Received?.Invoke(this, new ApiReceivedEventArgs { Session = session, Message = msg, ApiMessage = request });
 
                 // 执行请求
-                result = OnProcess(session, request.Action, request.Data, msg);
+                result = OnProcess(session, request.Action, request.Data, msg, serviceProvider);
             }
             catch (Exception ex)
             {
@@ -314,8 +317,9 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// <param name="action">动作</param>
     /// <param name="args">参数</param>
     /// <param name="msg">消息</param>
+    /// <param name="serviceProvider">当前作用域的服务提供者</param>
     /// <returns></returns>
-    protected virtual Object? OnProcess(IApiSession session, String action, IPacket? args, IMessage msg) => Handler?.Execute(session, action, args, msg);
+    protected virtual Object? OnProcess(IApiSession session, String action, IPacket? args, IMessage msg, IServiceProvider serviceProvider) => Handler?.Execute(session, action, args, msg, serviceProvider);
     #endregion
 
     #region 广播

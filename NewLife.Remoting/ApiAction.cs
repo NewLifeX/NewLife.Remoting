@@ -7,7 +7,7 @@ using NewLife.Serialization;
 namespace NewLife.Remoting;
 
 /// <summary>Api动作</summary>
-public class ApiAction
+public class ApiAction : IExtend
 {
     /// <summary>动作名称</summary>
     public String Name { get; }
@@ -39,6 +39,12 @@ public class ApiAction
 
     /// <summary>最后会话</summary>
     public String? LastSession { get; set; }
+
+    /// <summary>扩展数据</summary>
+    public IDictionary<String, Object?> Items { get; } = new Dictionary<String, Object?>();
+
+    /// <summary>索引器</summary>
+    public Object? this[String key] { get => Items.TryGetValue(key, out var v) ? v : null; set => Items[key] = value; }
 
     /// <summary>实例化</summary>
     public ApiAction(MethodInfo method, Type type)

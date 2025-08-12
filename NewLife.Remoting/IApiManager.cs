@@ -25,9 +25,10 @@ public interface IApiManager
     ApiAction? Find(String action);
 
     /// <summary>创建控制器实例</summary>
-    /// <param name="api"></param>
+    /// <param name="api">Api动作</param>
+    /// <param name="serviceProvider">服务提供者</param>
     /// <returns></returns>
-    Object CreateController(ApiAction api);
+    Object CreateController(ApiAction api, IServiceProvider serviceProvider);
 }
 
 /// <summary>接口管理器</summary>
@@ -65,18 +66,19 @@ public class ApiManager(IServiceProvider serviceProvider) : IApiManager
                 Controller = controller
             };
 
-            Services[act.Name] = act;
+            //Services[act.Name] = act;
+            Add(act);
         }
     }
 
     /// <summary>注册服务提供类。该类的所有公开方法将直接暴露</summary>
     /// <typeparam name="TService"></typeparam>
-    public void Register<TService>() => RegisterAll(null, typeof(TService));
+    public virtual void Register<TService>() => RegisterAll(null, typeof(TService));
 
     /// <summary>注册服务</summary>
     /// <param name="controller">控制器对象</param>
     /// <param name="method">动作名称。为空时遍历控制器所有公有成员方法</param>
-    public void Register(Object controller, String? method)
+    public virtual void Register(Object controller, String? method)
     {
         if (controller == null) throw new ArgumentNullException(nameof(controller));
 
@@ -90,7 +92,8 @@ public class ApiManager(IServiceProvider serviceProvider) : IApiManager
                 Controller = controller
             };
 
-            Services[act.Name] = act;
+            //Services[act.Name] = act;
+            Add(act);
         }
         else
         {
@@ -98,10 +101,13 @@ public class ApiManager(IServiceProvider serviceProvider) : IApiManager
         }
     }
 
+    /// <summary>添加服务</summary>
+    public virtual void Add(ApiAction api) => Services[api.Name] = api;
+
     /// <summary>查找服务</summary>
     /// <param name="action"></param>
     /// <returns></returns>
-    public ApiAction? Find(String action)
+    public virtual ApiAction? Find(String action)
     {
         if (Services.TryGetValue(action, out var mi)) return mi;
 
@@ -120,16 +126,21 @@ public class ApiManager(IServiceProvider serviceProvider) : IApiManager
     }
 
     /// <summary>创建控制器实例</summary>
-    /// <param name="api"></param>
+    /// <param name="api">Api动作</param>
+    /// <param name="serviceProvider2">服务提供者</param>
     /// <returns></returns>
-    public virtual Object CreateController(ApiAction api)
+    public virtual Object CreateController(ApiAction api, IServiceProvider serviceProvider2)
     {
         var controller = api.Controller;
         if (controller != null) return controller;
 
         // 从容器里拿控制器实例，或者借助容器创建控制器实例
-        controller = serviceProvider?.GetService(api.Type);
+        controller ??= serviceProvider2?.GetService(api.Type);
+        controller ??= serviceProvider2?.CreateInstance(api.Type);
+
+        controller ??= serviceProvider?.GetService(api.Type);
         controller ??= serviceProvider?.CreateInstance(api.Type);
+
         controller ??= api.Type.CreateInstance();
         if (controller == null) throw new InvalidDataException($"无法创建[{api.Type.FullName}]的实例");
 
