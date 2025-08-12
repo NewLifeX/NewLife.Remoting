@@ -30,7 +30,8 @@ public interface IApiManager
     Object CreateController(ApiAction api);
 }
 
-class ApiManager(IServiceProvider serviceProvider) : IApiManager
+/// <summary>接口管理器</summary>
+public class ApiManager(IServiceProvider serviceProvider) : IApiManager
 {
     /// <summary>可提供服务的方法</summary>
     public IDictionary<String, ApiAction> Services { get; } = new Dictionary<String, ApiAction>(StringComparer.OrdinalIgnoreCase);
