@@ -10,13 +10,13 @@ namespace NewLife.Remoting;
 public class ApiAction : IExtend
 {
     /// <summary>动作名称</summary>
-    public String Name { get; }
+    public String Name { get; set; } = null!;
 
     /// <summary>动作所在类型</summary>
-    public Type Type { get; }
+    public Type Type { get; set; } = null!;
 
     /// <summary>方法</summary>
-    public MethodInfo Method { get; }
+    public MethodInfo Method { get; set; } = null!;
 
     /// <summary>控制器对象</summary>
     /// <remarks>如果指定控制器对象，则每次调用前不再实例化对象</remarks>
@@ -45,6 +45,9 @@ public class ApiAction : IExtend
 
     /// <summary>索引器</summary>
     public Object? this[String key] { get => Items.TryGetValue(key, out var v) ? v : null; set => Items[key] = value; }
+
+    /// <summary>实例化</summary>
+    public ApiAction() { }
 
     /// <summary>实例化</summary>
     public ApiAction(MethodInfo method, Type type)
