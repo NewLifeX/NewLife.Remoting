@@ -11,7 +11,7 @@ using NewLife.Threading;
 namespace NewLife.Remoting;
 
 /// <summary>应用接口服务器</summary>
-public class ApiServer : ApiHost, IServer
+public class ApiServer : ApiHost, IServer, IServiceProvider
 {
     #region 属性
     /// <summary>是否正在工作</summary>
@@ -359,6 +359,16 @@ public class ApiServer : ApiHost, IServer
         _Last = msg;
 
         WriteLog(msg);
+    }
+    #endregion
+
+    #region 辅助
+    Object IServiceProvider.GetService(Type serviceType)
+    {
+        if (serviceType == typeof(ApiServer)) return this;
+        if (serviceType == typeof(IApiManager)) return Manager;
+
+        return ServiceProvider?.GetService(serviceType)!;
     }
     #endregion
 }

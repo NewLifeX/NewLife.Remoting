@@ -30,19 +30,15 @@ public interface IApiManager
     Object CreateController(ApiAction api);
 }
 
-class ApiManager : IApiManager
+class ApiManager(IServiceProvider serviceProvider) : IApiManager
 {
-    private readonly ApiServer _server;
-
     /// <summary>可提供服务的方法</summary>
     public IDictionary<String, ApiAction> Services { get; } = new Dictionary<String, ApiAction>(StringComparer.OrdinalIgnoreCase);
-
-    public ApiManager(ApiServer server) => _server = server;
 
     private void RegisterAll(Object? controller, Type type)
     {
         // 找到容器，注册控制器
-        var container = _server?.ServiceProvider?.GetService<IObjectContainer>();
+        var container = serviceProvider?.GetService<IObjectContainer>();
         if (container != null)
         {
             if (controller == null)
@@ -131,8 +127,8 @@ class ApiManager : IApiManager
         if (controller != null) return controller;
 
         // 从容器里拿控制器实例，或者借助容器创建控制器实例
-        controller = _server.ServiceProvider?.GetService(api.Type);
-        controller ??= _server.ServiceProvider?.CreateInstance(api.Type);
+        controller = serviceProvider?.GetService(api.Type);
+        controller ??= serviceProvider?.CreateInstance(api.Type);
         controller ??= api.Type.CreateInstance();
         if (controller == null) throw new InvalidDataException($"无法创建[{api.Type.FullName}]的实例");
 
