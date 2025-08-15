@@ -433,9 +433,27 @@ public class ApiClient : ApiHost, IApiClient
     #endregion
 
     #region 登录
-    /// <summary>新会话。客户端每次连接或断线重连后，可用InvokeWithClientAsync做登录</summary>
+    /// <summary>新会话。客户端每次连接或断线重连后，触发自动登录（异步，不阻塞网络线程）</summary>
     /// <param name="client">会话</param>
-    public virtual void OnNewSession(ISocketClient client) => OnLoginAsync(client, true)?.Wait();
+    public virtual void OnNewSession(ISocketClient client)
+    {
+        // Fire & forget，避免同步阻塞导致线程池/IO 线程被占用。异常写日志。
+        try
+        {
+            var task = OnLoginAsync(client, true);
+            if (task != null && !task.IsCompleted)
+            {
+                task.ContinueWith(t =>
+                {
+                    if (t.Exception != null) Log?.Error("自动登录失败：{0}", t.Exception.GetTrue().Message);
+                }, TaskScheduler.Default);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log?.Error("自动登录触发失败：{0}", ex.Message);
+        }
+    }
 
     /// <summary>连接后自动登录</summary>
     /// <param name="client">客户端</param>
