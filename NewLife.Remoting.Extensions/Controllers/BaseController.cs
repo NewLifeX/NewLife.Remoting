@@ -88,7 +88,7 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
         }
     }
 
-    /// <summary>验证令牌，并获取应用</summary>
+    /// <summary>验证令牌，并获取Jwt对象，子类可借助Jwt.Subject获取设备</summary>
     /// <param name="token"></param>
     /// <returns></returns>
     protected virtual Boolean OnAuthorize(String token)
