@@ -48,8 +48,10 @@ public class ApiHandler : IApiHandler
     {
         if (action.IsNullOrEmpty()) action = "Api/Info";
 
-        serviceProvider ??= (Host as IServiceProvider)!;
-        var manager = serviceProvider.GetService<IApiManager>();
+        // IApiManager存在于Host中，如果没有则从服务提供者获取
+        var provider = (Host as IServiceProvider);
+        var manager = provider?.GetService<IApiManager>();
+        manager ??= serviceProvider.GetService<IApiManager>();
         var api = manager?.Find(action) ?? throw new ApiException(ApiCode.NotFound, $"无法找到名为[{action}]的服务！");
 
         // 全局共用控制器，或者每次创建对象实例
