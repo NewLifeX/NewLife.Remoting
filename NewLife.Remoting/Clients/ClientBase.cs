@@ -340,19 +340,50 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         // 验证登录
         var needLogin = !Actions[Features.Login].EqualIgnoreCase(action);
-        if (!Logined && needLogin && Features.HasFlag(Features.Login))
+        if (needLogin && !Logined && Features.HasFlag(Features.Login))
         {
             if (Disposed) throw new ObjectDisposedException(GetType().Name);
 
             await Login(action, cancellationToken).ConfigureAwait(false);
         }
 
-        // GET请求
-        var rs = await http.InvokeAsync<TResult>(HttpMethod.Get, action, args, null, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            // GET请求
+            var rs = await http.InvokeAsync<TResult>(HttpMethod.Get, action, args, null, cancellationToken).ConfigureAwait(false);
 
-        if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]<={1}", action, rs is IPacket or Byte[]? "" : rs?.ToJson());
+            if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]<={1}", action, rs is IPacket or Byte[]? "" : rs?.ToJson());
 
-        return rs!;
+            return rs!;
+        }
+        catch (Exception ex)
+        {
+            var ex2 = ex.GetTrue();
+            if (ex2 is ApiException aex)
+            {
+                // 在客户端已登录状态下，服务端返回未授权，可能是令牌过期，尝试重新登录
+                if (Logined && aex.Code == ApiCode.Unauthorized)
+                {
+                    Status = LoginStatus.Ready;
+                    if (needLogin && Features.HasFlag(Features.Login))
+                    {
+                        Log?.Debug("{0}", ex);
+                        WriteLog("重新登录，因调用[{0}]失败：{1}", action, ex.Message);
+                        await Login(action, cancellationToken).ConfigureAwait(false);
+
+                        // 再次执行当前请求
+                        return await OnInvokeAsync<TResult>(action, args, cancellationToken).ConfigureAwait(false);
+                    }
+                }
+
+                throw new ApiException(aex.Code, $"[{action}]{aex.Message}");
+            }
+
+            if (Log != null && Log.Enable && Log.Level <= LogLevel.Debug)
+                throw new XException($"[{action}]{ex.Message}", ex);
+            else
+                throw new XException($"[{action}]{ex.Message}");
+        }
     }
 
     /// <summary>[核心接口]远程调用服务端接口，支持重新登录</summary>
