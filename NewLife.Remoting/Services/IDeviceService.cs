@@ -1,5 +1,4 @@
 ﻿using NewLife.Remoting.Models;
-using NewLife.Web;
 
 namespace NewLife.Remoting.Services;
 
@@ -72,12 +71,6 @@ public interface IDeviceService
     /// <param name="ip"></param>
     /// <returns></returns>
     IUpgradeInfo Upgrade(IDeviceModel device, String? channel, String ip);
-
-    /// <summary>验证并重新颁发令牌</summary>
-    /// <param name="deviceCode"></param>
-    /// <param name="token"></param>
-    /// <returns></returns>
-    TokenModel ValidAndIssueToken(String deviceCode, String? token);
 
     /// <summary>写入历史</summary>
     /// <param name="device"></param>

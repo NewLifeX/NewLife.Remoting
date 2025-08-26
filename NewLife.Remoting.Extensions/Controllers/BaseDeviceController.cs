@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using NewLife.Log;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
@@ -20,6 +21,7 @@ public abstract class BaseDeviceController : BaseController
     private readonly IDeviceService _deviceService;
     private readonly ITokenService _tokenService;
     private readonly ISessionManager _sessionManager;
+    private readonly ITracer _tracer;
     private readonly IServiceProvider _serviceProvider;
 
     #region 构造
@@ -30,6 +32,7 @@ public abstract class BaseDeviceController : BaseController
         _deviceService = serviceProvider.GetRequiredService<IDeviceService>();
         _tokenService = serviceProvider.GetRequiredService<ITokenService>();
         _sessionManager = serviceProvider.GetRequiredService<ISessionManager>();
+        _tracer = serviceProvider.GetRequiredService<ITracer>();
         _serviceProvider = serviceProvider;
     }
 
@@ -40,9 +43,10 @@ public abstract class BaseDeviceController : BaseController
     /// <param name="serviceProvider"></param>
     public BaseDeviceController(IDeviceService deviceService, ITokenService tokenService, ISessionManager sessionManager, IServiceProvider serviceProvider) : base(serviceProvider)
     {
-        _deviceService = deviceService;
-        _tokenService = tokenService;
-        _sessionManager = sessionManager;
+        _deviceService = deviceService ?? serviceProvider.GetRequiredService<IDeviceService>();
+        _tokenService = tokenService ?? serviceProvider.GetRequiredService<ITokenService>();
+        _sessionManager = sessionManager ?? serviceProvider.GetRequiredService<ISessionManager>();
+        _tracer = serviceProvider.GetRequiredService<ITracer>();
         _serviceProvider = serviceProvider;
     }
 
@@ -92,7 +96,6 @@ public abstract class BaseDeviceController : BaseController
         var (dv, online, rs) = _deviceService.Login(request, "Http", UserHost);
 
         rs ??= new LoginResponse { Name = dv.Name, };
-
         rs.Code = dv.Code;
 
         if (request is ILoginRequest2 req) rs.Time = req.Time;
@@ -161,9 +164,14 @@ public abstract class BaseDeviceController : BaseController
 
             // 令牌有效期检查，10分钟内到期的令牌，颁发新令牌。
             // 这里将来由客户端提交刷新令牌，才能颁发新的访问令牌。
-            var tm = _deviceService.ValidAndIssueToken(device.Code, Token);
-            if (tm != null)
+            var (jwt, ex) = _tokenService.DecodeToken(Token!);
+            if (ex == null && jwt != null && jwt.Expire < DateTime.Now.AddMinutes(10))
+            {
+                using var span = _tracer?.NewSpan("RefreshToken", new { device.Code, jwt.Subject });
+
+                var tm = _tokenService.IssueToken(device.Code, jwt.Id);
                 rs.Token = tm.AccessToken;
+            }
         }
 
         return rs;

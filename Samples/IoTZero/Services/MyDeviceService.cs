@@ -1,6 +1,4 @@
-﻿using System.Reflection;
-using IoT.Data;
-using NewLife;
+﻿using IoT.Data;
 using NewLife.Caching;
 using NewLife.IoT.Models;
 using NewLife.Log;
@@ -9,36 +7,17 @@ using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
 using NewLife.Serialization;
-using NewLife.Web;
 
 namespace IoTZero.Services;
 
 /// <summary>设备服务</summary>
-public class MyDeviceService : IDeviceService
+/// <param name="passwordProvider"></param>
+/// <param name="cacheProvider"></param>
+/// <param name="setting"></param>
+/// <param name="tracer"></param>
+public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting, ITracer tracer) : IDeviceService
 {
-    private readonly ICacheProvider _cacheProvider;
-    private readonly ICache _cache;
-    private readonly ISessionManager _sessionManager;
-    private readonly IPasswordProvider _passwordProvider;
-    private readonly ITokenSetting _setting;
-    private readonly ITracer _tracer;
-
-    /// <summary>
-    /// 实例化设备服务
-    /// </summary>
-    /// <param name="passwordProvider"></param>
-    /// <param name="cacheProvider"></param>
-    /// <param name="setting"></param>
-    /// <param name="tracer"></param>
-    public MyDeviceService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting, ITracer tracer)
-    {
-        _sessionManager = sessionManager;
-        _passwordProvider = passwordProvider;
-        _cacheProvider = cacheProvider;
-        _cache = cacheProvider.InnerCache;
-        _setting = setting;
-        _tracer = tracer;
-    }
+    private readonly ICache _cache = cacheProvider.InnerCache;
 
     #region 登录注销
     /// <summary>
@@ -77,7 +56,7 @@ public class MyDeviceService : IDeviceService
 
             // 登录密码未设置或者未提交，则执行动态注册
             if (dv == null || !dv.Secret.IsNullOrEmpty()
-                && (secret.IsNullOrEmpty() || !_passwordProvider.Verify(dv.Secret, secret)))
+                && (secret.IsNullOrEmpty() || !passwordProvider.Verify(dv.Secret, secret)))
             {
                 if (inf.ProductKey.IsNullOrEmpty()) throw new ApiException(ApiCode.Unauthorized, "设备验证失败，且产品证书为空，无法登录");
 
@@ -119,7 +98,6 @@ public class MyDeviceService : IDeviceService
     public void SetDeviceOnline(Device dv, String ip, String reason)
     {
         // 如果已上线，则不需要埋点
-        var tracer = _tracer;
         //if (dv.Online) tracer = null;
         using var span = tracer?.NewSpan(nameof(SetDeviceOnline), new { dv.Name, dv.Code, ip, reason });
 
@@ -141,7 +119,7 @@ public class MyDeviceService : IDeviceService
     public Device AutoRegister(Device device, LoginInfo inf, String ip)
     {
         // 全局开关，是否允许自动注册新产品
-        if (!_setting.AutoRegister) throw new ApiException(ApiCode.Forbidden, "禁止自动注册");
+        if (!setting.AutoRegister) throw new ApiException(ApiCode.Forbidden, "禁止自动注册");
 
         // 验证产品，即使产品不给自动注册，也会插入一个禁用的设备
         var product = Product.FindByCode(inf.ProductKey);
@@ -334,7 +312,7 @@ public class MyDeviceService : IDeviceService
     /// <param name="device"></param>
     /// <param name="command"></param>
     /// <returns></returns>
-    public Task<Int32> SendCommand(IDeviceModel device, CommandModel command, CancellationToken cancellationToken) => _sessionManager.PublishAsync(device.Code, command, null, cancellationToken);
+    public Task<Int32> SendCommand(IDeviceModel device, CommandModel command, CancellationToken cancellationToken) => sessionManager.PublishAsync(device.Code, command, null, cancellationToken);
     #endregion
 
     #region 事件上报
@@ -354,88 +332,6 @@ public class MyDeviceService : IDeviceService
     #endregion
 
     #region 辅助
-    /// <summary>
-    /// 颁发令牌
-    /// </summary>
-    /// <param name="name"></param>
-    /// <param name="set"></param>
-    /// <returns></returns>
-    public TokenModel IssueToken(String name, ITokenSetting set)
-    {
-        // 颁发令牌
-        var ss = set.TokenSecret.Split(':');
-        var jwt = new JwtBuilder
-        {
-            Issuer = Assembly.GetEntryAssembly().GetName().Name,
-            Subject = name,
-            Id = Rand.NextString(8),
-            Expire = DateTime.Now.AddSeconds(set.TokenExpire),
-
-            Algorithm = ss[0],
-            Secret = ss[1],
-        };
-
-        return new TokenModel
-        {
-            AccessToken = jwt.Encode(null),
-            TokenType = jwt.Type ?? "JWT",
-            ExpireIn = set.TokenExpire,
-            RefreshToken = jwt.Encode(null),
-        };
-    }
-
-    /// <summary>
-    /// 解码令牌，并验证有效性
-    /// </summary>
-    /// <param name="token"></param>
-    /// <param name="tokenSecret"></param>
-    /// <returns></returns>
-    /// <exception cref="ApiException"></exception>
-    public Device DecodeToken(String token, String tokenSecret)
-    {
-        //if (token.IsNullOrEmpty()) throw new ArgumentNullException(nameof(token));
-        if (token.IsNullOrEmpty()) throw new ApiException(ApiCode.Unauthorized, "节点未登录");
-
-        // 解码令牌
-        var ss = tokenSecret.Split(':');
-        var jwt = new JwtBuilder
-        {
-            Algorithm = ss[0],
-            Secret = ss[1],
-        };
-
-        var rs = jwt.TryDecode(token, out var message);
-        var node = Device.FindByCode(jwt.Subject);
-        if (!rs) throw new ApiException(ApiCode.Forbidden, $"非法访问 {message}");
-
-        return node;
-    }
-
-    /// <summary>
-    /// 验证并颁发令牌
-    /// </summary>
-    /// <param name="deviceCode"></param>
-    /// <param name="token"></param>
-    /// <returns></returns>
-    public TokenModel ValidAndIssueToken(String deviceCode, String token)
-    {
-        if (token.IsNullOrEmpty()) return null;
-
-        // 令牌有效期检查，10分钟内过期者，重新颁发令牌
-        var ss = _setting.TokenSecret.Split(':');
-        var jwt = new JwtBuilder
-        {
-            Algorithm = ss[0],
-            Secret = ss[1],
-        };
-        var rs = jwt.TryDecode(token, out var message);
-        if (!rs || jwt == null) return null;
-
-        if (DateTime.Now.AddMinutes(10) > jwt.Expire) return IssueToken(deviceCode, _setting);
-
-        return null;
-    }
-
     /// <summary>查找设备</summary>
     /// <param name="code"></param>
     /// <returns></returns>

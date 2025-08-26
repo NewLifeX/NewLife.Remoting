@@ -1,13 +1,10 @@
-﻿using System.Reflection;
-using NewLife;
+﻿using NewLife;
 using NewLife.Caching;
-using NewLife.Log;
 using NewLife.Remoting;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
 using NewLife.Serialization;
-using NewLife.Web;
 using XCode.Membership;
 using Zero.Data.Nodes;
 using ZeroServer.Models;
@@ -15,31 +12,12 @@ using ZeroServer.Models;
 namespace ZeroServer.Services;
 
 /// <summary>设备服务</summary>
-public class NodeService : IDeviceService
+/// <param name="passwordProvider"></param>
+/// <param name="cacheProvider"></param>
+/// <param name="setting"></param>
+public class NodeService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting) : IDeviceService
 {
-    private readonly ICacheProvider _cacheProvider;
-    private readonly ICache _cache;
-    private readonly ISessionManager _sessionManager;
-    private readonly IPasswordProvider _passwordProvider;
-    private readonly ITokenSetting _setting;
-    private readonly ITracer _tracer;
-
-    /// <summary>
-    /// 实例化设备服务
-    /// </summary>
-    /// <param name="passwordProvider"></param>
-    /// <param name="cacheProvider"></param>
-    /// <param name="setting"></param>
-    /// <param name="tracer"></param>
-    public NodeService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting, ITracer tracer)
-    {
-        _sessionManager = sessionManager;
-        _passwordProvider = passwordProvider;
-        _cacheProvider = cacheProvider;
-        _cache = cacheProvider.InnerCache;
-        _setting = setting;
-        _tracer = tracer;
-    }
+    private readonly ICache _cache = cacheProvider.InnerCache;
 
     #region 登录注销
     /// <summary>
@@ -77,7 +55,7 @@ public class NodeService : IDeviceService
 
             // 登录密码未设置或者未提交，则执行动态注册
             if (node == null || !node.Secret.IsNullOrEmpty()
-                && (secret.IsNullOrEmpty() || !_passwordProvider.Verify(node.Secret, secret)))
+                && (secret.IsNullOrEmpty() || !passwordProvider.Verify(node.Secret, secret)))
             {
                 node = AutoRegister(node, inf, ip);
                 autoReg = true;
@@ -115,7 +93,7 @@ public class NodeService : IDeviceService
     public Node AutoRegister(Node node, LoginInfo inf, String ip)
     {
         // 全局开关，是否允许自动注册新产品
-        if (!_setting.AutoRegister) throw new ApiException(ApiCode.Forbidden, "禁止自动注册");
+        if (!setting.AutoRegister) throw new ApiException(ApiCode.Forbidden, "禁止自动注册");
 
         var code = inf.Code;
         if (code.IsNullOrEmpty()) code = inf.UUID.GetBytes().Crc().ToString("X8");
@@ -286,7 +264,7 @@ public class NodeService : IDeviceService
     /// <param name="device"></param>
     /// <param name="command"></param>
     /// <returns></returns>
-    public Task<Int32> SendCommand(IDeviceModel device, CommandModel command, CancellationToken cancellationToken) => _sessionManager.PublishAsync(device.Code, command, null, cancellationToken);
+    public Task<Int32> SendCommand(IDeviceModel device, CommandModel command, CancellationToken cancellationToken) => sessionManager.PublishAsync(device.Code, command, null, cancellationToken);
     #endregion
 
     #region 升级更新
@@ -317,61 +295,6 @@ public class NodeService : IDeviceService
     #endregion
 
     #region 辅助
-    /// <summary>
-    /// 颁发令牌
-    /// </summary>
-    /// <param name="name"></param>
-    /// <param name="set"></param>
-    /// <returns></returns>
-    public TokenModel IssueToken(String name, ITokenSetting set)
-    {
-        // 颁发令牌
-        var ss = set.TokenSecret.Split(':');
-        var jwt = new JwtBuilder
-        {
-            Issuer = Assembly.GetEntryAssembly().GetName().Name,
-            Subject = name,
-            Id = Rand.NextString(8),
-            Expire = DateTime.Now.AddSeconds(set.TokenExpire),
-
-            Algorithm = ss[0],
-            Secret = ss[1],
-        };
-
-        return new TokenModel
-        {
-            AccessToken = jwt.Encode(null),
-            TokenType = jwt.Type ?? "JWT",
-            ExpireIn = set.TokenExpire,
-            RefreshToken = jwt.Encode(null),
-        };
-    }
-
-    /// <summary>
-    /// 验证并颁发令牌
-    /// </summary>
-    /// <param name="deviceCode"></param>
-    /// <param name="token"></param>
-    /// <returns></returns>
-    public TokenModel ValidAndIssueToken(String deviceCode, String token)
-    {
-        if (token.IsNullOrEmpty()) return null;
-
-        // 令牌有效期检查，10分钟内过期者，重新颁发令牌
-        var ss = _setting.TokenSecret.Split(':');
-        var jwt = new JwtBuilder
-        {
-            Algorithm = ss[0],
-            Secret = ss[1],
-        };
-        var rs = jwt.TryDecode(token, out var message);
-        if (!rs || jwt == null) return null;
-
-        if (DateTime.Now.AddMinutes(10) > jwt.Expire) return IssueToken(deviceCode, _setting);
-
-        return null;
-    }
-
     /// <summary>查找设备</summary>
     /// <param name="code"></param>
     /// <returns></returns>
