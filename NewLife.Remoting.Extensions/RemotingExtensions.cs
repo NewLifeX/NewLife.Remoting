@@ -39,7 +39,7 @@ public static class RemotingExtensions
         // 注册Remoting所必须的服务
         if (setting != null)
         {
-            services.TryAddSingleton<TokenService>();
+            services.TryAddSingleton<ITokenService, TokenService>();
             services.TryAddSingleton(setting);
         }
 

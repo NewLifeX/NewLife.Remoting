@@ -1,28 +1,18 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using NewLife.Data;
 using NewLife.Remoting.Extensions.Models;
-using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
+using NewLife.Remoting.Services;
 using NewLife.Web;
 
 namespace NewLife.Remoting.Extensions;
 
 /// <summary>OAuth控制器基类。向应用提供令牌颁发与验证服务</summary>
+/// <param name="tokenService"></param>
+/// <param name="setting"></param>
 [Route("[controller]/[action]")]
-public abstract class BaseOAuthController : ControllerBase
+public abstract class BaseOAuthController(ITokenService tokenService, ITokenSetting setting) : ControllerBase
 {
-    private readonly TokenService _tokenService;
-    private readonly ITokenSetting _setting;
-
-    /// <summary>实例化</summary>
-    /// <param name="tokenService"></param>
-    /// <param name="setting"></param>
-    public BaseOAuthController(TokenService tokenService, ITokenSetting setting)
-    {
-        _tokenService = tokenService;
-        _setting = setting;
-    }
-
     /// <summary>验证密码颁发令牌，或刷新令牌</summary>
     /// <param name="model"></param>
     /// <returns></returns>
@@ -30,7 +20,7 @@ public abstract class BaseOAuthController : ControllerBase
     [ApiFilter]
     public virtual TokenModel Token([FromBody] TokenInModel model)
     {
-        var set = _setting;
+        var set = setting;
 
         if (model.grant_type.IsNullOrEmpty()) model.grant_type = "password";
 
@@ -46,7 +36,7 @@ public abstract class BaseOAuthController : ControllerBase
 
                 var app = Authorize(model.UserName, model.Password, set.AutoRegister, ip);
 
-                var tokenModel = _tokenService.IssueToken(app.Name, clientId);
+                var tokenModel = tokenService.IssueToken(app.Name, clientId);
 
                 app.WriteLog("Authorize", true, model.UserName, ip, clientId);
 
@@ -57,7 +47,7 @@ public abstract class BaseOAuthController : ControllerBase
             {
                 if (model.refresh_token.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.refresh_token));
 
-                var (jwt, ex) = _tokenService.DecodeTokenWithError(model.refresh_token);
+                var (jwt, ex) = tokenService.DecodeToken(model.refresh_token);
 
                 // 验证应用
                 var name = jwt?.Subject;
@@ -73,7 +63,7 @@ public abstract class BaseOAuthController : ControllerBase
                     throw ex;
                 }
 
-                var tokenModel = _tokenService.IssueToken(app!.Name, clientId);
+                var tokenModel = tokenService.IssueToken(app!.Name, clientId);
 
                 //app.WriteHistory("RefreshToken", true, model.refresh_token, ip, clientId);
 
@@ -138,7 +128,7 @@ public abstract class BaseOAuthController : ControllerBase
     /// <param name="password"></param>
     /// <param name="ip"></param>
     /// <returns></returns>
-    protected abstract Boolean OnAuthorize(IAppModel app, String? password, String? ip = null);
+    protected virtual Boolean OnAuthorize(IAppModel app, String? password, String? ip = null) => app.Authorize(password, ip);
 
     /// <summary>根据令牌获取应用信息，同时也是验证令牌是否有效</summary>
     /// <param name="token"></param>
@@ -146,7 +136,9 @@ public abstract class BaseOAuthController : ControllerBase
     [ApiFilter]
     public Object Info(String token)
     {
-        var jwt = _tokenService.DecodeToken(token);
+        var (jwt, ex) = tokenService.DecodeToken(token);
+        if (ex != null) throw ex;
+
         var name = jwt?.Subject;
         var app = name.IsNullOrEmpty() ? default : FindByName(name);
         if (app is IModel model)
@@ -160,7 +152,7 @@ public abstract class BaseOAuthController : ControllerBase
         else
             return new
             {
-                Name = name,
+                app?.Name,
             };
     }
 }

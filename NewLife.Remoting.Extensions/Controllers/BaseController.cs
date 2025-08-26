@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using NewLife.Log;
 using NewLife.Reflection;
 using NewLife.Remoting.Extensions.Services;
+using NewLife.Remoting.Services;
 using NewLife.Serialization;
 using NewLife.Web;
 using IWebFilter = Microsoft.AspNetCore.Mvc.Filters.IActionFilter;
@@ -16,13 +17,15 @@ namespace NewLife.Remoting.Extensions;
 /// <remarks>
 /// 提供统一的令牌解码验证架构
 /// </remarks>
+/// <remarks>实例化</remarks>
+/// <param name="serviceProvider"></param>
 [ApiFilter]
 [Route("[controller]")]
-public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
+public abstract class BaseController(IServiceProvider serviceProvider) : ControllerBase, IWebFilter, ILogProvider
 {
     #region 属性
     /// <summary>令牌</summary>
-    public String? Token { get; private set; }
+    public String? Token { get; set; }
 
     /// <summary>令牌对象</summary>
     public JwtBuilder Jwt { get; set; } = null!;
@@ -30,22 +33,16 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
     /// <summary>用户主机</summary>
     public String UserHost { get; set; } = null!;
 
+    private readonly ITokenService _tokenService = serviceProvider.GetRequiredService<ITokenService>();
     private IDictionary<String, Object?>? _args;
-    private readonly TokenService _tokenService;
     private static Action<String>? _setip;
     #endregion
 
     #region 构造
     static BaseController()
     {
+        // 反射获取ManageProvider.UserHost的Set方法，避免直接引用XCode
         _setip = "ManageProvider".GetTypeEx()?.GetPropertyEx("UserHost")?.SetMethod?.CreateDelegate<Action<String>>();
-    }
-
-    /// <summary>实例化</summary>
-    /// <param name="serviceProvider"></param>
-    public BaseController(IServiceProvider serviceProvider)
-    {
-        _tokenService = serviceProvider.GetRequiredService<TokenService>();
     }
     #endregion
 
@@ -63,11 +60,10 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
 
         try
         {
-
             if (context.ActionDescriptor is ControllerActionDescriptor act && !act.MethodInfo.IsDefined(typeof(AllowAnonymousAttribute)))
             {
                 // 匿名访问接口无需验证。例如星尘Node的SendCommand接口，并不使用Node令牌，而是使用App令牌
-                var rs = !token.IsNullOrEmpty() && OnAuthorize(token);
+                var rs = OnAuthorize(token, context);
                 if (!rs) throw new ApiException(ApiCode.Unauthorized, "认证失败");
             }
         }
@@ -91,10 +87,20 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
     /// <summary>验证令牌，并获取Jwt对象，子类可借助Jwt.Subject获取设备</summary>
     /// <param name="token"></param>
     /// <returns></returns>
-    protected virtual Boolean OnAuthorize(String token)
+    [Obsolete("=>OnAuthorize(String token, ActionExecutingContext context)", true)]
+    protected virtual Boolean OnAuthorize(String token) => OnAuthorize(token, null!);
+
+    /// <summary>验证令牌，并获取Jwt对象，子类可借助Jwt.Subject获取设备</summary>
+    /// <param name="token">访问令牌</param>
+    /// <param name="context"></param>
+    /// <returns></returns>
+    protected virtual Boolean OnAuthorize(String token, ActionContext context)
     {
-        var jwt = _tokenService.DecodeToken(token);
+        if (token.IsNullOrEmpty()) return false;
+
+        var (jwt, ex) = _tokenService.DecodeToken(token);
         Jwt = jwt;
+        if (ex != null) throw ex;
 
         return jwt != null;
     }

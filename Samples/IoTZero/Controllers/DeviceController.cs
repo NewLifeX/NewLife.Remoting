@@ -21,9 +21,9 @@ public class DeviceController(IServiceProvider serviceProvider) : BaseDeviceCont
     public Device Device { get; set; }
 
     #region 构造
-    protected override Boolean OnAuthorize(String token)
+    protected override Boolean OnAuthorize(String token, ActionContext context)
     {
-        if (!base.OnAuthorize(token)) return false;
+        if (!base.OnAuthorize(token, context)) return false;
 
         Device = _device as Device;
 

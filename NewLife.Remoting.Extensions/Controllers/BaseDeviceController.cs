@@ -18,7 +18,7 @@ public abstract class BaseDeviceController : BaseController
     protected IDeviceModel _device = null!;
 
     private readonly IDeviceService _deviceService;
-    private readonly TokenService _tokenService;
+    private readonly ITokenService _tokenService;
     private readonly ISessionManager _sessionManager;
     private readonly IServiceProvider _serviceProvider;
 
@@ -28,7 +28,7 @@ public abstract class BaseDeviceController : BaseController
     public BaseDeviceController(IServiceProvider serviceProvider) : base(serviceProvider)
     {
         _deviceService = serviceProvider.GetRequiredService<IDeviceService>();
-        _tokenService = serviceProvider.GetRequiredService<TokenService>();
+        _tokenService = serviceProvider.GetRequiredService<ITokenService>();
         _sessionManager = serviceProvider.GetRequiredService<ISessionManager>();
         _serviceProvider = serviceProvider;
     }
@@ -38,7 +38,7 @@ public abstract class BaseDeviceController : BaseController
     /// <param name="tokenService"></param>
     /// <param name="sessionManager"></param>
     /// <param name="serviceProvider"></param>
-    public BaseDeviceController(IDeviceService deviceService, TokenService tokenService, ISessionManager sessionManager, IServiceProvider serviceProvider) : base(serviceProvider)
+    public BaseDeviceController(IDeviceService deviceService, ITokenService tokenService, ISessionManager sessionManager, IServiceProvider serviceProvider) : base(serviceProvider)
     {
         _deviceService = deviceService;
         _tokenService = tokenService;
@@ -48,16 +48,31 @@ public abstract class BaseDeviceController : BaseController
 
     /// <summary>验证身份</summary>
     /// <param name="token"></param>
+    /// <param name="context"></param>
     /// <returns></returns>
     /// <exception cref="ApiException"></exception>
-    protected override Boolean OnAuthorize(String token)
+    protected override Boolean OnAuthorize(String token, ActionContext context)
     {
-        if (!base.OnAuthorize(token) || Jwt == null || Jwt.Subject.IsNullOrEmpty()) return false;
+        // 先调用基类，获取Jwt。即使失败，也要继续往下走，获取设备信息。最后再决定是否抛出异常
+        Exception? error = null;
+        try
+        {
+            if (!base.OnAuthorize(token, context)) return false;
+        }
+        catch (Exception ex)
+        {
+            error = ex;
+        }
 
-        var dv = _deviceService.QueryDevice(Jwt.Subject);
-        if (dv == null || !dv.Enable) throw new ApiException(ApiCode.Forbidden, "无效客户端！");
+        var code = Jwt?.Subject;
+        if (code.IsNullOrEmpty()) return false;
 
-        _device = dv;
+        var dv = _deviceService.QueryDevice(code);
+        if (dv == null || !dv.Enable) error ??= new ApiException(ApiCode.Forbidden, "无效客户端！");
+
+        _device = dv!;
+
+        if (error != null) throw error;
 
         return true;
     }

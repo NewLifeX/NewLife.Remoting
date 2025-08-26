@@ -1,38 +1,24 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using NewLife.Log;
 using NewLife.Remoting.Extensions;
 using NewLife.Remoting.Models;
-using NewLife.Remoting.Services;
 using Zero.Data.Nodes;
-using ZeroServer.Services;
 
 namespace ZeroServer.Controllers;
 
 /// <summary>设备控制器</summary>
+/// <param name="serviceProvider"></param>
 [ApiFilter]
 [ApiController]
 [Route("[controller]")]
-public class NodeController : BaseDeviceController
+public class NodeController(IServiceProvider serviceProvider) : BaseDeviceController(serviceProvider)
 {
     /// <summary>当前设备</summary>
     public Node Node { get; set; }
 
-    private readonly NodeService _nodeService;
-    private readonly ITracer _tracer;
-
     #region 构造
-    /// <summary>实例化设备控制器</summary>
-    /// <param name="serviceProvider"></param>
-    /// <param name="tracer"></param>
-    public NodeController(IServiceProvider serviceProvider, ITracer tracer) : base(serviceProvider)
+    protected override Boolean OnAuthorize(String token, ActionContext context)
     {
-        _nodeService = serviceProvider.GetRequiredService<IDeviceService>() as NodeService;
-        _tracer = tracer;
-    }
-
-    protected override Boolean OnAuthorize(String token)
-    {
-        if (!base.OnAuthorize(token)) return false;
+        if (!base.OnAuthorize(token, context)) return false;
 
         Node = _device as Node;
 
@@ -48,7 +34,7 @@ public class NodeController : BaseDeviceController
         var rs = base.OnPing(request);
 
         var node = Node;
-        if (node != null)
+        if (node != null && rs != null)
         {
             rs.Period = node.Period;
 

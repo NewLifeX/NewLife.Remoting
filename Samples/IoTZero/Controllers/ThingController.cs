@@ -22,11 +22,14 @@ public class ThingController(IServiceProvider serviceProvider, ThingService thin
     public Device Device { get; set; }
 
     #region 构造
-    protected override Boolean OnAuthorize(String token)
+    protected override Boolean OnAuthorize(String token, ActionContext context)
     {
-        if (!base.OnAuthorize(token) || Jwt == null) return false;
+        if (!base.OnAuthorize(token, context)) return false;
 
-        var dv = Device.FindByCode(Jwt.Subject);
+        var code = Jwt?.Subject;
+        if (code.IsNullOrEmpty()) return false;
+
+        var dv = Device.FindByCode(code);
         if (dv == null || !dv.Enable) throw new ApiException(ApiCode.Unauthorized, "无效设备！");
 
         Device = dv;
