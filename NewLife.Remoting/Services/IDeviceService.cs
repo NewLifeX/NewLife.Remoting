@@ -36,7 +36,7 @@ public interface IDeviceService
     /// <param name="clientId">客户端标识</param>
     /// <param name="ip">远程IP</param>
     /// <returns></returns>
-    IOnlineModel Ping(IDeviceModel device, IPingRequest? request, String? token, String clientId, String ip);
+    IOnlineModel Ping(IDeviceModel device, IPingRequest? request, String token, String clientId, String ip);
 
     /// <summary>设置设备的长连接上线/下线</summary>
     /// <param name="device">设备</param>

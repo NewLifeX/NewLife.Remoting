@@ -1305,7 +1305,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>从服务提供者（对象容器）创建模型对象</summary>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public virtual T? GetService<T>() where T : class => ServiceProvider?.GetService<T>() ?? ObjectContainer.Current.Resolve<T>();
+    public virtual T? GetService<T>() where T : class => ServiceProvider?.GetService<T>() ?? ObjectContainer.Current.GetService<T>();
     #endregion
 
     #region 日志

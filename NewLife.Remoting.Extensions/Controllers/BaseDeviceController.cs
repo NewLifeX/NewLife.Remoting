@@ -122,7 +122,7 @@ public abstract class BaseDeviceController : BaseController
     [HttpPost(nameof(Logout))]
     public virtual ILogoutResponse Logout(String? reason)
     {
-        var online = _deviceService.Logout(_device, reason, "Http", ClientId, UserHost);
+        if (_device != null) _deviceService.Logout(_device, reason, "Http", ClientId, UserHost);
 
         return new LogoutResponse
         {
@@ -151,11 +151,9 @@ public abstract class BaseDeviceController : BaseController
     {
         var rs = new PingResponse
         {
-            Time = 0,
+            Time = request?.Time ?? 0,
             ServerTime = DateTime.UtcNow.ToLong(),
         };
-
-        if (request != null) rs.Time = request.Time;
 
         var device = _device;
         if (device != null)
@@ -238,8 +236,6 @@ public abstract class BaseDeviceController : BaseController
     {
         var device = _device ?? throw new InvalidOperationException("未登录！");
 
-        //var sessionManager = _serviceProvider.GetService<ISessionManager>() ??
-        //    throw new InvalidOperationException("未找到SessionManager服务");
         var sessionManager = _sessionManager ?? throw new InvalidOperationException("未找到SessionManager服务");
 
         var ip = UserHost;
