@@ -51,7 +51,7 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
             // 校验唯一编码，防止客户端拷贝配置
             var uuid = inf.UUID;
             if (!uuid.IsNullOrEmpty() && !node.Uuid.IsNullOrEmpty() && uuid != node.Uuid)
-                WriteHistory(node, source + "登录校验", false, $"新旧唯一标识不一致！（新）{uuid}!={node.Uuid}（旧）", ip);
+                WriteHistory(node, source + "登录校验", false, $"新旧唯一标识不一致！（新）{uuid}!={node.Uuid}（旧）", null, ip);
 
             // 登录密码未设置或者未提交，则执行动态注册
             if (node == null || !node.Secret.IsNullOrEmpty()
@@ -71,7 +71,7 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
         olt.Save(inf, null, null, ip);
 
         // 登录历史
-        WriteHistory(node, source + "登录", true, $"[{node.Name}/{node.Code}]登录成功 " + inf.ToJson(false, false, false), ip);
+        WriteHistory(node, source + "登录", true, $"[{node.Name}/{node.Code}]登录成功 " + inf.ToJson(false, false, false), null, ip);
 
         var rs = new LoginResponse
         {
@@ -120,25 +120,26 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
 
         node.Save();
 
-        WriteHistory(node, "动态注册", true, inf.ToJson(false, false, false), ip);
+        WriteHistory(node, "动态注册", true, inf.ToJson(false, false, false), null, ip);
 
         return node;
     }
 
     /// <summary>注销</summary>
-    /// <param name="model">设备</param>
+    /// <param name="device">设备</param>
     /// <param name="reason">注销原因</param>
     /// <param name="source">登录来源</param>
+    /// <param name="clientId">客户端标识</param>
     /// <param name="ip">远程IP</param>
     /// <returns></returns>
-    public IOnlineModel Logout(IDeviceModel model, String reason, String source, String ip)
+    public IOnlineModel Logout(IDeviceModel device, String reason, String source, String clientId, String ip)
     {
-        var node = model as Node;
+        var node = device as Node;
         var online = GetOnline(node, ip);
         if (online != null)
         {
-            var msg = $"{reason} [{model}]]登录于{online.CreateTime.ToFullString()}，最后活跃于{online.UpdateTime.ToFullString()}";
-            WriteHistory(model, source + "设备下线", true, msg, ip);
+            var msg = $"{reason} [{device}]]登录于{online.CreateTime.ToFullString()}，最后活跃于{online.UpdateTime.ToFullString()}";
+            WriteHistory(device, source + "设备下线", true, msg, null, ip);
             online.Delete();
 
             var sid = $"{node.Id}@{ip}";
@@ -158,13 +159,15 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
 
     #region 心跳保活
     /// <summary>心跳</summary>
-    /// <param name="inf"></param>
-    /// <param name="token"></param>
-    /// <param name="ip"></param>
+    /// <param name="device">设备</param>
+    /// <param name="request">心跳请求</param>
+    /// <param name="token">令牌</param>
+    /// <param name="clientId">客户端标识</param>
+    /// <param name="ip">远程IP</param>
     /// <returns></returns>
-    public IOnlineModel Ping(IDeviceModel model, IPingRequest request, String token, String ip)
+    public IOnlineModel Ping(IDeviceModel device, IPingRequest request, String token, String clientId, String ip)
     {
-        var node = model as Node;
+        var node = device as Node;
         var inf = request as PingInfo;
         if (inf != null && !inf.IP.IsNullOrEmpty()) node.IP = inf.IP;
 
@@ -176,7 +179,7 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
         node.SaveAsync();
 
         var online = GetOnline(node, ip) ?? CreateOnline(node, ip);
-        online.Name = model.Name;
+        online.Name = device.Name;
         online.Category = node.Category;
         online.Version = node.Version;
         online.CompileTime = node.CompileTime;
@@ -192,7 +195,7 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
     /// <param name="token"></param>
     /// <param name="ip"></param>
     /// <returns></returns>
-    public IOnlineModel SetOnline(IDeviceModel device, Boolean online, String token, String ip)
+    public IOnlineModel SetOnline(IDeviceModel device, Boolean online, String token, String clientId, String ip)
     {
         if (device is Node node)
         {
@@ -300,17 +303,16 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
     /// <returns></returns>
     public IDeviceModel QueryDevice(String code) => Node.FindByCode(code);
 
-    /// <summary>
-    /// 写设备历史
-    /// </summary>
-    /// <param name="model"></param>
-    /// <param name="action"></param>
-    /// <param name="success"></param>
-    /// <param name="remark"></param>
-    /// <param name="ip"></param>
-    public void WriteHistory(IDeviceModel model, String action, Boolean success, String remark, String ip)
+    /// <summary>写设备历史</summary>
+    /// <param name="device">设备</param>
+    /// <param name="action">动作</param>
+    /// <param name="success">成功</param>
+    /// <param name="remark">备注内容</param>
+    /// <param name="clientId">客户端标识</param>
+    /// <param name="ip">远程IP</param>
+    public void WriteHistory(IDeviceModel device, String action, Boolean success, String remark, String clientId, String ip)
     {
-        var history = NodeHistory.Create(model as Node, action, success, remark, Environment.MachineName, ip);
+        var history = NodeHistory.Create(device as Node, action, success, remark, Environment.MachineName, ip);
 
         if (history.CityID == 0 && !ip.IsNullOrEmpty())
         {

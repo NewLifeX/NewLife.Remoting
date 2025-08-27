@@ -5,6 +5,7 @@ using NewLife.Log;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
+using NewLife.Security;
 using WebSocket = System.Net.WebSockets.WebSocket;
 
 namespace NewLife.Remoting.Extensions;
@@ -104,6 +105,7 @@ public abstract class BaseDeviceController : BaseController
         // 动态注册的设备不可用时，不要发令牌，只发证书
         if (dv.Enable)
         {
+            if (request.ClientId.IsNullOrEmpty()) request.ClientId = Rand.NextString(8);
             var tm = _tokenService.IssueToken(dv.Code, request.ClientId);
 
             rs.Token = tm.AccessToken;
@@ -120,7 +122,7 @@ public abstract class BaseDeviceController : BaseController
     [HttpPost(nameof(Logout))]
     public virtual ILogoutResponse Logout(String? reason)
     {
-        var olt = _deviceService.Logout(_device, reason, "Http", UserHost);
+        var online = _deviceService.Logout(_device, reason, "Http", ClientId, UserHost);
 
         return new LogoutResponse
         {
@@ -160,7 +162,7 @@ public abstract class BaseDeviceController : BaseController
         {
             //rs.Period = device.Period;
 
-            _deviceService.Ping(device, request, Token, UserHost);
+            _deviceService.Ping(device, request, Token, ClientId, UserHost);
 
             // 令牌有效期检查，10分钟内到期的令牌，颁发新令牌。
             // 这里将来由客户端提交刷新令牌，才能颁发新的访问令牌。
@@ -246,7 +248,7 @@ public abstract class BaseDeviceController : BaseController
         {
             Code = device.Code,
             Log = this,
-            SetOnline = online => _deviceService.SetOnline(device, online, token, ip)
+            SetOnline = online => _deviceService.SetOnline(device, online, token, ClientId, ip)
         };
 
         sessionManager.Add(session);
@@ -274,6 +276,6 @@ public abstract class BaseDeviceController : BaseController
     /// <param name="action"></param>
     /// <param name="success"></param>
     /// <param name="message"></param>
-    public override void WriteLog(String action, Boolean success, String message) => _deviceService.WriteHistory(_device, action, success, message, UserHost);
+    public override void WriteLog(String action, Boolean success, String message) => _deviceService.WriteHistory(_device, action, success, message, ClientId, UserHost);
     #endregion
 }

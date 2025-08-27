@@ -52,7 +52,7 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
             // 校验唯一编码，防止客户端拷贝配置
             var uuid = inf.UUID;
             if (!uuid.IsNullOrEmpty() && !dv.Uuid.IsNullOrEmpty() && uuid != dv.Uuid)
-                WriteHistory(dv, source + "登录校验", false, $"新旧唯一标识不一致！（新）{uuid}!={dv.Uuid}（旧）", ip);
+                WriteHistory(dv, source + "登录校验", false, $"新旧唯一标识不一致！（新）{uuid}!={dv.Uuid}（旧）", null, ip);
 
             // 登录密码未设置或者未提交，则执行动态注册
             if (dv == null || !dv.Secret.IsNullOrEmpty()
@@ -78,7 +78,7 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
         //SetChildOnline(dv, ip);
 
         // 登录历史
-        WriteHistory(dv, source + "登录", true, $"[{dv.Name}/{dv.Code}]登录成功 " + inf.ToJson(false, false, false), ip);
+        WriteHistory(dv, source + "登录", true, $"[{dv.Name}/{dv.Code}]登录成功 " + inf.ToJson(false, false, false), null, ip);
 
         var rs = new LoginResponse
         {
@@ -157,7 +157,7 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
         // 更新产品设备总量避免界面无法及时获取设备数量信息
         device.Product.Fix();
 
-        WriteHistory(device, "动态注册", true, inf.ToJson(false, false, false), ip);
+        WriteHistory(device, "动态注册", true, inf.ToJson(false, false, false), null, ip);
 
         return device;
     }
@@ -166,16 +166,17 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
     /// <param name="device">设备</param>
     /// <param name="reason">注销原因</param>
     /// <param name="source">登录来源</param>
+    /// <param name="clientId">客户端标识</param>
     /// <param name="ip">远程IP</param>
     /// <returns></returns>
-    public IOnlineModel Logout(IDeviceModel device, String reason, String source, String ip)
+    public IOnlineModel Logout(IDeviceModel device, String reason, String source, String clientId, String ip)
     {
         var dv = device as Device;
         var olt = GetOnline(dv, ip);
         if (olt != null)
         {
             var msg = $"{reason} [{device}]]登录于{olt.CreateTime.ToFullString()}，最后活跃于{olt.UpdateTime.ToFullString()}";
-            WriteHistory(device, source + "设备下线", true, msg, ip);
+            WriteHistory(device, source + "设备下线", true, msg, null, ip);
             olt.Delete();
 
             var sid = $"{dv.Id}@{ip}";
@@ -196,12 +197,13 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
 
     #region 心跳保活
     /// <summary>心跳</summary>
-    /// <param name="device"></param>
-    /// <param name="request"></param>
-    /// <param name="token"></param>
-    /// <param name="ip"></param>
+    /// <param name="device">设备</param>
+    /// <param name="request">心跳请求</param>
+    /// <param name="token">令牌</param>
+    /// <param name="clientId">客户端标识</param>
+    /// <param name="ip">远程IP</param>
     /// <returns></returns>
-    public IOnlineModel Ping(IDeviceModel device, IPingRequest request, String token, String ip)
+    public IOnlineModel Ping(IDeviceModel device, IPingRequest request, String token, String clientId, String ip)
     {
         var dv = device as Device;
         var inf = request as PingInfo;
@@ -228,7 +230,7 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
     /// <param name="token"></param>
     /// <param name="ip"></param>
     /// <returns></returns>
-    public IOnlineModel SetOnline(IDeviceModel device, Boolean online, String token, String ip)
+    public IOnlineModel SetOnline(IDeviceModel device, Boolean online, String token, String clientId, String ip)
     {
         if (device is Device dv)
         {
@@ -337,15 +339,14 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
     /// <returns></returns>
     public IDeviceModel QueryDevice(String code) => Device.FindByCode(code);
 
-    /// <summary>
-    /// 写设备历史
-    /// </summary>
-    /// <param name="device"></param>
-    /// <param name="action"></param>
-    /// <param name="success"></param>
-    /// <param name="remark"></param>
-    /// <param name="ip"></param>
-    public void WriteHistory(IDeviceModel device, String action, Boolean success, String remark, String ip)
+    /// <summary>写设备历史</summary>
+    /// <param name="device">设备</param>
+    /// <param name="action">动作</param>
+    /// <param name="success">成功</param>
+    /// <param name="remark">备注内容</param>
+    /// <param name="clientId">客户端标识</param>
+    /// <param name="ip">远程IP</param>
+    public void WriteHistory(IDeviceModel device, String action, Boolean success, String remark, String clientId, String ip)
     {
         var traceId = DefaultSpan.Current?.TraceId;
         var hi = DeviceHistory.Create(device as Device, action, success, remark, Environment.MachineName, ip, traceId);

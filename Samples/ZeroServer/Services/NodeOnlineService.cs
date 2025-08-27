@@ -71,7 +71,7 @@ public class NodeOnlineService : IHostedService
         {
             var node = olt?.Node;
             var msg = $"[{node}]登录于{olt.CreateTime.ToFullString()}，最后活跃于{olt.UpdateTime.ToFullString()}";
-            _nodeService.WriteHistory(node, "超时下线", true, msg, olt.CreateIP);
+            _nodeService.WriteHistory(node, "超时下线", true, msg, null, olt.CreateIP);
 
             if (_nodeService is NodeService ds)
                 ds.RemoveOnline(olt.NodeId, olt.CreateIP);

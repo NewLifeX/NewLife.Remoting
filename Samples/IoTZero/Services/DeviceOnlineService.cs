@@ -71,7 +71,7 @@ public class DeviceOnlineService : IHostedService
                 {
                     var device = olt?.Device;
                     var msg = $"[{device}]登录于{olt.CreateTime.ToFullString()}，最后活跃于{olt.UpdateTime.ToFullString()}";
-                    _deviceService.WriteHistory(device, "超时下线", true, msg, olt.CreateIP);
+                    _deviceService.WriteHistory(device, "超时下线", true, msg, null, olt.CreateIP);
 
                     if (_deviceService is MyDeviceService ds)
                         ds.RemoveOnline(olt.DeviceId, olt.CreateIP);

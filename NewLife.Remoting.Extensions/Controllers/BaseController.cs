@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using NewLife.Log;
 using NewLife.Reflection;
-using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Services;
 using NewLife.Serialization;
 using NewLife.Web;
@@ -29,6 +28,9 @@ public abstract class BaseController(IServiceProvider serviceProvider) : Control
 
     /// <summary>令牌对象</summary>
     public JwtBuilder Jwt { get; set; } = null!;
+
+    /// <summary>客户端标识</summary>
+    public String ClientId { get; set; } = null!;
 
     /// <summary>用户主机</summary>
     public String UserHost { get; set; } = null!;
@@ -100,6 +102,7 @@ public abstract class BaseController(IServiceProvider serviceProvider) : Control
 
         var (jwt, ex) = _tokenService.DecodeToken(token);
         Jwt = jwt;
+        ClientId = jwt?.Id!;
         if (ex != null) throw ex;
 
         return jwt != null;
