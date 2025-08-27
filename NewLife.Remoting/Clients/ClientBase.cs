@@ -124,10 +124,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>实例化</summary>
-    public ClientBase()
-    {
-        Name = GetType().Name.TrimEnd("Client");
-    }
+    public ClientBase() => Name = GetType().Name.TrimEnd("Client");
 
     /// <summary>通过客户端设置实例化</summary>
     /// <param name="setting"></param>
@@ -1027,7 +1024,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         {
             lock (this)
             {
-                _timerPing ??= new TimerX(DoPing, null, DateTime.Now.AddSeconds(1), 60_000) { Async = true };
+                // 稍微延迟首次心跳时间，确保鉴权已完成，便于快速建立WebSocket连接
+                _timerPing ??= new TimerX(DoPing, null, DateTime.Now.AddSeconds(3), 60_000) { Async = true };
             }
         }
 

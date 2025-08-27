@@ -16,14 +16,10 @@ namespace NewLife.Remoting.Extensions;
 [Route("[controller]")]
 public abstract class BaseDeviceController : BaseController
 {
-    /// <summary>设备</summary>
-    protected IDeviceModel _device = null!;
-
     private readonly IDeviceService _deviceService;
     private readonly ITokenService _tokenService;
     private readonly ISessionManager _sessionManager;
     private readonly ITracer _tracer;
-    private readonly IServiceProvider _serviceProvider;
 
     #region 构造
     /// <summary>实例化设备控制器</summary>
@@ -34,7 +30,6 @@ public abstract class BaseDeviceController : BaseController
         _tokenService = serviceProvider.GetRequiredService<ITokenService>();
         _sessionManager = serviceProvider.GetRequiredService<ISessionManager>();
         _tracer = serviceProvider.GetRequiredService<ITracer>();
-        _serviceProvider = serviceProvider;
     }
 
     /// <summary>实例化设备控制器</summary>
@@ -42,13 +37,12 @@ public abstract class BaseDeviceController : BaseController
     /// <param name="tokenService"></param>
     /// <param name="sessionManager"></param>
     /// <param name="serviceProvider"></param>
-    public BaseDeviceController(IDeviceService deviceService, ITokenService tokenService, ISessionManager sessionManager, IServiceProvider serviceProvider) : base(serviceProvider)
+    public BaseDeviceController(IDeviceService? deviceService, ITokenService? tokenService, ISessionManager? sessionManager, IServiceProvider serviceProvider) : base(deviceService, tokenService, serviceProvider)
     {
         _deviceService = deviceService ?? serviceProvider.GetRequiredService<IDeviceService>();
         _tokenService = tokenService ?? serviceProvider.GetRequiredService<ITokenService>();
         _sessionManager = sessionManager ?? serviceProvider.GetRequiredService<ISessionManager>();
         _tracer = serviceProvider.GetRequiredService<ITracer>();
-        _serviceProvider = serviceProvider;
     }
 
     /// <summary>验证身份</summary>
@@ -56,7 +50,7 @@ public abstract class BaseDeviceController : BaseController
     /// <param name="context"></param>
     /// <returns></returns>
     /// <exception cref="ApiException"></exception>
-    protected override Boolean OnAuthorize(String token, ActionContext context)
+    protected override Boolean OnAuthorize(String token, DeviceContext context)
     {
         // 先调用基类，获取Jwt。即使失败，也要继续往下走，获取设备信息。最后再决定是否抛出异常
         Exception? error = null;
@@ -69,13 +63,16 @@ public abstract class BaseDeviceController : BaseController
             error = ex;
         }
 
-        var code = Jwt?.Subject;
-        if (code.IsNullOrEmpty()) return false;
+        if (context.Device == null)
+        {
+            var code = Jwt?.Subject;
+            if (code.IsNullOrEmpty()) return false;
 
-        var dv = _deviceService.QueryDevice(code);
-        if (dv == null || !dv.Enable) error ??= new ApiException(ApiCode.Forbidden, "无效客户端！");
+            var dv = _deviceService.QueryDevice(code);
+            if (dv == null || !dv.Enable) error ??= new ApiException(ApiCode.Forbidden, "无效客户端！");
 
-        _device = dv!;
+            context.Device = dv!;
+        }
 
         if (error != null) throw error;
 
@@ -92,10 +89,11 @@ public abstract class BaseDeviceController : BaseController
     public virtual ILoginResponse Login([FromBody] ILoginRequest request)
     {
         // 先查一次，后续即使登录失败，也可以写设备历史
-        if (!request.Code.IsNullOrEmpty()) _device = _deviceService.QueryDevice(request.Code);
+        if (!request.Code.IsNullOrEmpty()) Context.Device = _deviceService.QueryDevice(request.Code);
 
-        var (dv, online, rs) = _deviceService.Login(request, "Http", UserHost);
+        var rs = _deviceService.Login(Context, request, "Http");
 
+        var dv = Context.Device!;
         rs ??= new LoginResponse { Name = dv.Name, };
         rs.Code = dv.Code;
 
@@ -105,7 +103,7 @@ public abstract class BaseDeviceController : BaseController
         // 动态注册的设备不可用时，不要发令牌，只发证书
         if (dv.Enable)
         {
-            if (request.ClientId.IsNullOrEmpty()) request.ClientId = Rand.NextString(8);
+            if (request.ClientId.IsNullOrEmpty()) Context.ClientId = request.ClientId = Rand.NextString(8);
             var tm = _tokenService.IssueToken(dv.Code, request.ClientId);
 
             rs.Token = tm.AccessToken;
@@ -122,11 +120,11 @@ public abstract class BaseDeviceController : BaseController
     [HttpPost(nameof(Logout))]
     public virtual ILogoutResponse Logout(String? reason)
     {
-        if (_device != null) _deviceService.Logout(_device, reason, "Http", ClientId, UserHost);
+        _deviceService.Logout(Context, reason, "Http");
 
         return new LogoutResponse
         {
-            Name = _device?.Name,
+            Name = Context.Device?.Name,
             Token = null,
         };
     }
@@ -155,16 +153,16 @@ public abstract class BaseDeviceController : BaseController
             ServerTime = DateTime.UtcNow.ToLong(),
         };
 
-        var device = _device;
+        var device = Context.Device;
         if (device != null)
         {
             //rs.Period = device.Period;
 
-            _deviceService.Ping(device, request, Token, ClientId, UserHost);
+            _deviceService.Ping(Context, request);
 
             // 令牌有效期检查，10分钟内到期的令牌，颁发新令牌。
             // 这里将来由客户端提交刷新令牌，才能颁发新的访问令牌。
-            var (jwt, ex) = _tokenService.DecodeToken(Token!);
+            var (jwt, ex) = _tokenService.DecodeToken(Context.Token!);
             if (ex == null && jwt != null && jwt.Expire < DateTime.Now.AddMinutes(10))
             {
                 using var span = _tracer?.NewSpan("RefreshToken", new { device.Code, jwt.Subject });
@@ -185,14 +183,14 @@ public abstract class BaseDeviceController : BaseController
     [HttpPost(nameof(Upgrade))]
     public virtual IUpgradeInfo Upgrade(String? channel)
     {
-        var device = _device ?? throw new ApiException(ApiCode.Unauthorized, "未登录");
+        if (Context.Device == null) throw new ApiException(ApiCode.Unauthorized, "未登录");
 
         // 基础路径
         var uri = Request.GetRawUrl().ToString();
         var p = uri.IndexOf('/', "https://".Length);
         if (p > 0) uri = uri[..p];
 
-        var info = _deviceService.Upgrade(device, channel, UserHost);
+        var info = _deviceService.Upgrade(Context, channel);
 
         // 为了兼容旧版本客户端，这里必须把路径处理为绝对路径
         if (info != null && !info.Source.StartsWithIgnoreCase("http://", "https://"))
@@ -210,7 +208,7 @@ public abstract class BaseDeviceController : BaseController
     [HttpGet(nameof(Notify))]
     public virtual async Task Notify()
     {
-        if (Token.IsNullOrEmpty())
+        if (Context.Token.IsNullOrEmpty())
         {
             HttpContext.Response.StatusCode = (Int32)HttpStatusCode.Unauthorized;
             return;
@@ -220,7 +218,7 @@ public abstract class BaseDeviceController : BaseController
         {
             using var socket = await HttpContext.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
 
-            await HandleNotify(socket, Token, HttpContext.RequestAborted).ConfigureAwait(false);
+            await HandleNotify(socket, HttpContext.RequestAborted).ConfigureAwait(false);
         }
         else
             HttpContext.Response.StatusCode = 400;
@@ -232,19 +230,16 @@ public abstract class BaseDeviceController : BaseController
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    protected virtual async Task HandleNotify(WebSocket socket, String token, CancellationToken cancellationToken)
+    protected virtual async Task HandleNotify(WebSocket socket, CancellationToken cancellationToken)
     {
-        var device = _device ?? throw new InvalidOperationException("未登录！");
-
+        var device = Context.Device ?? throw new InvalidOperationException("未登录！");
         var sessionManager = _sessionManager ?? throw new InvalidOperationException("未找到SessionManager服务");
-
-        var ip = UserHost;
 
         using var session = new WsCommandSession(socket)
         {
             Code = device.Code,
             Log = this,
-            SetOnline = online => _deviceService.SetOnline(device, online, token, ClientId, ip)
+            SetOnline = online => _deviceService.SetOnline(Context, online)
         };
 
         sessionManager.Add(session);
@@ -256,7 +251,7 @@ public abstract class BaseDeviceController : BaseController
     /// <param name="model">服务</param>
     /// <returns></returns>
     [HttpPost(nameof(CommandReply))]
-    public virtual Int32 CommandReply(CommandReplyModel model) => _deviceService.CommandReply(_device, model, UserHost);
+    public virtual Int32 CommandReply(CommandReplyModel model) => _deviceService.CommandReply(Context, model);
     #endregion
 
     #region 事件上报
@@ -264,7 +259,7 @@ public abstract class BaseDeviceController : BaseController
     /// <param name="events">事件集合</param>
     /// <returns></returns>
     [HttpPost(nameof(PostEvents))]
-    public virtual Int32 PostEvents(EventModel[] events) => _deviceService.PostEvents(_device, events, UserHost);
+    public virtual Int32 PostEvents(EventModel[] events) => _deviceService.PostEvents(Context, events);
     #endregion
 
     #region 辅助
@@ -272,6 +267,6 @@ public abstract class BaseDeviceController : BaseController
     /// <param name="action"></param>
     /// <param name="success"></param>
     /// <param name="message"></param>
-    public override void WriteLog(String action, Boolean success, String message) => _deviceService.WriteHistory(_device, action, success, message, ClientId, UserHost);
+    public override void WriteLog(String action, Boolean success, String message) => _deviceService.WriteHistory(Context, action, success, message);
     #endregion
 }

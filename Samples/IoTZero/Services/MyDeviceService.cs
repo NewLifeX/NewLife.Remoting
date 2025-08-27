@@ -25,10 +25,9 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
     /// </summary>
     /// <param name="request">登录信息</param>
     /// <param name="source">登录来源</param>
-    /// <param name="ip">远程IP</param>
     /// <returns></returns>
     /// <exception cref="ApiException"></exception>
-    public (IDeviceModel, IOnlineModel, ILoginResponse) Login(ILoginRequest request, String source, String ip)
+    public ILoginResponse Login(DeviceContext context, ILoginRequest request, String source)
     {
         if (request is not LoginInfo inf) throw new ArgumentOutOfRangeException(nameof(request));
 
@@ -36,6 +35,7 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
         var secret = inf.Secret;
 
         var dv = Device.FindByCode(code);
+        var ip = context.UserHost;
 
         var autoReg = false;
         if (dv == null)
@@ -52,7 +52,7 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
             // 校验唯一编码，防止客户端拷贝配置
             var uuid = inf.UUID;
             if (!uuid.IsNullOrEmpty() && !dv.Uuid.IsNullOrEmpty() && uuid != dv.Uuid)
-                WriteHistory(dv, source + "登录校验", false, $"新旧唯一标识不一致！（新）{uuid}!={dv.Uuid}（旧）", null, ip);
+                WriteHistory(context, source + "登录校验", false, $"新旧唯一标识不一致！（新）{uuid}!={dv.Uuid}（旧）");
 
             // 登录密码未设置或者未提交，则执行动态注册
             if (dv == null || !dv.Secret.IsNullOrEmpty()
@@ -70,25 +70,28 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
         if (dv == null) throw new ApiException(ApiCode.Unauthorized, "登录失败");
 
         dv.Login(inf, ip);
+        context.Device = dv;
 
         // 在线记录
         var olt = GetOnline(dv, ip) ?? CreateOnline(dv, ip);
         olt.Save(inf, null, null);
+        context.Online = olt;
 
         //SetChildOnline(dv, ip);
 
         // 登录历史
-        WriteHistory(dv, source + "登录", true, $"[{dv.Name}/{dv.Code}]登录成功 " + inf.ToJson(false, false, false), null, ip);
+        WriteHistory(context, source + "登录", true, $"[{dv.Name}/{dv.Code}]登录成功 " + inf.ToJson(false, false, false));
 
         var rs = new LoginResponse
         {
-            Name = dv.Name
+            Code = dv.Code,
+            Name = dv.Name,
         };
 
         // 动态注册，下发节点证书
         if (autoReg) rs.Secret = dv.Secret;
 
-        return (dv, olt, rs);
+        return rs;
     }
 
     /// <summary>设置设备在线，同时检查在线表</summary>
@@ -111,7 +114,7 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
     }
 
     /// <summary>自动注册</summary>
-    /// <param name="device"></param>
+    /// <param name="device">设备</param>
     /// <param name="inf"></param>
     /// <param name="ip"></param>
     /// <returns></returns>
@@ -157,26 +160,27 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
         // 更新产品设备总量避免界面无法及时获取设备数量信息
         device.Product.Fix();
 
-        WriteHistory(device, "动态注册", true, inf.ToJson(false, false, false), null, ip);
+        this.WriteHistory(device, "动态注册", true, inf.ToJson(false, false, false), null, ip);
 
         return device;
     }
 
     /// <summary>注销</summary>
-    /// <param name="device">设备</param>
+    /// <param name="context">上下文</param>
     /// <param name="reason">注销原因</param>
     /// <param name="source">登录来源</param>
-    /// <param name="clientId">客户端标识</param>
-    /// <param name="ip">远程IP</param>
     /// <returns></returns>
-    public IOnlineModel Logout(IDeviceModel device, String reason, String source, String clientId, String ip)
+    public IOnlineModel Logout(DeviceContext context, String reason, String source)
     {
-        var dv = device as Device;
+        var dv = context.Device as Device;
+        var ip = context.UserHost;
         var olt = GetOnline(dv, ip);
         if (olt != null)
         {
-            var msg = $"{reason} [{device}]]登录于{olt.CreateTime.ToFullString()}，最后活跃于{olt.UpdateTime.ToFullString()}";
-            WriteHistory(device, source + "设备下线", true, msg, null, ip);
+            context.Online = olt;
+
+            var msg = $"{reason} [{dv}]]登录于{olt.CreateTime.ToFullString()}，最后活跃于{olt.UpdateTime.ToFullString()}";
+            WriteHistory(context, source + "设备下线", true, msg);
             olt.Delete();
 
             var sid = $"{dv.Id}@{ip}";
@@ -197,15 +201,13 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
 
     #region 心跳保活
     /// <summary>心跳</summary>
-    /// <param name="device">设备</param>
+    /// <param name="context">上下文</param>
     /// <param name="request">心跳请求</param>
-    /// <param name="token">令牌</param>
-    /// <param name="clientId">客户端标识</param>
-    /// <param name="ip">远程IP</param>
     /// <returns></returns>
-    public IOnlineModel Ping(IDeviceModel device, IPingRequest request, String token, String clientId, String ip)
+    public IOnlineModel Ping(DeviceContext context, IPingRequest request)
     {
-        var dv = device as Device;
+        var dv = context.Device as Device;
+        var ip = context.UserHost;
         var inf = request as PingInfo;
         if (inf != null && !inf.IP.IsNullOrEmpty()) dv.IP = inf.IP;
 
@@ -215,27 +217,27 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
         dv.UpdateIP = ip;
         dv.SaveAsync();
 
-        var olt = GetOnline(dv, ip) ?? CreateOnline(dv, ip);
-        olt.Name = device.Name;
-        olt.GroupPath = dv.GroupPath;
-        olt.ProductId = dv.ProductId;
-        olt.Save(null, inf, token);
+        var online = GetOnline(dv, ip) ?? CreateOnline(dv, ip);
+        online.Name = dv.Name;
+        online.GroupPath = dv.GroupPath;
+        online.ProductId = dv.ProductId;
+        online.Save(null, inf, context.Token);
 
-        return olt;
+        context.Online = online;
+
+        return online;
     }
 
     /// <summary>设置设备的长连接上线/下线</summary>
-    /// <param name="device"></param>
+    /// <param name="context">上下文</param>
     /// <param name="online"></param>
-    /// <param name="token"></param>
-    /// <param name="ip"></param>
     /// <returns></returns>
-    public IOnlineModel SetOnline(IDeviceModel device, Boolean online, String token, String clientId, String ip)
+    public IOnlineModel SetOnline(DeviceContext context, Boolean online)
     {
-        if (device is Device dv)
+        if (context.Device is Device dv)
         {
             // 上线打标记
-            var olt = GetOnline(dv, ip);
+            var olt = GetOnline(dv, context.UserHost);
             if (olt != null)
             {
                 olt.WebSocket = online;
@@ -249,7 +251,7 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
     }
 
     /// <summary></summary>
-    /// <param name="device"></param>
+    /// <param name="device">设备</param>
     /// <param name="ip"></param>
     /// <returns></returns>
     public virtual DeviceOnline GetOnline(Device device, String ip)
@@ -266,7 +268,7 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
     }
 
     /// <summary>检查在线</summary>
-    /// <param name="device"></param>
+    /// <param name="device">设备</param>
     /// <param name="ip"></param>
     /// <returns></returns>
     public virtual DeviceOnline CreateOnline(Device device, String ip)
@@ -302,16 +304,12 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
     /// <summary>升级检查</summary>
     /// <param name="channel">更新通道</param>
     /// <returns></returns>
-    public IUpgradeInfo Upgrade(IDeviceModel device, String channel, String ip)
-    {
-        //return new UpgradeInfo();
-        return null;
-    }
+    public IUpgradeInfo Upgrade(DeviceContext context, String channel) => null;
     #endregion
 
     #region 下行通知
     /// <summary>发送命令</summary>
-    /// <param name="device"></param>
+    /// <param name="device">设备</param>
     /// <param name="command"></param>
     /// <returns></returns>
     public Task<Int32> SendCommand(IDeviceModel device, CommandModel command, CancellationToken cancellationToken) => sessionManager.PublishAsync(device.Code, command, null, cancellationToken);
@@ -319,18 +317,16 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
 
     #region 事件上报
     /// <summary>命令响应</summary>
-    /// <param name="device"></param>
+    /// <param name="context">上下文</param>
     /// <param name="model"></param>
-    /// <param name="ip"></param>
     /// <returns></returns>
-    public Int32 CommandReply(IDeviceModel device, CommandReplyModel model, String ip) => 0;
+    public Int32 CommandReply(DeviceContext context, CommandReplyModel model) => 0;
 
     /// <summary>上报事件</summary>
-    /// <param name="device"></param>
+    /// <param name="context">上下文</param>
     /// <param name="events"></param>
-    /// <param name="ip"></param>
     /// <returns></returns>
-    public Int32 PostEvents(IDeviceModel device, EventModel[] events, String ip) => 0;
+    public Int32 PostEvents(DeviceContext context, EventModel[] events) => 0;
     #endregion
 
     #region 辅助
@@ -340,16 +336,14 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
     public IDeviceModel QueryDevice(String code) => Device.FindByCode(code);
 
     /// <summary>写设备历史</summary>
-    /// <param name="device">设备</param>
+    /// <param name="context">上下文</param>
     /// <param name="action">动作</param>
     /// <param name="success">成功</param>
     /// <param name="remark">备注内容</param>
-    /// <param name="clientId">客户端标识</param>
-    /// <param name="ip">远程IP</param>
-    public void WriteHistory(IDeviceModel device, String action, Boolean success, String remark, String clientId, String ip)
+    public void WriteHistory(DeviceContext context, String action, Boolean success, String remark)
     {
         var traceId = DefaultSpan.Current?.TraceId;
-        var hi = DeviceHistory.Create(device as Device, action, success, remark, Environment.MachineName, ip, traceId);
+        var hi = DeviceHistory.Create(context.Device as Device, action, success, remark, Environment.MachineName, context.UserHost, traceId);
     }
     #endregion
 }

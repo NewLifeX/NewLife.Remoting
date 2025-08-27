@@ -12,20 +12,6 @@ namespace ZeroServer.Controllers;
 [Route("[controller]")]
 public class NodeController(IServiceProvider serviceProvider) : BaseDeviceController(serviceProvider)
 {
-    /// <summary>当前设备</summary>
-    public Node Node { get; set; }
-
-    #region 构造
-    protected override Boolean OnAuthorize(String token, ActionContext context)
-    {
-        if (!base.OnAuthorize(token, context)) return false;
-
-        Node = _device as Node;
-
-        return true;
-    }
-    #endregion
-
     /// <summary>心跳</summary>
     /// <param name="request"></param>
     /// <returns></returns>
@@ -33,8 +19,7 @@ public class NodeController(IServiceProvider serviceProvider) : BaseDeviceContro
     {
         var rs = base.OnPing(request);
 
-        var node = Node;
-        if (node != null && rs != null)
+        if (Context.Device is Node node && rs != null)
         {
             rs.Period = node.Period;
 

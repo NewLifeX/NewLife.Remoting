@@ -17,20 +17,6 @@ namespace IoTZero.Controllers;
 [Route("[controller]")]
 public class DeviceController(IServiceProvider serviceProvider) : BaseDeviceController(serviceProvider)
 {
-    /// <summary>当前设备</summary>
-    public Device Device { get; set; }
-
-    #region 构造
-    protected override Boolean OnAuthorize(String token, ActionContext context)
-    {
-        if (!base.OnAuthorize(token, context)) return false;
-
-        Device = _device as Device;
-
-        return true;
-    }
-    #endregion
-
     #region 心跳
     /// <summary>心跳</summary>
     /// <param name="request"></param>
@@ -39,8 +25,7 @@ public class DeviceController(IServiceProvider serviceProvider) : BaseDeviceCont
     {
         var rs = base.OnPing(request);
 
-        var device = Device;
-        if (device != null && rs != null)
+        if (Context.Device is Device device && rs != null)
         {
             rs.Period = device.Period;
         }

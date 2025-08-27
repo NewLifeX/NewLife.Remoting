@@ -6,6 +6,8 @@ using NewLife.IoT.ThingModels;
 using NewLife.IoT.ThingSpecification;
 using NewLife.Remoting;
 using NewLife.Remoting.Extensions;
+using NewLife.Remoting.Models;
+using NewLife.Remoting.Services;
 
 namespace IoTZero.Controllers;
 
@@ -16,28 +18,8 @@ namespace IoTZero.Controllers;
 [ApiFilter]
 [ApiController]
 [Route("[controller]")]
-public class ThingController(IServiceProvider serviceProvider, ThingService thingService) : BaseController(serviceProvider)
+public class ThingController(IDeviceService deviceService, ThingService thingService, IServiceProvider serviceProvider) : BaseController(deviceService, null, serviceProvider)
 {
-    /// <summary>当前设备</summary>
-    public Device Device { get; set; }
-
-    #region 构造
-    protected override Boolean OnAuthorize(String token, ActionContext context)
-    {
-        if (!base.OnAuthorize(token, context)) return false;
-
-        var code = Jwt?.Subject;
-        if (code.IsNullOrEmpty()) return false;
-
-        var dv = Device.FindByCode(code);
-        if (dv == null || !dv.Enable) throw new ApiException(ApiCode.Unauthorized, "无效设备！");
-
-        Device = dv;
-
-        return true;
-    }
-    #endregion
-
     #region 设备属性
     /// <summary>上报设备属性</summary>
     /// <param name="model">属性集合</param>
@@ -139,22 +121,19 @@ public class ThingController(IServiceProvider serviceProvider, ThingService thin
     #endregion
 
     #region 辅助
-    /// <summary>
-    /// 查找子设备
-    /// </summary>
+    /// <summary>查找子设备</summary>
     /// <param name="deviceCode"></param>
     /// <returns></returns>
     protected Device GetDevice(String deviceCode)
     {
-        var dv = Device;
-        if (dv == null) return null;
+        if (Context.Device is not Device dv) return null;
 
         if (deviceCode.IsNullOrEmpty() || dv.Code == deviceCode) return dv;
 
         var child = Device.FindByCode(deviceCode);
 
         //dv = dv.Childs.FirstOrDefault(e => e.Code == deviceCode);
-        if (child == null || child.Id != dv.Id) throw new Exception($"非法设备编码，[{deviceCode}]并非当前登录设备[{Device}]的子设备");
+        if (child == null || child.Id != dv.Id) throw new Exception($"非法设备编码，[{deviceCode}]并非当前登录设备[{dv}]的子设备");
 
         return child;
     }
