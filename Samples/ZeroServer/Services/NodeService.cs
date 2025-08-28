@@ -197,24 +197,20 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
     /// <summary>设置设备的长连接上线/下线</summary>
     /// <param name="context">上下文</param>
     /// <param name="online"></param>
-    /// <param name="token"></param>
     /// <returns></returns>
     public IOnlineModel SetOnline(DeviceContext context, Boolean online)
     {
-        if (context.Device is Node node)
-        {
-            // 上线打标记
-            var olt = GetOnline(node, context.UserHost);
-            if (olt != null)
-            {
-                olt.WebSocket = online;
-                olt.Update();
-            }
+        if (context.Device is not Node node) return null;
 
-            return olt;
+        // 上线打标记
+        var olt = GetOnline(node, context.UserHost);
+        if (olt != null)
+        {
+            olt.WebSocket = online;
+            olt.Update();
         }
 
-        return null;
+        return olt;
     }
 
     /// <summary></summary>

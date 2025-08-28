@@ -234,20 +234,17 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
     /// <returns></returns>
     public IOnlineModel SetOnline(DeviceContext context, Boolean online)
     {
-        if (context.Device is Device dv)
-        {
-            // 上线打标记
-            var olt = GetOnline(dv, context.UserHost);
-            if (olt != null)
-            {
-                olt.WebSocket = online;
-                olt.Update();
-            }
+        if (context.Device is not Device dv) return null;
 
-            return olt;
+        // 上线打标记
+        var olt = GetOnline(dv, context.UserHost);
+        if (olt != null)
+        {
+            olt.WebSocket = online;
+            olt.Update();
         }
 
-        return null;
+        return olt;
     }
 
     /// <summary></summary>

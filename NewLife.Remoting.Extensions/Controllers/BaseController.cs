@@ -176,6 +176,12 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
     /// <param name="action"></param>
     /// <param name="success"></param>
     /// <param name="message"></param>
-    public virtual void WriteLog(String action, Boolean success, String message) => XTrace.WriteLine($"[{action}]{message}");
+    public virtual void WriteLog(String action, Boolean success, String message)
+    {
+        if (_deviceService != null)
+            _deviceService.WriteHistory(Context, action, success, message);
+        else
+            XTrace.WriteLine($"[{action}]{message}");
+    }
     #endregion
 }

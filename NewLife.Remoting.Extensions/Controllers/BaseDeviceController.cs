@@ -226,7 +226,6 @@ public abstract class BaseDeviceController : BaseController
 
     /// <summary>长连接处理</summary>
     /// <param name="socket"></param>
-    /// <param name="token"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
