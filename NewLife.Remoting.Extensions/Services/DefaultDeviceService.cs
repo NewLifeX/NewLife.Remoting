@@ -1,5 +1,4 @@
-﻿using System;
-using System.Reflection;
+﻿using System.Reflection;
 using NewLife.Caching;
 using NewLife.Log;
 using NewLife.Remoting.Models;
@@ -40,20 +39,23 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     }
 
     #region 登录注销
-    /// <summary>
-    /// 设备登录验证，内部支持动态注册
-    /// </summary>
+    /// <summary>设备登录验证，内部支持动态注册</summary>
+    /// <remarks>
+    /// 内部流程：Authorize->Register(OnRegister)->OnLogin->GetOnline/CreateOnline
+    /// </remarks>
     /// <param name="context">上下文</param>
     /// <param name="request">登录信息</param>
     /// <param name="source">登录来源</param>
     /// <returns></returns>
     /// <exception cref="ApiException"></exception>
-    public ILoginResponse Login(DeviceContext context, ILoginRequest request, String source)
+    public virtual ILoginResponse Login(DeviceContext context, ILoginRequest request, String source)
     {
         if (request == null) throw new ArgumentOutOfRangeException(nameof(request));
 
         var code = request.Code;
         var device = code.IsNullOrEmpty() ? null : QueryDevice(code);
+        //if (device == null && !code.IsNullOrEmpty()) device = QueryDevice(code);
+        device ??= context.Device;
         if (device != null && !device.Enable) throw new ApiException(ApiCode.Forbidden, "禁止登录");
         if (device != null) context.Device = device;
 
@@ -200,6 +202,9 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
 
     #region 心跳保活
     /// <summary>心跳</summary>
+    /// <remarks>
+    /// 内部流程：GetOnline/CreateOnline
+    /// </remarks>
     /// <param name="context">上下文</param>
     /// <param name="request">心跳请求</param>
     /// <returns></returns>

@@ -109,6 +109,19 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
         return online;
     }
 
+    /// <summary>设置设备的长连接上线/下线</summary>
+    /// <param name="context">上下文</param>
+    /// <param name="online"></param>
+    /// <returns></returns>
+    public override void SetOnline(DeviceContext context, Boolean online)
+    {
+        if ((context.Online ?? GetOnline(context)) is DeviceOnline olt)
+        {
+            olt.WebSocket = online;
+            olt.Update();
+        }
+    }
+
     /// <summary>创建在线</summary>
     /// <param name="context">上下文</param>
     /// <returns></returns>

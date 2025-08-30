@@ -121,18 +121,6 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
         }
     }
 
-    /// <summary>获取在线</summary>
-    /// <param name="context"></param>
-    /// <returns></returns>
-    public override IOnlineModel GetOnline(DeviceContext context)
-    {
-        var online = base.GetOnline(context);
-        if (online != null) return online;
-
-        var sid = GetSessionId(context);
-        return NodeOnline.FindBySessionIdWithCache(sid);
-    }
-
     /// <summary>创建在线</summary>
     /// <param name="context">上下文</param>
     /// <returns></returns>
