@@ -228,7 +228,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <returns></returns>
     protected virtual String GetSessionId(DeviceContext context) => $"{context.Code ?? context.Device?.Code}@{context.UserHost}";
 
-    /// <summary>获取在线</summary>
+    /// <summary>获取在线。反射调用FindBySessionId</summary>
     /// <param name="context"></param>
     /// <returns></returns>
     public virtual IOnlineModel? GetOnline(DeviceContext context)
