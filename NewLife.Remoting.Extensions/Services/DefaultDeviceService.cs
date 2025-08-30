@@ -311,26 +311,54 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <returns></returns>
     public virtual Int32 CommandReply(DeviceContext context, CommandReplyModel model) => 0;
 
-    /// <summary>上报事件</summary>
+    /// <summary>上报事件。默认批量写入设备历史表</summary>
     /// <param name="context">上下文</param>
     /// <param name="events"></param>
     /// <returns></returns>
     public virtual Int32 PostEvents(DeviceContext context, EventModel[] events)
     {
-        var list = new List<IEntity>();
-        foreach (var model in events)
+        if (context.Device is IDeviceModel2 device)
         {
-            var success = !model.Type.EqualIgnoreCase("error");
-            if (context.Device is IDeviceModel2 device)
+            var list = new List<IEntity>();
+            foreach (var model in events)
             {
-                var history = device.CreateHistory(model.Name ?? "事件", success, model.Remark!);
-                if (history is IEntity entity) list.Add(entity);
+                var entity = CreateEvent(context, model);
+                list.Add(entity);
             }
-            else
-                WriteHistory(context, model.Name ?? "事件", success, model.Remark!);
-        }
 
-        return list.Insert();
+            return list.Insert();
+        }
+        else
+        {
+            foreach (var model in events)
+            {
+                var success = !model.Type.EqualIgnoreCase("error");
+                WriteHistory(context, model.Name ?? "事件", success, model.Remark!);
+            }
+
+            return events.Length;
+        }
+    }
+
+    /// <summary>创建设备事件</summary>
+    /// <param name="context"></param>
+    /// <param name="model"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidDataException"></exception>
+    protected virtual IEntity CreateEvent(DeviceContext context, EventModel model)
+    {
+        if (context.Device is not IDeviceModel2 device)
+            throw new InvalidDataException($"创建事件对象需要设备实体类{typeof(TDevice).FullName}实现IDeviceModel2");
+
+        var success = !model.Type.EqualIgnoreCase("error");
+        var history = device.CreateHistory(model.Name ?? "事件", success, model.Remark!);
+        if (history is IEntity entity)
+        {
+            var time = model.Time.ToDateTime().ToLocalTime();
+            if (time.Year > 2000) entity.SetItem("CreateTime", time);
+            return entity;
+        }
+        throw new InvalidDataException($"创建事件对象失败，设备实体类{typeof(TDevice).FullName}实现IDeviceModel2但CreateHistory返回空");
     }
     #endregion
 
