@@ -74,7 +74,7 @@ public class NodeOnlineService : IHostedService
             _nodeService.WriteHistory(node, "超时下线", true, msg, null, olt.CreateIP);
 
             if (_nodeService is NodeService ds)
-                ds.RemoveOnline(olt.NodeId, olt.CreateIP);
+                ds.RemoveOnline(new DeviceContext { Device = node, UserHost = olt.CreateIP });
 
             if (node != null)
             {

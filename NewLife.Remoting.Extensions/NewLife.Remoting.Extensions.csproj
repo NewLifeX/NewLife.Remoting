@@ -64,6 +64,9 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="NewLife.XCode" Version="11.20.2025.828-beta0756" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\NewLife.Remoting\NewLife.Remoting.csproj" />
   </ItemGroup>
 

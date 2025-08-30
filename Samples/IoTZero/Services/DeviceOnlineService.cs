@@ -74,7 +74,7 @@ public class DeviceOnlineService : IHostedService
                     _deviceService.WriteHistory(device, "超时下线", true, msg, null, olt.CreateIP);
 
                     if (_deviceService is MyDeviceService ds)
-                        ds.RemoveOnline(olt.DeviceId, olt.CreateIP);
+                        ds.RemoveOnline(new DeviceContext { Device = device, UserHost = olt.CreateIP });
 
                     if (device != null)
                     {

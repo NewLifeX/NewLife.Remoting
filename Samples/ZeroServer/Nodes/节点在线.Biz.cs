@@ -68,6 +68,8 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
     /// <summary>城市名</summary>
     [Map(__.CityID)]
     public String CityName => City?.Path;
+
+    String IOnlineModel.SessionId { get => SessionID; set => SessionID = value; }
     #endregion
 
     #region 扩展查询

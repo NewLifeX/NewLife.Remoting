@@ -443,5 +443,15 @@ public partial class Node : Entity<Node>, IDeviceModel
         if (rs.Count > 0) node.ProvinceID = rs[0].ID;
         if (rs.Count > 1) node.CityID = rs[^1].ID;
     }
+
+    /// <summary>写历史日志</summary>
+    /// <param name="action"></param>
+    /// <param name="success"></param>
+    /// <param name="content"></param>
+    public void WriteLog(String action, Boolean success, String content)
+    {
+        var history = NodeHistory.Create(this, action, success, content, null);
+        history.SaveAsync();
+    }
     #endregion
 }

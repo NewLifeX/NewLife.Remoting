@@ -1,11 +1,10 @@
 ﻿using NewLife;
 using NewLife.Caching;
 using NewLife.Remoting;
+using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
-using NewLife.Serialization;
-using XCode.Membership;
 using Zero.Data.Nodes;
 using ZeroServer.Models;
 
@@ -15,118 +14,46 @@ namespace ZeroServer.Services;
 /// <param name="passwordProvider"></param>
 /// <param name="cacheProvider"></param>
 /// <param name="setting"></param>
-public class NodeService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting) : IDeviceService
+public class NodeService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting) : DefaultDeviceService<Node, NodeOnline>(sessionManager, passwordProvider, cacheProvider)
 {
-    private readonly ICache _cache = cacheProvider.InnerCache;
-
     #region 登录注销
-    /// <summary>
-    /// 设备登录验证，内部支持动态注册
-    /// </summary>
-    /// <param name="context">上下文</param>
-    /// <param name="request">登录信息</param>
-    /// <param name="source">登录来源</param>
-    /// <returns></returns>
-    /// <exception cref="ApiException"></exception>
-    public ILoginResponse Login(DeviceContext context, ILoginRequest request, String source)
+    public override Boolean Authorize(DeviceContext context, ILoginRequest request)
     {
-        if (request is not LoginInfo inf) throw new ArgumentOutOfRangeException(nameof(request));
+        var dv = context.Device as Node;
+        var inf = request as LoginInfo;
 
-        var code = inf.Code;
-        var secret = inf.Secret;
+        // 校验唯一编码，防止客户端拷贝配置
+        var uuid = inf.UUID;
+        if (!uuid.IsNullOrEmpty() && !dv.Uuid.IsNullOrEmpty() && uuid != dv.Uuid)
+            WriteHistory(context, "登录校验", false, $"新旧唯一标识不一致！（新）{uuid}!={dv.Uuid}（旧）");
 
-        var node = Node.FindByCode(code!, true);
-        if (node != null && !node.Enable) throw new ApiException(ApiCode.Forbidden, "禁止登录");
-
-        var ip = context.UserHost;
-        var autoReg = false;
-        if (node == null)
-        {
-            node = AutoRegister(null, inf, ip);
-            autoReg = true;
-        }
-        else
-        {
-            if (!node.Enable) throw new ApiException(ApiCode.Forbidden, "禁止登录");
-
-            // 校验唯一编码，防止客户端拷贝配置
-            var uuid = inf.UUID;
-            if (!uuid.IsNullOrEmpty() && !node.Uuid.IsNullOrEmpty() && uuid != node.Uuid)
-                WriteHistory(context, source + "登录校验", false, $"新旧唯一标识不一致！（新）{uuid}!={node.Uuid}（旧）");
-
-            // 登录密码未设置或者未提交，则执行动态注册
-            if (node == null || !node.Secret.IsNullOrEmpty()
-                && (secret.IsNullOrEmpty() || !passwordProvider.Verify(node.Secret, secret)))
-            {
-                node = AutoRegister(node, inf, ip);
-                autoReg = true;
-            }
-        }
-
-        if (node == null) throw new ApiException(ApiCode.Unauthorized, "登录失败");
-
-        node.Login(inf, ip);
-        context.Device = node;
-
-        // 在线记录
-        var olt = GetOnline(node, ip) ?? CreateOnline(node, ip);
-        olt.Save(inf, null, null, ip);
-        context.Online = olt;
-
-        // 登录历史
-        WriteHistory(context, source + "登录", true, $"[{node.Name}/{node.Code}]登录成功 " + inf.ToJson(false, false, false));
-
-        var rs = new LoginResponse
-        {
-            Code = node.Code,
-            Name = node.Name
-        };
-
-        // 动态注册，下发节点证书
-        if (autoReg) rs.Secret = node.Secret;
-
-        return rs;
+        return base.Authorize(context, request);
     }
 
-    /// <summary>自动注册</summary>
-    /// <param name="node"></param>
-    /// <param name="inf"></param>
-    /// <param name="ip"></param>
-    /// <returns></returns>
-    /// <exception cref="ApiException"></exception>
-    public Node AutoRegister(Node node, LoginInfo inf, String ip)
+    protected override void OnRegister(DeviceContext context, ILoginRequest request)
     {
         // 全局开关，是否允许自动注册新产品
         if (!setting.AutoRegister) throw new ApiException(ApiCode.Forbidden, "禁止自动注册");
 
-        var code = inf.Code;
-        if (code.IsNullOrEmpty()) code = inf.UUID.GetBytes().Crc().ToString("X8");
-        if (code.IsNullOrEmpty()) code = Rand.NextString(8);
-
-        node ??= Node.FindByCode(code, false);
-        node ??= new Node
-        {
-            Code = code,
-            CreateIP = ip,
-            CreateTime = DateTime.Now,
-            Secret = Rand.NextString(8),
-        };
-
-        // 如果未打开动态注册，则把节点修改为禁用
-        node.Enable = true;
-
+        var inf = request as LoginInfo;
+        var node = context.Device as Node;
         if (node.Name.IsNullOrEmpty()) node.Name = inf.Name;
 
         node.ProductCode = inf.ProductCode;
-        node.Secret = Rand.NextString(16);
-        node.UpdateIP = ip;
-        node.UpdateTime = DateTime.Now;
+        //node.Secret = Rand.NextString(16);
+        //node.UpdateIP = context.UserHost;
+        //node.UpdateTime = DateTime.Now;
 
-        node.Save();
+        base.OnRegister(context, request);
+    }
 
-        this.WriteHistory(node, "动态注册", true, inf.ToJson(false, false, false), null, ip);
+    protected override void OnLogin(DeviceContext context, ILoginRequest request)
+    {
+        var node = context.Device as Node;
+        var inf = request as LoginInfo;
+        node.Login(inf, context.UserHost);
 
-        return node;
+        base.OnLogin(context, request);
     }
 
     /// <summary>注销</summary>
@@ -134,26 +61,15 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
     /// <param name="reason">注销原因</param>
     /// <param name="source">登录来源</param>
     /// <returns></returns>
-    public IOnlineModel Logout(DeviceContext context, String reason, String source)
+    public override IOnlineModel Logout(DeviceContext context, String? reason, String source)
     {
-        var node = context.Device as Node;
-        var ip = context.UserHost;
-        var online = GetOnline(node, ip);
-        if (online != null)
+        var online = base.Logout(context, reason, source);
+        if (online is NodeOnline online2 && context.Device is Node node)
         {
-            context.Online = online;
-
-            var msg = $"{reason} [{node}]]登录于{online.CreateTime.ToFullString()}，最后活跃于{online.UpdateTime.ToFullString()}";
-            WriteHistory(context, source + "设备下线", true, msg);
-            online.Delete();
-
-            var sid = $"{node.Id}@{ip}";
-            _cache.Remove($"NodeOnline:{sid}");
-
             // 计算在线时长
-            if (online.CreateTime.Year > 2000)
+            if (online2.CreateTime.Year > 2000)
             {
-                node.OnlineTime += (Int32)(DateTime.Now - online.CreateTime).TotalSeconds;
+                node.OnlineTime += (Int32)(DateTime.Now - online2.CreateTime).TotalSeconds;
                 node.Update();
             }
         }
@@ -167,7 +83,7 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
     /// <param name="context">上下文</param>
     /// <param name="request">心跳请求</param>
     /// <returns></returns>
-    public IOnlineModel Ping(DeviceContext context, IPingRequest request)
+    public override IOnlineModel Ping(DeviceContext context, IPingRequest request)
     {
         var node = context.Device as Node;
         var inf = request as PingInfo;
@@ -181,15 +97,13 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
         if (node.LastActive.AddMinutes(10) < DateTime.Now) node.LastActive = DateTime.Now;
         node.SaveAsync();
 
-        var online = GetOnline(node, ip) ?? CreateOnline(node, ip);
+        var online = base.Ping(context, request) as NodeOnline;
         online.Name = node.Name;
         online.Category = node.Category;
         online.Version = node.Version;
         online.CompileTime = node.CompileTime;
         online.OSKind = node.OSKind;
         online.Save(null, inf, context.Token, ip);
-
-        context.Online = online;
 
         return online;
     }
@@ -198,121 +112,62 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
     /// <param name="context">上下文</param>
     /// <param name="online"></param>
     /// <returns></returns>
-    public IOnlineModel SetOnline(DeviceContext context, Boolean online)
+    public override void SetOnline(DeviceContext context, Boolean online)
     {
-        if (context.Device is not Node node) return null;
-
-        // 上线打标记
-        var olt = GetOnline(node, context.UserHost);
-        if (olt != null)
+        if ((context.Online ?? GetOnline(context)) is NodeOnline olt)
         {
             olt.WebSocket = online;
             olt.Update();
         }
-
-        return olt;
     }
 
-    /// <summary></summary>
-    /// <param name="node"></param>
-    /// <param name="ip"></param>
+    /// <summary>获取在线</summary>
+    /// <param name="context"></param>
     /// <returns></returns>
-    public virtual NodeOnline GetOnline(Node node, String ip)
+    public override IOnlineModel GetOnline(DeviceContext context)
     {
-        var sid = $"{node.Id}@{ip}";
-        var online = _cache.Get<NodeOnline>($"NodeOnline:{sid}");
-        if (online != null)
-        {
-            _cache.SetExpire($"NodeOnline:{sid}", TimeSpan.FromSeconds(600));
-            return online;
-        }
+        var online = base.GetOnline(context);
+        if (online != null) return online;
 
+        var sid = GetSessionId(context);
         return NodeOnline.FindBySessionID(sid);
     }
 
-    /// <summary>检查在线</summary>
-    /// <param name="node"></param>
-    /// <param name="ip"></param>
+    /// <summary>创建在线</summary>
+    /// <param name="context">上下文</param>
     /// <returns></returns>
-    public virtual NodeOnline CreateOnline(Node node, String ip)
+    public override IOnlineModel CreateOnline(DeviceContext context)
     {
-        var sid = $"{node.Id}@{ip}";
-        var online = NodeOnline.GetOrAdd(sid);
+        if (context.Device is not Node node) return null;
+
+        var online = NodeOnline.GetOrAdd(GetSessionId(context));
         online.NodeId = node.Id;
         online.Name = node.Name;
         online.IP = node.IP;
-        online.CreateIP = ip;
-
+        online.CreateIP = context.UserHost;
         online.Creator = Environment.MachineName;
 
-        _cache.Set($"NodeOnline:{sid}", online, 600);
+        context.Online = online;
 
-        return online;
+        return base.CreateOnline(context);
     }
-
-    /// <summary>删除在线</summary>
-    /// <param name="deviceId"></param>
-    /// <param name="ip"></param>
-    /// <returns></returns>
-    public Int32 RemoveOnline(Int32 deviceId, String ip)
-    {
-        var sid = $"{deviceId}@{ip}";
-
-        return _cache.Remove($"NodeOnline:{sid}");
-    }
-    #endregion
-
-    #region 下行通知
-    /// <summary>发送命令</summary>
-    /// <param name="device">设备</param>
-    /// <param name="command"></param>
-    /// <returns></returns>
-    public Task<Int32> SendCommand(IDeviceModel device, CommandModel command, CancellationToken cancellationToken) => sessionManager.PublishAsync(device.Code, command, null, cancellationToken);
-    #endregion
-
-    #region 升级更新
-    /// <summary>升级检查</summary>
-    /// <param name="channel">更新通道</param>
-    /// <returns></returns>
-    public IUpgradeInfo Upgrade(DeviceContext context, String channel) => null;
-    #endregion
-
-    #region 事件上报
-    /// <summary>命令响应</summary>
-    /// <param name="context">上下文</param>
-    /// <param name="model"></param>
-    /// <returns></returns>
-    public Int32 CommandReply(DeviceContext context, CommandReplyModel model) => 0;
-
-    /// <summary>上报事件</summary>
-    /// <param name="context">上下文</param>
-    /// <param name="events"></param>
-    /// <returns></returns>
-    public Int32 PostEvents(DeviceContext context, EventModel[] events) => 0;
     #endregion
 
     #region 辅助
     /// <summary>查找设备</summary>
     /// <param name="code"></param>
     /// <returns></returns>
-    public IDeviceModel QueryDevice(String code) => Node.FindByCode(code);
+    public override IDeviceModel QueryDevice(String code) => Node.FindByCode(code);
 
     /// <summary>写设备历史</summary>
     /// <param name="context">上下文</param>
     /// <param name="action">动作</param>
     /// <param name="success">成功</param>
     /// <param name="remark">备注内容</param>
-    public void WriteHistory(DeviceContext context, String action, Boolean success, String remark)
+    public override void WriteHistory(DeviceContext context, String action, Boolean success, String remark)
     {
         var ip = context.UserHost;
         var history = NodeHistory.Create(context.Device as Node, action, success, remark, Environment.MachineName, ip);
-
-        if (history.CityID == 0 && !ip.IsNullOrEmpty())
-        {
-            var rs = Area.SearchIP(ip);
-            if (rs.Count > 0) history.ProvinceID = rs[0].ID;
-            if (rs.Count > 1) history.CityID = rs[^1].ID;
-        }
 
         history.SaveAsync();
     }

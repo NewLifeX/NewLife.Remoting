@@ -35,7 +35,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession
     /// <param name="message"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public override Task HandleAsync(CommandModel command, String message, CancellationToken cancellationToken)
+    public override Task HandleAsync(CommandModel command, String? message, CancellationToken cancellationToken)
     {
         message ??= command.ToJson();
         return socket.SendAsync(message.GetBytes(), WebSocketMessageType.Text, true, cancellationToken);

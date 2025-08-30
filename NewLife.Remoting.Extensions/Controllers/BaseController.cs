@@ -123,15 +123,15 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
 
         var (jwt, ex) = _tokenService.DecodeToken(token);
         Jwt = jwt;
-        context.Code = jwt?.Subject;
+        var code = context.Code = jwt?.Subject;
         context.ClientId = jwt?.Id!;
 
         // 如果注入了设备服务，尝试获取设备。即使失败，也要继续往下走，最后再决定是否抛出异常
         if (_deviceService != null)
         {
-            if (context.Code.IsNullOrEmpty()) return false;
+            if (code.IsNullOrEmpty()) return false;
 
-            var dv = _deviceService.QueryDevice(context.Code);
+            var dv = _deviceService.QueryDevice(code);
             if (dv == null || !dv.Enable) ex ??= new ApiException(ApiCode.Forbidden, "无效客户端！");
 
             context.Device = dv!;

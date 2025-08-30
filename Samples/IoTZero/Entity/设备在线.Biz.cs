@@ -1,7 +1,6 @@
 ﻿using System.Runtime.Serialization;
 using System.Web.Script.Serialization;
 using System.Xml.Serialization;
-using NewLife;
 using NewLife.Data;
 using NewLife.IoT.Models;
 using NewLife.Remoting.Models;

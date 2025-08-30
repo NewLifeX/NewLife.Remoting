@@ -1,29 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Runtime.Serialization;
-using System.Text;
-using System.Threading.Tasks;
-using System.Web;
+﻿using System.Runtime.Serialization;
 using System.Web.Script.Serialization;
 using System.Xml.Serialization;
-using NewLife;
-using NewLife.Caching;
 using NewLife.Data;
-using NewLife.Log;
-using NewLife.Model;
-using NewLife.Reflection;
-using NewLife.Threading;
-using NewLife.Web;
 using XCode;
 using XCode.Cache;
-using XCode.Configuration;
-using XCode.DataAccessLayer;
-using XCode.Membership;
-using XCode.Shards;
 
 namespace IoT.Data;
 
@@ -62,45 +42,6 @@ public partial class DeviceHistory : Entity<DeviceHistory>
         //if (isNew && !Dirtys[nameof(CreateTime)]) CreateTime = DateTime.Now;
         //if (isNew && !Dirtys[nameof(CreateIP)]) CreateIP = ManageProvider.UserHost;
     }
-
-    ///// <summary>首次连接数据库时初始化数据，仅用于实体类重载，用户不应该调用该方法</summary>
-    //[EditorBrowsable(EditorBrowsableState.Never)]
-    //protected override void InitData()
-    //{
-    //    // InitData一般用于当数据表没有数据时添加一些默认数据，该实体类的任何第一次数据库操作都会触发该方法，默认异步调用
-    //    if (Meta.Session.Count > 0) return;
-
-    //    if (XTrace.Debug) XTrace.WriteLine("开始初始化DeviceHistory[设备历史]数据……");
-
-    //    var entity = new DeviceHistory();
-    //    entity.Id = 0;
-    //    entity.DeviceId = 0;
-    //    entity.Name = "abc";
-    //    entity.Action = "abc";
-    //    entity.Success = true;
-    //    entity.TraceId = "abc";
-    //    entity.Creator = "abc";
-    //    entity.CreateTime = DateTime.Now;
-    //    entity.CreateIP = "abc";
-    //    entity.Remark = "abc";
-    //    entity.Insert();
-
-    //    if (XTrace.Debug) XTrace.WriteLine("完成初始化DeviceHistory[设备历史]数据！");
-    //}
-
-    ///// <summary>已重载。基类先调用Valid(true)验证数据，然后在事务保护内调用OnInsert</summary>
-    ///// <returns></returns>
-    //public override Int32 Insert()
-    //{
-    //    return base.Insert();
-    //}
-
-    ///// <summary>已重载。在事务保护范围内处理业务，位于Valid之后</summary>
-    ///// <returns></returns>
-    //protected override Int32 OnDelete()
-    //{
-    //    return base.OnDelete();
-    //}
     #endregion
 
     #region 扩展属性
@@ -147,7 +88,7 @@ public partial class DeviceHistory : Entity<DeviceHistory>
     /// <returns>实体列表</returns>
     public static IList<DeviceHistory> FindAllByDeviceId(Int32 deviceId)
     {
-        if (deviceId <= 0) return new List<DeviceHistory>();
+        if (deviceId <= 0) return [];
 
         // 实体缓存
         if (Meta.Session.Count < 1000) return Meta.Cache.FindAll(e => e.DeviceId == deviceId);
@@ -213,14 +154,12 @@ public partial class DeviceHistory : Entity<DeviceHistory>
     /// <param name="remark"></param>
     /// <param name="creator"></param>
     /// <param name="ip"></param>
-    /// <param name="traceId"></param>
     /// <returns></returns>
-    public static DeviceHistory Create(Device device, String action, Boolean success, String remark, String creator, String ip, String traceId)
+    public static DeviceHistory Create(Device device, String action, Boolean success, String remark, String creator, String ip)
     {
-        if (device == null) device = new Device();
+        device ??= new Device();
 
         if (creator.IsNullOrEmpty()) creator = Environment.MachineName;
-        if (traceId.IsNullOrEmpty()) traceId = DefaultSpan.Current?.TraceId;
         var history = new DeviceHistory
         {
             DeviceId = device.Id,
@@ -230,15 +169,21 @@ public partial class DeviceHistory : Entity<DeviceHistory>
 
             Remark = remark,
 
-            TraceId = traceId,
+            //TraceId = traceId,
             Creator = creator,
             CreateTime = DateTime.Now,
             CreateIP = ip,
         };
 
-        history.SaveAsync();
+        //history.SaveAsync();
 
         return history;
+    }
+
+    public static void WriteHistory(Device device, String action, Boolean success, String remark, String? ip)
+    {
+        var history = Create(device, action, success, remark, null, ip);
+        history.SaveAsync();
     }
 
     private static readonly Lazy<FieldCache<DeviceHistory>> NameCache = new(() => new FieldCache<DeviceHistory>(__.Action));
