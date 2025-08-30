@@ -241,7 +241,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
             return online;
         }
 
-        return _findOnline?.Invoke(sid);
+        return QueryOnline(sid);
     }
 
     /// <summary>创建在线</summary>
@@ -317,7 +317,10 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <summary>查找设备。反射调用FindByCode/FindByName</summary>
     /// <param name="code">编码</param>
     /// <returns></returns>
-    public virtual IDeviceModel? QueryDevice(String code) => _findDevice!.Invoke(code);
+    public virtual IDeviceModel? QueryDevice(String code) => _findDevice?.Invoke(code);
+
+    /// <summary>查找在线。反射调用FindBySessionId</summary>
+    public virtual IOnlineModel? QueryOnline(String sessionId) => _findOnline?.Invoke(sessionId)!;
 
     /// <summary>写设备历史。扩展调用IDeviceModel2.WriteLog</summary>
     /// <param name="context">上下文</param>

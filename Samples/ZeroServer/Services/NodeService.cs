@@ -159,6 +159,11 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
     /// <returns></returns>
     public override IDeviceModel QueryDevice(String code) => Node.FindByCode(code);
 
+    /// <summary>查找在线</summary>
+    /// <param name="sessionId"></param>
+    /// <returns></returns>
+    public override IOnlineModel QueryOnline(String sessionId) => NodeOnline.FindBySessionIdWithCache(sessionId);
+
     /// <summary>写设备历史</summary>
     /// <param name="context">上下文</param>
     /// <param name="action">动作</param>

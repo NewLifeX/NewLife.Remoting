@@ -79,14 +79,16 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
     public static NodeOnline FindByNodeId(Int32 deviceid) => Find(__.NodeId, deviceid);
 
     /// <summary>根据会话查找</summary>
-    /// <param name="sessionid">会话</param>
+    /// <param name="sessionId">会话</param>
     /// <param name="cache">是否走缓存</param>
     /// <returns></returns>
-    public static NodeOnline FindBySessionIdWithCache(String sessionid, Boolean cache = true)
+    public static NodeOnline FindBySessionIdWithCache(String sessionId, Boolean cache = true)
     {
-        if (!cache) return Find(_.SessionId == sessionid);
+        if (sessionId.IsNullOrEmpty()) return null;
 
-        return Meta.SingleCache.GetItemWithSlaveKey(sessionid) as NodeOnline;
+        if (!cache) return Find(_.SessionId == sessionId);
+
+        return Meta.SingleCache.GetItemWithSlaveKey(sessionId) as NodeOnline;
     }
 
     /// <summary>根据节点查找所有在线记录</summary>
@@ -175,9 +177,9 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
 
     #region 业务操作
     /// <summary>根据编码查询或添加</summary>
-    /// <param name="sessionid"></param>
+    /// <param name="sessionId"></param>
     /// <returns></returns>
-    public static NodeOnline GetOrAdd(String sessionid) => GetOrAdd(sessionid, FindBySessionIdWithCache, k => new NodeOnline { SessionId = k });
+    public static NodeOnline GetOrAdd(String sessionId) => GetOrAdd(sessionId, FindBySessionIdWithCache, k => new NodeOnline { SessionId = k });
 
     /// <summary>删除过期，指定过期时间</summary>
     /// <param name="expire">超时时间，秒</param>

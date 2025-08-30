@@ -12,7 +12,7 @@ using ZeroServer.Models;
 namespace Zero.Data.Nodes;
 
 /// <summary>节点信息</summary>
-public partial class Node : Entity<Node>, IDeviceModel
+public partial class Node : Entity<Node>, IDeviceModel2
 {
     #region 对象操作
     static Node()
@@ -453,5 +453,10 @@ public partial class Node : Entity<Node>, IDeviceModel
         var history = NodeHistory.Create(this, action, success, content, null);
         history.SaveAsync();
     }
+
+    /// <summary>创建在线对象</summary>
+    /// <param name="sessionId"></param>
+    /// <returns></returns>
+    public IOnlineModel CreateOnline(String sessionId) => NodeOnline.GetOrAdd(sessionId);
     #endregion
 }
