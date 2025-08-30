@@ -1,4 +1,5 @@
-﻿using NewLife.Log;
+﻿using NewLife.Data;
+using NewLife.Log;
 
 namespace NewLife.Remoting.Models;
 
@@ -16,11 +17,20 @@ public interface IDeviceModel
 }
 
 /// <summary>设备信息接口（扩展）</summary>
-public interface IDeviceModel2 : IDeviceModel, ILogProvider
+public interface IDeviceModel2 : IDeviceModel
 {
     /// <summary>密钥</summary>
     String Secret { get; set; }
 
+    /// <summary>创建设备历史</summary>
+    /// <param name="action"></param>
+    /// <param name="success"></param>
+    /// <param name="content"></param>
+    /// <returns></returns>
+    IExtend CreateHistory(String action, Boolean success, String content);
+
     /// <summary>创建在线对象</summary>
+    /// <param name="sessionId">会话标识</param>
+    /// <returns></returns>
     IOnlineModel CreateOnline(String sessionId);
 }

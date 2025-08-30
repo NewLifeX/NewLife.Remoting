@@ -1,5 +1,7 @@
-﻿using System.Reflection;
+﻿using System;
+using System.Reflection;
 using NewLife.Caching;
+using NewLife.Log;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
@@ -187,7 +189,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
 
             var msg = $"{reason} [{context.Device}]]登录于{entity["CreateTime"]}，最后活跃于{entity["UpdateTime"]}";
             WriteHistory(context, source + "设备下线", true, msg);
-            entity.Delete();
+            //entity.Delete();
 
             RemoveOnline(context);
         }
@@ -223,12 +225,12 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         }
     }
 
-    /// <summary>获取会话标识</summary>
+    /// <summary>获取会话标识。用于唯一定位在线对象，写入查询数据库和缓存</summary>
     /// <param name="context"></param>
     /// <returns></returns>
     protected virtual String GetSessionId(DeviceContext context) => $"{context.Code ?? context.Device?.Code}@{context.UserHost}";
 
-    /// <summary>获取在线。反射调用FindBySessionId</summary>
+    /// <summary>获取在线。先查缓存再查库，反射调用FindBySessionId</summary>
     /// <param name="context"></param>
     /// <returns></returns>
     public virtual IOnlineModel? GetOnline(DeviceContext context)
@@ -244,7 +246,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         return QueryOnline(sid);
     }
 
-    /// <summary>创建在线</summary>
+    /// <summary>创建在线。先写数据库再写缓存</summary>
     /// <param name="context">上下文</param>
     /// <returns></returns>
     public virtual IOnlineModel CreateOnline(DeviceContext context)
@@ -270,13 +272,16 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         return online;
     }
 
-    /// <summary>删除在线</summary>
+    /// <summary>删除在线。先删数据库再删缓存</summary>
     /// <param name="context">上下文</param>
     /// <returns></returns>
     public virtual Int32 RemoveOnline(DeviceContext context)
     {
         var sid = context.Online?.SessionId;
         if (sid.IsNullOrEmpty()) GetSessionId(context);
+
+        if (context.Online is IEntity entity)
+            entity.Delete();
 
         return _cache.Remove($"Online:{sid}");
     }
@@ -310,7 +315,23 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <param name="context">上下文</param>
     /// <param name="events"></param>
     /// <returns></returns>
-    public virtual Int32 PostEvents(DeviceContext context, EventModel[] events) => 0;
+    public virtual Int32 PostEvents(DeviceContext context, EventModel[] events)
+    {
+        var list = new List<IEntity>();
+        foreach (var model in events)
+        {
+            var success = !model.Type.EqualIgnoreCase("error");
+            if (context.Device is IDeviceModel2 device)
+            {
+                var history = device.CreateHistory(model.Name ?? "事件", success, model.Remark!);
+                if (history is IEntity entity) list.Add(entity);
+            }
+            else
+                WriteHistory(context, model.Name ?? "事件", success, model.Remark!);
+        }
+
+        return list.Insert();
+    }
     #endregion
 
     #region 辅助
@@ -330,7 +351,12 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     public virtual void WriteHistory(DeviceContext context, String action, Boolean success, String remark)
     {
         if (context.Device is IDeviceModel2 device)
-            device.WriteLog(action, success, remark);
+        {
+            var history = device.CreateHistory(action, success, remark);
+            (history as IEntity)?.SaveAsync();
+        }
+        else if (context.Device is ILogProvider log)
+            log.WriteLog(action, success, remark);
     }
     #endregion
 }

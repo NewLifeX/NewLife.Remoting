@@ -13,7 +13,7 @@ using XCode.Cache;
 
 namespace IoT.Data;
 
-public partial class Device : Entity<Device>, IDeviceModel2
+public partial class Device : Entity<Device>, IDeviceModel2, ILogProvider
 {
     #region 对象操作
     static Device()
@@ -273,6 +273,13 @@ public partial class Device : Entity<Device>, IDeviceModel2
         if (!di.IP.IsNullOrEmpty()) dv.IP = di.IP;
         if (!di.UUID.IsNullOrEmpty()) dv.Uuid = di.UUID;
     }
+
+    /// <summary>创建设备历史</summary>
+    /// <param name="action"></param>
+    /// <param name="success"></param>
+    /// <param name="content"></param>
+    /// <returns></returns>
+    public IExtend CreateHistory(String action, Boolean success, String content) => DeviceHistory.Create(this, action, success, content, null, null);
 
     /// <summary>写历史日志</summary>
     /// <param name="action"></param>
