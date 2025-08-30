@@ -133,7 +133,7 @@ public partial class Node : Entity<Node>, IDeviceModel
     /// <param name="code">名称</param>
     /// <param name="cache">是否走缓存</param>
     /// <returns>实体对象</returns>
-    public static Node FindByCode(String code, Boolean cache = true)
+    public static Node FindByCodeWithCache(String code, Boolean cache = true)
     {
         if (code.IsNullOrEmpty()) return null;
 
@@ -381,7 +381,7 @@ public partial class Node : Entity<Node>, IDeviceModel
     /// <summary>根据编码查询或添加</summary>
     /// <param name="code"></param>
     /// <returns></returns>
-    public static Node GetOrAdd(String code) => GetOrAdd(code, FindByCode, k => new Node { Code = k, Enable = true });
+    public static Node GetOrAdd(String code) => GetOrAdd(code, FindByCodeWithCache, k => new Node { Code = k, Enable = true });
 
     /// <summary>登录并保存信息</summary>
     /// <param name="info"></param>

@@ -24,8 +24,8 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
         Meta.Modules.Add<IPModule>();
 
         var sc = Meta.SingleCache;
-        sc.FindSlaveKeyMethod = k => Find(_.SessionID == k);
-        sc.GetSlaveKeyMethod = e => e.SessionID;
+        sc.FindSlaveKeyMethod = k => Find(_.SessionId == k);
+        sc.GetSlaveKeyMethod = e => e.SessionId;
     }
 
     /// <summary>校验数据</summary>
@@ -69,7 +69,7 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
     [Map(__.CityID)]
     public String CityName => City?.Path;
 
-    String IOnlineModel.SessionId { get => SessionID; set => SessionID = value; }
+    String IOnlineModel.SessionId { get => SessionId; set => SessionId = value; }
     #endregion
 
     #region 扩展查询
@@ -82,9 +82,9 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
     /// <param name="sessionid">会话</param>
     /// <param name="cache">是否走缓存</param>
     /// <returns></returns>
-    public static NodeOnline FindBySessionID(String sessionid, Boolean cache = true)
+    public static NodeOnline FindBySessionIdWithCache(String sessionid, Boolean cache = true)
     {
-        if (!cache) return Find(_.SessionID == sessionid);
+        if (!cache) return Find(_.SessionId == sessionid);
 
         return Meta.SingleCache.GetItemWithSlaveKey(sessionid) as NodeOnline;
     }
@@ -159,7 +159,7 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
 
         exp &= _.CreateTime.Between(start, end);
 
-        if (!key.IsNullOrEmpty()) exp &= _.Name.Contains(key) | _.Data.Contains(key) | _.SessionID.Contains(key);
+        if (!key.IsNullOrEmpty()) exp &= _.Name.Contains(key) | _.Data.Contains(key) | _.SessionId.Contains(key);
 
         return FindAll(exp, page);
     }
@@ -177,7 +177,7 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
     /// <summary>根据编码查询或添加</summary>
     /// <param name="sessionid"></param>
     /// <returns></returns>
-    public static NodeOnline GetOrAdd(String sessionid) => GetOrAdd(sessionid, FindBySessionID, k => new NodeOnline { SessionID = k });
+    public static NodeOnline GetOrAdd(String sessionid) => GetOrAdd(sessionid, FindBySessionIdWithCache, k => new NodeOnline { SessionId = k });
 
     /// <summary>删除过期，指定过期时间</summary>
     /// <param name="expire">超时时间，秒</param>

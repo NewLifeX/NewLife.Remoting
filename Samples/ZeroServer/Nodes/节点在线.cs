@@ -34,13 +34,13 @@ public partial class NodeOnline
     [BindColumn("Id", "编号", "")]
     public Int32 Id { get => _Id; set { if (OnPropertyChanging("Id", value)) { _Id = value; OnPropertyChanged("Id"); } } }
 
-    private String _SessionID;
+    private String _SessionId;
     /// <summary>会话</summary>
     [DisplayName("会话")]
     [Description("会话")]
     [DataObjectField(false, false, true, 50)]
-    [BindColumn("SessionID", "会话", "")]
-    public String SessionID { get => _SessionID; set { if (OnPropertyChanging("SessionID", value)) { _SessionID = value; OnPropertyChanged("SessionID"); } } }
+    [BindColumn("SessionId", "会话", "")]
+    public String SessionId { get => _SessionId; set { if (OnPropertyChanging("SessionId", value)) { _SessionId = value; OnPropertyChanged("SessionId"); } } }
 
     private Int32 _NodeId;
     /// <summary>节点</summary>
@@ -387,7 +387,7 @@ public partial class NodeOnline
         get => name switch
         {
             "Id" => _Id,
-            "SessionID" => _SessionID,
+            "SessionId" => _SessionId,
             "NodeId" => _NodeId,
             "Name" => _Name,
             "IP" => _IP,
@@ -436,7 +436,7 @@ public partial class NodeOnline
             switch (name)
             {
                 case "Id": _Id = value.ToInt(); break;
-                case "SessionID": _SessionID = Convert.ToString(value); break;
+                case "SessionId": _SessionId = Convert.ToString(value); break;
                 case "NodeId": _NodeId = value.ToInt(); break;
                 case "Name": _Name = Convert.ToString(value); break;
                 case "IP": _IP = Convert.ToString(value); break;
@@ -487,6 +487,21 @@ public partial class NodeOnline
     #region 关联映射
     #endregion
 
+    #region 扩展查询
+    /// <summary>根据会话查找</summary>
+    /// <param name="sessionId">会话</param>
+    /// <returns>实体对象</returns>
+    public static NodeOnline FindBySessionId(String sessionId)
+    {
+        if (sessionId.IsNullOrEmpty()) return null;
+
+        // 实体缓存
+        if (Meta.Session.Count < 1000) return Meta.Cache.Find(e => e.SessionId.EqualIgnoreCase(sessionId));
+
+        return Find(_.SessionId == sessionId);
+    }
+    #endregion
+
     #region 字段名
     /// <summary>取得节点在线字段信息的快捷方式</summary>
     public partial class _
@@ -495,7 +510,7 @@ public partial class NodeOnline
         public static readonly Field Id = FindByName("Id");
 
         /// <summary>会话</summary>
-        public static readonly Field SessionID = FindByName("SessionID");
+        public static readonly Field SessionId = FindByName("SessionId");
 
         /// <summary>节点</summary>
         public static readonly Field NodeId = FindByName("NodeId");
@@ -630,7 +645,7 @@ public partial class NodeOnline
         public const String Id = "Id";
 
         /// <summary>会话</summary>
-        public const String SessionID = "SessionID";
+        public const String SessionId = "SessionId";
 
         /// <summary>节点</summary>
         public const String NodeId = "NodeId";

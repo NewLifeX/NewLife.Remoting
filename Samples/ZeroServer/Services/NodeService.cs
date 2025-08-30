@@ -130,7 +130,7 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
         if (online != null) return online;
 
         var sid = GetSessionId(context);
-        return NodeOnline.FindBySessionID(sid);
+        return NodeOnline.FindBySessionIdWithCache(sid);
     }
 
     /// <summary>创建在线</summary>
