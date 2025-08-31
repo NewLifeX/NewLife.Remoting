@@ -2,7 +2,7 @@
 
 namespace NewLife.Remoting.Models;
 
-/// <summary>设备上下文</summary>
+/// <summary>设备上下文。该对象经由池化管理，勿保存</summary>
 public class DeviceContext : IExtend
 {
     #region 属性

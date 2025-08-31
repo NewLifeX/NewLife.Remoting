@@ -1,7 +1,6 @@
 ﻿using System.Runtime.Serialization;
 using System.Web.Script.Serialization;
 using System.Xml.Serialization;
-using NewLife;
 using NewLife.Data;
 using NewLife.IoT.Models;
 using NewLife.Remoting.Models;
@@ -15,13 +14,16 @@ public partial class DeviceOnline : Entity<DeviceOnline>, IOnlineModel
     #region 对象操作
     static DeviceOnline()
     {
-        // 累加字段，生成 Update xx Set Count=Count+1234 Where xxx
-        //var df = Meta.Factory.AdditionalFields;
-        //df.Add(nameof(ProductId));
+        var df = Meta.Factory.AdditionalFields;
+        df.Add(__.Pings);
 
         // 过滤器 UserModule、TimeModule、IPModule
         Meta.Modules.Add<TimeModule>();
         Meta.Modules.Add<IPModule>();
+
+        var sc = Meta.SingleCache;
+        sc.FindSlaveKeyMethod = k => Find(_.SessionId == k);
+        sc.GetSlaveKeyMethod = e => e.SessionId;
     }
 
     /// <summary>验证并修补数据，通过抛出异常的方式提示验证失败。</summary>
@@ -42,51 +44,6 @@ public partial class DeviceOnline : Entity<DeviceOnline>, IOnlineModel
         // 检查唯一索引
         // CheckExist(isNew, nameof(SessionId));
     }
-
-    ///// <summary>首次连接数据库时初始化数据，仅用于实体类重载，用户不应该调用该方法</summary>
-    //[EditorBrowsable(EditorBrowsableState.Never)]
-    //protected override void InitData()
-    //{
-    //    // InitData一般用于当数据表没有数据时添加一些默认数据，该实体类的任何第一次数据库操作都会触发该方法，默认异步调用
-    //    if (Meta.Session.Count > 0) return;
-
-    //    if (XTrace.Debug) XTrace.WriteLine("开始初始化DeviceOnline[设备在线]数据……");
-
-    //    var entity = new DeviceOnline();
-    //    entity.SessionId = "abc";
-    //    entity.ProductId = 0;
-    //    entity.DeviceId = 0;
-    //    entity.Name = "abc";
-    //    entity.IP = "abc";
-    //    entity.GroupPath = "abc";
-    //    entity.Pings = 0;
-    //    entity.Delay = 0;
-    //    entity.Offset = 0;
-    //    entity.LocalTime = DateTime.Now;
-    //    entity.Token = "abc";
-    //    entity.Creator = "abc";
-    //    entity.CreateTime = DateTime.Now;
-    //    entity.CreateIP = "abc";
-    //    entity.UpdateTime = DateTime.Now;
-    //    entity.Remark = "abc";
-    //    entity.Insert();
-
-    //    if (XTrace.Debug) XTrace.WriteLine("完成初始化DeviceOnline[设备在线]数据！");
-    //}
-
-    ///// <summary>已重载。基类先调用Valid(true)验证数据，然后在事务保护内调用OnInsert</summary>
-    ///// <returns></returns>
-    //public override Int32 Insert()
-    //{
-    //    return base.Insert();
-    //}
-
-    ///// <summary>已重载。在事务保护范围内处理业务，位于Valid之后</summary>
-    ///// <returns></returns>
-    //protected override Int32 OnDelete()
-    //{
-    //    return base.OnDelete();
-    //}
     #endregion
 
     #region 扩展属性
@@ -126,14 +83,13 @@ public partial class DeviceOnline : Entity<DeviceOnline>, IOnlineModel
     /// <summary>根据会话查找</summary>
     /// <param name="sessionId">会话</param>
     /// <returns>实体对象</returns>
-    public static DeviceOnline FindBySessionId(String sessionId)
+    public static DeviceOnline FindBySessionId(String sessionId, Boolean cache = true)
     {
         if (sessionId.IsNullOrEmpty()) return null;
 
-        // 实体缓存
-        if (Meta.Session.Count < 1000) return Meta.Cache.Find(e => e.SessionId.EqualIgnoreCase(sessionId));
+        if (!cache) return Find(_.SessionId == sessionId);
 
-        return Find(_.SessionId == sessionId);
+        return Meta.SingleCache.GetItemWithSlaveKey(sessionId) as DeviceOnline;
     }
 
     /// <summary>根据产品查找</summary>

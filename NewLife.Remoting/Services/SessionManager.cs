@@ -37,7 +37,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
     private readonly ICache? _cache = serviceProvider.GetService<ICacheProvider>()?.Cache;
     private readonly ITracer? _tracer = serviceProvider.GetService<ITracer>();
-    private readonly ILog? _log = serviceProvider.GetService<ILog>();
+    //private readonly ILog? _log = serviceProvider.GetService<ILog>();
     #endregion
 
     #region 方法
@@ -116,7 +116,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     /// <param name="message"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public virtual Task<Int32> PublishAsync(String code, CommandModel command, String message, CancellationToken cancellationToken)
+    public virtual Task<Int32> PublishAsync(String code, CommandModel command, String? message, CancellationToken cancellationToken)
     {
         if (command == null && message.IsNullOrEmpty()) throw new ArgumentNullException(nameof(command), "命令和消息不能同时为空");
 

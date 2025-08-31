@@ -24,5 +24,5 @@ public class CommandSession : DisposeBase, ICommandSession
     #endregion
 
     /// <summary>处理事件</summary>
-    public virtual Task HandleAsync(CommandModel command, String message, CancellationToken cancellationToken) => TaskEx.CompletedTask;
+    public virtual Task HandleAsync(CommandModel command, String? message, CancellationToken cancellationToken) => TaskEx.CompletedTask;
 }

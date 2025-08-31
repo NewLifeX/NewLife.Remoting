@@ -24,8 +24,8 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
         Meta.Modules.Add<IPModule>();
 
         var sc = Meta.SingleCache;
-        sc.FindSlaveKeyMethod = k => Find(_.SessionID == k);
-        sc.GetSlaveKeyMethod = e => e.SessionID;
+        sc.FindSlaveKeyMethod = k => Find(_.SessionId == k);
+        sc.GetSlaveKeyMethod = e => e.SessionId;
     }
 
     /// <summary>校验数据</summary>
@@ -68,6 +68,8 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
     /// <summary>城市名</summary>
     [Map(__.CityID)]
     public String CityName => City?.Path;
+
+    String IOnlineModel.SessionId { get => SessionId; set => SessionId = value; }
     #endregion
 
     #region 扩展查询
@@ -77,14 +79,16 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
     public static NodeOnline FindByNodeId(Int32 deviceid) => Find(__.NodeId, deviceid);
 
     /// <summary>根据会话查找</summary>
-    /// <param name="sessionid">会话</param>
+    /// <param name="sessionId">会话</param>
     /// <param name="cache">是否走缓存</param>
     /// <returns></returns>
-    public static NodeOnline FindBySessionID(String sessionid, Boolean cache = true)
+    public static NodeOnline FindBySessionIdWithCache(String sessionId, Boolean cache = true)
     {
-        if (!cache) return Find(_.SessionID == sessionid);
+        if (sessionId.IsNullOrEmpty()) return null;
 
-        return Meta.SingleCache.GetItemWithSlaveKey(sessionid) as NodeOnline;
+        if (!cache) return Find(_.SessionId == sessionId);
+
+        return Meta.SingleCache.GetItemWithSlaveKey(sessionId) as NodeOnline;
     }
 
     /// <summary>根据节点查找所有在线记录</summary>
@@ -157,7 +161,7 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
 
         exp &= _.CreateTime.Between(start, end);
 
-        if (!key.IsNullOrEmpty()) exp &= _.Name.Contains(key) | _.Data.Contains(key) | _.SessionID.Contains(key);
+        if (!key.IsNullOrEmpty()) exp &= _.Name.Contains(key) | _.Data.Contains(key) | _.SessionId.Contains(key);
 
         return FindAll(exp, page);
     }
@@ -173,9 +177,9 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
 
     #region 业务操作
     /// <summary>根据编码查询或添加</summary>
-    /// <param name="sessionid"></param>
+    /// <param name="sessionId"></param>
     /// <returns></returns>
-    public static NodeOnline GetOrAdd(String sessionid) => GetOrAdd(sessionid, FindBySessionID, k => new NodeOnline { SessionID = k });
+    public static NodeOnline GetOrAdd(String sessionId) => GetOrAdd(sessionId, FindBySessionIdWithCache, k => new NodeOnline { SessionId = k });
 
     /// <summary>删除过期，指定过期时间</summary>
     /// <param name="expire">超时时间，秒</param>

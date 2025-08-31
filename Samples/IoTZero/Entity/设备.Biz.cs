@@ -2,7 +2,6 @@
 using System.Runtime.Serialization;
 using System.Web.Script.Serialization;
 using System.Xml.Serialization;
-using NewLife;
 using NewLife.Common;
 using NewLife.Data;
 using NewLife.IoT.Models;
@@ -14,7 +13,7 @@ using XCode.Cache;
 
 namespace IoT.Data;
 
-public partial class Device : Entity<Device>, IDeviceModel
+public partial class Device : Entity<Device>, IDeviceModel2, ILogProvider
 {
     #region 对象操作
     static Device()
@@ -45,8 +44,7 @@ public partial class Device : Entity<Device>, IDeviceModel
 
         if (ProductId <= 0) throw new ApiException(ApiCode.BadRequest, "产品Id错误");
 
-        var product = Product.FindById(ProductId);
-        if (product == null) throw new ApiException(ApiCode.NotFound, "产品Id错误");
+        var product = Product.FindById(ProductId) ?? throw new ApiException(ApiCode.NotFound, "产品Id错误");
 
         var len = _.IP.Length;
         if (len > 0 && !IP.IsNullOrEmpty() && IP.Length > len) IP = IP[..len];
@@ -139,7 +137,7 @@ public partial class Device : Entity<Device>, IDeviceModel
     /// <returns>实体列表</returns>
     public static IList<Device> FindAllByProductId(Int32 productId)
     {
-        if (productId <= 0) return new List<Device>();
+        if (productId <= 0) return [];
 
         // 实体缓存
         if (Meta.Session.Count < 1000) return Meta.Cache.FindAll(e => e.ProductId == productId);
@@ -152,7 +150,7 @@ public partial class Device : Entity<Device>, IDeviceModel
     /// <returns>实体列表</returns>
     public static IList<Device> FindAllByUuid(String uuid)
     {
-        if (uuid.IsNullOrEmpty()) return new List<Device>();
+        if (uuid.IsNullOrEmpty()) return [];
 
         // 实体缓存
         if (Meta.Session.Count < 1000) return Meta.Cache.FindAll(e => e.Uuid.EqualIgnoreCase(uuid));
@@ -247,9 +245,11 @@ public partial class Device : Entity<Device>, IDeviceModel
             dv.Update();
 
             if (!reason.IsNullOrEmpty())
-                DeviceHistory.Create(dv, "上线", true, $"设备上线。{reason}", null, ip, null);
+                DeviceHistory.WriteHistory(dv, "上线", true, $"设备上线。{reason}", ip);
         }
     }
+
+    public IOnlineModel CreateOnline(String sessionId) => DeviceOnline.GetOrAdd(sessionId);
 
     /// <summary>
     /// 注销
@@ -273,5 +273,19 @@ public partial class Device : Entity<Device>, IDeviceModel
         if (!di.IP.IsNullOrEmpty()) dv.IP = di.IP;
         if (!di.UUID.IsNullOrEmpty()) dv.Uuid = di.UUID;
     }
+
+    /// <summary>创建设备历史</summary>
+    /// <param name="action"></param>
+    /// <param name="success"></param>
+    /// <param name="content"></param>
+    /// <returns></returns>
+    public IExtend CreateHistory(String action, Boolean success, String content) => DeviceHistory.Create(this, action, success, content, null, null);
+
+    /// <summary>写历史日志</summary>
+    /// <param name="action"></param>
+    /// <param name="success"></param>
+    /// <param name="content"></param>
+    public void WriteLog(String action, Boolean success, String content) => DeviceHistory.WriteHistory(this, action, success, content, null);
+
     #endregion
 }

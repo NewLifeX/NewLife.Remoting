@@ -11,7 +11,7 @@ public interface IDeviceService
     /// <summary>查找设备</summary>
     /// <param name="code">编码</param>
     /// <returns></returns>
-    IDeviceModel QueryDevice(String code);
+    IDeviceModel? QueryDevice(String code);
 
     /// <summary>设备登录</summary>
     /// <param name="context">上下文</param>
@@ -25,7 +25,7 @@ public interface IDeviceService
     /// <param name="reason">注销原因</param>
     /// <param name="source">登录来源</param>
     /// <returns></returns>
-    IOnlineModel Logout(DeviceContext context, String? reason, String source);
+    IOnlineModel? Logout(DeviceContext context, String? reason, String source);
 
     /// <summary>设备心跳</summary>
     /// <param name="context">上下文</param>
@@ -37,7 +37,7 @@ public interface IDeviceService
     /// <param name="context">上下文</param>
     /// <param name="online">上线/下线</param>
     /// <returns></returns>
-    IOnlineModel SetOnline(DeviceContext context, Boolean online);
+    void SetOnline(DeviceContext context, Boolean online);
 
     /// <summary>发送命令</summary>
     /// <param name="device">设备</param>
@@ -62,7 +62,7 @@ public interface IDeviceService
     /// <param name="context">上下文</param>
     /// <param name="channel">更新通道</param>
     /// <returns></returns>
-    IUpgradeInfo Upgrade(DeviceContext context, String? channel);
+    IUpgradeInfo? Upgrade(DeviceContext context, String? channel);
 
     /// <summary>写设备历史</summary>
     /// <param name="context">上下文</param>
