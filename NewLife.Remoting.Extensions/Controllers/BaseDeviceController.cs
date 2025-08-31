@@ -208,20 +208,16 @@ public abstract class BaseDeviceController : BaseController
     [HttpGet(nameof(Notify))]
     public virtual async Task Notify()
     {
-        if (Context.Token.IsNullOrEmpty())
-        {
-            HttpContext.Response.StatusCode = (Int32)HttpStatusCode.Unauthorized;
-            return;
-        }
-
         if (HttpContext.WebSockets.IsWebSocketRequest)
         {
-            using var socket = await HttpContext.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
+            using var socket = await HttpContext.WebSockets.AcceptWebSocketAsync();
 
-            await HandleNotify(socket, HttpContext.RequestAborted).ConfigureAwait(false);
+            await HandleNotify(socket, HttpContext.RequestAborted);
         }
         else
+        {
             HttpContext.Response.StatusCode = 400;
+        }
     }
 
     /// <summary>长连接处理</summary>
@@ -243,7 +239,7 @@ public abstract class BaseDeviceController : BaseController
 
         sessionManager.Add(session);
 
-        await session.WaitAsync(HttpContext, cancellationToken).ConfigureAwait(false);
+        await session.WaitAsync(HttpContext, cancellationToken);
     }
 
     /// <summary>设备端响应服务调用</summary>
