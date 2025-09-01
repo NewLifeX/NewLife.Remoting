@@ -465,6 +465,16 @@ public partial class Node : Entity<Node>, IDeviceModel2, ILogProvider
     /// <summary>创建在线对象</summary>
     /// <param name="sessionId"></param>
     /// <returns></returns>
-    public IOnlineModel CreateOnline(String sessionId) => NodeOnline.GetOrAdd(sessionId);
+    public IOnlineModel CreateOnline(String sessionId)
+    {
+        var online = NodeOnline.GetOrAdd(sessionId);
+        online.NodeId = Id;
+        online.Name = Name;
+        online.IP = IP;
+        //online.CreateIP = context.UserHost;
+        online.Creator = Environment.MachineName;
+
+        return online;
+    }
     #endregion
 }

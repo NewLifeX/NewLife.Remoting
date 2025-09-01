@@ -88,11 +88,10 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
     public override IOnlineModel OnPing(DeviceContext context, IPingRequest request)
     {
         var dv = context.Device as Device;
-        var ip = context.UserHost;
-        var inf = request as PingInfo;
-        if (inf != null && !inf.IP.IsNullOrEmpty()) dv.IP = inf.IP;
+        if (request is PingInfo inf && !inf.IP.IsNullOrEmpty()) dv.IP = inf.IP;
 
         // 自动上线
+        var ip = context.UserHost;
         if (dv != null && !dv.Online) dv.SetOnline(ip, "心跳");
 
         dv.UpdateIP = ip;
@@ -112,25 +111,6 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
             olt.WebSocket = online;
             olt.Update();
         }
-    }
-
-    /// <summary>创建在线</summary>
-    /// <param name="context">上下文</param>
-    /// <returns></returns>
-    public override IOnlineModel CreateOnline(DeviceContext context)
-    {
-        if (context.Device is not Device device) return null;
-
-        var online = base.CreateOnline(context) as DeviceOnline;
-
-        online.ProductId = device.ProductId;
-        online.DeviceId = device.Id;
-        online.Name = device.Name;
-        online.IP = device.IP;
-        online.CreateIP = context.UserHost;
-        online.Creator = Environment.MachineName;
-
-        return online;
     }
     #endregion
 }

@@ -245,11 +245,15 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel2
     {
         var online = this;
 
+        if (inf.Memory > 0) online.Memory = (Int32)(inf.Memory / 1024 / 1024);
         if (inf.AvailableMemory > 0) online.AvailableMemory = (Int32)(inf.AvailableMemory / 1024 / 1024);
+        MemoryUsed = online.Memory - online.AvailableMemory;
         if (inf.AvailableFreeSpace > 0) online.AvailableFreeSpace = (Int32)(inf.AvailableFreeSpace / 1024 / 1024);
+        if (inf.TotalSize > 0) online.SpaceUsed = (Int32)(inf.TotalSize / 1024 / 1024) - online.AvailableFreeSpace;
         if (inf.CpuRate > 0) online.CpuRate = inf.CpuRate;
         if (inf.Temperature > 0) online.Temperature = inf.Temperature;
         if (inf.Battery > 0) online.Battery = inf.Battery;
+        if (inf.Signal > 0) online.Signal = inf.Signal;
         if (inf.UplinkSpeed > 0) online.UplinkSpeed = (Int64)inf.UplinkSpeed;
         if (inf.DownlinkSpeed > 0) online.DownlinkSpeed = (Int64)inf.DownlinkSpeed;
         if (inf.Uptime > 0) online.Uptime = inf.Uptime;

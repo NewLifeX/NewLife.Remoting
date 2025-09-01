@@ -392,7 +392,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
             var list = new List<IEntity>();
             foreach (var model in events)
             {
-                var entity = CreateEvent(context, model);
+                var entity = CreateEvent(context, device, model);
                 list.Add(entity);
             }
 
@@ -411,14 +411,15 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     }
 
     /// <summary>创建设备事件</summary>
-    /// <param name="context"></param>
-    /// <param name="model"></param>
+    /// <param name="context">上下文</param>
+    /// <param name="device">设备</param>
+    /// <param name="model">事件</param>
     /// <returns></returns>
     /// <exception cref="InvalidDataException"></exception>
-    protected virtual IEntity CreateEvent(DeviceContext context, EventModel model)
+    protected virtual IEntity CreateEvent(DeviceContext context, IDeviceModel2 device, EventModel model)
     {
-        if (context.Device is not IDeviceModel2 device)
-            throw new InvalidDataException($"创建事件对象需要设备实体类{typeof(TDevice).FullName}实现IDeviceModel2");
+        //if (context.Device is not IDeviceModel2 device)
+        //    throw new InvalidDataException($"创建事件对象需要设备实体类{typeof(TDevice).FullName}实现IDeviceModel2");
 
         var success = !model.Type.EqualIgnoreCase("error");
         var history = device.CreateHistory(model.Name ?? "事件", success, model.Remark!);

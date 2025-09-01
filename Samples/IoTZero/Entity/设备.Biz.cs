@@ -249,7 +249,18 @@ public partial class Device : Entity<Device>, IDeviceModel2, ILogProvider
         }
     }
 
-    public IOnlineModel CreateOnline(String sessionId) => DeviceOnline.GetOrAdd(sessionId);
+    public IOnlineModel CreateOnline(String sessionId)
+    {
+        var online = DeviceOnline.GetOrAdd(sessionId);
+        online.ProductId = ProductId;
+        online.DeviceId = Id;
+        online.Name = Name;
+        online.IP = IP;
+        //online.CreateIP = context.UserHost;
+        online.Creator = Environment.MachineName;
+
+        return online;
+    }
 
     /// <summary>
     /// 注销

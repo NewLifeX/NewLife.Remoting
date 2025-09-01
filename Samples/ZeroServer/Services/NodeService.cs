@@ -111,25 +111,6 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
             olt.Update();
         }
     }
-
-    /// <summary>创建在线</summary>
-    /// <param name="context">上下文</param>
-    /// <returns></returns>
-    public override IOnlineModel CreateOnline(DeviceContext context)
-    {
-        if (context.Device is not Node node) return null;
-
-        var online = NodeOnline.GetOrAdd(GetSessionId(context));
-        online.NodeId = node.Id;
-        online.Name = node.Name;
-        online.IP = node.IP;
-        online.CreateIP = context.UserHost;
-        online.Creator = Environment.MachineName;
-
-        context.Online = online;
-
-        return base.CreateOnline(context);
-    }
     #endregion
 
     #region 辅助
