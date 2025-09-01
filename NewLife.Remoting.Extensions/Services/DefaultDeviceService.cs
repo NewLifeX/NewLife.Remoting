@@ -403,7 +403,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         if (timeout > 0)
         {
             var q = cacheProvider.GetQueue<CommandReplyModel>($"cmdreply:{cmd.Id}");
-            var reply = await q.TakeOneAsync(timeout);
+            var reply = await q.TakeOneAsync(timeout, cancellationToken);
             if (reply != null)
             {
                 // 埋点
