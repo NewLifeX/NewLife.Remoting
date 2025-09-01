@@ -1,4 +1,6 @@
-﻿using System.Reflection;
+﻿using System.Diagnostics;
+using System.Reflection;
+using System.Threading;
 using NewLife.Caching;
 using NewLife.Log;
 using NewLife.Remoting.Models;
@@ -362,12 +364,82 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     #endregion
 
     #region 下行通知
-    /// <summary>发送命令</summary>
+    /// <summary>发送命令。内部调用</summary>
     /// <param name="device">设备</param>
     /// <param name="command">命令对象</param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     public virtual Task<Int32> SendCommand(IDeviceModel device, CommandModel command, CancellationToken cancellationToken) => sessionManager.PublishAsync(device.Code, command, null, cancellationToken);
+
+    /// <summary>发送命令。外部平台级接口调用</summary>
+    /// <param name="context">上下文</param>
+    /// <param name="model">命令</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns></returns>
+    public virtual async Task<CommandReplyModel?> SendCommand(DeviceContext context, CommandInModel model, CancellationToken cancellationToken = default)
+    {
+        var target = GetDevice(model.Command);
+        if (target == null) throw new ArgumentNullException(nameof(model.Code), "未找到指定设备 " + model.Code);
+
+        // 验证令牌
+        var tokenService = serviceProvider.GetService<ITokenService>();
+        var (jwt, ex) = tokenService!.DecodeToken(context.Token!);
+        if (ex != null) throw ex;
+
+        // 构建指令
+        var now = DateTime.Now;
+        var cmd = new CommandModel
+        {
+            Id = Rand.Next(),
+            Command = model.Command,
+            Argument = model.Argument,
+            TraceId = DefaultSpan.Current?.TraceId,
+        };
+        if (model.StartTime > 0) cmd.StartTime = DateTime.Now.AddSeconds(model.StartTime);
+        if (model.Expire > 0) cmd.Expire = DateTime.Now.AddSeconds(model.Expire);
+
+        var id = await SendCommand(target, cmd, cancellationToken);
+
+        // 挂起等待。借助redis队列，等待响应
+        var timeout = model.Timeout;
+        if (timeout > 0)
+        {
+            var q = cacheProvider.GetQueue<CommandReplyModel>($"cmdreply:{cmd.Id}");
+            var reply = await q.TakeOneAsync(timeout);
+            if (reply != null)
+            {
+                // 埋点
+                var tracer = serviceProvider.GetService<ITracer>();
+                using var span = tracer?.NewSpan($"mq:CommandReply", reply);
+
+                if (reply.Status == CommandStatus.错误)
+                    throw new Exception($"命令错误！{reply.Data}");
+                else if (reply.Status == CommandStatus.取消)
+                    throw new Exception($"命令已取消！{reply.Data}");
+
+                return reply;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>命令响应</summary>
+    /// <param name="context">上下文</param>
+    /// <param name="model"></param>
+    /// <returns></returns>
+    public virtual Int32 CommandReply(DeviceContext context, CommandReplyModel model)
+    {
+        // 通知命令发布者，指令已完成
+        var topic = $"cmdreply:{model.Id}";
+        var q = cacheProvider.GetQueue<CommandReplyModel>(topic);
+        q.Add(model);
+
+        // 设置过期时间，过期自动清理
+        cacheProvider.Cache.SetExpire(topic, TimeSpan.FromSeconds(60));
+
+        return 1;
+    }
     #endregion
 
     #region 升级更新
@@ -379,12 +451,6 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     #endregion
 
     #region 事件上报
-    /// <summary>命令响应</summary>
-    /// <param name="context">上下文</param>
-    /// <param name="model"></param>
-    /// <returns></returns>
-    public virtual Int32 CommandReply(DeviceContext context, CommandReplyModel model) => 0;
-
     /// <summary>上报事件。默认批量写入设备历史表</summary>
     /// <param name="context">上下文</param>
     /// <param name="events"></param>

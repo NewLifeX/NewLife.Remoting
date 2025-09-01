@@ -234,6 +234,19 @@ public abstract class BaseDeviceController : BaseController
     /// <returns></returns>
     [HttpPost(nameof(CommandReply))]
     public virtual Int32 CommandReply(CommandReplyModel model) => _deviceService.CommandReply(Context, model);
+
+    /// <summary>向节点发送命令。通知节点更新、安装和启停应用等</summary>
+    /// <param name="model">命令模型</param>
+    /// <returns></returns>
+    [AllowAnonymous]
+    [HttpPost(nameof(SendCommand))]
+    public Task<CommandReplyModel?> SendCommand(CommandInModel model)
+    {
+        if (model.Code.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Code), "必须指定编码");
+        if (model.Command.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Command));
+
+        return _deviceService.SendCommand(Context, model, HttpContext.RequestAborted);
+    }
     #endregion
 
     #region 事件上报

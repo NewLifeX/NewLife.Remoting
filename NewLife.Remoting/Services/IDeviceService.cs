@@ -40,12 +40,19 @@ public interface IDeviceService
     /// <returns></returns>
     void SetOnline(DeviceContext context, Boolean online);
 
-    /// <summary>发送命令</summary>
+    /// <summary>发送命令。内部调用</summary>
     /// <param name="device">设备</param>
     /// <param name="command">命令</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     Task<Int32> SendCommand(IDeviceModel device, CommandModel command, CancellationToken cancellationToken = default);
+
+    /// <summary>发送命令。外部平台级接口调用</summary>
+    /// <param name="context">上下文</param>
+    /// <param name="model">命令</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns></returns>
+    Task<CommandReplyModel?> SendCommand(DeviceContext context, CommandInModel model, CancellationToken cancellationToken = default);
 
     /// <summary>命令响应</summary>
     /// <param name="context">上下文</param>
