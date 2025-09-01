@@ -92,6 +92,34 @@ public interface IDeviceService2 : IDeviceService
     /// <param name="context">上下文</param>
     /// <param name="request">登录请求</param>
     void OnLogin(DeviceContext context, ILoginRequest request);
+
+    /// <summary>获取设备。先查缓存再查库</summary>
+    /// <param name="code">设备编码</param>
+    /// <returns></returns>
+    IDeviceModel? GetDevice(String code);
+
+    /// <summary>查找在线</summary>
+    IOnlineModel? QueryOnline(String sessionId);
+
+    /// <summary>获取在线。先查缓存再查库</summary>
+    /// <param name="context">上下文</param>
+    /// <returns></returns>
+    IOnlineModel? GetOnline(DeviceContext context);
+
+    /// <summary>创建在线。先写数据库再写缓存</summary>
+    /// <param name="context">上下文</param>
+    /// <returns></returns>
+    IOnlineModel CreateOnline(DeviceContext context);
+
+    /// <summary>删除在线。先删数据库再删缓存</summary>
+    /// <param name="context">上下文</param>
+    /// <returns></returns>
+    Int32 RemoveOnline(DeviceContext context);
+
+    /// <summary>获取下行命令</summary>
+    /// <param name="nodeId"></param>
+    /// <returns></returns>
+    CommandModel[] AcquireCommands(Int32 nodeId);
 }
 
 /// <summary>设备服务扩展</summary>

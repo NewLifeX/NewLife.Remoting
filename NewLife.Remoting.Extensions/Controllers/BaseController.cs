@@ -132,10 +132,14 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
         {
             if (code.IsNullOrEmpty()) return false;
 
-            var dv = _deviceService.QueryDevice(code);
+            var ds2 = _deviceService as IDeviceService2;
+
+            var dv = ds2 != null ? ds2.GetDevice(code) : _deviceService.QueryDevice(code);
             if (dv == null || !dv.Enable) ex ??= new ApiException(ApiCode.Forbidden, "无效客户端！");
 
             context.Device = dv!;
+
+            if (ds2 != null && context.Online == null) context.Online = ds2.GetOnline(context);
         }
 
         if (ex != null) throw ex;

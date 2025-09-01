@@ -1,5 +1,4 @@
-﻿using System.Net;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.Log;
 using NewLife.Remoting.Extensions.Services;
@@ -63,16 +62,21 @@ public abstract class BaseDeviceController : BaseController
             error = ex;
         }
 
+        var ds2 = _deviceService as IDeviceService2;
+
         if (context.Device == null)
         {
             var code = Jwt?.Subject;
             if (code.IsNullOrEmpty()) return false;
 
-            var dv = _deviceService.QueryDevice(code);
+            var dv = ds2 != null ? ds2.GetDevice(code) : _deviceService.QueryDevice(code);
             if (dv == null || !dv.Enable) error ??= new ApiException(ApiCode.Forbidden, "无效客户端！");
 
             context.Device = dv!;
         }
+
+        // 在线对象
+        context.Online ??= ds2?.GetOnline(context);
 
         if (error != null) throw error;
 

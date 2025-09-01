@@ -13,7 +13,7 @@ namespace NewLife.Remoting.Extensions.Services;
 /// <param name="sessionManager"></param>
 /// <param name="passwordProvider"></param>
 /// <param name="cacheProvider"></param>
-public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider) : IDeviceService
+public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider) : IDeviceService2
     where TDevice : Entity<TDevice>, IDeviceModel, new()
     where TOnline : Entity<TOnline>, IOnlineModel, new()
 {
@@ -39,12 +39,12 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     }
 
     #region 登录注销
-    /// <summary>设备登录验证，内部支持动态注册</summary>
+    /// <summary>设备登录验证。内部支持动态注册</summary>
     /// <remarks>
     /// 内部流程：Authorize->Register(OnRegister)->OnLogin->GetOnline/CreateOnline
     /// </remarks>
     /// <param name="context">上下文</param>
-    /// <param name="request">登录信息</param>
+    /// <param name="request">登录请求</param>
     /// <param name="source">登录来源</param>
     /// <returns></returns>
     /// <exception cref="ApiException"></exception>
@@ -58,6 +58,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         device ??= context.Device;
         if (device != null && !device.Enable) throw new ApiException(ApiCode.Forbidden, "禁止登录");
         if (device != null) context.Device = device;
+
+        if (!source.IsNullOrEmpty()) context["Source"] = source;
 
         // 设备不存在或者验证失败，执行注册流程
         if (device != null && !Authorize(context, request))
@@ -77,11 +79,6 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         context.Device = device;
         OnLogin(context, request);
 
-        context.Online = GetOnline(context) ?? CreateOnline(context);
-
-        // 登录历史
-        WriteHistory(context, source + "登录", true, $"[{device.Name}/{device.Code}]登录成功 " + request.ToJson(false, false, false));
-
         var rs = new LoginResponse
         {
             Code = device.Code,
@@ -94,7 +91,10 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         return rs;
     }
 
-    /// <summary>验证设备合法性</summary>
+    /// <summary>验证设备合法性。验证密钥</summary>
+    /// <param name="context">上下文</param>
+    /// <param name="request">登录请求</param>
+    /// <returns></returns>
     public virtual Boolean Authorize(DeviceContext context, ILoginRequest request)
     {
         if (context.Device is not IDeviceModel2 device) return false;
@@ -123,9 +123,9 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         return true;
     }
 
-    /// <summary>自动注册</summary>
-    /// <param name="context"></param>
-    /// <param name="request"></param>
+    /// <summary>自动注册设备。验证密钥失败后</summary>
+    /// <param name="context">上下文</param>
+    /// <param name="request">登录请求</param>
     /// <returns></returns>
     /// <exception cref="ApiException"></exception>
     public virtual IDeviceModel Register(DeviceContext context, ILoginRequest request)
@@ -172,10 +172,19 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <param name="request"></param>
     protected virtual void OnRegister(DeviceContext context, ILoginRequest request) => (context.Device as IEntity)!.Save();
 
-    /// <summary>登录中</summary>
-    /// <param name="context"></param>
-    /// <param name="request"></param>
-    protected virtual void OnLogin(DeviceContext context, ILoginRequest request) { }
+    /// <summary>鉴权后的登录处理。修改设备信息、创建在线记录和写日志</summary>
+    /// <param name="context">上下文</param>
+    /// <param name="request">登录请求</param>
+    public virtual void OnLogin(DeviceContext context, ILoginRequest request)
+    {
+        context.Online = GetOnline(context) ?? CreateOnline(context);
+
+        var device = context.Device!;
+        var source = context["Source"] as String;
+
+        // 登录历史
+        WriteHistory(context, source + "登录", true, $"[{device.Name}/{device.Code}]登录成功 " + request.ToJson(false, false, false));
+    }
 
     /// <summary>注销</summary>
     /// <param name="context">上下文</param>
@@ -198,10 +207,25 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
 
         return online;
     }
+
+    /// <summary>获取设备。先查缓存再查库</summary>
+    /// <param name="code">设备编码</param>
+    /// <returns></returns>
+    public virtual IDeviceModel? GetDevice(String code)
+    {
+        var device = _cache.Get<IDeviceModel>($"Device:{code}");
+        if (device != null) return device;
+
+        device = QueryDevice(code);
+
+        if (device != null) _cache.Set($"Device:{code}", device, 60);
+
+        return device;
+    }
     #endregion
 
     #region 心跳保活
-    /// <summary>心跳</summary>
+    /// <summary>设备心跳。更新在线记录信息</summary>
     /// <remarks>
     /// 内部流程：GetOnline/CreateOnline
     /// </remarks>
@@ -212,6 +236,12 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     {
         var online = context.Online ?? GetOnline(context) ?? CreateOnline(context);
         context.Online = online;
+
+        if (online is IOnlineModel2 online2 && request != null)
+        {
+            online2.File(request, context);
+            if (online is IEntity entity) entity.Save();
+        }
 
         return online;
     }
@@ -235,8 +265,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <returns></returns>
     protected virtual String GetSessionId(DeviceContext context) => $"{context.Code ?? context.Device?.Code}@{context.UserHost}";
 
-    /// <summary>获取在线。先查缓存再查库，反射调用FindBySessionId</summary>
-    /// <param name="context"></param>
+    /// <summary>获取在线。先查缓存再查库</summary>
+    /// <param name="context">上下文</param>
     /// <returns></returns>
     public virtual IOnlineModel? GetOnline(DeviceContext context)
     {
@@ -244,11 +274,15 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         var online = _cache.Get<IOnlineModel>($"Online:{sid}");
         if (online != null)
         {
-            _cache.SetExpire($"Online:{sid}", TimeSpan.FromSeconds(600));
+            //_cache.SetExpire($"Online:{sid}", TimeSpan.FromSeconds(600));
             return online;
         }
 
-        return QueryOnline(sid);
+        online = QueryOnline(sid);
+
+        if (online != null) _cache.Set($"Online:{sid}", online, 600);
+
+        return online;
     }
 
     /// <summary>创建在线。先写数据库再写缓存</summary>
@@ -290,6 +324,11 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
 
         return _cache.Remove($"Online:{sid}");
     }
+
+    /// <summary>获取下行命令</summary>
+    /// <param name="nodeId"></param>
+    /// <returns></returns>
+    public virtual CommandModel[] AcquireCommands(Int32 nodeId) => [];
     #endregion
 
     #region 下行通知
