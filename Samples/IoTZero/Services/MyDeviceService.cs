@@ -1,7 +1,6 @@
 ﻿using IoT.Data;
 using NewLife.Caching;
 using NewLife.IoT.Models;
-using NewLife.Log;
 using NewLife.Remoting;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
@@ -14,24 +13,24 @@ namespace IoTZero.Services;
 /// <param name="passwordProvider"></param>
 /// <param name="cacheProvider"></param>
 /// <param name="setting"></param>
-/// <param name="tracer"></param>
-public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting, ITracer tracer, IServiceProvider serviceProvider) : DefaultDeviceService<Device, DeviceOnline>(sessionManager, passwordProvider, cacheProvider, serviceProvider)
+/// <param name="serviceProvider"></param>
+public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting, IServiceProvider serviceProvider) : DefaultDeviceService<Device, DeviceOnline>(sessionManager, passwordProvider, cacheProvider, serviceProvider)
 {
     #region 登录注销
     /// <summary>设置设备在线，同时检查在线表</summary>
-    /// <param name="dv"></param>
-    /// <param name="ip"></param>
+    /// <param name="context"></param>
     /// <param name="reason"></param>
-    public void SetDeviceOnline(Device dv, String ip, String reason)
+    public void SetDeviceOnline(DeviceContext context, String reason)
     {
         // 如果已上线，则不需要埋点
         //if (dv.Online) tracer = null;
-        using var span = tracer?.NewSpan(nameof(SetDeviceOnline), new { dv.Name, dv.Code, ip, reason });
+        //using var span = tracer?.NewSpan(nameof(SetDeviceOnline), new { dv.Name, dv.Code, ip, reason });
 
-        var context = new DeviceContext { Device = dv, UserHost = ip };
+        var dv = context.Device as Device;
+        //var context = new DeviceContext { Device = dv, UserHost = ip };
         var online = (GetOnline(context) ?? CreateOnline(context)) as DeviceOnline;
 
-        dv.SetOnline(ip, reason);
+        dv.SetOnline(context.UserHost, reason);
 
         // 避免频繁更新心跳数
         if (online.UpdateTime.AddSeconds(60) < DateTime.Now)

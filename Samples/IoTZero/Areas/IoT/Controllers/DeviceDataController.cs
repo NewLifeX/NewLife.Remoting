@@ -1,5 +1,4 @@
 ﻿using IoT.Data;
-using NewLife;
 using NewLife.Algorithms;
 using NewLife.Cube;
 using NewLife.Cube.Charts;
@@ -37,6 +36,7 @@ public class DeviceDataController : EntityController<DeviceData>
         var start = p["dtStart"].ToDateTime();
         var end = p["dtEnd"].ToDateTime();
 
+        // 指定日期，为了方便分表
         if (start.Year < 2000)
         {
             start = DateTime.Today;
@@ -44,14 +44,14 @@ public class DeviceDataController : EntityController<DeviceData>
             p["dtEnd"] = start.ToString("yyyy-MM-dd");
         }
 
-        if (deviceId > 0 && p.PageSize == 20 && !name.IsNullOrEmpty() && !name.StartsWithIgnoreCase("raw-", "channel-")) p.PageSize = 14400;
+        if (deviceId > 0 && p.PageSize == 20 && !name.IsNullOrEmpty()) p.PageSize = 14400;
 
         var list = DeviceData.Search(deviceId, name, start, end, p["Q"], p);
 
         // 单一设备绘制曲线
         if (list.Count > 0 && deviceId > 0)
         {
-            var list2 = list.Where(e => !e.Name.StartsWithIgnoreCase("raw-", "channel-") && e.Value.ToDouble(-1) >= 0).OrderBy(e => e.Id).ToList();
+            var list2 = list.Where(e => e.Value.ToDouble(-1) >= 0).OrderBy(e => e.Id).ToList();
 
             // 绘制曲线图
             if (list2.Count > 0)

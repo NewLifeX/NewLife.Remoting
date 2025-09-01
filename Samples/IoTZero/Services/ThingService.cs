@@ -1,45 +1,19 @@
 ﻿using IoT.Data;
 using NewLife.Caching;
-using NewLife.Data;
 using NewLife.IoT.ThingModels;
 using NewLife.Log;
-using NewLife.Remoting.Models;
-using NewLife.Remoting.Services;
 using NewLife.Security;
 using EventModel = NewLife.Remoting.Models.EventModel;
 
 namespace IoTZero.Services;
 
 /// <summary>物模型服务</summary>
-public class ThingService
+/// <param name="dataService"></param>
+/// <param name="queueService"></param>
+/// <param name="cacheProvider"></param>
+/// <param name="tracer"></param>
+public class ThingService(DataService dataService, QueueService queueService, ICacheProvider cacheProvider, ITracer tracer)
 {
-    private readonly DataService _dataService;
-    private readonly QueueService _queueService;
-    private readonly IDeviceService _deviceService;
-    private readonly ICacheProvider _cacheProvider;
-    private readonly ITokenSetting _setting;
-    private readonly ITracer _tracer;
-    static Snowflake _snowflake = new();
-
-    /// <summary>
-    /// 实例化物模型服务
-    /// </summary>
-    /// <param name="dataService"></param>
-    /// <param name="queueService"></param>
-    /// <param name="deviceService"></param>
-    /// <param name="cacheProvider"></param>
-    /// <param name="setting"></param>
-    /// <param name="tracer"></param>
-    public ThingService(DataService dataService, QueueService queueService, IDeviceService deviceService, ICacheProvider cacheProvider, ITokenSetting setting, ITracer tracer)
-    {
-        _dataService = dataService;
-        _queueService = queueService;
-        _deviceService = deviceService;
-        _cacheProvider = cacheProvider;
-        _setting = setting;
-        _tracer = tracer;
-    }
-
     #region 数据存储
     /// <summary>上报数据</summary>
     /// <param name="device"></param>
@@ -63,9 +37,6 @@ public class ThingService
             }
         }
 
-        // 自动上线
-        if (device != null && _deviceService is MyDeviceService ds) ds.SetDeviceOnline(device, ip, kind);
-
         //todo 触发指定设备的联动策略
 
         return rs;
@@ -80,7 +51,7 @@ public class ThingService
     /// <returns></returns>
     public DeviceProperty BuildDataPoint(Device device, String name, Object value, Int64 timestamp, String ip)
     {
-        using var span = _tracer?.NewSpan(nameof(BuildDataPoint), $"{device.Id}-{name}-{value}");
+        using var span = tracer?.NewSpan(nameof(BuildDataPoint), $"{device.Id}-{name}-{value}");
 
         var entity = GetProperty(device, name);
         if (entity == null)
@@ -103,7 +74,7 @@ public class ThingService
         // 检查是否锁定
         if (!entity.Enable)
         {
-            _tracer?.NewError($"{nameof(BuildDataPoint)}-NotEnable", new { deviceId = device.Id, name, entity.Enable });
+            tracer?.NewError($"{nameof(BuildDataPoint)}-NotEnable", new { deviceId = device.Id, name, entity.Enable });
             return null;
         }
 
@@ -149,12 +120,12 @@ public class ThingService
     /// <param name="ip"></param>
     public void SaveHistory(Device device, DeviceProperty property, Int64 timestamp, String kind, String ip)
     {
-        using var span = _tracer?.NewSpan("thing:SaveHistory", new { deviceName = device.Name, property.Name, property.Value, property.Type });
+        using var span = tracer?.NewSpan("thing:SaveHistory", new { deviceName = device.Name, property.Name, property.Value, property.Type });
         try
         {
             // 记录数据流水，使用经过处理的属性数值字段
             var id = 0L;
-            var data = _dataService.AddData(property.DeviceId, property.Id, timestamp, property.Name, property.Value, kind, ip);
+            var data = dataService.AddData(property.DeviceId, property.Id, timestamp, property.Name, property.Value, kind, ip);
             if (data != null) id = data.Id;
 
             //todo 存储分段数据
@@ -176,14 +147,14 @@ public class ThingService
     private DeviceProperty GetProperty(Device device, String name)
     {
         var key = $"DeviceProperty:{device.Id}:{name}";
-        if (_cacheProvider.InnerCache.TryGetValue<DeviceProperty>(key, out var property)) return property;
+        if (cacheProvider.InnerCache.TryGetValue<DeviceProperty>(key, out var property)) return property;
 
-        using var span = _tracer?.NewSpan(nameof(GetProperty), $"{device.Id}-{name}");
+        using var span = tracer?.NewSpan(nameof(GetProperty), $"{device.Id}-{name}");
 
         //var entity = device.Properties.FirstOrDefault(e => e.Name.EqualIgnoreCase(name));
         var entity = DeviceProperty.FindByDeviceIdAndName(device.Id, name);
         if (entity != null)
-            _cacheProvider.InnerCache.Set(key, entity, 600);
+            cacheProvider.InnerCache.Set(key, entity, 600);
 
         return entity;
     }
@@ -286,7 +257,7 @@ public class ThingService
     {
         var model = InvokeService(device, command, argument, expire);
 
-        _queueService.Publish(device.Code, model);
+        queueService.Publish(device.Code, model);
 
         var reply = new ServiceReplyModel { Id = model.Id };
 

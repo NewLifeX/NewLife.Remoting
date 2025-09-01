@@ -1,12 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Runtime.Serialization;
+﻿using System.Runtime.Serialization;
 using System.Web.Script.Serialization;
 using System.Xml.Serialization;
-using NewLife;
 using NewLife.Data;
 using XCode;
-using XCode.Membership;
 using XCode.Shards;
 
 namespace IoT.Data;
@@ -178,8 +174,8 @@ public partial class DeviceData : Entity<DeviceData>
 
         if (deviceId >= 0) exp &= _.DeviceId == deviceId;
         if (!name.IsNullOrEmpty()) exp &= _.Name == name;
-        exp &= _.CreateTime.Between(start, end);
-        if (!key.IsNullOrEmpty()) exp &= _.Name.Contains(key) | _.Value.Contains(key) | _.TraceId.Contains(key) | _.Creator.Contains(key) | _.CreateIP.Contains(key);
+        exp &= _.Id.Between(start, end, Meta.Factory.Snow);
+        if (!key.IsNullOrEmpty()) exp &= SearchWhereByKeys(key);
 
         return FindAll(exp, page);
     }

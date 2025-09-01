@@ -1,19 +1,13 @@
 ﻿using IoT.Data;
-using NewLife;
 using NewLife.IoT.ThingModels;
 using NewLife.Log;
 
 namespace IoTZero.Services;
 
 /// <summary>数据服务</summary>
-public class DataService
+/// <param name="tracer"></param>
+public class DataService(ITracer tracer)
 {
-    private readonly ITracer _tracer;
-
-    /// <summary>实例化数据服务</summary>
-    /// <param name="tracer"></param>
-    public DataService(ITracer tracer) => _tracer = tracer;
-
     #region 方法
     /// <summary>
     /// 插入设备原始数据，异步批量操作
@@ -30,7 +24,7 @@ public class DataService
     {
         if (value.IsNullOrEmpty()) return null;
 
-        using var span = _tracer?.NewSpan("thing:AddData", new { deviceId, time, name, value });
+        using var span = tracer?.NewSpan("thing:AddData", new { deviceId, time, name, value });
 
         /*
          * 使用采集时间来生成雪花Id，数据存储序列即业务时间顺序。

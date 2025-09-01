@@ -77,7 +77,7 @@ public class HttpDevice : ClientBase
         {
             var period = _setting.PollingTime;
             if (period <= 0) period = 60_000;
-            _timer = new TimerX(DoWork, null, 5_000, period * 1000) { Async = true };
+            _timer = new TimerX(DoWork, null, 5_000, period) { Async = true };
         }
 
         return rs;

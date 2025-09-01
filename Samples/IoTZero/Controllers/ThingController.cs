@@ -6,7 +6,6 @@ using NewLife.IoT.ThingModels;
 using NewLife.IoT.ThingSpecification;
 using NewLife.Remoting;
 using NewLife.Remoting.Extensions;
-using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 
 namespace IoTZero.Controllers;
@@ -46,8 +45,12 @@ public class ThingController(IDeviceService deviceService, ThingService thingSer
     public Int32 PostData(DataModels model)
     {
         var device = GetDevice(model.DeviceCode);
+        var kind = nameof(PostData);
 
-        return thingService.PostData(device, model, "PostData", UserHost);
+        // 自动上线
+        if (deviceService is MyDeviceService ds2) ds2.SetDeviceOnline(Context, kind);
+
+        return thingService.PostData(device, model, kind, UserHost);
     }
 
     /// <summary>批量设备数据上报，融合多个子设备数据批量上传</summary>
