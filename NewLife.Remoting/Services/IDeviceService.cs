@@ -15,7 +15,7 @@ public interface IDeviceService
 
     /// <summary>设备登录</summary>
     /// <param name="context">上下文</param>
-    /// <param name="request">登录请求参数</param>
+    /// <param name="request">登录请求</param>
     /// <param name="source">来源，如Http/Mqtt</param>
     /// <returns>返回响应</returns>
     ILoginResponse Login(DeviceContext context, ILoginRequest request, String source);
@@ -27,7 +27,7 @@ public interface IDeviceService
     /// <returns></returns>
     IOnlineModel? Logout(DeviceContext context, String? reason, String source);
 
-    /// <summary>设备心跳</summary>
+    /// <summary>设备心跳。更新在线记录信息</summary>
     /// <param name="context">上下文</param>
     /// <param name="request">心跳请求</param>
     /// <returns></returns>
@@ -70,6 +70,28 @@ public interface IDeviceService
     /// <param name="success">成功</param>
     /// <param name="remark">备注内容</param>
     void WriteHistory(DeviceContext context, String action, Boolean success, String remark);
+}
+
+/// <summary>设备会话服务（扩展）</summary>
+public interface IDeviceService2 : IDeviceService
+{
+    /// <summary>验证设备合法性。验证密钥</summary>
+    /// <param name="context">上下文</param>
+    /// <param name="request">登录请求</param>
+    /// <returns></returns>
+    Boolean Authorize(DeviceContext context, ILoginRequest request);
+
+    /// <summary>自动注册设备。验证密钥失败后</summary>
+    /// <param name="context">上下文</param>
+    /// <param name="request">登录请求</param>
+    /// <returns></returns>
+    /// <exception cref="ApiException"></exception>
+    IDeviceModel Register(DeviceContext context, ILoginRequest request);
+
+    /// <summary>鉴权后的登录处理。修改设备信息、创建在线记录和写日志</summary>
+    /// <param name="context">上下文</param>
+    /// <param name="request">登录请求</param>
+    void OnLogin(DeviceContext context, ILoginRequest request);
 }
 
 /// <summary>设备服务扩展</summary>

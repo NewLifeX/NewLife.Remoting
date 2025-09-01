@@ -35,6 +35,7 @@ public class DeviceContext : IExtend
     /// <summary>重置</summary>
     public void Clear()
     {
+        Code = null;
         Device = null;
         Online = null;
         Token = null;

@@ -47,7 +47,7 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
         base.OnRegister(context, request);
     }
 
-    protected override void OnLogin(DeviceContext context, ILoginRequest request)
+    public override void OnLogin(DeviceContext context, ILoginRequest request)
     {
         var node = context.Device as Node;
         var inf = request as LoginInfo;
@@ -79,7 +79,7 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
     #endregion
 
     #region 心跳保活
-    /// <summary>心跳</summary>
+    /// <summary>设备心跳。更新在线记录信息</summary>
     /// <param name="context">上下文</param>
     /// <param name="request">心跳请求</param>
     /// <returns></returns>
