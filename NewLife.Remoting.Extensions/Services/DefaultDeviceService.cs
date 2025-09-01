@@ -60,6 +60,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         if (device != null && !device.Enable) throw new ApiException(ApiCode.Forbidden, "禁止登录");
         if (device != null) context.Device = device;
 
+        if (!request.ClientId.IsNullOrEmpty()) context.ClientId = request.ClientId;
         if (!source.IsNullOrEmpty()) context["Source"] = source;
 
         // 设备不存在或者验证失败，执行注册流程
