@@ -22,7 +22,10 @@ public interface IDeviceModel2 : IDeviceModel
     String Secret { get; set; }
 
     /// <summary>心跳周期</summary>
-    Int32 Period { get; set; }
+    Int32 Period { get; }
+
+    /// <summary>新服务器地址。用于服务器迁移</summary>
+    String? NewServer { get; }
 
     /// <summary>创建设备历史</summary>
     /// <param name="action"></param>

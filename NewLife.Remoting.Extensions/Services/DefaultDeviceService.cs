@@ -245,6 +245,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         if (context.Device is IDeviceModel2 device)
         {
             rs.Period = device.Period;
+            rs.NewServer = device.NewServer;
         }
 
         rs.Commands = AcquireCommands(context);

@@ -99,6 +99,8 @@ public partial class Device : Entity<Device>, IDeviceModel2, ILogProvider
     /// <summary>设备属性。借助扩展属性缓存</summary>
     [XmlIgnore, IgnoreDataMember]
     public IList<DeviceProperty> Properties => Extends.Get(nameof(Properties), k => DeviceProperty.FindAllByDeviceId(Id));
+
+    String IDeviceModel2.NewServer => null;
     #endregion
 
     #region 扩展查询
