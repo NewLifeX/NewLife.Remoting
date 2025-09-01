@@ -138,18 +138,9 @@ public abstract class BaseDeviceController : BaseController
     /// <summary>设备心跳</summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    [HttpPost(nameof(Ping))]
-    public virtual IPingResponse Ping([FromBody] IPingRequest request) => OnPing(request);
-
-    /// <summary>设备心跳</summary>
-    /// <returns></returns>
     [HttpGet(nameof(Ping))]
-    public virtual IPingResponse Ping() => OnPing(null);
-
-    /// <summary>设备心跳</summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
-    protected virtual IPingResponse OnPing(IPingRequest? request)
+    [HttpPost(nameof(Ping))]
+    public virtual IPingResponse Ping([FromBody] IPingRequest request)
     {
         var rs = _deviceService.Ping(Context, request);
 

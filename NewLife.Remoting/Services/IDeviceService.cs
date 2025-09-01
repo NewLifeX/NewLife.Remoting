@@ -30,8 +30,9 @@ public interface IDeviceService
     /// <summary>设备心跳。更新在线记录信息</summary>
     /// <param name="context">上下文</param>
     /// <param name="request">心跳请求</param>
-    /// <returns></returns>
-    IPingResponse Ping(DeviceContext context, IPingRequest? request);
+    /// <param name="response">心跳响应。如果未传入则内部实例化</param>
+    /// <returns>心跳响应</returns>
+    IPingResponse Ping(DeviceContext context, IPingRequest? request, IPingResponse? response = null);
 
     /// <summary>设置设备的长连接上线/下线</summary>
     /// <param name="context">上下文</param>

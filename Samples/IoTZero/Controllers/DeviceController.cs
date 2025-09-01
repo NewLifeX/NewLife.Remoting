@@ -1,11 +1,9 @@
-﻿using IoT.Data;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using NewLife.IoT.Drivers;
 using NewLife.IoT.Models;
 using NewLife.IoT.ThingModels;
 using NewLife.Remoting;
 using NewLife.Remoting.Extensions;
-using NewLife.Remoting.Models;
 
 namespace IoTZero.Controllers;
 
@@ -17,23 +15,6 @@ namespace IoTZero.Controllers;
 [Route("[controller]")]
 public class DeviceController(IServiceProvider serviceProvider) : BaseDeviceController(serviceProvider)
 {
-    #region 心跳
-    /// <summary>心跳</summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
-    protected override IPingResponse OnPing(IPingRequest request)
-    {
-        var rs = base.OnPing(request);
-
-        if (Context.Device is Device device && rs != null)
-        {
-            rs.Period = device.Period;
-        }
-
-        return rs;
-    }
-    #endregion
-
     #region 设备通道
     /// <summary>获取设备信息，包括主设备和子设备</summary>
     /// <returns></returns>

@@ -19,8 +19,18 @@ public interface IPingResponse
     //CommandModel[]? Commands { get; set; }
 }
 
+/// <summary>扩展的心跳响应</summary>
+public interface IPingResponse2 : IPingResponse
+{
+    /// <summary>新服务器地址。用于服务器迁移</summary>
+    String? NewServer { get; set; }
+
+    /// <summary>下发命令</summary>
+    CommandModel[]? Commands { get; set; }
+}
+
 /// <summary>心跳响应</summary>
-public class PingResponse : IPingResponse
+public class PingResponse : IPingResponse2
 {
     /// <summary>本地时间。客户端用于计算延迟，Unix毫秒（UTC）</summary>
     public Int64 Time { get; set; }

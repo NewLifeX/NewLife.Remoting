@@ -10,10 +10,11 @@ using XCode;
 namespace NewLife.Remoting.Extensions.Services;
 
 /// <summary>默认设备服务</summary>
-/// <param name="sessionManager"></param>
-/// <param name="passwordProvider"></param>
-/// <param name="cacheProvider"></param>
-public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider) : IDeviceService2
+/// <param name="sessionManager">会话管理器</param>
+/// <param name="passwordProvider">密码提供者</param>
+/// <param name="cacheProvider">缓存提供者</param>
+/// <param name="serviceProvider">服务提供者</param>
+public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, IServiceProvider serviceProvider) : IDeviceService2
     where TDevice : Entity<TDevice>, IDeviceModel, new()
     where TOnline : Entity<TOnline>, IOnlineModel, new()
 {
@@ -231,26 +232,27 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// </remarks>
     /// <param name="context">上下文</param>
     /// <param name="request">心跳请求</param>
-    /// <returns></returns>
-    public virtual IPingResponse Ping(DeviceContext context, IPingRequest? request)
+    /// <param name="response">心跳响应。如果未传入则内部实例化</param>
+    /// <returns>心跳响应</returns>
+    public virtual IPingResponse Ping(DeviceContext context, IPingRequest? request, IPingResponse? response)
     {
-        var rs = new PingResponse
-        {
-            Time = request?.Time ?? 0,
-            ServerTime = DateTime.UtcNow.ToLong(),
-        };
+        response ??= serviceProvider.GetService<IPingResponse>() ?? new PingResponse();
+
+        response.Time = request?.Time ?? 0;
+        response.ServerTime = DateTime.UtcNow.ToLong();
 
         OnPing(context, request);
 
+        var rs = response as IPingResponse2;
         if (context.Device is IDeviceModel2 device)
         {
-            rs.Period = device.Period;
-            rs.NewServer = device.NewServer;
+            response.Period = device.Period;
+            if (rs != null) rs.NewServer = device.NewServer;
         }
 
-        rs.Commands = AcquireCommands(context);
+        if (rs != null) rs.Commands = AcquireCommands(context);
 
-        return rs;
+        return response;
     }
 
     /// <summary>设备心跳。更新在线记录信息</summary>

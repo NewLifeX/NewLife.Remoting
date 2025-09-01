@@ -14,7 +14,7 @@ namespace ZeroServer.Services;
 /// <param name="passwordProvider"></param>
 /// <param name="cacheProvider"></param>
 /// <param name="setting"></param>
-public class NodeService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting) : DefaultDeviceService<Node, NodeOnline>(sessionManager, passwordProvider, cacheProvider)
+public class NodeService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting, IServiceProvider serviceProvider) : DefaultDeviceService<Node, NodeOnline>(sessionManager, passwordProvider, cacheProvider, serviceProvider)
 {
     #region 登录注销
     public override Boolean Authorize(DeviceContext context, ILoginRequest request)

@@ -15,7 +15,7 @@ namespace IoTZero.Services;
 /// <param name="cacheProvider"></param>
 /// <param name="setting"></param>
 /// <param name="tracer"></param>
-public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting, ITracer tracer) : DefaultDeviceService<Device, DeviceOnline>(sessionManager, passwordProvider, cacheProvider)
+public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting, ITracer tracer, IServiceProvider serviceProvider) : DefaultDeviceService<Device, DeviceOnline>(sessionManager, passwordProvider, cacheProvider, serviceProvider)
 {
     #region 登录注销
     /// <summary>设置设备在线，同时检查在线表</summary>
