@@ -1,5 +1,4 @@
 ﻿using NewLife.Data;
-using NewLife.Log;
 
 namespace NewLife.Remoting.Models;
 
@@ -21,6 +20,9 @@ public interface IDeviceModel2 : IDeviceModel
 {
     /// <summary>密钥</summary>
     String Secret { get; set; }
+
+    /// <summary>心跳周期</summary>
+    Int32 Period { get; set; }
 
     /// <summary>创建设备历史</summary>
     /// <param name="action"></param>

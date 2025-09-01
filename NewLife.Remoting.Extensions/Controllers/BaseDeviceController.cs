@@ -151,19 +151,11 @@ public abstract class BaseDeviceController : BaseController
     /// <returns></returns>
     protected virtual IPingResponse OnPing(IPingRequest? request)
     {
-        var rs = new PingResponse
-        {
-            Time = request?.Time ?? 0,
-            ServerTime = DateTime.UtcNow.ToLong(),
-        };
+        var rs = _deviceService.Ping(Context, request);
 
         var device = Context.Device;
         if (device != null)
         {
-            //rs.Period = device.Period;
-
-            _deviceService.Ping(Context, request);
-
             // 令牌有效期检查，10分钟内到期的令牌，颁发新令牌。
             // 这里将来由客户端提交刷新令牌，才能颁发新的访问令牌。
             var (jwt, ex) = _tokenService.DecodeToken(Context.Token!);

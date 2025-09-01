@@ -83,29 +83,20 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
     /// <param name="context">上下文</param>
     /// <param name="request">心跳请求</param>
     /// <returns></returns>
-    public override IOnlineModel Ping(DeviceContext context, IPingRequest request)
+    public override IOnlineModel OnPing(DeviceContext context, IPingRequest request)
     {
         var node = context.Device as Node;
         var inf = request as PingInfo;
         if (inf != null && !inf.IP.IsNullOrEmpty()) node.IP = inf.IP;
 
-        var ip = context.UserHost;
-        node.UpdateIP = ip;
+        node.UpdateIP = context.UserHost;
         node.FixArea();
 
         // 每10分钟更新一次节点信息，确保活跃
         if (node.LastActive.AddMinutes(10) < DateTime.Now) node.LastActive = DateTime.Now;
         node.SaveAsync();
 
-        var online = base.Ping(context, request) as NodeOnline;
-        online.Name = node.Name;
-        online.Category = node.Category;
-        online.Version = node.Version;
-        online.CompileTime = node.CompileTime;
-        online.OSKind = node.OSKind;
-        online.Save(null, inf, context.Token, ip);
-
-        return online;
+        return base.OnPing(context, request);
     }
 
     /// <summary>设置设备的长连接上线/下线</summary>

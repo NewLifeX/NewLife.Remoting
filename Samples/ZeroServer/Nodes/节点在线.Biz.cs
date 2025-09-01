@@ -12,7 +12,7 @@ using ZeroServer.Models;
 namespace Zero.Data.Nodes;
 
 /// <summary>节点在线</summary>
-public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
+public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel2
 {
     #region 对象操作
     static NodeOnline()
@@ -196,48 +196,48 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
         return list;
     }
 
-    /// <summary>更新并保存在线状态</summary>
-    /// <param name="login"></param>
-    /// <param name="ping"></param>
-    /// <param name="token"></param>
-    /// <param name="ip"></param>
-    public void Save(LoginInfo login, PingInfo ping, String token, String ip)
-    {
-        var online = this;
+    ///// <summary>更新并保存在线状态</summary>
+    ///// <param name="login"></param>
+    ///// <param name="ping"></param>
+    ///// <param name="token"></param>
+    ///// <param name="ip"></param>
+    //public void Save(LoginInfo login, PingInfo ping, String token, String ip)
+    //{
+    //    var online = this;
 
-        if (login != null)
-        {
-            online.Fill(login);
-            online.LocalTime = login.Time.ToDateTime().ToLocalTime();
-            online.MACs = login.Macs;
-        }
-        else
-        {
-            online.Fill(ping);
-        }
+    //    if (login != null)
+    //    {
+    //        online.Fill(login);
+    //        online.LocalTime = login.Time.ToDateTime().ToLocalTime();
+    //        online.MACs = login.Macs;
+    //    }
+    //    else
+    //    {
+    //        online.Fill(ping);
+    //    }
 
-        online.Token = token;
-        online.PingCount++;
-        online.UpdateIP = ip;
+    //    online.Token = token;
+    //    online.PingCount++;
+    //    online.UpdateIP = ip;
 
-        // 5秒内直接保存
-        if (online.CreateTime.AddSeconds(5) > DateTime.Now)
-            online.Save();
-        else
-            online.SaveAsync();
-    }
+    //    // 5秒内直接保存
+    //    if (online.CreateTime.AddSeconds(5) > DateTime.Now)
+    //        online.Save();
+    //    else
+    //        online.SaveAsync();
+    //}
 
-    /// <summary>填充节点信息</summary>
-    /// <param name="di"></param>
-    public void Fill(LoginInfo di)
-    {
-        var online = this;
+    ///// <summary>填充节点信息</summary>
+    ///// <param name="di"></param>
+    //public void Fill(LoginInfo di)
+    //{
+    //    var online = this;
 
-        online.LocalTime = di.Time.ToDateTime().ToLocalTime();
-        online.MACs = di.Macs;
-        //online.COMs = di.COMs;
-        online.IP = di.IP;
-    }
+    //    online.LocalTime = di.Time.ToDateTime().ToLocalTime();
+    //    online.MACs = di.Macs;
+    //    //online.COMs = di.COMs;
+    //    online.IP = di.IP;
+    //}
 
     /// <summary>填充在线节点信息</summary>
     /// <param name="inf"></param>
@@ -267,6 +267,30 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel
         var dic = inf.ToDictionary();
         dic.Remove("Processes");
         online.Data = dic.ToJson();
+    }
+
+    public void Save(IPingRequest request, Object context)
+    {
+        if (context is DeviceContext ctx)
+        {
+            Token = ctx.Token;
+            UpdateIP = ctx.UserHost;
+
+            if (ctx.Device is Node node)
+            {
+                Name = node.Name;
+                Category = node.Category;
+                Version = node.Version;
+                CompileTime = node.CompileTime;
+                OSKind = node.OSKind;
+                //Save(null, inf, context.Token, ip);
+            }
+            if (request is PingInfo ping) Fill(ping);
+        }
+
+        PingCount++;
+
+        SaveAsync();
     }
 
     //private void CreateData(PingInfo inf, String ip)

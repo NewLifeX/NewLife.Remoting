@@ -227,20 +227,46 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     #region 心跳保活
     /// <summary>设备心跳。更新在线记录信息</summary>
     /// <remarks>
-    /// 内部流程：GetOnline/CreateOnline
+    /// 内部流程：OnPing、AcquireCommands
     /// </remarks>
     /// <param name="context">上下文</param>
     /// <param name="request">心跳请求</param>
     /// <returns></returns>
-    public virtual IOnlineModel Ping(DeviceContext context, IPingRequest? request)
+    public virtual IPingResponse Ping(DeviceContext context, IPingRequest? request)
+    {
+        var rs = new PingResponse
+        {
+            Time = request?.Time ?? 0,
+            ServerTime = DateTime.UtcNow.ToLong(),
+        };
+
+        OnPing(context, request);
+
+        if (context.Device is IDeviceModel2 device)
+        {
+            rs.Period = device.Period;
+        }
+
+        rs.Commands = AcquireCommands(context);
+
+        return rs;
+    }
+
+    /// <summary>设备心跳。更新在线记录信息</summary>
+    /// <remarks>
+    /// 内部流程：GetOnline/CreateOnline、File
+    /// </remarks>
+    /// <param name="context">上下文</param>
+    /// <param name="request">心跳请求</param>
+    /// <returns></returns>
+    public virtual IOnlineModel OnPing(DeviceContext context, IPingRequest? request)
     {
         var online = context.Online ?? GetOnline(context) ?? CreateOnline(context);
         context.Online = online;
 
-        if (online is IOnlineModel2 online2 && request != null)
+        if (online is IOnlineModel2 online2)
         {
-            online2.File(request, context);
-            if (online is IEntity entity) entity.Save();
+            online2.Save(request, context);
         }
 
         return online;
@@ -326,9 +352,9 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     }
 
     /// <summary>获取下行命令</summary>
-    /// <param name="nodeId"></param>
+    /// <param name="context">上下文</param>
     /// <returns></returns>
-    public virtual CommandModel[] AcquireCommands(Int32 nodeId) => [];
+    public virtual CommandModel[] AcquireCommands(DeviceContext context) => [];
     #endregion
 
     #region 下行通知

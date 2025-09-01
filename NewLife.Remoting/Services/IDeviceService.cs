@@ -31,7 +31,7 @@ public interface IDeviceService
     /// <param name="context">上下文</param>
     /// <param name="request">心跳请求</param>
     /// <returns></returns>
-    IOnlineModel Ping(DeviceContext context, IPingRequest? request);
+    IPingResponse Ping(DeviceContext context, IPingRequest? request);
 
     /// <summary>设置设备的长连接上线/下线</summary>
     /// <param name="context">上下文</param>
@@ -98,6 +98,12 @@ public interface IDeviceService2 : IDeviceService
     /// <returns></returns>
     IDeviceModel? GetDevice(String code);
 
+    /// <summary>设备心跳。更新在线记录信息</summary>
+    /// <param name="context">上下文</param>
+    /// <param name="request">心跳请求</param>
+    /// <returns></returns>
+    IOnlineModel OnPing(DeviceContext context, IPingRequest? request);
+
     /// <summary>查找在线</summary>
     IOnlineModel? QueryOnline(String sessionId);
 
@@ -117,9 +123,9 @@ public interface IDeviceService2 : IDeviceService
     Int32 RemoveOnline(DeviceContext context);
 
     /// <summary>获取下行命令</summary>
-    /// <param name="nodeId"></param>
+    /// <param name="context">上下文</param>
     /// <returns></returns>
-    CommandModel[] AcquireCommands(Int32 nodeId);
+    CommandModel[] AcquireCommands(DeviceContext context);
 }
 
 /// <summary>设备服务扩展</summary>

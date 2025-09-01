@@ -9,7 +9,7 @@ using XCode;
 
 namespace IoT.Data;
 
-public partial class DeviceOnline : Entity<DeviceOnline>, IOnlineModel
+public partial class DeviceOnline : Entity<DeviceOnline>, IOnlineModel2
 {
     #region 对象操作
     static DeviceOnline()
@@ -159,46 +159,46 @@ public partial class DeviceOnline : Entity<DeviceOnline>, IOnlineModel
         return list;
     }
 
-    /// <summary>更新并保存在线状态</summary>
-    /// <param name="di"></param>
-    /// <param name="pi"></param>
-    /// <param name="token"></param>
-    public void Save(LoginInfo di, PingInfo pi, String token)
-    {
-        var olt = this;
+    ///// <summary>更新并保存在线状态</summary>
+    ///// <param name="di"></param>
+    ///// <param name="pi"></param>
+    ///// <param name="token"></param>
+    //public void Save(LoginInfo di, PingInfo pi, String token)
+    //{
+    //    var olt = this;
 
-        // di不等于空，登录时调用；
-        // pi不为空，客户端发ping消息是调用；
-        // 两个都是空，收到mqtt协议ping报文时调用
-        if (di != null)
-        {
-            olt.Fill(di);
-            olt.LocalTime = di.Time.ToDateTime().ToLocalTime();
-        }
-        else if (pi != null)
-        {
-            olt.Fill(pi);
-        }
+    //    // di不等于空，登录时调用；
+    //    // pi不为空，客户端发ping消息是调用；
+    //    // 两个都是空，收到mqtt协议ping报文时调用
+    //    if (di != null)
+    //    {
+    //        olt.Fill(di);
+    //        olt.LocalTime = di.Time.ToDateTime().ToLocalTime();
+    //    }
+    //    else if (pi != null)
+    //    {
+    //        olt.Fill(pi);
+    //    }
 
-        olt.Token = token;
-        olt.Pings++;
+    //    olt.Token = token;
+    //    olt.Pings++;
 
-        // 5秒内直接保存
-        if (olt.CreateTime.AddSeconds(5) > DateTime.Now)
-            olt.Save();
-        else
-            olt.SaveAsync();
-    }
+    //    // 5秒内直接保存
+    //    if (olt.CreateTime.AddSeconds(5) > DateTime.Now)
+    //        olt.Save();
+    //    else
+    //        olt.SaveAsync();
+    //}
 
-    /// <summary>填充节点信息</summary>
-    /// <param name="di"></param>
-    public void Fill(LoginInfo di)
-    {
-        var online = this;
+    ///// <summary>填充节点信息</summary>
+    ///// <param name="di"></param>
+    //public void Fill(LoginInfo di)
+    //{
+    //    var online = this;
 
-        online.LocalTime = di.Time.ToDateTime().ToLocalTime();
-        online.IP = di.IP;
-    }
+    //    online.LocalTime = di.Time.ToDateTime().ToLocalTime();
+    //    online.IP = di.IP;
+    //}
 
     /// <summary>填充在线节点信息</summary>
     /// <param name="inf"></param>
@@ -217,6 +217,27 @@ public partial class DeviceOnline : Entity<DeviceOnline>, IOnlineModel
 
         if (!inf.IP.IsNullOrEmpty()) olt.IP = inf.IP;
         olt.Remark = inf.ToJson();
+    }
+
+    public void Save(IPingRequest request, Object context)
+    {
+        if (context is DeviceContext ctx)
+        {
+            Token = ctx.Token;
+
+            if (ctx.Device is Device device)
+            {
+                Name = device.Name;
+                GroupPath = device.GroupPath;
+                ProductId = device.ProductId;
+            }
+
+            if (request is PingInfo ping) Fill(ping);
+        }
+
+        Pings++;
+
+        SaveAsync();
     }
     #endregion
 }

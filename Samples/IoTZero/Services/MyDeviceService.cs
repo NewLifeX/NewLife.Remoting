@@ -35,7 +35,7 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
 
         // 避免频繁更新心跳数
         if (online.UpdateTime.AddSeconds(60) < DateTime.Now)
-            online.Save(null, null, null);
+            online.Save(null, context);
     }
 
     protected override void OnRegister(DeviceContext context, ILoginRequest request)
@@ -85,7 +85,7 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
     /// <param name="context">上下文</param>
     /// <param name="request">心跳请求</param>
     /// <returns></returns>
-    public override IOnlineModel Ping(DeviceContext context, IPingRequest request)
+    public override IOnlineModel OnPing(DeviceContext context, IPingRequest request)
     {
         var dv = context.Device as Device;
         var ip = context.UserHost;
@@ -98,15 +98,7 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
         dv.UpdateIP = ip;
         dv.SaveAsync();
 
-        var online = base.Ping(context, request) as DeviceOnline;
-        online.Name = dv.Name;
-        online.GroupPath = dv.GroupPath;
-        online.ProductId = dv.ProductId;
-        online.Save(null, inf, context.Token);
-
-        context.Online = online;
-
-        return online;
+        return base.OnPing(context, request);
     }
 
     /// <summary>设置设备的长连接上线/下线</summary>
