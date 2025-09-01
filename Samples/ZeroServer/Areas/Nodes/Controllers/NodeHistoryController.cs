@@ -1,13 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Zero.Data.Nodes;
-using NewLife;
+﻿using NewLife;
 using NewLife.Cube;
 using NewLife.Cube.Extensions;
 using NewLife.Cube.ViewModels;
-using NewLife.Log;
 using NewLife.Web;
 using XCode.Membership;
-using static Zero.Data.Nodes.NodeHistory;
+using Zero.Data.Nodes;
 
 namespace ZeroServer.Areas.Nodes.Controllers;
 
@@ -20,7 +17,7 @@ public class NodeHistoryController : NodeEntityController<NodeHistory>
     {
         //LogOnChange = true;
 
-        ListFields.RemoveField("ProvinceName", "Compile");
+        ListFields.RemoveField("Id", "ProvinceName", "CompileTime");
         ListFields.RemoveRemarkField();
 
         {

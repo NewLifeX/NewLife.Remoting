@@ -22,6 +22,7 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel2
 
         Meta.Modules.Add<TimeModule>();
         Meta.Modules.Add<IPModule>();
+        Meta.Modules.Add<TraceModule>();
 
         var sc = Meta.SingleCache;
         sc.FindSlaveKeyMethod = k => Find(_.SessionId == k);

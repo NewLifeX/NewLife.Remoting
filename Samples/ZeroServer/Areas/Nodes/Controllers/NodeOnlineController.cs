@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using NewLife;
 using NewLife.Cube;
+using NewLife.Cube.Extensions;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Web;
@@ -38,7 +39,7 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
         //    var df = ListFields.GetField("Kind") as ListField;
         //    df.GetValue = e => ((Int32)(e as NodeOnline).Kind).ToString("X4");
         //}
-        //ListFields.TraceUrl("TraceId");
+        ListFields.TraceUrl();
     }
 
     public NodeOnlineController(IDeviceService deviceService) => _deviceService = deviceService;

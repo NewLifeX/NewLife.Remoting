@@ -293,7 +293,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <summary>获取会话标识。用于唯一定位在线对象，写入查询数据库和缓存</summary>
     /// <param name="context"></param>
     /// <returns></returns>
-    protected virtual String GetSessionId(DeviceContext context) => $"{context.Code ?? context.Device?.Code}@{context.ClientId ?? context.UserHost}";
+    protected virtual String GetSessionId(DeviceContext context) => !context.ClientId.IsNullOrEmpty() ? context.ClientId : $"{context.Code ?? context.Device?.Code}@{context.UserHost}";
 
     /// <summary>获取在线。先查缓存再查库</summary>
     /// <param name="context">上下文</param>
