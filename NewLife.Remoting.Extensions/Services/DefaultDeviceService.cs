@@ -1,6 +1,4 @@
-﻿using System.Diagnostics;
-using System.Reflection;
-using System.Threading;
+﻿using System.Reflection;
 using NewLife.Caching;
 using NewLife.Log;
 using NewLife.Remoting.Models;
