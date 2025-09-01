@@ -24,6 +24,10 @@ public class ClientSetting : Config<ClientSetting>, IClientSetting
     /// <summary>产品证书。用于一型一密验证，对一机一密无效</summary>
     [Description("产品证书。用于一型一密验证，对一机一密无效")]
     public String ProductKey { get; set; } = "EdgeGateway";
+
+    /// <summary>采集间隔。默认60_000毫秒</summary>
+    [Description("采集间隔。默认60_000毫秒")]
+    public Int32 PollingTime { get; set; } = 60_000;
     #endregion
 
     #region IClientSetting

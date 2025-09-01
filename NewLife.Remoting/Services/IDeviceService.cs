@@ -142,7 +142,8 @@ public static class DeviceServiceExtensions
     /// <param name="ip">远程IP</param>
     public static void WriteHistory(this IDeviceService deviceService, IDeviceModel device, String action, Boolean success, String remark, String? clientId, String? ip)
     {
-        if (device == null) throw new ArgumentNullException(nameof(device));
+        //if (device == null) throw new ArgumentNullException(nameof(device));
+
         var ctx = new DeviceContext
         {
             Device = device,

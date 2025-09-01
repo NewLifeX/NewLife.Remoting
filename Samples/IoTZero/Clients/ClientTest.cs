@@ -1,5 +1,4 @@
 ﻿using IoTEdge;
-using NewLife;
 using NewLife.Log;
 
 namespace IoTZero.Clients;

@@ -1,10 +1,10 @@
-﻿using NewLife;
-using NewLife.IoT.Models;
+﻿using NewLife.IoT.Models;
 using NewLife.IoT.ThingModels;
 using NewLife.Model;
 using NewLife.Remoting.Clients;
 using NewLife.Remoting.Models;
 using NewLife.Security;
+using NewLife.Threading;
 
 namespace IoTEdge;
 
@@ -19,6 +19,7 @@ public class HttpDevice : ClientBase
     public String ProductSecret { get; set; }
 
     private readonly ClientSetting _setting;
+    private TimerX _timer;
     #endregion
 
     #region 构造
@@ -34,6 +35,14 @@ public class HttpDevice : ClientBase
         ProductKey = setting.ProductKey;
         ProductSecret = setting.DeviceSecret;
     }
+
+    protected override void Dispose(Boolean disposing)
+    {
+        base.Dispose(disposing);
+
+        _timer.TryDispose();
+        _timer = null;
+    }
     #endregion
 
     #region 方法
@@ -47,12 +56,12 @@ public class HttpDevice : ClientBase
         var container = ModelExtension.GetService<IObjectContainer>(provider) ?? ObjectContainer.Current;
         if (container != null)
         {
-            container.TryAddTransient<ILoginRequest, LoginInfo>();
-            //container.TryAddTransient<ILoginResponse, LoginResponse>();
-            //container.TryAddTransient<ILogoutResponse, LogoutResponse>();
-            container.TryAddTransient<IPingRequest, PingInfo>();
-            //container.TryAddTransient<IPingResponse, PingResponse>();
-            //container.TryAddTransient<IUpgradeInfo, UpgradeInfo>();
+            container.AddTransient<ILoginRequest, LoginInfo>();
+            //container.AddTransient<ILoginResponse, LoginResponse>();
+            //container.AddTransient<ILogoutResponse, LogoutResponse>();
+            container.AddTransient<IPingRequest, PingInfo>();
+            container.AddTransient<IPingResponse, MyPingResponse>();
+            //container.AddTransient<IUpgradeInfo, UpgradeInfo>();
         }
 
         base.OnInit();
@@ -60,6 +69,19 @@ public class HttpDevice : ClientBase
     #endregion
 
     #region 登录
+    public override async Task<ILoginResponse> Login(String source = null, CancellationToken cancellationToken = default)
+    {
+        var rs = await base.Login(source, cancellationToken);
+
+        if (rs != null && Logined)
+        {
+            var period = _setting.PollingTime;
+            if (period <= 0) period = 60_000;
+            _timer = new TimerX(DoWork, null, 5_000, period * 1000) { Async = true };
+        }
+
+        return rs;
+    }
     public override ILoginRequest BuildLoginRequest()
     {
         var request = new LoginInfo();
@@ -74,6 +96,21 @@ public class HttpDevice : ClientBase
     #endregion
 
     #region 心跳
+    public override async Task<IPingResponse> Ping(CancellationToken cancellationToken = default)
+    {
+        var rs = await base.Ping(cancellationToken);
+        if (rs is MyPingResponse mrs)
+        {
+            if (mrs.PollingTime > 0)
+            {
+                _setting.PollingTime = mrs.PollingTime;
+                _setting.Save();
+            }
+        }
+
+        return rs;
+    }
+
     public override IPingRequest BuildPingRequest()
     {
         var request = new PingInfo();
@@ -84,6 +121,21 @@ public class HttpDevice : ClientBase
     #endregion
 
     #region 数据
+    private async Task DoWork(Object state)
+    {
+        await PostDataAsync();
+
+        var period = _setting.PollingTime;
+        if (period <= 0) period = 60_000;
+
+        var timer = _timer;
+        if (timer != null && timer.Period != period)
+        {
+            WriteLog("采集间隔由[{0}]修改为[{1}]", timer.Period, period);
+            timer.Period = period;
+        }
+    }
+
     /// <summary>上传数据</summary>
     /// <returns></returns>
     public async Task PostDataAsync()

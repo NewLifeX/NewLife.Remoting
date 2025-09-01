@@ -273,7 +273,7 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel2
         online.Data = dic.ToJson();
     }
 
-    public void Save(IPingRequest request, Object context)
+    public Int32 Save(IPingRequest request, Object context)
     {
         if (context is DeviceContext ctx)
         {
@@ -294,7 +294,8 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel2
 
         PingCount++;
 
-        SaveAsync();
+        //SaveAsync();
+        return Update();
     }
 
     //private void CreateData(PingInfo inf, String ip)

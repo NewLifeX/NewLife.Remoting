@@ -219,7 +219,7 @@ public partial class DeviceOnline : Entity<DeviceOnline>, IOnlineModel2
         olt.Remark = inf.ToJson();
     }
 
-    public void Save(IPingRequest request, Object context)
+    public Int32 Save(IPingRequest request, Object context)
     {
         if (context is DeviceContext ctx)
         {
@@ -237,7 +237,8 @@ public partial class DeviceOnline : Entity<DeviceOnline>, IOnlineModel2
 
         Pings++;
 
-        SaveAsync();
+        //SaveAsync();
+        return Update();
     }
     #endregion
 }

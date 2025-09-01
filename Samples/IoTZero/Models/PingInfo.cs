@@ -40,3 +40,9 @@ public class PingInfo : PingRequest
     //public Int32 Delay { get; set; }
     #endregion
 }
+
+public class MyPingResponse : PingResponse
+{
+    /// <summary>采集间隔。毫秒</summary>
+    public Int32 PollingTime { get; set; }
+}
