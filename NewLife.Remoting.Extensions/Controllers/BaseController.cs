@@ -5,11 +5,11 @@ using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using NewLife.Collections;
 using NewLife.Log;
-using NewLife.Reflection;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Serialization;
 using NewLife.Web;
+using XCode.Membership;
 using IWebFilter = Microsoft.AspNetCore.Mvc.Filters.IActionFilter;
 
 namespace NewLife.Remoting.Extensions;
@@ -38,16 +38,16 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
     private readonly IDeviceService? _deviceService;
     private readonly ITokenService _tokenService;
     private IDictionary<String, Object?>? _args;
-    private static readonly Action<String>? _setip;
+    //private static readonly Action<String>? _setip;
     private static readonly Pool<DeviceContext> _pool = new(64);
     #endregion
 
     #region 构造
-    static BaseController()
-    {
-        // 反射获取ManageProvider.UserHost的Set方法，避免直接引用XCode
-        _setip = "ManageProvider".GetTypeEx()?.GetPropertyEx("UserHost")?.SetMethod?.CreateDelegate<Action<String>>();
-    }
+    //static BaseController()
+    //{
+    //    // 反射获取ManageProvider.UserHost的Set方法，避免直接引用XCode
+    //    _setip = "ManageProvider".GetTypeEx()?.GetPropertyEx("UserHost")?.SetMethod?.CreateDelegate<Action<String>>();
+    //}
 
     /// <summary>实例化</summary>
     /// <param name="serviceProvider"></param>
@@ -71,8 +71,8 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
 
         // 向ManageProvider.UserHost写入用户主机IP地址
         var ip = HttpContext.GetUserHost();
-        //ManageProvider.UserHost = UserHost;
-        if (!ip.IsNullOrEmpty()) _setip?.Invoke(ip);
+        ManageProvider.UserHost = ip;
+        //if (!ip.IsNullOrEmpty()) _setip?.Invoke(ip);
 
         // 从池中获取上下文
         var ctx = Context = _pool.Get();
@@ -110,8 +110,8 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
     /// <summary>验证令牌，并获取Jwt对象，子类可借助Jwt.Subject获取设备</summary>
     /// <param name="token"></param>
     /// <returns></returns>
-    [Obsolete("=>OnAuthorize(String token, ActionExecutingContext context)", true)]
-    protected virtual Boolean OnAuthorize(String token) => OnAuthorize(token, null!);
+    [Obsolete("=>OnAuthorize(String token, DeviceContext context)", true)]
+    protected virtual Boolean OnAuthorize(String token) => OnAuthorize(token, Context);
 
     /// <summary>验证令牌，并获取Jwt对象，子类可借助Jwt.Subject获取设备</summary>
     /// <param name="token">访问令牌</param>
@@ -125,6 +125,7 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
         Jwt = jwt;
         var code = context.Code = jwt?.Subject;
         context.ClientId = jwt?.Id!;
+        context["__Jwt"] = jwt;
 
         // 如果注入了设备服务，尝试获取设备。即使失败，也要继续往下走，最后再决定是否抛出异常
         if (_deviceService != null)
