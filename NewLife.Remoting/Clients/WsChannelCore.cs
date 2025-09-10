@@ -121,7 +121,7 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
         else
         {
             var model = _client.JsonHost.Read<CommandModel>(message);
-            if (model != null) await _client.ReceiveCommand(model, "WebSocket").ConfigureAwait(false);
+            if (model != null) await _client.ReceiveCommand(model, message, "WebSocket").ConfigureAwait(false);
         }
     }
 

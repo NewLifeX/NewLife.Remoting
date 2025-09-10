@@ -143,8 +143,8 @@ public static class CommandClientHelper
 
     /// <summary>分发执行服务</summary>
     /// <param name="client">命令客户端</param>
-    /// <param name="model"></param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="model">命令模型</param>
+    /// <param name="cancellationToken">取消令牌</param>
     private static async Task<Object?> OnCommand(ICommandClient client, CommandModel model, CancellationToken cancellationToken)
     {
         //WriteLog("OnCommand {0}", model.ToJson());

@@ -278,9 +278,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         var api = e.ApiMessage;
         if (msg != null && !msg.Reply && api != null && api.Action == "Notify")
         {
-            var cmd = api.Data?.ToStr().ToJsonEntity<CommandModel>();
+            var message = api.Data?.ToStr();
+            var cmd = message?.ToJsonEntity<CommandModel>();
             if (cmd != null)
-                _ = ReceiveCommand(cmd, client.Local?.Type + "");
+                _ = ReceiveCommand(cmd, message, client.Local?.Type + "");
         }
     }
 
@@ -754,7 +755,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     {
                         foreach (var model in commands)
                         {
-                            await ReceiveCommand(model, "Pong", cancellationToken).ConfigureAwait(false);
+                            await ReceiveCommand(model, null, "Pong", cancellationToken).ConfigureAwait(false);
                         }
                     }
                 }
@@ -1070,7 +1071,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     private WsChannel? _ws;
-    /// <summary>定时心跳</summary>
+    /// <summary>定时心跳。由心跳定时器调用，主要用于维护WebSocket长连接</summary>
     /// <param name="state"></param>
     /// <returns></returns>
     protected virtual async Task OnPing(Object state)
@@ -1095,11 +1096,12 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// 其次判断命令是否已经过期，如果已经过期则取消执行。
     /// 还支持定时执行，延迟执行。
     /// </remarks>
-    /// <param name="model"></param>
-    /// <param name="source"></param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="model">命令模型</param>
+    /// <param name="message">原始命令消息</param>
+    /// <param name="source">来源</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
-    public virtual async Task<CommandReplyModel?> ReceiveCommand(CommandModel model, String source, CancellationToken cancellationToken = default)
+    public virtual async Task<CommandReplyModel?> ReceiveCommand(CommandModel model, String? message, String source, CancellationToken cancellationToken = default)
     {
         if (model == null) return null;
 
@@ -1107,15 +1109,15 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (model.Id > 0 && !_cache.Add($"cmd:{model.Id}", model, 3600)) return null;
 
         // 埋点，建立调用链
-        var json = model.ToJson();
-        using var span = Tracer?.NewSpan("cmd:" + model.Command, json);
+        message ??= model.ToJson();
+        using var span = Tracer?.NewSpan("cmd:" + model.Command, message);
         if (!model.TraceId.IsNullOrEmpty()) span?.Detach(model.TraceId);
         try
         {
             // 有效期判断前把UTC转为本地时间
             var now = GetNow();
             var expire = model.Expire.ToLocalTime();
-            WriteLog("[{0}] 收到命令: {1}", source, json);
+            WriteLog("[{0}] 收到命令: {1}", source, message);
             if (expire.Year < 2000 || expire > now)
             {
                 // 延迟执行
@@ -1130,8 +1132,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     _ = Task.Run(async () =>
                     {
                         await TaskEx.Delay((Int32)ts.TotalMilliseconds).ConfigureAwait(false);
-                        WriteLog("[{0}] 延迟执行: {1}", source, json);
-                        await OnReceiveCommand(model, CancellationToken.None).ConfigureAwait(false);
+                        WriteLog("[{0}] 延迟执行: {1}", source, message);
+                        await OnReceiveCommand(model, message, CancellationToken.None).ConfigureAwait(false);
                     }, cancellationToken);
 
                     var reply = new CommandReplyModel
@@ -1147,7 +1149,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     return reply;
                 }
                 else
-                    return await OnReceiveCommand(model, cancellationToken).ConfigureAwait(false);
+                    return await OnReceiveCommand(model, message, cancellationToken).ConfigureAwait(false);
             }
             else
             {
@@ -1169,12 +1171,14 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     /// <summary>触发收到命令的动作</summary>
     /// <param name="model"></param>
+    /// <param name="message"></param>
     /// <param name="cancellationToken"></param>
-    protected virtual async Task<CommandReplyModel?> OnReceiveCommand(CommandModel model, CancellationToken cancellationToken)
+    protected virtual async Task<CommandReplyModel?> OnReceiveCommand(CommandModel model, String? message, CancellationToken cancellationToken)
     {
-        var e = new CommandEventArgs { Model = model };
+        var e = new CommandEventArgs { Model = model, Message = message };
         Received?.Invoke(this, e);
 
+        model = e.Model;
         var rs = await this.ExecuteCommand(model, cancellationToken).ConfigureAwait(false);
         e.Reply ??= rs;
 
@@ -1189,7 +1193,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="argument"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
-    public virtual Task<CommandReplyModel?> SendCommand(String command, String argument, CancellationToken cancellationToken = default) => OnReceiveCommand(new CommandModel { Command = command, Argument = argument }, cancellationToken);
+    public virtual Task<CommandReplyModel?> SendCommand(String command, String argument, CancellationToken cancellationToken = default) => OnReceiveCommand(new CommandModel { Command = command, Argument = argument }, null, cancellationToken);
 
     /// <summary>上报命令调用结果</summary>
     /// <param name="model"></param>

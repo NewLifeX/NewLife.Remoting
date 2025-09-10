@@ -120,8 +120,8 @@ class WsChannel(ClientBase client) : DisposeBase
         }
         else
         {
-            var model = message.ToJsonEntity<CommandModel>();
-            if (model != null) await _client.ReceiveCommand(model, "WebSocket").ConfigureAwait(false);
+            var model = _client.JsonHost.Read<CommandModel>(message);
+            if (model != null) await _client.ReceiveCommand(model, message, "WebSocket").ConfigureAwait(false);
         }
     }
 
