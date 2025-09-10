@@ -333,6 +333,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
                 entity.SetItem("CreateUser", Environment.MachineName);
                 entity.SetItem("CreateIP", context.UserHost);
                 entity.SetItem("CreateTime", DateTime.Now);
+
+                entity.Save();
             }
         }
 
