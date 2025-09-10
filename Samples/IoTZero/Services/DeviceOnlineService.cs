@@ -70,7 +70,7 @@ public class DeviceOnlineService : IHostedService
                 foreach (var olt in rs)
                 {
                     var device = olt?.Device;
-                    var msg = $"[{device}]登录于{olt.CreateTime.ToFullString()}，最后活跃于{olt.UpdateTime.ToFullString()}";
+                    var msg = $"[{device}/{olt?.SessionId}]登录于{olt.CreateTime.ToFullString()}，最后活跃于{olt.UpdateTime.ToFullString()}";
                     _deviceService.WriteHistory(device, "超时下线", true, msg, null, olt.CreateIP);
 
                     if (_deviceService is MyDeviceService ds)

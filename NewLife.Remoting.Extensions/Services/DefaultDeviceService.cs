@@ -200,7 +200,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         {
             context.Online = online;
 
-            var msg = $"{reason} [{context.Device}]]登录于{entity["CreateTime"]}，最后活跃于{entity["UpdateTime"]}";
+            var msg = $"{reason} [{context.Device}/{online.SessionId}]]登录于{entity["CreateTime"]}，最后活跃于{entity["UpdateTime"]}";
             WriteHistory(context, source + "设备下线", true, msg);
             //entity.Delete();
 
