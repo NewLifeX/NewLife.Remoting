@@ -1036,6 +1036,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 _timerUpgrade ??= new TimerX(CheckUpgrade, null, 5_000, 600_000) { Async = true };
             }
         }
+
+        // 如果事件队列不为空，启动事件定时器
+        if (!_events.IsEmpty) InitEvent();
     }
 
     /// <summary>停止心跳定时器</summary>
@@ -1266,7 +1269,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (!Features.HasFlag(Features.PostEvent)) return false;
 
         // 使用时才创建定时器
-        InitEvent();
+        if (Logined) InitEvent();
 
         // 记录追踪标识，上报的时候带上，尽可能让源头和下游串联起来
         _eventTraceId = DefaultSpan.Current?.TraceId;
