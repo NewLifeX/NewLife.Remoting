@@ -99,7 +99,7 @@ public abstract class BaseDeviceController : BaseController
 
         var dv = Context.Device!;
         rs ??= new LoginResponse { Name = dv.Name, };
-        rs.Code = dv.Code;
+        //rs.Code = dv.Code;
 
         if (request is ILoginRequest2 req) rs.Time = req.Time;
         rs.ServerTime = DateTime.UtcNow.ToLong();
