@@ -209,7 +209,7 @@ public abstract class BaseDeviceController : BaseController
 
     /// <summary>长连接处理</summary>
     /// <param name="socket"></param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
     protected virtual async Task HandleNotify(WebSocket socket, CancellationToken cancellationToken)

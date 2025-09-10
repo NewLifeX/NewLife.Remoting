@@ -111,10 +111,10 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     }
 
     /// <summary>向目标会话发送事件。进程内转发，或通过Redis队列</summary>
-    /// <param name="code"></param>
-    /// <param name="command"></param>
-    /// <param name="message"></param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="code">设备编码</param>
+    /// <param name="command">命令模型</param>
+    /// <param name="message">原始命令消息</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     public virtual Task<Int32> PublishAsync(String code, CommandModel command, String? message, CancellationToken cancellationToken)
     {
@@ -133,9 +133,9 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     }
 
     /// <summary>从事件总线收到事件</summary>
-    /// <param name="message"></param>
-    /// <param name="context"></param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="message">原始命令消息</param>
+    /// <param name="context">上下文</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     protected virtual async Task OnMessage(String message, IEventContext<String> context, CancellationToken cancellationToken)
     {

@@ -28,7 +28,7 @@ public class ShardTableService : IHostedService
     /// <summary>
     /// 开始服务
     /// </summary>
-    /// <param name="cancellationToken"></param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     public Task StartAsync(CancellationToken cancellationToken)
     {
@@ -41,7 +41,7 @@ public class ShardTableService : IHostedService
     /// <summary>
     /// 停止服务
     /// </summary>
-    /// <param name="cancellationToken"></param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     public Task StopAsync(CancellationToken cancellationToken)
     {

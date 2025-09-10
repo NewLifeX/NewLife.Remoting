@@ -458,7 +458,7 @@ public class ApiClient : ApiHost, IApiClient
     /// <summary>连接后自动登录</summary>
     /// <param name="client">客户端</param>
     /// <param name="force">强制登录</param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="cancellationToken">取消令牌</param>
     protected virtual Task<Object?> OnLoginAsync(ISocketClient client, Boolean force, CancellationToken cancellationToken = default) => TaskEx.FromResult<Object?>(null);
 
     /// <summary>登录</summary>

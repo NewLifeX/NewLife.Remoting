@@ -31,9 +31,9 @@ public class WsCommandSession(WebSocket socket) : CommandSession
     }
 
     /// <summary>处理事件消息，通过WebSocket向下发送</summary>
-    /// <param name="command"></param>
-    /// <param name="message"></param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="command">命令模型</param>
+    /// <param name="message">原始命令消息</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     public override Task HandleAsync(CommandModel command, String? message, CancellationToken cancellationToken)
     {
@@ -42,8 +42,8 @@ public class WsCommandSession(WebSocket socket) : CommandSession
     }
 
     /// <summary>阻塞WebSocket，等待连接结束</summary>  
-    /// <param name="context"></param>  
-    /// <param name="cancellationToken"></param>  
+    /// <param name="context">上下文</param>  
+    /// <param name="cancellationToken">取消令牌</param>  
     /// <returns></returns>  
     public virtual async Task WaitAsync(HttpContext context, CancellationToken cancellationToken)
     {

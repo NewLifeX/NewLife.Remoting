@@ -295,7 +295,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>异步调用。HTTP默认POST，自动识别GET</summary>
     /// <param name="action">动作</param>
     /// <param name="args">参数</param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     protected virtual async Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken)
     {
@@ -323,9 +323,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     /// <summary>异步Get调用（仅用于HTTP）</summary>
     /// <typeparam name="TResult"></typeparam>
-    /// <param name="action"></param>
-    /// <param name="args"></param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="action">动作</param>
+    /// <param name="args">参数</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     /// <exception cref="NotSupportedException"></exception>
     protected virtual async Task<TResult> GetAsync<TResult>(String action, Object? args, CancellationToken cancellationToken = default)
@@ -661,8 +661,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>注销。调用服务端注销接口，销毁令牌</summary>
-    /// <param name="reason"></param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="reason">原因</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     public virtual async Task<ILogoutResponse?> Logout(String? reason, CancellationToken cancellationToken = default)
     {
@@ -695,7 +695,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     /// <summary>发起登录异步请求。由Login内部调用</summary>
     /// <param name="request">登录请求</param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     protected virtual Task<ILoginResponse?> LoginAsync(ILoginRequest request, CancellationToken cancellationToken) => InvokeAsync<ILoginResponse>(Actions[Features.Login], request, cancellationToken);
 
@@ -868,8 +868,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>发起心跳异步请求。由Ping内部调用</summary>
-    /// <param name="request"></param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="request">心跳请求</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     protected virtual Task<IPingResponse?> PingAsync(IPingRequest request, CancellationToken cancellationToken) => InvokeAsync<IPingResponse>(Actions[Features.Ping], request, cancellationToken);
     #endregion
@@ -1170,9 +1170,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>触发收到命令的动作</summary>
-    /// <param name="model"></param>
-    /// <param name="message"></param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="model">命令</param>
+    /// <param name="message">原始命令消息</param>
+    /// <param name="cancellationToken">取消令牌</param>
     protected virtual async Task<CommandReplyModel?> OnReceiveCommand(CommandModel model, String? message, CancellationToken cancellationToken)
     {
         var e = new CommandEventArgs { Model = model, Message = message };
@@ -1189,15 +1189,15 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>向命令引擎发送命令，触发指定已注册动作</summary>
-    /// <param name="command"></param>
-    /// <param name="argument"></param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="command">命令</param>
+    /// <param name="argument">参数</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     public virtual Task<CommandReplyModel?> SendCommand(String command, String argument, CancellationToken cancellationToken = default) => OnReceiveCommand(new CommandModel { Command = command, Argument = argument }, null, cancellationToken);
 
     /// <summary>上报命令调用结果</summary>
-    /// <param name="model"></param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="model">命令</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     public virtual Task<Object?> CommandReply(CommandReplyModel model, CancellationToken cancellationToken = default) => InvokeAsync<Object>(Actions[Features.CommandReply], model, cancellationToken);
     #endregion

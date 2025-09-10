@@ -103,8 +103,8 @@ public static class CommandClientHelper
 
     /// <summary>执行命令</summary>
     /// <param name="client">命令客户端</param>
-    /// <param name="model"></param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="model">命令模型</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     public static async Task<CommandReplyModel> ExecuteCommand(this ICommandClient client, CommandModel model, CancellationToken cancellationToken = default)
     {

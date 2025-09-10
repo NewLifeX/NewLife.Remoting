@@ -332,10 +332,10 @@ public class Upgrade
     }
 
     /// <summary>下载文件</summary>
-    /// <param name="client"></param>
-    /// <param name="address"></param>
-    /// <param name="fileName"></param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="client">客户端</param>
+    /// <param name="address">地址</param>
+    /// <param name="fileName">文件名</param>
+    /// <param name="cancellationToken">取消令牌</param>
     public static async Task<String> DownloadFileAsync(HttpClient client, String address, String fileName, CancellationToken cancellationToken = default)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, address);
