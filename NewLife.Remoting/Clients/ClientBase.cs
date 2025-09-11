@@ -259,6 +259,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     {
         var client = new MyApiClient
         {
+            Name = Name,
             Client = this,
             Servers = urls.Split(","),
             JsonHost = JsonHost,
@@ -490,7 +491,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             // 登录报错后，加大定时间隔，输出简单日志
             if (timer != null && timer.Period < 30_000) timer.Period += 5_000;
 
-            Log?.Error(ex.Message);
+            Log?.Error("[{0}]TryConnectServer: {1}", Name, ex.Message);
 
             if (!Logined) return;
         }
@@ -521,7 +522,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         // 如果正在登录，则稍等一会，避免重复登录。
         if (Status == LoginStatus.LoggingIn)
         {
-            Log?.Write(level, "正在登录，请稍等{0}ms！序号：{1}，来源：{2}", 50 * 100, times, source);
+            Log?.Write(level, "[{0}]正在登录，请稍等{1}ms！序号：{2}，来源：{3}", Name, 50 * 100, times, source);
             for (var i = 0; Status == LoginStatus.LoggingIn && i < 50; i++)
             {
                 await TaskEx.Delay(100, cancellationToken).ConfigureAwait(false);
@@ -536,7 +537,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         ILoginRequest? request = null;
         ILoginResponse? response = null;
         using var span = Tracer?.NewSpan(nameof(Login), new { Code, source, Server });
-        Log?.Write(level, "登录：{0}，序号：{1}，来源：{2}", Code, times, source);
+        Log?.Write(level, "[{0}]登录：{1}，序号：{2}，来源：{3}", Name, Code, times, source);
         try
         {
             // 创建登录请求，用户可重载BuildLoginRequest实现自定义登录请求，填充更多参数
@@ -553,7 +554,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             response = await LoginAsync(request, ts.Token).ConfigureAwait(false);
             if (response == null) return null;
 
-            Log?.Write(level, "登录成功：{0}，序号：{1}，来源：{2}", response, times, source);
+            Log?.Write(level, "[{0}]登录成功：{1}，序号：{2}，来源：{3}", Name, response, times, source);
 
             // 登录后设置用于用户认证的token
             SetToken(response.Token);
@@ -562,7 +563,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
         catch (Exception ex)
         {
-            Log?.Write(level, "登录失败：{0}，序号：{1}，来源：{2}", ex.Message, times, source);
+            Log?.Write(level, "[{0}]登录失败：{1}，序号：{2}，来源：{3}", Name, ex.Message, times, source);
 
             Status = LoginStatus.Ready;
             span?.SetError(ex, null);
@@ -687,7 +688,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         catch (Exception ex)
         {
             span?.SetError(ex, null);
-            Log?.Error(ex.ToString());
+            Log?.Error("[{0}]Logout: {1}", Name, ex.ToString());
 
             return null;
         }
@@ -787,14 +788,14 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 Status = LoginStatus.Ready;
                 if (Features.HasFlag(Features.Login))
                 {
-                    Log?.Debug("重新登录，因心跳失败：{0}", ex.Message);
+                    Log?.Debug("[{0}]重新登录，因心跳失败：{1}", Name, ex.Message);
                     await Login(nameof(Ping), cancellationToken).ConfigureAwait(false);
                 }
 
                 return null;
             }
 
-            Log?.Debug("心跳异常 {0}", ex.GetTrue().Message);
+            Log?.Debug("[{0}]心跳异常：{1}", Name, ex.GetTrue().Message);
 
             // 常见网络断开错误不要抛出异常
             if (ex2 is IOException || ex2 is SocketException sex && sex.SocketErrorCode == SocketError.ConnectionReset)
@@ -1066,7 +1067,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         catch (Exception ex)
         {
             span?.SetError(ex, null);
-            Log?.Debug("{0}", ex);
+            Log?.Debug("[{0}]{1}", Name, ex);
         }
     }
 

@@ -102,7 +102,7 @@ class WsChannel(ClientBase client) : DisposeBase
         catch (OperationCanceledException) { }
         catch (Exception ex)
         {
-            _client.Log?.Error("WebSocket异常[{0}]: {1}", ex.GetType().Name, ex.Message);
+            _client.Log?.Error("[{0}]WebSocket异常[{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
         }
         finally
         {

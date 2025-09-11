@@ -445,13 +445,13 @@ public class ApiClient : ApiHost, IApiClient
             {
                 task.ContinueWith(t =>
                 {
-                    if (t.Exception != null) Log?.Error("自动登录失败：{0}", t.Exception.GetTrue().Message);
+                    if (t.Exception != null) Log?.Error("[{0}]自动登录失败：{1}", Name, t.Exception.GetTrue().Message);
                 }, TaskScheduler.Default);
             }
         }
         catch (Exception ex)
         {
-            Log?.Error("自动登录触发失败：{0}", ex.Message);
+            Log?.Error("[{0}]自动登录触发失败：{1}", Name, ex.Message);
         }
     }
 
