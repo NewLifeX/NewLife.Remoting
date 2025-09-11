@@ -217,16 +217,18 @@ public abstract class BaseDeviceController : BaseController
         var device = Context.Device ?? throw new InvalidOperationException("未登录！");
         var sessionManager = _sessionManager ?? throw new InvalidOperationException("未找到SessionManager服务");
 
+        using var span = _tracer?.NewSpan("cmd:Ws:Create", device.Code);
         using var session = new WsCommandSession(socket)
         {
             Code = device.Code,
             Log = this,
-            SetOnline = online => _deviceService.SetOnline(Context, online)
+            SetOnline = online => _deviceService.SetOnline(Context, online),
+            Tracer = _tracer,
         };
 
         sessionManager.Add(session);
 
-        await session.WaitAsync(HttpContext, cancellationToken);
+        await session.WaitAsync(HttpContext, span, cancellationToken);
     }
 
     /// <summary>设备端响应服务调用</summary>

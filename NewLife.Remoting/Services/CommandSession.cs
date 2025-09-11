@@ -1,7 +1,7 @@
 ﻿using NewLife.Log;
 using NewLife.Remoting.Models;
 #if !NET45
-using TaskEx=System.Threading.Tasks.Task;
+using TaskEx = System.Threading.Tasks.Task;
 #endif
 
 namespace NewLife.Remoting.Services;
@@ -21,6 +21,9 @@ public class CommandSession : DisposeBase, ICommandSession
 
     /// <summary>设置 在线/离线</summary>
     public Action<Boolean>? SetOnline { get; set; }
+
+    /// <summary>链路追踪</summary>
+    public ITracer? Tracer { get; set; }
     #endregion
 
     /// <summary>处理事件</summary>

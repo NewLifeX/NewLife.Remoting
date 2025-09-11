@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.WebSockets;
+using NewLife.Log;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
@@ -42,10 +43,11 @@ public class WsCommandSession(WebSocket socket) : CommandSession
     }
 
     /// <summary>阻塞WebSocket，等待连接结束</summary>  
-    /// <param name="context">上下文</param>  
+    /// <param name="context">上下文</param>
+    /// <param name="span">埋点</param>  
     /// <param name="cancellationToken">取消令牌</param>  
     /// <returns></returns>  
-    public virtual async Task WaitAsync(HttpContext context, CancellationToken cancellationToken)
+    public virtual async Task WaitAsync(HttpContext context, ISpan? span, CancellationToken cancellationToken)
     {
         var ip = context.GetUserHost();
         var sid = Rand.Next();
@@ -58,6 +60,9 @@ public class WsCommandSession(WebSocket socket) : CommandSession
         // 长连接上线  
         SetOnline?.Invoke(true);
 
+        // 即将进入阻塞等待，结束埋点
+        span?.TryDispose();
+
         // 链接取消令牌。当客户端断开时，触发取消，结束长连接  
         using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         try
@@ -69,13 +74,16 @@ public class WsCommandSession(WebSocket socket) : CommandSession
                 if (data.MessageType == WebSocketMessageType.Close) break;
                 if (data.MessageType is WebSocketMessageType.Text or WebSocketMessageType.Binary)
                 {
+                    using var span2 = Tracer?.NewSpan("cmd:Ws.Receive", $"[{data.MessageType}]{remote}", data.Count);
+
                     var txt = buf.ToStr(null, 0, data.Count);
+                    span2?.AppendTag(txt);
                     if (txt == "Ping")
                     {
-                        await socket.SendAsync("Pong".GetBytes(), WebSocketMessageType.Text, true, source.Token).ConfigureAwait(false);
-
                         // 长连接上线。可能客户端心跳已经停了，WS还在，这里重新上线  
                         SetOnline?.Invoke(true);
+
+                        await socket.SendAsync("Pong".GetBytes(), WebSocketMessageType.Text, true, source.Token).ConfigureAwait(false);
                     }
                 }
             }

@@ -9,7 +9,7 @@ using NewLife.Remoting.Models;
 using NewLife.Serialization;
 using NewLife.Threading;
 #if !NET45
-using TaskEx=System.Threading.Tasks.Task;
+using TaskEx = System.Threading.Tasks.Task;
 #endif
 
 namespace NewLife.Remoting.Services;
@@ -21,6 +21,10 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     #region 属性
     /// <summary>主题</summary>
     public String Topic { get; set; } = "Commands";
+
+    /// <summary>客户端标识。机器名+进程号</summary>
+    /// <remarks>在事件总线中，用做Redis队列的消费组</remarks>
+    public String ClientId { get; set; } = $"{Environment.MachineName}-{Process.GetCurrentProcess().Id}";
 
     /// <summary>事件总线</summary>
     public IEventBus<String> Bus { get; set; } = null!;
@@ -65,13 +69,13 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     /// <returns></returns>
     protected virtual IEventBus<String> Create()
     {
-        var clientId = $"{Environment.MachineName}-{Process.GetCurrentProcess().Id}";
-        using var span = _tracer?.NewSpan($"cmd:{Topic}:Create", clientId);
+        //var clientId = $"{Environment.MachineName}-{Process.GetCurrentProcess().Id}";
+        using var span = _tracer?.NewSpan($"cmd:{Topic}:Create", ClientId);
 
         // 创建事件总线，指定队列消费组
         IEventBus<String> bus;
         if (_cache is not MemoryCache && _cache is Cache cache)
-            bus = cache.GetEventBus<String>(Topic, clientId);
+            bus = cache.GetEventBus<String>(Topic, ClientId);
         else
             bus = new EventBus<String>();
 
@@ -111,6 +115,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     }
 
     /// <summary>向目标会话发送事件。进程内转发，或通过Redis队列</summary>
+    /// <remarks>实际发送的消息是 code#message，因此code内不能带有#</remarks>
     /// <param name="code">设备编码</param>
     /// <param name="command">命令模型</param>
     /// <param name="message">原始命令消息</param>
@@ -133,6 +138,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     }
 
     /// <summary>从事件总线收到事件</summary>
+    /// <remarks>实际发送消息是 code#message，因此需要先解码消息找到code</remarks>
     /// <param name="message">原始命令消息</param>
     /// <param name="context">上下文</param>
     /// <param name="cancellationToken">取消令牌</param>
