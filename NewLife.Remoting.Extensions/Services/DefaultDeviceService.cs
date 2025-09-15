@@ -292,7 +292,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <returns></returns>
     public virtual void SetOnline(DeviceContext context, Boolean online)
     {
-        var olt = context.Online ?? GetOnline(context);
+        //var olt = context.Online ?? GetOnline(context);
+        var olt = GetOnline(context);
         if (olt != null && olt is IEntity entity)
         {
             entity.SetItem("WebSocket", online);
