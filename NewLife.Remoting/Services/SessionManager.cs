@@ -176,7 +176,12 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         //if (msg != null && (msg.Expire.Year <= 2000 || msg.Expire >= Runtime.UtcNow))
         {
             var session = Get(code);
-            if (session != null) await session.HandleAsync(msg!, message, cancellationToken).ConfigureAwait(false);
+            if (session != null)
+            {
+                await session.HandleAsync(msg!, message, cancellationToken).ConfigureAwait(false);
+
+                if (span != null) span.Value = 1;
+            }
         }
     }
 
@@ -195,7 +200,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     {
         if (_dic.IsEmpty) return;
 
-        using var span = _tracer?.NewSpan($"cmd:{Topic}:CloseAll", reason);
+        using var span = _tracer?.NewSpan($"cmd:{Topic}:CloseAll", reason, _dic.Count);
 
         var arr = _dic.ToValueArray();
         _dic.Clear();
