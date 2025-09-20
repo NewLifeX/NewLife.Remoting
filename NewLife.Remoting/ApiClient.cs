@@ -55,6 +55,12 @@ public class ApiClient : ApiHost, IApiClient
 
     /// <summary>调用统计</summary>
     public ICounter? StatInvoke { get; set; }
+
+    /// <summary>重试策略（可选）。默认 null 表示不启用重试</summary>
+    public IRetryPolicy? RetryPolicy { get; set; }
+
+    /// <summary>最大重试次数（不含首次尝试）。默认 0，不重试</summary>
+    public Int32 MaxRetries { get; set; }
     #endregion
 
     #region 构造
@@ -171,6 +177,7 @@ public class ApiClient : ApiHost, IApiClient
     /// <remarks>
     /// - 自动确保已 <see cref="Open"/>。
     /// - 发送失败若返回 401（Unauthorized），将调用 <see cref="OnLoginAsync"/> 进行一次登录后重发（同一连接）。
+    /// - 若配置了 <see cref="RetryPolicy"/> 且 <see cref="MaxRetries"/> &gt; 0，则对非 401 的异常按策略进行可选重试（默认不重试）。
     /// - 超时会将 <see cref="TaskCanceledException"/> 截断为短消息："[action]超时[Timeout]取消"。
     /// </remarks>
     /// <returns>解码后的返回值，或默认值</returns>
@@ -184,31 +191,57 @@ public class ApiClient : ApiHost, IApiClient
 
         if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
 
-        var client = Cluster.Get();
-        try
+        var attempts = 0;
+        while (true)
         {
-            return await InvokeWithClientAsync<TResult>(client, action, args, 0, cancellationToken).ConfigureAwait(false);
-        }
-        catch (ApiException ex)
-        {
-            // 这个连接没有鉴权，重新登录后再次调用
-            if (ex.Code == ApiCode.Unauthorized)
+            ISocketClient? client = null;
+            try
             {
-                await OnLoginAsync(client, true, cancellationToken).ConfigureAwait(false);
+                client = Cluster.Get();
 
-                return await InvokeWithClientAsync<TResult>(client, action, args, 0, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    return await InvokeWithClientAsync<TResult>(client, action, args, 0, cancellationToken).ConfigureAwait(false);
+                }
+                catch (ApiException ex)
+                {
+                    // 这个连接没有鉴权，重新登录后再次调用（不计入重试次数）
+                    if (ex.Code == ApiCode.Unauthorized)
+                    {
+                        await OnLoginAsync(client, true, cancellationToken).ConfigureAwait(false);
+
+                        return await InvokeWithClientAsync<TResult>(client, action, args, 0, cancellationToken).ConfigureAwait(false);
+                    }
+
+                    throw;
+                }
             }
+            catch (Exception ex)
+            {
+                // 针对 TaskCanceledException 输出短消息（除非策略决定重试）
+                if (RetryPolicy != null && attempts < MaxRetries && RetryPolicy.ShouldRetry(ex, attempts + 1, out var delay, out var refreshClient))
+                {
+                    attempts++;
+                    // 需要更换连接时，归还当前（如有）
+                    // 注意：这里 client 可能为 null（Get() 之前失败）
+                    if (refreshClient && client != null)
+                    {
+                        Cluster.Return(client);
+                        client = null;
+                    }
+                    if (delay > TimeSpan.Zero) await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
 
-            throw;
-        }
-        // 截断任务取消异常，避免过长
-        catch (TaskCanceledException)
-        {
-            throw new TaskCanceledException($"[{action}]超时[{Timeout:n0}ms]取消");
-        }
-        finally
-        {
-            Cluster.Return(client);
+                if (ex is TaskCanceledException)
+                    throw new TaskCanceledException($"[{action}]超时[{Timeout:n0}ms]取消，Server={client?.Remote}");
+
+                throw;
+            }
+            finally
+            {
+                if (client != null) Cluster.Return(client);
+            }
         }
     }
 
