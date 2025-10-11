@@ -2,6 +2,7 @@
 using System.Net.WebSockets;
 using NewLife.Http;
 using NewLife.Log;
+using NewLife.Model;
 using NewLife.Remoting.Models;
 using NewLife.Serialization;
 using WebSocket = System.Net.WebSockets.WebSocket;
@@ -69,6 +70,9 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
             _websocket = client;
 
             _source = new CancellationTokenSource();
+            // 进程退出（如 Ctrl+C）时，主动取消，尽快打断Receive等待
+            var src = _source;
+            Host.RegisterExit(() => { try { src?.Cancel(); } catch { } });
             _ = Task.Run(() => DoPull(client, _source));
         }
     }

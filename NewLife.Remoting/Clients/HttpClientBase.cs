@@ -1,5 +1,6 @@
 ﻿using NewLife.Caching;
 using NewLife.Log;
+using NewLife.Model;
 using NewLife.Remoting.Models;
 using NewLife.Serialization;
 
@@ -144,6 +145,8 @@ public class HttpClientBase : ClientBase
                 _websocket = client;
 
                 _source = new CancellationTokenSource();
+                // 进程退出（如 Ctrl+C）时，主动取消，尽快打断Receive等待
+                Host.RegisterExit(() => { try { _source?.Cancel(); } catch { } });
                 _ = Task.Run(() => DoPull(client, _source.Token));
             }
 #endif
