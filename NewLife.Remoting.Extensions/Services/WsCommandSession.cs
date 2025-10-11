@@ -5,6 +5,7 @@ using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
 using NewLife.Serialization;
+using NewLife.Model;
 
 namespace NewLife.Remoting.Extensions.Services;
 
@@ -65,6 +66,17 @@ public class WsCommandSession(WebSocket socket) : CommandSession
 
         // 链接取消令牌。当客户端断开时，触发取消，结束长连接  
         using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        // 进程退出（如 Ctrl+C）时，主动取消，尽快打断Receive等待，避免优雅超时导致的延迟退出
+        var exitDisposed = false;
+        void exitHandler()
+        {
+            try
+            {
+                if (!exitDisposed && !source.IsCancellationRequested) source.Cancel();
+            }
+            catch { /* 退出阶段避免抛异常 */ }
+        }
+        Host.RegisterExit(exitHandler);
         try
         {
             var buf = new Byte[64];
@@ -101,6 +113,8 @@ public class WsCommandSession(WebSocket socket) : CommandSession
         }
         finally
         {
+            // 标记已释放，避免退出事件晚到时对已释放的CTS再次操作
+            exitDisposed = true;
             source.Cancel();
             Log?.WriteLog("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
 
