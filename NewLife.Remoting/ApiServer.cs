@@ -68,15 +68,15 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     }
 
     /// <summary>使用指定端口实例化网络服务应用接口提供者</summary>
-    /// <param name="port"></param>
+    /// <param name="port">端口</param>
     public ApiServer(Int32 port) : this() => Port = port;
 
     /// <summary>实例化</summary>
-    /// <param name="uri"></param>
+    /// <param name="uri">监听地址</param>
     public ApiServer(NetUri uri) : this() => Use(uri);
 
     /// <summary>销毁时停止服务</summary>
-    /// <param name="disposing"></param>
+    /// <param name="disposing">是否由托管代码显示释放</param>
     protected override void Dispose(Boolean disposing)
     {
         base.Dispose(disposing);
@@ -98,7 +98,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     public IApiManager Manager { get; }
 
     /// <summary>注册服务提供类。该类的所有公开方法将直接暴露</summary>
-    /// <typeparam name="TService"></typeparam>
+    /// <typeparam name="TService">服务控制器类型</typeparam>
     public void Register<TService>() => Manager.Register<TService>();
 
     /// <summary>注册服务</summary>
@@ -124,7 +124,8 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
 
     #region 启动停止
     /// <summary>添加服务器</summary>
-    /// <param name="uri"></param>
+    /// <param name="uri">监听地址</param>
+    /// <returns>创建的服务器实例，若初始化失败返回 null</returns>
     public IApiServer? Use(NetUri uri)
     {
         var svr = uri.Type == NetType.Http ? new ApiHttpServer() : new ApiNetServer();
@@ -145,7 +146,8 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     }
 
     /// <summary>确保已创建服务器对象</summary>
-    /// <returns></returns>
+    /// <returns>已存在的服务器或新建的 <see cref="ApiNetServer"/></returns>
+    /// <exception cref="ArgumentNullException">未指定 <see cref="Server"/> 且 <see cref="Port"/> 未设置</exception>
     public IApiServer EnsureCreate()
     {
         var svr = Server;
@@ -173,6 +175,10 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     }
 
     /// <summary>开始服务</summary>
+    /// <remarks>
+    /// 初始化 <see cref="Encoder"/> 与 <see cref="Handler"/>，创建并启动底层 <see cref="IApiServer"/>。
+    /// 若 <see cref="StatPeriod"/> 大于 0，启动统计定时器输出处理统计与网络状态。
+    /// </remarks>
     public virtual void Start()
     {
         if (Active) return;
@@ -216,6 +222,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
 
     /// <summary>停止服务</summary>
     /// <param name="reason">关闭原因。便于日志分析</param>
+    /// <remarks>停止底层 <see cref="IApiServer"/> 并关闭统计定时器，将 <see cref="Active"/> 置为 false。</remarks>
     public virtual void Stop(String? reason)
     {
         if (!Active) return;
@@ -232,7 +239,12 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     #region 请求处理
     /// <summary>处理会话收到的消息，并返回结果消息</summary>
     /// <remarks>
-    /// 这里是网络RPC的消息处理核心，目标协议只要能封装为IMessage，即可通过重载该方法得到支持
+    /// - 忽略 <c>Reply=true</c> 的消息；
+    /// - 使用会话级或服务器级 <see cref="IEncoder"/> 解码 <see cref="IMessage"/> 为 <see cref="ApiMessage"/>；
+    /// - 捕获执行异常并转换为错误码/消息（数据库异常脱敏）；
+    /// - 单向请求（<c>OneWay=true</c>）不返回响应；
+    /// - 在 finally 记录超过 <see cref="ApiHost.SlowTrace"/> 的慢处理日志（Action/Code/耗时ms）；
+    /// - 若 <see cref="UseHttpStatus"/> 为 true，则使用 HTTP 状态码表达结果。
     /// </remarks>
     /// <param name="session">网络会话</param>
     /// <param name="msg">消息</param>
@@ -305,6 +317,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         finally
         {
             var msCost = st.StopCount(sw) / 1000;
+            // 慢处理日志：包含 Action、最终 Code 与耗时ms。用于定位服务端热点与慢点。
             if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢处理[{request?.Action}]，Code={code}，耗时{msCost:n0}ms");
 
             // 响应结果可能是 IOwnerPacket，需要释放资源，把缓冲区还给池
@@ -318,15 +331,15 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// <param name="args">参数</param>
     /// <param name="msg">消息</param>
     /// <param name="serviceProvider">当前作用域的服务提供者</param>
-    /// <returns></returns>
+    /// <returns>处理结果；异常将由 <see cref="Process"/> 捕获并转换为错误码</returns>
     protected virtual Object? OnProcess(IApiSession session, String action, IPacket? args, IMessage msg, IServiceProvider serviceProvider) => Handler?.Execute(session, action, args, msg, serviceProvider);
     #endregion
 
     #region 广播
     /// <summary>广播消息给所有会话客户端</summary>
-    /// <param name="action"></param>
-    /// <param name="args"></param>
-    /// <returns></returns>
+    /// <param name="action">服务操作</param>
+    /// <param name="args">参数</param>
+    /// <returns>实际广播成功的会话数</returns>
     public virtual Int32 InvokeAll(String action, Object? args = null)
     {
         var count = 0;

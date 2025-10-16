@@ -1,6 +1,7 @@
 ﻿using NewLife.Data;
 using NewLife.Http;
 using NewLife.Log;
+using NewLife.Model;
 using NewLife.Net;
 using NewLife.Remoting.Models;
 using NewLife.Serialization;
@@ -69,6 +70,8 @@ class WsChannel(ClientBase client) : DisposeBase
             _websocket = client;
 
             _source = new CancellationTokenSource();
+            // 进程退出（如 Ctrl+C）时，主动取消，尽快打断Receive等待
+            Host.RegisterExit(() => { try { _source?.Cancel(); } catch { } });
             _ = TaskEx.Run(() => DoPull(client, _source));
         }
     }

@@ -55,6 +55,12 @@ public class ApiClient : ApiHost, IApiClient
 
     /// <summary>调用统计</summary>
     public ICounter? StatInvoke { get; set; }
+
+    /// <summary>重试策略（可选）。默认 null 表示不启用重试</summary>
+    public IRetryPolicy? RetryPolicy { get; set; }
+
+    /// <summary>最大重试次数（不含首次尝试）。默认 0，不重试</summary>
+    public Int32 MaxRetries { get; set; }
     #endregion
 
     #region 构造
@@ -83,6 +89,8 @@ public class ApiClient : ApiHost, IApiClient
 
     #region 打开关闭
     /// <summary>打开客户端</summary>
+    /// <remarks>校验 `Servers` 并初始化 `Encoder`/`Cluster`。首次开启统计定时器。</remarks>
+    /// <returns>已处于打开状态或本次打开返回 true</returns>
     public virtual Boolean Open()
     {
         if (Active) return true;
@@ -115,7 +123,7 @@ public class ApiClient : ApiHost, IApiClient
 
     /// <summary>关闭</summary>
     /// <param name="reason">关闭原因。便于日志分析</param>
-    /// <returns>是否成功</returns>
+    /// <remarks>会调用 `Cluster.Close(reason)` 并将 `Active=false`。</remarks>
     public virtual void Close(String reason)
     {
         if (!Active) return;
@@ -127,7 +135,8 @@ public class ApiClient : ApiHost, IApiClient
 
     private String? _lastUrls;
     /// <summary>设置服务端地址。如果新地址跟旧地址不同，将会替换旧地址构造的Servers</summary>
-    /// <param name="uris"></param>
+    /// <param name="uris">服务端地址集合字符串，逗号/分号分隔</param>
+    /// <remarks>如果已存在集群，调用 `Cluster.Reset()` 以便下次获取连接时生效，尽量平滑切换。</remarks>
     public void SetServer(String uris)
     {
         if (!uris.IsNullOrEmpty() && uris != _lastUrls)
@@ -140,6 +149,8 @@ public class ApiClient : ApiHost, IApiClient
     }
 
     /// <summary>初始化集群</summary>
+    /// <remarks>根据 `UsePool` 决定单连接或连接池；为 `OnCreate` 提供连接工厂。</remarks>
+    /// <returns>创建或复用的集群实例</returns>
     protected virtual ICluster<String, ISocketClient> InitCluster()
     {
         var cluster = Cluster;
@@ -163,7 +174,13 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
     /// <param name="cancellationToken">取消通知</param>
-    /// <returns></returns>
+    /// <remarks>
+    /// - 自动确保已 <see cref="Open"/>。
+    /// - 发送失败若返回 401（Unauthorized），将调用 <see cref="OnLoginAsync"/> 进行一次登录后重发（同一连接）。
+    /// - 若配置了 <see cref="RetryPolicy"/> 且 <see cref="MaxRetries"/> &gt; 0，则对非 401 的异常按策略进行可选重试（默认不重试）。
+    /// - 超时会将 <see cref="TaskCanceledException"/> 截断为短消息："[action]超时[Timeout]取消"。
+    /// </remarks>
+    /// <returns>解码后的返回值，或默认值</returns>
     public virtual async Task<TResult?> InvokeAsync<TResult>(String action, Object? args = null, CancellationToken cancellationToken = default)
     {
         // 让上层异步到这直接返回，后续代码在另一个线程执行
@@ -174,38 +191,64 @@ public class ApiClient : ApiHost, IApiClient
 
         if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
 
-        var client = Cluster.Get();
-        try
+        var attempts = 0;
+        while (true)
         {
-            return await InvokeWithClientAsync<TResult>(client, action, args, 0, cancellationToken).ConfigureAwait(false);
-        }
-        catch (ApiException ex)
-        {
-            // 这个连接没有鉴权，重新登录后再次调用
-            if (ex.Code == ApiCode.Unauthorized)
+            ISocketClient? client = null;
+            try
             {
-                await OnLoginAsync(client, true, cancellationToken).ConfigureAwait(false);
+                client = Cluster.Get();
 
-                return await InvokeWithClientAsync<TResult>(client, action, args, 0, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    return await InvokeWithClientAsync<TResult>(client, action, args, 0, cancellationToken).ConfigureAwait(false);
+                }
+                catch (ApiException ex)
+                {
+                    // 这个连接没有鉴权，重新登录后再次调用（不计入重试次数）
+                    if (ex.Code == ApiCode.Unauthorized)
+                    {
+                        await OnLoginAsync(client, true, cancellationToken).ConfigureAwait(false);
+
+                        return await InvokeWithClientAsync<TResult>(client, action, args, 0, cancellationToken).ConfigureAwait(false);
+                    }
+
+                    throw;
+                }
             }
+            catch (Exception ex)
+            {
+                // 针对 TaskCanceledException 输出短消息（除非策略决定重试）
+                if (RetryPolicy != null && attempts < MaxRetries && RetryPolicy.ShouldRetry(ex, attempts + 1, out var delay, out var refreshClient))
+                {
+                    attempts++;
+                    // 需要更换连接时，归还当前（如有）
+                    // 注意：这里 client 可能为 null（Get() 之前失败）
+                    if (refreshClient && client != null)
+                    {
+                        Cluster.Return(client);
+                        client = null;
+                    }
+                    if (delay > TimeSpan.Zero) await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
 
-            throw;
-        }
-        // 截断任务取消异常，避免过长
-        catch (TaskCanceledException)
-        {
-            throw new TaskCanceledException($"[{action}]超时[{Timeout:n0}ms]取消");
-        }
-        finally
-        {
-            Cluster.Return(client);
+                if (ex is TaskCanceledException)
+                    throw new TaskCanceledException($"[{action}]超时[{Timeout:n0}ms]取消，Server={client?.Remote}");
+
+                throw;
+            }
+            finally
+            {
+                if (client != null) Cluster.Return(client);
+            }
         }
     }
 
     /// <summary>同步调用，阻塞等待</summary>
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
-    /// <returns></returns>
+    /// <returns>解码后的返回值，或默认值</returns>
     public virtual TResult? Invoke<TResult>(String action, Object? args = null)
     {
         using var source = new CancellationTokenSource(Timeout);
@@ -216,7 +259,8 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
     /// <param name="flag">标识</param>
-    /// <returns></returns>
+    /// <remarks>设置消息 <c>OneWay=true</c>，不等待服务端应答，仅返回底层发送结果码。</remarks>
+    /// <returns>底层发送结果码，负数表示失败</returns>
     public virtual Int32 InvokeOneWay(String action, Object? args = null, Byte flag = 0)
     {
         if (!Open()) return -1;
@@ -226,14 +270,17 @@ public class ApiClient : ApiHost, IApiClient
     }
 
     /// <summary>指定客户端的异步调用，等待返回结果</summary>
-    /// <remarks>常用于在OnLoginAsync中实现连接后登录功能</remarks>
-    /// <typeparam name="TResult"></typeparam>
+    /// <remarks>
+    /// 常用于在 <see cref="OnLoginAsync"/> 中实现连接后登录功能。
+    /// 将在 finally 记录超过 <see cref="ApiHost.SlowTrace"/> 的慢调用日志（包含 Action/消息/耗时ms）。
+    /// </remarks>
+    /// <typeparam name="TResult">返回类型</typeparam>
     /// <param name="client">客户端</param>
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
     /// <param name="flag">标识</param>
     /// <param name="cancellationToken">取消通知</param>
-    /// <returns></returns>
+    /// <returns>解码后的返回值，或默认值</returns>
     public virtual async Task<TResult?> InvokeWithClientAsync<TResult>(ISocketClient client, String action, Object? args = null, Byte flag = 0, CancellationToken cancellationToken = default)
     {
         // 性能计数器，次数、TPS、平均耗时
@@ -300,6 +347,7 @@ public class ApiClient : ApiHost, IApiClient
         finally
         {
             var msCost = st.StopCount(sw) / 1000;
+            // 慢调用日志：包含 Action、请求消息（部分重要标识）、耗时ms。用于定位网络/服务端慢点。
             if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢调用[{action}]({msg})，耗时{msCost:n0}ms");
 
             span?.Dispose();
@@ -353,11 +401,11 @@ public class ApiClient : ApiHost, IApiClient
     }
 
     /// <summary>单向调用，不等待返回</summary>
-    /// <param name="client"></param>
+    /// <param name="client">客户端</param>
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
     /// <param name="flag">标识</param>
-    /// <returns></returns>
+    /// <returns>底层发送结果码，负数表示失败</returns>
     public Int32 InvokeWithClient(ISocketClient client, String action, Object? args, Byte flag = 0)
     {
         if (client == null) return -1;
@@ -401,6 +449,7 @@ public class ApiClient : ApiHost, IApiClient
         finally
         {
             var msCost = st.StopCount(sw) / 1000;
+            // 慢调用日志：包含 Action 和耗时ms（单向调用不涉及解码过程）。
             if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢调用[{action}]，耗时{msCost:n0}ms");
         }
     }
@@ -408,8 +457,8 @@ public class ApiClient : ApiHost, IApiClient
 
     #region 异步接收
     /// <summary>客户端收到服务端主动下发消息</summary>
-    /// <param name="message"></param>
-    /// <param name="e"></param>
+    /// <param name="message">原始消息</param>
+    /// <param name="e">底层接收事件参数</param>
     protected virtual void OnReceive(IMessage message, ApiReceivedEventArgs e) => Received?.Invoke(this, e);
 
     private void Client_Received(Object? sender, ReceivedEventArgs e)
@@ -435,6 +484,7 @@ public class ApiClient : ApiHost, IApiClient
     #region 登录
     /// <summary>新会话。客户端每次连接或断线重连后，触发自动登录（异步，不阻塞网络线程）</summary>
     /// <param name="client">会话</param>
+    /// <remarks>登录失败会记录错误日志，不影响网络线程继续工作。</remarks>
     public virtual void OnNewSession(ISocketClient client)
     {
         // Fire & forget，避免同步阻塞导致线程池/IO 线程被占用。异常写日志。
@@ -459,10 +509,12 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="client">客户端</param>
     /// <param name="force">强制登录</param>
     /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>实现方可返回登录结果，否则返回 null</returns>
     protected virtual Task<Object?> OnLoginAsync(ISocketClient client, Boolean force, CancellationToken cancellationToken = default) => TaskEx.FromResult<Object?>(null);
 
     /// <summary>登录</summary>
-    /// <returns></returns>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>实现方可返回登录结果，否则返回 null</returns>
     public virtual async Task<Object?> LoginAsync(CancellationToken cancellationToken = default)
     {
         if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
@@ -473,7 +525,13 @@ public class ApiClient : ApiHost, IApiClient
 
     #region 连接池
     /// <summary>创建客户端之后，打开连接之前</summary>
-    /// <param name="svr"></param>
+    /// <param name="svr">目标服务端地址</param>
+    /// <remarks>
+    /// - WebSocket：清空默认管线并注入 `WebSocketClientCodec`。
+    /// - 超时：网络层采用消息层的 <see cref="ApiHost.Timeout"/>。
+    /// - Trace：按日志级别为 Debug 时开启底层 Socket Trace（详见下方注释）。
+    /// </remarks>
+    /// <returns>新建并已打开的 <see cref="ISocketClient"/></returns>
     protected virtual ISocketClient OnCreate(String svr)
     {
         var uri = new NetUri(svr);
@@ -489,6 +547,8 @@ public class ApiClient : ApiHost, IApiClient
 
         // 网络层采用消息层超时
         client.Timeout = Timeout;
+        // 仅在日志级别为 Debug 时开启底层 Socket 的 Trace，以减少常规运行期间的埋点数据量和性能开销；
+        // 需要详细排障时，将日志提升到 Debug 即可自动打开底层 Trace，无需单独的开关。
         client.Tracer = (Log != null && Log.Level <= LogLevel.Debug || SocketLog != null && SocketLog.Level <= LogLevel.Debug) ? Tracer : null;
         client.Log = SocketLog!;
 

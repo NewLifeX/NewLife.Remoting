@@ -309,7 +309,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (_client is ApiHttpClient http)
         {
             var method = HttpMethod.Post;
-            if (args == null || args.GetType().IsBaseType() || action.StartsWithIgnoreCase("Get") || action.ToLower().Contains("/get"))
+            if (args == null || args.GetType().IsBaseType() || action.StartsWithIgnoreCase("Get") || action.IndexOf("/get", StringComparison.OrdinalIgnoreCase) >= 0)
                 method = HttpMethod.Get;
 
             rs = await http.InvokeAsync<TResult>(method, action, args, null, cancellationToken).ConfigureAwait(false);
@@ -371,7 +371,11 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                         await Login(action, cancellationToken).ConfigureAwait(false);
 
                         // 再次执行当前请求
-                        return await OnInvokeAsync<TResult>(action, args, cancellationToken).ConfigureAwait(false);
+                        var rs = await http.InvokeAsync<TResult>(HttpMethod.Get, action, args, null, cancellationToken).ConfigureAwait(false);
+
+                        if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]<={1}", action, rs is IPacket or Byte[]? "" : rs?.ToJson());
+
+                        return rs!;
                     }
                 }
 
@@ -483,7 +487,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         var timer = _timerLogin;
         try
         {
-            var source = new CancellationTokenSource(Timeout);
+            using var source = new CancellationTokenSource(Timeout);
             if (!Logined) await Login(nameof(TryConnectServer), source.Token).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -549,7 +553,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             // 滚动的登录超时时间，实际上只对StarServer有效
             var timeout = times * 1000;
             if (timeout > Timeout) timeout = Timeout;
-            var ts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, new CancellationTokenSource(timeout).Token);
+            using var timeoutSource = new CancellationTokenSource(timeout);
+            using var ts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutSource.Token);
 
             response = await LoginAsync(request, ts.Token).ConfigureAwait(false);
             if (response == null) return null;
