@@ -112,7 +112,7 @@ public AppClient()
 
 ​	各接口默认使用POST请求方式，参数经Json序列化放在Body中。如果使用GET请求，则参数拼接在Url中。
 
-​	登录获取令牌后，所有接口请求均需要在请求头中携带令牌，HTTP请求头：`Authentication: Bearer {token}` 。
+​	登录获取令牌后，所有接口请求均需要在请求头中携带令牌，HTTP请求头：`Authorization: Bearer {token}` 。
 
 
 
@@ -202,7 +202,7 @@ public AppClient()
 
 ### 心跳Ping
 
-​	**地址**：`POST /{Prefix}/Ping
+​	**地址**：`POST /{Prefix}/Ping`
 
 ​	**功能**：定时向服务端发送心跳，主要目的是链路保活，同时上报客户端的性能数据。
 
@@ -295,109 +295,95 @@ public class CommandModel
 
 
 
-​	**响应**（IUpgradeInfo）：
+​	**响应**（IUpgradeInfo/IUpgradeInfo2）：
 
-| 名字  | 类型   | 必要 | 说明                 |
-| ----- | ------ | :--: | -------------------- |
-| Token | String |  √   | 令牌。清空令牌后返回 |
+| 名字       | 类型    | 必要 | 说明                                                         |
+| ---------- | ------- | :--: | ------------------------------------------------------------ |
+| Version    | String  |  √   | 版本号                                                       |
+| Source     | String  |  √   | 更新包下载地址（相对路径将按服务地址补齐）                  |
+| FileHash   | String  |      | 文件哈希（用于完整性校验）                                   |
+| FileSize   | Int64   |      | 文件大小                                                     |
+| Preinstall | String  |      | 预安装脚本。解压后在解压目录执行（IUpgradeInfo2）           |
+| Executor   | String  |      | 更新后要执行的命令（IUpgradeInfo2）                          |
+| Force      | Boolean |      | 是否强制更新。覆盖后即刻重启应用（IUpgradeInfo2）           |
+| Description| String  |      | 描述                                                         |
 
 
 
 ### 下行通知Notify
 
-​	**地址**：`WS /{Prefix}/Notify`
+**地址**：`WS /{Prefix}/Notify`
 
-​	**功能**：向服务端建立WebSocket连接，服务端通过下行链路（HTTP是WebSocket，RPC是TCP/UDP）向客户端发送命令，指示客户端即时执行特定流程。
+**功能**：向服务端建立WebSocket连接，服务端通过下行链路（HTTP是WebSocket，RPC是TCP/UDP）向客户端发送命令，指示客户端即时执行特定流程。建立连接时同样会在请求头中携带 `Authorization: Bearer {token}`。
 
-​	**方向**：服务端->客户端
+**方向**：服务端->客户端
 
 
 
-​	**下发**（ILoginRequest）：
+**下发**（CommandModel）：
 
-| 名字     | 类型   | 必要 | 说明                                    |
-| -------- | ------ | :--: | --------------------------------------- |
-| Code     | String |  √   | 编码                                    |
-| Secret   | String |  √   | 密钥                                    |
-| ClientId | String |  √   | 实例。应用可能多实例部署，ip@proccessid |
-| Version  | String |      | 版本                                    |
-| Compile  | Int64  |      | 编译时间。UTC毫秒                       |
-| IP       | String |      | 本地IP地址                              |
-| Macs     | String |      | MAC地址                                 |
-| UUID     | String |      | 唯一标识                                |
-| Time     | Int64  |      | 本地时间。UTC毫秒                       |
+| 名字      | 类型    | 必要 | 说明                                                         |
+| --------- | ------- | :--: | ------------------------------------------------------------ |
+| Id        | Int64   |      | 序号，用于去重                                               |
+| Command   | String  |  √   | 命令                                                          |
+| Argument  | String  |      | 参数                                                          |
+| StartTime | DateTime|      | 开始执行时间（UTC）。支持提前下发后定时执行                  |
+| Expire    | DateTime|      | 过期时间（UTC）。过期后不再执行                              |
+| TraceId   | String  |      | 跟踪标识（traceParent），用于分布式调用链                    |
 
 
 
 ### 命令响应CommandReply
 
-​	**地址**：`POST /{Prefix}/CommandReply`
+**地址**：`POST /{Prefix}/CommandReply`
 
 ​	**功能**：客户端执行完成服务端下发的命令后，通过CommandReply接口向上汇报执行状态与结果。
 
 
 
-​	**请求**（ILoginRequest）：
+**请求**（CommandReplyModel）：
 
-| 名字     | 类型   | 必要 | 说明                                    |
-| -------- | ------ | :--: | --------------------------------------- |
-| Code     | String |  √   | 编码                                    |
-| Secret   | String |  √   | 密钥                                    |
-| ClientId | String |  √   | 实例。应用可能多实例部署，ip@proccessid |
-| Version  | String |      | 版本                                    |
-| Compile  | Int64  |      | 编译时间。UTC毫秒                       |
-| IP       | String |      | 本地IP地址                              |
-| Macs     | String |      | MAC地址                                 |
-| UUID     | String |      | 唯一标识                                |
-| Time     | Int64  |      | 本地时间。UTC毫秒                       |
+| 名字   | 类型           | 必要 | 说明             |
+| ------ | -------------- | :--: | ---------------- |
+| Id     | Int64          |  √   | 命令序号         |
+| Status | CommandStatus  |  √   | 执行状态         |
+| Data   | String         |      | 返回数据/备注    |
 
 
 
-​	**响应**：
-
-| 名字       | 类型   | 必要 | 说明                                              |
-| ---------- | ------ | :--: | ------------------------------------------------- |
-| Code       | String |      | 编码。平台下发新编码，仅用于自动注册              |
-| Secret     | String |      | 密钥。平台下发新密钥，仅用于自动注册              |
-| Token      | String |  √   | 令牌。后续所有接口调用均需要在请求头携带该令牌。  |
-| Expire     | Int32  |      | 令牌过期时间。单位秒。默认7200秒                  |
-| Time       | Int64  |      | 本地时间。客户端用于计算延迟，Unix毫秒（UTC）     |
-| ServerTime | Int64  |      | 服务器时间。客户端用于计算时间差，Unix毫秒（UTC） |
+**响应**：标准响应（code==0）。通常无特定 data 字段，或返回受影响条数等简单结果。
 
 
 
-### 上报事件PostEvent
+### 上报事件PostEvents
 
-​	**地址**：`POST /{Prefix}/PostEvent`
+**地址**：`POST /{Prefix}/PostEvents`
 
 ​	功能：客户端批量上报带有时间戳的事件日志。
 
 
 
-​	**请求**（ILoginRequest）：
+**请求**（EventModel[]）：
 
-| 名字     | 类型   | 必要 | 说明                                    |
-| -------- | ------ | :--: | --------------------------------------- |
-| Code     | String |  √   | 编码                                    |
-| Secret   | String |  √   | 密钥                                    |
-| ClientId | String |  √   | 实例。应用可能多实例部署，ip@proccessid |
-| Version  | String |      | 版本                                    |
-| Compile  | Int64  |      | 编译时间。UTC毫秒                       |
-| IP       | String |      | 本地IP地址                              |
-| Macs     | String |      | MAC地址                                 |
-| UUID     | String |      | 唯一标识                                |
-| Time     | Int64  |      | 本地时间。UTC毫秒                       |
+| 名字    | 类型    | 必要 | 说明                                  |
+| ------- | ------- | :--: | ------------------------------------- |
+| Time    | Int64   |  √   | 发生时间。Unix毫秒（UTC）             |
+| Type    | String  |      | 事件类型。info/alert/error            |
+| Name    | String  |  √   | 名称。事件名称，例如 LightOpen        |
+| Remark  | String  |      | 内容。事件详情                        |
 
 
 
-​	**响应**：
+**响应**：`Int32`，成功接收/写入的事件条数。
 
-| 名字       | 类型   | 必要 | 说明                                              |
-| ---------- | ------ | :--: | ------------------------------------------------- |
-| Code       | String |      | 编码。平台下发新编码，仅用于自动注册              |
-| Secret     | String |      | 密钥。平台下发新密钥，仅用于自动注册              |
-| Token      | String |  √   | 令牌。后续所有接口调用均需要在请求头携带该令牌。  |
-| Expire     | Int32  |      | 令牌过期时间。单位秒。默认7200秒                  |
-| Time       | Int64  |      | 本地时间。客户端用于计算延迟，Unix毫秒（UTC）     |
-| ServerTime | Int64  |      | 服务器时间。客户端用于计算时间差，Unix毫秒（UTC） |
+---
+
+附注：
+
+- 接口方法约定（HTTP 架构）
+    - Login、Ping、CommandReply、PostEvents 使用 POST；
+    - Logout、Upgrade 使用 GET；
+    - 客户端会在必要时自动重试并处理 401 令牌过期，内部完成重新登录后重放请求。
+- 接口前缀：默认通过 `SetActions("Device/")` 设置为 `Device/`，不同应用可自定义，如 `Node/`、`App/`。
+- ClientId 语义：实例标识，形如 `ip@processId`。
 
