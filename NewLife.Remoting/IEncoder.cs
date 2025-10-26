@@ -123,7 +123,7 @@ public abstract class EncoderBase
         if (msg.Reply && msg.Error) message.Code = reader.ReadInt32();
 
         // 参数或结果
-        if (reader.FreeCapacity > 0)
+        if (reader.Available > 0)
         {
             var len = reader.ReadInt32();
             if (len > 0) message.Data = msg.Payload.Slice(reader.Position, len);

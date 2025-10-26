@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebSockets;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NewLife.Caching;
@@ -19,6 +20,7 @@ public static class RemotingExtensions
     /// 注册TokenService令牌服务，提供令牌颁发与验证服务；
     /// 注册密码提供者，用于通信过程中保护密钥，避免明文传输；
     /// 注册缓存提供者的默认实现；
+    /// 注册授权策略 DeviceRequired（RequireClaim("code")），便于使用 [Authorize(Policy = "DeviceRequired")]保护接口；
     /// </remarks>
     /// <param name="services"></param>
     /// <param name="setting"></param>
@@ -48,6 +50,14 @@ public static class RemotingExtensions
 
         // 注册缓存提供者，必须有默认实现
         services.TryAddSingleton<ICacheProvider, CacheProvider>();
+
+        // 授权策略：DeviceRequired => 要求存在 code 声明（由 BaseController 映射 ClaimsPrincipal 提供）
+        services.AddAuthorization();
+        services.PostConfigure<AuthorizationOptions>(options =>
+        {
+            if (options.GetPolicy("DeviceRequired") == null)
+                options.AddPolicy("DeviceRequired", policy => policy.RequireClaim("code"));
+        });
 
         // 添加模型绑定器
         //var binderProvider = new ServiceModelBinderProvider();

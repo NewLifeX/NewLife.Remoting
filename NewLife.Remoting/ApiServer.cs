@@ -176,7 +176,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
 
     /// <summary>开始服务</summary>
     /// <remarks>
-    /// 初始化 <see cref="Encoder"/> 与 <see cref="Handler"/>，创建并启动底层 <see cref="IApiServer"/>。
+    /// 初始化 <see cref="ApiHost.Encoder"/> 与 <see cref="Handler"/>，创建并启动底层 <see cref="IApiServer"/>。
     /// 若 <see cref="StatPeriod"/> 大于 0，启动统计定时器输出处理统计与网络状态。
     /// </remarks>
     public virtual void Start()
