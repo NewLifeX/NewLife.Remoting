@@ -14,8 +14,16 @@ namespace ZeroServer.Services;
 /// <param name="passwordProvider"></param>
 /// <param name="cacheProvider"></param>
 /// <param name="setting"></param>
-public class NodeService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting, IServiceProvider serviceProvider) : DefaultDeviceService<Node, NodeOnline>(sessionManager, passwordProvider, cacheProvider, serviceProvider)
+public class NodeService : DefaultDeviceService<Node, NodeOnline>
 {
+    private readonly ITokenSetting _setting;
+
+    public NodeService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting, IServiceProvider serviceProvider) : base(sessionManager, passwordProvider, cacheProvider, serviceProvider)
+    {
+        Name = "Node";
+        _setting = setting;
+    }
+
     #region 登录注销
     public override Boolean Authorize(DeviceContext context, ILoginRequest request)
     {
@@ -33,7 +41,7 @@ public class NodeService(ISessionManager sessionManager, IPasswordProvider passw
     protected override void OnRegister(DeviceContext context, ILoginRequest request)
     {
         // 全局开关，是否允许自动注册新产品
-        if (!setting.AutoRegister) throw new ApiException(ApiCode.Forbidden, "禁止自动注册");
+        if (!_setting.AutoRegister) throw new ApiException(ApiCode.Forbidden, "禁止自动注册");
 
         var inf = request as LoginInfo;
         var node = context.Device as Node;

@@ -18,9 +18,13 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     where TDevice : Entity<TDevice>, IDeviceModel, new()
     where TOnline : Entity<TOnline>, IOnlineModel, new()
 {
+    /// <summary>服务名</summary>
+    public String Name { get; set; } = "Device";
+
     private readonly ICache _cache = cacheProvider.InnerCache;
     private static Func<String, TDevice?>? _findDevice;
     private static Func<String, TOnline?>? _findOnline;
+    private ITracer? _tracer = serviceProvider.GetService<ITracer>();
 
     static DefaultDeviceService()
     {
@@ -52,6 +56,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     public virtual ILoginResponse Login(DeviceContext context, ILoginRequest request, String source)
     {
         if (request == null) throw new ArgumentOutOfRangeException(nameof(request));
+
+        using var span = _tracer?.NewSpan($"{Name}Login", new { request.Code, request.ClientId, source });
 
         var code = request.Code;
         var device = code.IsNullOrEmpty() ? null : QueryDevice(code);
@@ -105,6 +111,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     {
         if (context.Device is not IDeviceModel2 device) return false;
 
+        using var span = _tracer?.NewSpan($"{Name}Authorize", new { request.Code, request.ClientId });
+
         // 没有密码时无需验证
         if (device.Secret.IsNullOrEmpty()) return true;
         if (device.Secret.EqualIgnoreCase(request.Secret)) return true;
@@ -140,6 +148,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         if (code.IsNullOrEmpty() && request is ILoginRequest2 request2) code = request2.UUID.GetBytes().Crc().ToString("X8");
         if (code.IsNullOrEmpty()) code = Rand.NextString(8);
 
+        using var span = _tracer?.NewSpan($"{Name}Register", new { code });
+
         var device = context.Device;
         try
         {
@@ -165,6 +175,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         }
         catch (Exception ex)
         {
+            span?.SetError(ex, null);
+
             WriteHistory(context, "动态注册", false, $"[{code}/{device}]注册失败！{ex.Message}");
 
             throw;
@@ -199,6 +211,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <returns></returns>
     public virtual IOnlineModel? Logout(DeviceContext context, String? reason, String source)
     {
+        using var span = _tracer?.NewSpan($"{Name}Logout", new { context.Code, reason, source });
+
         var online = context.Online ?? GetOnline(context);
         if (online is IEntity entity)
         {
@@ -241,6 +255,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <returns>心跳响应</returns>
     public virtual IPingResponse Ping(DeviceContext context, IPingRequest? request, IPingResponse? response)
     {
+        using var span = _tracer?.NewSpan($"{Name}Ping", new { context.Code, context.ClientId });
+
         response ??= serviceProvider.GetService<IPingResponse>() ?? new PingResponse();
 
         response.Time = request?.Time ?? 0;
@@ -335,6 +351,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         var online = context.Online;
         if (online == null)
         {
+            using var span = _tracer?.NewSpan($"{Name}CreateOnline", new { context.Code, context.ClientId });
+
             if (context.Device is not IDeviceModel2 device)
                 throw new InvalidDataException($"创建在线对象需要{GetType().FullName}重载CreateOnline或者设备实体类{typeof(TDevice).FullName}实现IDeviceModel2");
 
@@ -530,6 +548,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <param name="remark">备注内容</param>
     public virtual void WriteHistory(DeviceContext context, String action, Boolean success, String remark)
     {
+        DefaultSpan.Current?.AppendTag($"[{action}]{remark}");
+
         if (context.Device is IDeviceModel2 device)
         {
             var history = device.CreateHistory(action, success, remark);
