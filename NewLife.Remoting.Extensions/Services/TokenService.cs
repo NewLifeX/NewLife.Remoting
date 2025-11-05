@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using NewLife.Log;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
@@ -9,7 +10,8 @@ namespace NewLife.Remoting.Extensions.Services;
 /// <summary>令牌服务。颁发与验证令牌</summary>
 /// <remarks>可重载覆盖功能逻辑</remarks>
 /// <param name="tokenSetting"></param>
-public class TokenService(ITokenSetting tokenSetting) : ITokenService
+/// <param name="tracer"></param>
+public class TokenService(ITokenSetting tokenSetting, ITracer tracer) : ITokenService
 {
     /// <summary>令牌配置</summary>
     protected virtual JwtBuilder GetJwt()
@@ -29,6 +31,8 @@ public class TokenService(ITokenSetting tokenSetting) : ITokenService
     public virtual TokenModel IssueToken(String name, String? id = null)
     {
         if (id.IsNullOrEmpty()) id = Rand.NextString(8);
+
+        using var span = tracer?.NewSpan(nameof(IssueToken), new { name, id });
 
         // 颁发令牌
         var jwt = GetJwt();

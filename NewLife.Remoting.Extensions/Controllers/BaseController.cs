@@ -87,6 +87,7 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
         HttpContext.Items[nameof(DeviceContext)] = ctx;
 
         var token = ctx.Token = ApiFilterAttribute.GetToken(context.HttpContext);
+        var span = DefaultSpan.Current;
 
         try
         {
@@ -108,6 +109,7 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
         catch (Exception ex)
         {
             var msg = ex.Message;
+            span?.SetError(ex, null);
 
             // 特殊处理数据库异常，避免泄漏SQL语句
             if (ex.GetType().FullName == "XCode.Exceptions.XSqlException")
@@ -141,6 +143,9 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
         var code = context.Code = jwt?.Subject;
         context.ClientId = jwt?.Id!;
         context["__Jwt"] = jwt;
+
+        var span = DefaultSpan.Current;
+        span?.AppendTag($"code={context.Code} clientId={context.ClientId}");
 
         // 如果注入了设备服务，尝试获取设备。即使失败，也要继续往下走，最后再决定是否抛出异常
         if (_deviceService != null)
