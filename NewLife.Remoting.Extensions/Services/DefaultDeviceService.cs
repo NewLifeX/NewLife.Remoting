@@ -297,13 +297,13 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
 
         if (online is IOnlineModel2 online2)
         {
-            // 如果更新失败，马上转为插入，避免在缓存之外删除而缓存没有删除时，更新不了信息
+            //// 如果更新失败，马上转为插入，避免在缓存之外删除而缓存没有删除时，更新不了信息
             var rs = online2.Save(request, context);
-            if (rs == 0 && online is IEntity entity)
-            {
-                entity.SetNullKey();
-                entity.Insert();
-            }
+            //if (rs == 0 && online is IEntity entity)
+            //{
+            //    entity.SetNullKey();
+            //    entity.Insert();
+            //}
         }
 
         return online;
