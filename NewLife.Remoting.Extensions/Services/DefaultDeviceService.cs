@@ -60,11 +60,15 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         using var span = _tracer?.NewSpan($"{Name}Login", new { request.Code, request.ClientId, source });
 
         var code = request.Code;
-        var device = code.IsNullOrEmpty() ? null : QueryDevice(code);
-        //if (device == null && !code.IsNullOrEmpty()) device = QueryDevice(code);
-        device ??= context.Device;
+        var device = context.Device;
+        //var device = code.IsNullOrEmpty() ? null : QueryDevice(code);
+        if (device == null && !code.IsNullOrEmpty()) device = QueryDevice(code);
         if (device != null && !device.Enable) throw new ApiException(ApiCode.Forbidden, "禁止登录");
-        if (device != null) context.Device = device;
+        if (device != null)
+        {
+            context.Device = device;
+            if (context.Code.IsNullOrEmpty()) context.Code = device.Code;
+        }
 
         if (!request.ClientId.IsNullOrEmpty()) context.ClientId = request.ClientId;
         if (!source.IsNullOrEmpty()) context["Source"] = source;
@@ -84,7 +88,10 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
 
         if (device == null) throw new ApiException(ApiCode.Unauthorized, "登录失败");
 
+        // 注册完成后，需要尽快更新上下文
         context.Device = device;
+        if (context.Code.IsNullOrEmpty()) context.Code = device.Code;
+
         OnLogin(context, request);
 
         var rs = new LoginResponse
@@ -119,7 +126,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
 
         if (request.Secret.IsNullOrEmpty() || !passwordProvider.Verify(device.Secret, request.Secret))
         {
-            WriteHistory(context, "节点鉴权", false, "密钥校验失败");
+            WriteHistory(context, Name + "鉴权", false, "密钥校验失败");
             return false;
         }
 
@@ -233,12 +240,12 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <returns></returns>
     public virtual IDeviceModel? GetDevice(String code)
     {
-        var device = _cache.Get<IDeviceModel>($"Device:{code}");
+        var device = _cache.Get<IDeviceModel>($"{Name}Device:{code}");
         if (device != null) return device;
 
         device = QueryDevice(code);
 
-        if (device != null) _cache.Set($"Device:{code}", device, 60);
+        if (device != null) _cache.Set($"{Name}Device:{code}", device, 60);
 
         return device;
     }
@@ -328,7 +335,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     public virtual IOnlineModel? GetOnline(DeviceContext context)
     {
         var sid = GetSessionId(context);
-        var online = _cache.Get<IOnlineModel>($"Online:{sid}");
+        var online = _cache.Get<IOnlineModel>($"{Name}Online:{sid}");
         if (online != null)
         {
             //_cache.SetExpire($"Online:{sid}", TimeSpan.FromSeconds(600));
@@ -337,7 +344,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
 
         online = QueryOnline(sid);
 
-        if (online != null) _cache.Set($"Online:{sid}", online, 600);
+        if (online != null) _cache.Set($"{Name}Online:{sid}", online, 600);
 
         return online;
     }
@@ -367,7 +374,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
             }
         }
 
-        _cache.Set($"Online:{sid}", online, 600);
+        _cache.Set($"{Name}Online:{sid}", online, 600);
 
         return online;
     }
@@ -383,7 +390,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         if (context.Online is IEntity entity)
             entity.Delete();
 
-        return _cache.Remove($"Online:{sid}");
+        return _cache.Remove($"{Name}Online:{sid}");
     }
 
     /// <summary>获取下行命令</summary>
