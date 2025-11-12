@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyTitle>RPC例程</AssemblyTitle>
     <Description>RPC通信例程</Description>
     <Company>新生命开发团队</Company>

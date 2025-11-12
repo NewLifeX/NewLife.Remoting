@@ -1,6 +1,5 @@
 ﻿using IoT.Data;
 using IoTZero.Services;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.IoT.Models;
 using NewLife.IoT.ThingModels;
@@ -17,7 +16,7 @@ namespace IoTZero.Controllers;
 /// <param name="thingService"></param>
 [ApiFilter]
 [ApiController]
-[Authorize(Policy = "DeviceRequired")]
+//[Authorize(Policy = "DeviceRequired")]
 [Route("[controller]")]
 public class ThingController(IDeviceService deviceService, ThingService thingService, IServiceProvider serviceProvider) : BaseController(deviceService, null, serviceProvider)
 {

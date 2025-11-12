@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <AssemblyTitle>物联网服务平台</AssemblyTitle>
     <Description>IoT服务平台</Description>
     <Company>新生命开发团队</Company>
@@ -23,12 +23,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Cube.Core" Version="6.5.2025.923-beta0008" />
+    <PackageReference Include="NewLife.Cube.Core" Version="6.6.2025.1001" />
     <PackageReference Include="NewLife.IoT" Version="2.6.2025.810-beta0253" />
-    <PackageReference Include="NewLife.MQTT" Version="2.1.2025.914-beta1427" />
-    <PackageReference Include="NewLife.Redis" Version="6.3.2025.914-beta1358" />
-    <PackageReference Include="NewLife.Stardust.Extensions" Version="3.4.2025.921-beta1559" />
-    <PackageReference Include="NewLife.XCode" Version="11.20.2025.921-beta1555" />
+    <PackageReference Include="NewLife.MQTT" Version="2.2.2025.1001" />
+    <PackageReference Include="NewLife.Redis" Version="6.3.2025.1001" />
+    <PackageReference Include="NewLife.Stardust.Extensions" Version="3.4.2025.1001" />
+    <PackageReference Include="NewLife.XCode" Version="11.21.2025.1001" />
   </ItemGroup>
 
   <ItemGroup>

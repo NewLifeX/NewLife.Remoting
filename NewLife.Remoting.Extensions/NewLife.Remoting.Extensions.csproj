@@ -2,12 +2,12 @@
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <TargetFrameworks>net6.0;net7.0;net8.0;net9.0</TargetFrameworks>
+    <TargetFrameworks>net6.0;net7.0;net8.0;net9.0;net10.0</TargetFrameworks>
     <AssemblyTitle>协议通信扩展库</AssemblyTitle>
     <Description>提供WebApi应用级服务端</Description>
     <Company>新生命开发团队</Company>
     <Copyright>©2002-2025 NewLife</Copyright>
-    <VersionPrefix>3.5</VersionPrefix>
+    <VersionPrefix>3.6</VersionPrefix>
     <VersionSuffix>$([System.DateTime]::Now.ToString(`yyyy.MMdd`))</VersionSuffix>
     <Version>$(VersionPrefix).$(VersionSuffix)</Version>
     <FileVersion>$(Version)</FileVersion>
@@ -64,7 +64,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="NewLife.XCode" Version="11.20.2025.921-beta1555" />
+    <PackageReference Include="NewLife.XCode" Version="11.21.2025.1001" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\NewLife.Remoting\NewLife.Remoting.csproj" />
