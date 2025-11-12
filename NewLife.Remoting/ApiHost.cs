@@ -38,7 +38,7 @@ public abstract class ApiHost : DisposeBase, IApiHost, IExtend, ILogFeature, ITr
     #region 方法
     /// <summary>获取消息编码器。重载以指定不同的封包协议</summary>
     /// <returns></returns>
-    public virtual IHandler GetMessageCodec() => new StandardCodec { Timeout = Timeout, UserPacket = false };
+    public virtual IPipelineHandler GetMessageCodec() => new StandardCodec { Timeout = Timeout, UserPacket = false };
     #endregion
 
     #region 日志

@@ -74,7 +74,13 @@ public class WebSocketServerCodec : Handler
         if (websocket != null)
         {
             var msg = new WebSocketMessage();
-            if (msg.Read(pk)) message = msg.Payload!;
+            if (msg.Read(pk))
+            {
+                if (msg.Type is WebSocketMessageType.Binary or WebSocketMessageType.Text)
+                    message = msg.Payload!;
+                //else
+                //    websocket.Process(msg);
+            }
         }
         else
         {

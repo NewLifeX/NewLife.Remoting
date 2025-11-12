@@ -10,7 +10,7 @@ public interface IApiHost
 
     /// <summary>获取消息编码器。重载以指定不同的封包协议</summary>
     /// <returns></returns>
-    IHandler GetMessageCodec();
+    IPipelineHandler GetMessageCodec();
 
     ///// <summary>日志</summary>
     //ILog Log { get; set; }

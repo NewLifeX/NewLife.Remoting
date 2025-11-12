@@ -539,9 +539,9 @@ public class ApiClient : ApiHost, IApiClient
             new Uri(svr).CreateRemote() :
             uri.CreateRemote();
 
-        if (uri.Type == NetType.WebSocket && client.Pipeline is Pipeline pipe)
+        if (uri.Type == NetType.WebSocket)
         {
-            pipe.Handlers.Clear();
+            client.Pipeline?.Clear();
             client.Add(new WebSocketClientCodec { UserPacket = true });
         }
 
