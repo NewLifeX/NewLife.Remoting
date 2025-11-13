@@ -62,6 +62,9 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
             if (Bus != null) return;
 
             Bus = Create();
+
+            // 进程退出（如 Ctrl+C）时，主动销毁会话管理器，尽快打断会话的Receive等待
+            Host.RegisterExit(() => this.TryDispose());
         }
     }
 

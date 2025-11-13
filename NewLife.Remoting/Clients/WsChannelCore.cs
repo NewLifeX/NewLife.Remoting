@@ -70,10 +70,9 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
             _websocket = client;
 
             _source = new CancellationTokenSource();
-            // 进程退出（如 Ctrl+C）时，主动取消，尽快打断Receive等待
-            var src = _source;
-            Host.RegisterExit(() => { try { src?.Cancel(); } catch { } });
-            _ = Task.Run(() => DoPull(client, _source));
+            //// 进程退出（如 Ctrl+C）时，主动取消，尽快打断Receive等待
+            //Host.RegisterExit(() => { try { _source?.Cancel(); } catch { } });
+            _ = Task.Factory.StartNew(() => DoPull(client, _source), TaskCreationOptions.LongRunning);
         }
     }
 
