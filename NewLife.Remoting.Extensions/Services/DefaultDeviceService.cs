@@ -405,7 +405,13 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <param name="command">命令对象</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
-    public virtual Task<Int32> SendCommand(IDeviceModel device, CommandModel command, CancellationToken cancellationToken) => sessionManager.PublishAsync(device.Code, command, null, cancellationToken);
+    public virtual Task<Int32> SendCommand(IDeviceModel device, CommandModel command, CancellationToken cancellationToken)
+    {
+        var id = WriteHistory(device, "发送命令", true, command.ToJson(false, false, false));
+        if (command.Id == 0) command.Id = id;
+
+        return sessionManager.PublishAsync(device.Code, command, null, cancellationToken);
+    }
 
     /// <summary>发送命令。外部平台级接口调用</summary>
     /// <param name="context">上下文</param>
@@ -414,7 +420,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <returns></returns>
     public virtual async Task<CommandReplyModel?> SendCommand(DeviceContext context, CommandInModel model, CancellationToken cancellationToken = default)
     {
-        var target = GetDevice(model.Command);
+        var target = GetDevice(model.Code!);
         if (target == null) throw new ArgumentNullException(nameof(model.Code), "未找到指定设备 " + model.Code);
 
         // 验证令牌
@@ -473,6 +479,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
 
         // 设置过期时间，过期自动清理
         cacheProvider.Cache.SetExpire(topic, TimeSpan.FromSeconds(60));
+
+        WriteHistory(context, "命令响应", true, model.ToJson(false, false, false));
 
         return 1;
     }
@@ -557,13 +565,37 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     {
         DefaultSpan.Current?.AppendTag($"[{action}]{remark}");
 
-        if (context.Device is IDeviceModel2 device)
+        if (context.Device is IDeviceModel2 device2)
         {
-            var history = device.CreateHistory(action, success, remark);
+            var history = device2.CreateHistory(action, success, remark);
             (history as IEntity)?.SaveAsync();
         }
         else if (context.Device is ILogProvider log)
             log.WriteLog(action, success, remark);
+    }
+
+    /// <summary>写设备历史。扩展调用IDeviceModel2.WriteLog</summary>
+    /// <param name="device">设备</param>
+    /// <param name="action">动作</param>
+    /// <param name="success">成功</param>
+    /// <param name="remark">备注内容</param>
+    public virtual Int64 WriteHistory(IDeviceModel device, String action, Boolean success, String remark)
+    {
+        DefaultSpan.Current?.AppendTag($"[{action}]{remark}");
+
+        if (device is IDeviceModel2 device2)
+        {
+            var history = device2.CreateHistory(action, success, remark);
+            if (history is IEntity entity)
+            {
+                entity.Insert();
+                return entity["Id"].ToLong();
+            }
+        }
+        else if (device is ILogProvider log)
+            log.WriteLog(action, success, remark);
+
+        return 0;
     }
     #endregion
 }

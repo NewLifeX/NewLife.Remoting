@@ -43,8 +43,8 @@ if (app.Environment.IsDevelopment())
 else
     app.UseExceptionHandler("/CubeHome/Error");
 
-if (Environment.GetEnvironmentVariable("__ASPNETCORE_BROWSER_TOOLS") is null)
-    app.UseResponseCompression();
+//if (Environment.GetEnvironmentVariable("__ASPNETCORE_BROWSER_TOOLS") is null)
+//    app.UseResponseCompression();
 
 app.UseIoT();
 

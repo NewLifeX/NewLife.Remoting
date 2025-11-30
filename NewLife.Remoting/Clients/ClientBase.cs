@@ -1188,7 +1188,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         var rs = await this.ExecuteCommand(model, cancellationToken).ConfigureAwait(false);
         e.Reply ??= rs;
 
-        if (e.Reply != null && e.Reply.Id > 0 && Features.HasFlag(Features.CommandReply))
+        if (e.Reply != null && /*e.Reply.Id > 0 &&*/ Features.HasFlag(Features.CommandReply))
             await CommandReply(e.Reply, cancellationToken).ConfigureAwait(false);
 
         return e.Reply;
