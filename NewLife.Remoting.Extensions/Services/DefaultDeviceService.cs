@@ -344,7 +344,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
 
         online = QueryOnline(sid);
 
-        if (online != null) _cache.Set($"{Name}Online:{sid}", online, 600);
+        // 使用较短缓存时间，减少长时间在线时的内存对象与数据库数据不一致的风险
+        if (online != null) _cache.Set($"{Name}Online:{sid}", online, 60);
 
         return online;
     }
@@ -374,7 +375,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
             }
         }
 
-        _cache.Set($"{Name}Online:{sid}", online, 600);
+        // 初次创建也仅缓存较短时间，避免长时间持有旧对象
+        _cache.Set($"{Name}Online:{sid}", online, 60);
 
         return online;
     }
