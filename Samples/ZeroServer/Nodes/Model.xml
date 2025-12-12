@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<EntityModel xmlns:xs="http://www.w3.org/2001/XMLSchema-instance" xs:schemaLocation="https://newlifex.com https://newlifex.com/Model202407.xsd" Document="https://newlifex.com/xcode/model" xmlns="https://newlifex.com/Model202407.xsd">
+<EntityModel xmlns:xs="http://www.w3.org/2001/XMLSchema-instance" xs:schemaLocation="https://newlifex.com https://newlifex.com/Model202509.xsd" Document="https://newlifex.com/xcode/model" xmlns="https://newlifex.com/Model202509.xsd">
   <Option>
     <!--类名模板。其中{name}替换为Table.Name，如{name}Model/I{name}Dto等-->
     <ClassNameTemplate />
@@ -130,7 +130,8 @@
         <Column Name="OSKind" DataType="Int32" Description="系统种类。主流操作系统类型，不考虑子版本" Type="Stardust.Models.OSKinds" />
         <Column Name="Memory" DataType="Int32" Description="内存。单位M" />
         <Column Name="AvailableMemory" DataType="Int32" Description="可用内存。单位M" />
-        <Column Name="MemoryUsed" DataType="Int32" Description="已用内存。单位M" />
+        <Column Name="FreeMemory" DataType="Int32" Description="空闲内存。在Linux上空闲不一定可用，部分作为缓存，单位M" />
+        <Column Name="MemoryUsed" DataType="Int32" Description="已用内存。总内存减去空闲内存，单位M" />
         <Column Name="AvailableFreeSpace" DataType="Int32" Description="可用磁盘。应用所在盘，单位M" />
         <Column Name="SpaceUsed" DataType="Int32" Description="已用磁盘。应用所在盘，单位M" />
         <Column Name="DriveInfo" DataType="String" Length="500" Description="驱动器信息。各分区大小，逗号分隔" Category="硬件信息" />

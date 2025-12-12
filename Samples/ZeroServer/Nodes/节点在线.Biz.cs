@@ -248,7 +248,8 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel2
 
         if (inf.Memory > 0) online.Memory = (Int32)(inf.Memory / 1024 / 1024);
         if (inf.AvailableMemory > 0) online.AvailableMemory = (Int32)(inf.AvailableMemory / 1024 / 1024);
-        MemoryUsed = online.Memory - online.AvailableMemory;
+        if (inf.FreeMemory > 0) online.FreeMemory = (Int32)(inf.FreeMemory / 1024 / 1024);
+        MemoryUsed = online.Memory - online.FreeMemory > 0 ? online.FreeMemory : online.AvailableMemory;
         if (inf.AvailableFreeSpace > 0) online.AvailableFreeSpace = (Int32)(inf.AvailableFreeSpace / 1024 / 1024);
         if (inf.TotalSize > 0) online.SpaceUsed = (Int32)(inf.TotalSize / 1024 / 1024) - online.AvailableFreeSpace;
         if (inf.CpuRate > 0) online.CpuRate = inf.CpuRate;

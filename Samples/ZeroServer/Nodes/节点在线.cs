@@ -146,12 +146,20 @@ public partial class NodeOnline
     [BindColumn("AvailableMemory", "可用内存。单位M", "")]
     public Int32 AvailableMemory { get => _AvailableMemory; set { if (OnPropertyChanging("AvailableMemory", value)) { _AvailableMemory = value; OnPropertyChanged("AvailableMemory"); } } }
 
-    private Int32 _MemoryUsed;
-    /// <summary>已用内存。单位M</summary>
-    [DisplayName("已用内存")]
-    [Description("已用内存。单位M")]
+    private Int32 _FreeMemory;
+    /// <summary>空闲内存。在Linux上空闲不一定可用，部分作为缓存，单位M</summary>
+    [DisplayName("空闲内存")]
+    [Description("空闲内存。在Linux上空闲不一定可用，部分作为缓存，单位M")]
     [DataObjectField(false, false, false, 0)]
-    [BindColumn("MemoryUsed", "已用内存。单位M", "")]
+    [BindColumn("FreeMemory", "空闲内存。在Linux上空闲不一定可用，部分作为缓存，单位M", "")]
+    public Int32 FreeMemory { get => _FreeMemory; set { if (OnPropertyChanging("FreeMemory", value)) { _FreeMemory = value; OnPropertyChanged("FreeMemory"); } } }
+
+    private Int32 _MemoryUsed;
+    /// <summary>已用内存。总内存减去空闲内存，单位M</summary>
+    [DisplayName("已用内存")]
+    [Description("已用内存。总内存减去空闲内存，单位M")]
+    [DataObjectField(false, false, false, 0)]
+    [BindColumn("MemoryUsed", "已用内存。总内存减去空闲内存，单位M", "")]
     public Int32 MemoryUsed { get => _MemoryUsed; set { if (OnPropertyChanging("MemoryUsed", value)) { _MemoryUsed = value; OnPropertyChanged("MemoryUsed"); } } }
 
     private Int32 _AvailableFreeSpace;
@@ -401,6 +409,7 @@ public partial class NodeOnline
             "OSKind" => _OSKind,
             "Memory" => _Memory,
             "AvailableMemory" => _AvailableMemory,
+            "FreeMemory" => _FreeMemory,
             "MemoryUsed" => _MemoryUsed,
             "AvailableFreeSpace" => _AvailableFreeSpace,
             "SpaceUsed" => _SpaceUsed,
@@ -450,6 +459,7 @@ public partial class NodeOnline
                 case "OSKind": _OSKind = (Stardust.Models.OSKinds)value.ToInt(); break;
                 case "Memory": _Memory = value.ToInt(); break;
                 case "AvailableMemory": _AvailableMemory = value.ToInt(); break;
+                case "FreeMemory": _FreeMemory = value.ToInt(); break;
                 case "MemoryUsed": _MemoryUsed = value.ToInt(); break;
                 case "AvailableFreeSpace": _AvailableFreeSpace = value.ToInt(); break;
                 case "SpaceUsed": _SpaceUsed = value.ToInt(); break;
@@ -502,6 +512,38 @@ public partial class NodeOnline
     }
     #endregion
 
+    #region 高级查询
+    /// <summary>高级查询</summary>
+    /// <param name="sessionId">会话</param>
+    /// <param name="nodeId">节点</param>
+    /// <param name="provinceId">省份</param>
+    /// <param name="cityId">城市</param>
+    /// <param name="token">令牌</param>
+    /// <param name="webSocket">长连接。WebSocket长连接</param>
+    /// <param name="oSKind">系统种类。主流操作系统类型，不考虑子版本</param>
+    /// <param name="start">更新时间开始</param>
+    /// <param name="end">更新时间结束</param>
+    /// <param name="key">关键字</param>
+    /// <param name="page">分页参数信息。可携带统计和数据权限扩展查询等信息</param>
+    /// <returns>实体列表</returns>
+    public static IList<NodeOnline> Search(String sessionId, Int32 nodeId, Int32 provinceId, Int32 cityId, String token, Boolean? webSocket, Stardust.Models.OSKinds oSKind, DateTime start, DateTime end, String key, PageParameter page)
+    {
+        var exp = new WhereExpression();
+
+        if (!sessionId.IsNullOrEmpty()) exp &= _.SessionId == sessionId;
+        if (nodeId >= 0) exp &= _.NodeId == nodeId;
+        if (provinceId >= 0) exp &= _.ProvinceID == provinceId;
+        if (cityId >= 0) exp &= _.CityID == cityId;
+        if (!token.IsNullOrEmpty()) exp &= _.Token == token;
+        if (webSocket != null) exp &= _.WebSocket == webSocket;
+        if (oSKind >= 0) exp &= _.OSKind == oSKind;
+        exp &= _.UpdateTime.Between(start, end);
+        if (!key.IsNullOrEmpty()) exp &= SearchWhereByKeys(key);
+
+        return FindAll(exp, page);
+    }
+    #endregion
+
     #region 字段名
     /// <summary>取得节点在线字段信息的快捷方式</summary>
     public partial class _
@@ -551,7 +593,10 @@ public partial class NodeOnline
         /// <summary>可用内存。单位M</summary>
         public static readonly Field AvailableMemory = FindByName("AvailableMemory");
 
-        /// <summary>已用内存。单位M</summary>
+        /// <summary>空闲内存。在Linux上空闲不一定可用，部分作为缓存，单位M</summary>
+        public static readonly Field FreeMemory = FindByName("FreeMemory");
+
+        /// <summary>已用内存。总内存减去空闲内存，单位M</summary>
         public static readonly Field MemoryUsed = FindByName("MemoryUsed");
 
         /// <summary>可用磁盘。应用所在盘，单位M</summary>
@@ -686,7 +731,10 @@ public partial class NodeOnline
         /// <summary>可用内存。单位M</summary>
         public const String AvailableMemory = "AvailableMemory";
 
-        /// <summary>已用内存。单位M</summary>
+        /// <summary>空闲内存。在Linux上空闲不一定可用，部分作为缓存，单位M</summary>
+        public const String FreeMemory = "FreeMemory";
+
+        /// <summary>已用内存。总内存减去空闲内存，单位M</summary>
         public const String MemoryUsed = "MemoryUsed";
 
         /// <summary>可用磁盘。应用所在盘，单位M</summary>

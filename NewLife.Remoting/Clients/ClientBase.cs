@@ -839,6 +839,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
             req.Memory = mi.Memory;
             req.AvailableMemory = mi.AvailableMemory;
+            req.FreeMemory = mi.FreeMemory;
             req.TotalSize = (UInt64)(driveInfo?.TotalSize ?? 0);
             req.AvailableFreeSpace = (UInt64)(driveInfo?.AvailableFreeSpace ?? 0);
             req.CpuRate = Math.Round(mi.CpuRate, 3);
