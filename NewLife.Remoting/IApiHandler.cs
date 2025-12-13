@@ -102,6 +102,8 @@ public class ApiHandler : IApiHandler
                     rs = controller.InvokeWithParams(api.Method, ctx.ActionParameters as IDictionary);
                 }
 
+                if (rs is Task task) rs = GetTaskResult(task);
+
                 ctx.Result = rs;
             }
 
@@ -137,6 +139,17 @@ public class ApiHandler : IApiHandler
         }
 
         return rs;
+    }
+
+    private static Object? GetTaskResult(Task task)
+    {
+        task.GetAwaiter().GetResult();
+
+        var taskType = task.GetType();
+        if (!taskType.IsGenericType) return null;
+
+        var resultProperty = taskType.GetProperty("Result", BindingFlags.Public | BindingFlags.Instance);
+        return resultProperty?.GetValue(task);
     }
 
     /// <summary>准备上下文，可以借助Token重写Session会话集合</summary>

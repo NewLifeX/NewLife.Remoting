@@ -4,6 +4,7 @@ using NewLife.Log;
 using NewLife.Messaging;
 using NewLife.Model;
 using NewLife.Net;
+using NewLife.Reflection;
 using NewLife.Remoting.Http;
 using NewLife.Serialization;
 using NewLife.Threading;
@@ -376,6 +377,14 @@ public class ApiClient : ApiHost, IApiClient
                 if (message.Data.TryGetArray(out var segment)) return (TResult)(Object)new Packet(segment);
 
                 return (TResult)(Object)new Packet(message.Data.ToArray());
+            }
+
+            // 二进制序列化
+            if (resultType.As<IAccessor>())
+            {
+                var result = ServiceProvider?.GetService(resultType) ?? resultType.CreateInstance();
+                if (result is IAccessor accessor && accessor.Read(message.Data.GetStream(), message))
+                    return (TResult)result;
             }
 
             try

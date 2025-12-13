@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Threading.Tasks;
 using NewLife.Data;
 using NewLife.Log;
 using NewLife.Reflection;
@@ -66,8 +67,12 @@ public class ApiAction : IExtend
             if (ps[0].ParameterType.As<IAccessor>()) IsAccessorParameter = true;
         }
 
-        if (method.ReturnType.As<IPacket>()) IsPacketReturn = true;
-        if (method.ReturnType.As<IAccessor>()) IsAccessorReturn = true;
+        var returnType = method.ReturnType;
+        if (returnType.As(typeof(Task<>)))
+            returnType = returnType.GetGenericArguments()[0];
+
+        if (returnType.As<IPacket>()) IsPacketReturn = true;
+        if (returnType.As<IAccessor>()) IsAccessorReturn = true;
     }
 
     /// <summary>获取名称</summary>
@@ -99,16 +104,16 @@ public class ApiAction : IExtend
     {
         var mi = Method;
 
-        var type = mi.ReturnType;
-        var rtype = type.Name;
-        if (type.As<Task>())
+        var returnType = mi.ReturnType;
+        var rtype = returnType.Name;
+        if (returnType.As<Task>())
         {
-            if (!type.IsGenericType)
+            if (!returnType.IsGenericType)
                 rtype = "void";
             else
             {
-                type = type.GetGenericArguments()[0];
-                rtype = type.Name;
+                returnType = returnType.GetGenericArguments()[0];
+                rtype = returnType.Name;
             }
         }
 
