@@ -1,4 +1,5 @@
 ﻿using System.Net.Sockets;
+using System.Threading;
 using NewLife.Data;
 using NewLife.Http;
 using NewLife.Log;
@@ -100,6 +101,8 @@ class WsChannel(ClientBase client) : DisposeBase
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
+                if (source.IsCancellationRequested) break;
+
                 _client.Log?.Error("[{0}]WebSocket异常[{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
                 if (ex is SocketException) break;
             }

@@ -100,11 +100,15 @@ public class WsCommandSession(WebSocket socket) : CommandSession
             catch (OperationCanceledException) { }
             catch (WebSocketException ex)
             {
+                if (source.IsCancellationRequested) break;
+
                 Log?.WriteLog("WebSocket异常", false, ex.Message);
                 break;
             }
             catch (Exception ex)
             {
+                if (source.IsCancellationRequested) break;
+
                 XTrace.WriteException(ex);
             }
         }

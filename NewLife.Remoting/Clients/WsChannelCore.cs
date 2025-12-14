@@ -101,6 +101,8 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
+                if (source.IsCancellationRequested) break;
+
                 if (ex is not WebSocketException || socket.State != WebSocketState.Aborted)
                     _client.Log?.Error("[{0}]WebSocket异常[{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
                 if (ex is WebSocketException) break;
