@@ -71,7 +71,18 @@ public class ApiHandler : IApiHandler
         ctx.Controller = controller;
 
         // 释放参数到跟踪片段
-        if (ctx.Parameters != null) DefaultSpan.Current?.Detach(ctx.Parameters);
+        if (ctx.Parameters != null && DefaultSpan.Current is ISpan span)
+        {
+            span.Detach(ctx.Parameters);
+            foreach (var item in ctx.Parameters)
+            {
+                if (item.Value is ITraceMessage tm && !tm.TraceId.IsNullOrEmpty())
+                {
+                    span.Detach(tm.TraceId);
+                    break;
+                }
+            }
+        }
 
         Object? rs = null;
         try

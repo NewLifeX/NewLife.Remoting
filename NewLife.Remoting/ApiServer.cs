@@ -258,6 +258,9 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         using var request = enc.Decode(msg);
         if (request == null || request.Action.IsNullOrEmpty()) return null;
 
+        // Action动作名必须是Ascii字符，跳过扫描乱码
+        if (!request.Action.All(e => e < 127u)) return null;
+
         // 根据动作名，开始跟踪
         using var span = Tracer?.NewSpan("rps:" + request.Action, request.Data);
 
