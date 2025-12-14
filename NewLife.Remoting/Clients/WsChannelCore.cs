@@ -81,10 +81,11 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
     private async Task DoPull(WebSocket socket, CancellationTokenSource source)
     {
         DefaultSpan.Current = null;
-        try
+        var buf = new Byte[64 * 1024];
+        while (!source.IsCancellationRequested && socket.State == WebSocketState.Open)
         {
-            var buf = new Byte[64 * 1024];
-            while (!source.IsCancellationRequested && socket.State == WebSocketState.Open)
+            // try-catch 放在循环内，避免单次异常退出循环
+            try
             {
                 var data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), source.Token).ConfigureAwait(false);
                 if (data.MessageType == WebSocketMessageType.Close) break;
@@ -94,23 +95,27 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
                     if (txt != null) await OnReceive(txt).ConfigureAwait(false);
                 }
             }
+            catch (ThreadAbortException) { break; }
+            catch (ThreadInterruptedException) { break; }
+            catch (TaskCanceledException) { }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                if (ex is not WebSocketException || socket.State != WebSocketState.Aborted)
+                    _client.Log?.Error("[{0}]WebSocket异常[{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
+                if (ex is WebSocketException) break;
+            }
+        }
 
+        // 通知取消
+        try
+        {
             if (!source.IsCancellationRequested) source.Cancel();
+        }
+        catch (ObjectDisposedException) { }
 
-            if (socket.State == WebSocketState.Open)
-                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default).ConfigureAwait(false);
-        }
-        catch (TaskCanceledException) { }
-        catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-            if (ex is not WebSocketException || socket.State != WebSocketState.Aborted)
-                _client.Log?.Error("[{0}]WebSocket异常[{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
-        }
-        finally
-        {
-            source.Cancel();
-        }
+        if (socket.State == WebSocketState.Open)
+            await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default).ConfigureAwait(false);
     }
 
     /// <summary>收到服务端主动下发消息。默认转为CommandModel命令处理</summary>

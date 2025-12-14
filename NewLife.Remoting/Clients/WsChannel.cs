@@ -1,13 +1,10 @@
-﻿using NewLife.Data;
+﻿using System.Net.Sockets;
+using NewLife.Data;
 using NewLife.Http;
 using NewLife.Log;
-using NewLife.Model;
 using NewLife.Net;
 using NewLife.Remoting.Models;
 using NewLife.Serialization;
-#if !NET40
-using TaskEx = System.Threading.Tasks.Task;
-#endif
 
 namespace NewLife.Remoting.Clients;
 
@@ -81,10 +78,11 @@ class WsChannel(ClientBase client) : DisposeBase
     private async Task DoPull(WebSocketClient socket, CancellationTokenSource source)
     {
         DefaultSpan.Current = null;
-        try
+        var buf = new Byte[64 * 1024];
+        while (!source.IsCancellationRequested && !socket.Disposed)
         {
-            var buf = new Byte[64 * 1024];
-            while (!source.IsCancellationRequested && !socket.Disposed)
+            // try-catch 放在循环内，避免单次异常退出循环
+            try
             {
                 using var rs = await socket.ReceiveMessageAsync(source.Token).ConfigureAwait(false);
                 if (rs == null) continue;
@@ -96,21 +94,25 @@ class WsChannel(ClientBase client) : DisposeBase
                     if (txt != null) await OnReceive(txt).ConfigureAwait(false);
                 }
             }
+            catch (ThreadAbortException) { break; }
+            catch (ThreadInterruptedException) { break; }
+            catch (TaskCanceledException) { }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                _client.Log?.Error("[{0}]WebSocket异常[{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
+                if (ex is SocketException) break;
+            }
+        }
 
+        // 通知取消
+        try
+        {
             if (!source.IsCancellationRequested) source.Cancel();
+        }
+        catch (ObjectDisposedException) { }
 
-            if (!socket.Disposed) await socket.CloseAsync(1000, "finish", default).ConfigureAwait(false);
-        }
-        catch (TaskCanceledException) { }
-        catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-            _client.Log?.Error("[{0}]WebSocket异常[{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
-        }
-        finally
-        {
-            source.Cancel();
-        }
+        if (!socket.Disposed) await socket.CloseAsync(1000, "finish", default).ConfigureAwait(false);
     }
 
     /// <summary>收到服务端主动下发消息。默认转为CommandModel命令处理</summary>

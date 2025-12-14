@@ -70,10 +70,12 @@ public class WsCommandSession(WebSocket socket) : CommandSession
         // 链接取消令牌。当客户端断开时，触发取消，结束长连接  
         using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _source = source;
-        try
+
+        var buf = new Byte[64];
+        while (!source.IsCancellationRequested && socket.State == WebSocketState.Open)
         {
-            var buf = new Byte[64];
-            while (!source.IsCancellationRequested && socket.State == WebSocketState.Open)
+            // try-catch 放在循环内，避免单次异常退出循环
+            try
             {
                 var data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), source.Token).ConfigureAwait(false);
                 if (data.MessageType == WebSocketMessageType.Close) break;
@@ -92,26 +94,35 @@ public class WsCommandSession(WebSocket socket) : CommandSession
                     }
                 }
             }
+            catch (ThreadAbortException) { break; }
+            catch (ThreadInterruptedException) { break; }
+            catch (TaskCanceledException) { }
+            catch (OperationCanceledException) { }
+            catch (WebSocketException ex)
+            {
+                Log?.WriteLog("WebSocket异常", false, ex.Message);
+                break;
+            }
+            catch (Exception ex)
+            {
+                XTrace.WriteException(ex);
+            }
+        }
 
+        // 通知取消
+        try
+        {
             if (!source.IsCancellationRequested) source.Cancel();
+        }
+        catch (ObjectDisposedException) { }
+        _source = null;
 
-            if (socket.State == WebSocketState.Open)
-                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default).ConfigureAwait(false);
-        }
-        catch (TaskCanceledException) { }
-        catch (OperationCanceledException) { }
-        catch (WebSocketException ex)
-        {
-            Log?.WriteLog("WebSocket异常", false, ex.Message);
-        }
-        finally
-        {
-            source.Cancel();
-            _source = null;
-            Log?.WriteLog("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
+        if (socket.State == WebSocketState.Open)
+            await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default).ConfigureAwait(false);
 
-            // 长连接下线  
-            SetOnline?.Invoke(false);
-        }
+        Log?.WriteLog("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
+
+        // 长连接下线  
+        SetOnline?.Invoke(false);
     }
 }
