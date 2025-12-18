@@ -11,13 +11,16 @@ using NewLife.Serialization;
 namespace NewLife.Remoting.Extensions.Services;
 
 /// <summary>WebSocket设备会话</summary>
-public class WsCommandSession(WebSocket socket, IServiceProvider serviceProvider) : CommandSession
+public class WsCommandSession(WebSocket socket) : CommandSession
 {
     /// <summary>是否活动中</summary>
     public override Boolean Active => socket != null && socket.State == WebSocketState.Open;
 
     /// <summary>数据包分发器。用于EventHub</summary>
     public IEventDispatcher<IPacket>? Dispatcher { get; set; }
+
+    /// <summary>服务提供者</summary>
+    public IServiceProvider? ServiceProvider { get; set; }
 
     private CancellationTokenSource? _source;
 
@@ -50,7 +53,7 @@ public class WsCommandSession(WebSocket socket, IServiceProvider serviceProvider
         //message ??= command.ToJson();
         if (message == null && command != null)
         {
-            var jsonHost = serviceProvider.GetService<IJsonHost>();
+            var jsonHost = ServiceProvider?.GetService<IJsonHost>();
             if (jsonHost != null)
                 message = jsonHost.Write(command);
             else
