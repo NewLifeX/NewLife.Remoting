@@ -1,5 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Http;
@@ -1139,9 +1138,15 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 command = JsonHost.Read<CommandModel>(str)!;
         }
 
-        if (command == null) throw new NotSupportedException($"未支持[{str?[..64] ?? message.GetType().FullName}]");
+        //if (command == null) throw new NotSupportedException($"未支持[{str?[..64] ?? message.GetType().FullName}]");
+        if (command != null)
+            return ReceiveCommand(command, str, source, cancellationToken);
 
-        return ReceiveCommand(command, str, source, cancellationToken);
+#if NET45
+        return Task.FromResult(0);
+#else
+        return Task.CompletedTask;
+#endif
     }
 
     /// <summary>接收命令，分发调用指定委托</summary>
