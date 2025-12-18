@@ -279,10 +279,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         var api = e.ApiMessage;
         if (msg != null && !msg.Reply && api != null && api.Action == "Notify")
         {
-            var message = api.Data?.ToStr();
-            var cmd = message?.ToJsonEntity<CommandModel>();
-            if (cmd != null)
-                _ = ReceiveCommand(cmd, message, client.Local?.Type + "");
+            if (api.Data != null)
+                _ = Process(api.Data, client.Local?.Type + "");
         }
     }
 
@@ -644,7 +642,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     protected virtual void FillLoginRequest(ILoginRequest request)
     {
         request.Code = Code;
-        request.ClientId = $"{NetHelper.MyIP()}@{Process.GetCurrentProcess().Id}";
+        request.ClientId = $"{NetHelper.MyIP()}@{System.Diagnostics.Process.GetCurrentProcess().Id}";
 
         if (!Secret.IsNullOrEmpty())
             request.Secret = PasswordProvider?.Hash(Secret) ?? Secret;
@@ -1000,7 +998,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         if (rs)
         {
-            var pid = Process.GetCurrentProcess().Id;
+            var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
             this.WriteInfoEvent("Upgrade", "强制更新完成，新进程已拉起，准备退出当前进程！PID=" + pid);
 
             upgrade.KillSelf();
@@ -1087,14 +1085,64 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         if (_client is ApiHttpClient http && Features.HasFlag(Features.Notify))
         {
-            // 非NetCore平台，使用自研轻量级WebSocket
-#if NETCOREAPP
-            _ws ??= new WsChannelCore(this);
-#else
-            _ws ??= new WsChannel(this);
-#endif
-            if (_ws != null) await _ws.ValidWebSocket(http).ConfigureAwait(false);
+            await ValidWebSocket(http).ConfigureAwait(false);
         }
+    }
+
+    private async Task ValidWebSocket(ApiHttpClient http)
+    {
+        // 非NetCore平台，使用自研轻量级WebSocket
+#if NETCOREAPP
+        _ws ??= new WsChannelCore(this);
+#else
+        _ws ??= new WsChannel(this);
+#endif
+        if (_ws != null) await _ws.ValidWebSocket(http).ConfigureAwait(false);
+    }
+
+    /// <summary>发送上行消息。借助WebSocket等上行通道</summary>
+    /// <param name="packet"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
+    public virtual async Task SendAsync(IPacket packet, CancellationToken cancellationToken = default)
+    {
+        if (_client is ApiHttpClient http)
+        {
+            await ValidWebSocket(http).ConfigureAwait(false);
+
+            await _ws!.SendTextAsync(packet, cancellationToken).ConfigureAwait(false);
+        }
+        else if (_client is ApiClient client)
+        {
+            client.InvokeOneWay("data", packet);
+        }
+    }
+
+    /// <summary>处理接收到的消息。可能是命令，也可能是事件等其它消息</summary>
+    /// <param name="message">消息。支持CommandModel/String/IPacket</param>
+    /// <param name="source">来源</param>
+    /// <param name="cancellationToken">取消通知</param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    /// <exception cref="NotSupportedException"></exception>
+    public virtual async Task<Object?> Process(Object message, String? source = null, CancellationToken cancellationToken = default)
+    {
+        if (message == null) throw new ArgumentNullException(nameof(message));
+
+        var command = message as CommandModel;
+        var str = message as String;
+        if (command == null)
+        {
+            if (message is IPacket pk) str = pk.ToStr();
+
+            if (!str.IsNullOrEmpty() && str[0] == '{')
+                command = JsonHost.Read<CommandModel>(str)!;
+        }
+
+        if (command == null) throw new NotSupportedException($"未支持[{str?[..64] ?? message.GetType().FullName}]");
+
+        return await ReceiveCommand(command, str, source, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>接收命令，分发调用指定委托</summary>
@@ -1108,7 +1156,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="source">来源</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
-    public virtual async Task<CommandReplyModel?> ReceiveCommand(CommandModel model, String? message, String source, CancellationToken cancellationToken = default)
+    public virtual async Task<CommandReplyModel?> ReceiveCommand(CommandModel model, String? message, String? source, CancellationToken cancellationToken = default)
     {
         if (model == null) return null;
 

@@ -1,11 +1,8 @@
 ﻿using System.Net.Sockets;
-using System.Threading;
 using NewLife.Data;
 using NewLife.Http;
 using NewLife.Log;
 using NewLife.Net;
-using NewLife.Remoting.Models;
-using NewLife.Serialization;
 
 namespace NewLife.Remoting.Clients;
 
@@ -28,7 +25,7 @@ class WsChannel(ClientBase client) : DisposeBase
 
         // 使用过滤器内部token，因为它有过期刷新机制
         var token = http.Token;
-        if (http.Filter is NewLife.Http.TokenHttpFilter thf) token = thf.Token?.AccessToken;
+        if (http.Filter is TokenHttpFilter thf) token = thf.Token?.AccessToken;
 
         var span = DefaultSpan.Current;
         span?.AppendTag($"svc={svc.Address} Token=[{token?.Length}]");
@@ -89,10 +86,10 @@ class WsChannel(ClientBase client) : DisposeBase
                 if (rs == null) continue;
 
                 if (rs.Type == WebSocketMessageType.Close) break;
-                if (rs.Type == WebSocketMessageType.Text)
+                if (rs.Type is WebSocketMessageType.Text or WebSocketMessageType.Binary)
                 {
-                    var txt = rs.Payload?.ToStr();
-                    if (txt != null) await OnReceive(txt).ConfigureAwait(false);
+                    if (rs.Payload != null)
+                        await OnReceive(rs.Payload).ConfigureAwait(false);
                 }
             }
             catch (ThreadAbortException) { break; }
@@ -119,19 +116,15 @@ class WsChannel(ClientBase client) : DisposeBase
     }
 
     /// <summary>收到服务端主动下发消息。默认转为CommandModel命令处理</summary>
-    /// <param name="message"></param>
+    /// <param name="data">数据包</param>
     /// <returns></returns>
-    private async Task OnReceive(String message)
-    {
-        if (message.StartsWithIgnoreCase("Pong"))
-        {
-        }
-        else
-        {
-            var model = _client.JsonHost.Read<CommandModel>(message);
-            if (model != null) await _client.ReceiveCommand(model, message, "WebSocket").ConfigureAwait(false);
-        }
-    }
+    protected Task OnReceive(IPacket data) => _client.Process(data, "WebSocket");
+
+    /// <summary>发送文本</summary>
+    /// <param name="data">数据包</param>
+    /// <param name="cancellationToken">取消通知</param>
+    /// <returns></returns>
+    public virtual Task SendTextAsync(IPacket data, CancellationToken cancellationToken = default) => _websocket!.SendTextAsync(data, default);
 
     private void StopWebSocket()
     {

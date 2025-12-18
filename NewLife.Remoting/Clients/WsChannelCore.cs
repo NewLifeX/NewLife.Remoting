@@ -1,10 +1,7 @@
 ﻿#if NETCOREAPP
 using System.Net.WebSockets;
-using NewLife.Http;
+using NewLife.Data;
 using NewLife.Log;
-using NewLife.Model;
-using NewLife.Remoting.Models;
-using NewLife.Serialization;
 using WebSocket = System.Net.WebSockets.WebSocket;
 using WebSocketMessageType = System.Net.WebSockets.WebSocketMessageType;
 
@@ -89,10 +86,10 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
             {
                 var data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), source.Token).ConfigureAwait(false);
                 if (data.MessageType == WebSocketMessageType.Close) break;
-                if (data.MessageType == WebSocketMessageType.Text)
+                if (data.MessageType is WebSocketMessageType.Text or WebSocketMessageType.Binary)
                 {
-                    var txt = buf.ToStr(null, 0, data.Count);
-                    if (txt != null) await OnReceive(txt).ConfigureAwait(false);
+                    var pk = new ArrayPacket(buf, 0, data.Count);
+                    await OnReceive(pk).ConfigureAwait(false);
                 }
             }
             catch (ThreadAbortException) { break; }
@@ -120,20 +117,11 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
             await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default).ConfigureAwait(false);
     }
 
-    /// <summary>收到服务端主动下发消息。默认转为CommandModel命令处理</summary>
-    /// <param name="message"></param>
+    /// <summary>发送文本</summary>
+    /// <param name="data">数据包</param>
+    /// <param name="cancellationToken">取消通知</param>
     /// <returns></returns>
-    private async Task OnReceive(String message)
-    {
-        if (message.StartsWithIgnoreCase("Pong"))
-        {
-        }
-        else
-        {
-            var model = _client.JsonHost.Read<CommandModel>(message);
-            if (model != null) await _client.ReceiveCommand(model, message, "WebSocket").ConfigureAwait(false);
-        }
-    }
+    public override Task SendTextAsync(IPacket data, CancellationToken cancellationToken = default) => _websocket!.SendAsync(data.ToSegment(), WebSocketMessageType.Text, true, default);
 
     private void StopWebSocket()
     {
