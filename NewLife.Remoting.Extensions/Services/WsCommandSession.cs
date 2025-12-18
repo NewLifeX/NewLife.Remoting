@@ -1,6 +1,8 @@
 ﻿using System.Net;
 using System.Net.WebSockets;
+using NewLife.Data;
 using NewLife.Log;
+using NewLife.Messaging;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
@@ -13,6 +15,9 @@ public class WsCommandSession(WebSocket socket, IServiceProvider serviceProvider
 {
     /// <summary>是否活动中</summary>
     public override Boolean Active => socket != null && socket.State == WebSocketState.Open;
+
+    /// <summary>数据包分发器。用于EventHub</summary>
+    public IEventDispatcher<IPacket>? Dispatcher { get; set; }
 
     private CancellationTokenSource? _source;
 
@@ -92,15 +97,8 @@ public class WsCommandSession(WebSocket socket, IServiceProvider serviceProvider
                 {
                     using var span2 = Tracer?.NewSpan("cmd:Ws.Receive", $"[{data.MessageType}]{remote}", data.Count);
 
-                    var txt = buf.ToStr(null, 0, data.Count);
-                    span2?.AppendTag(txt);
-                    if (txt == "Ping")
-                    {
-                        // 长连接上线。可能客户端心跳已经停了，WS还在，这里重新上线  
-                        SetOnline?.Invoke(true);
-
-                        await socket.SendAsync("Pong".GetBytes(), WebSocketMessageType.Text, true, source.Token).ConfigureAwait(false);
-                    }
+                    var pk = new ArrayPacket(buf, 0, data.Count);
+                    await OnReceive(pk, source.Token);
                 }
             }
             catch (ThreadAbortException) { break; }
@@ -137,5 +135,24 @@ public class WsCommandSession(WebSocket socket, IServiceProvider serviceProvider
 
         // 长连接下线  
         SetOnline?.Invoke(false);
+    }
+
+    /// <summary>收到客户端主动上发数据</summary>
+    /// <param name="data">数据包</param>
+    /// <param name="cancellationToken">取消通知</param>
+    /// <returns></returns>
+    protected async Task OnReceive(IPacket data, CancellationToken cancellationToken)
+    {
+        if (data.Total == 4 && data.ToStr() == "Ping")
+        {
+            // 长连接上线。可能客户端心跳已经停了，WS还在，这里重新上线  
+            SetOnline?.Invoke(true);
+
+            await socket.SendAsync("Pong".GetBytes(), WebSocketMessageType.Text, true, cancellationToken);
+        }
+        else if (Dispatcher != null)
+        {
+            await Dispatcher.DispatchAsync(data, cancellationToken);
+        }
     }
 }

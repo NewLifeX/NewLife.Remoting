@@ -89,7 +89,7 @@ class WsChannel(ClientBase client) : DisposeBase
                 if (rs.Type is WebSocketMessageType.Text or WebSocketMessageType.Binary)
                 {
                     if (rs.Payload != null)
-                        await OnReceive(rs.Payload).ConfigureAwait(false);
+                        await OnReceive(rs.Payload, source.Token).ConfigureAwait(false);
                 }
             }
             catch (ThreadAbortException) { break; }
@@ -117,8 +117,9 @@ class WsChannel(ClientBase client) : DisposeBase
 
     /// <summary>收到服务端主动下发消息。默认转为CommandModel命令处理</summary>
     /// <param name="data">数据包</param>
+    /// <param name="cancellationToken">取消通知</param>
     /// <returns></returns>
-    protected Task OnReceive(IPacket data) => _client.ProcessMessageAsync(data, "WebSocket");
+    protected Task OnReceive(IPacket data, CancellationToken cancellationToken) => _client.DispatchAsync(data, cancellationToken);
 
     /// <summary>发送文本</summary>
     /// <param name="data">数据包</param>

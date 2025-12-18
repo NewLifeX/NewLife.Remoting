@@ -89,7 +89,7 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
                 if (data.MessageType is WebSocketMessageType.Text or WebSocketMessageType.Binary)
                 {
                     var pk = new ArrayPacket(buf, 0, data.Count);
-                    await OnReceive(pk).ConfigureAwait(false);
+                    await OnReceive(pk, source.Token).ConfigureAwait(false);
                 }
             }
             catch (ThreadAbortException) { break; }

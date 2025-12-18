@@ -8,6 +8,7 @@ using System.Reflection;
 using NewLife.Caching;
 using NewLife.Data;
 using NewLife.Log;
+using NewLife.Messaging;
 using NewLife.Model;
 using NewLife.Net;
 using NewLife.Reflection;
@@ -34,7 +35,7 @@ namespace NewLife.Remoting.Clients;
 ///     客户端ApiHttpClient通过Http/Https协议连接服务端WebApi，进行OAuth登录，获得令牌，后续每次请求都需要带上令牌。
 ///     例如星尘AppClient，AppId和AppSecret进行OAuth登录后，获得令牌，后续每次请求都需要带上令牌。
 /// </remarks>
-public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEventProvider, ITracerFeature, ILogFeature
+public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEventProvider, IEventDispatcher<IPacket>, ITracerFeature, ILogFeature
 {
     #region 属性
     /// <summary>客户端名称。例如Device/Node/App</summary>
@@ -279,7 +280,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (msg != null && !msg.Reply && api != null && api.Action == "Notify")
         {
             if (api.Data != null)
-                _ = ProcessMessageAsync(api.Data, client.Local?.Type + "");
+                _ = DispatchAsync(api.Data, default);
         }
     }
 
@@ -1118,35 +1119,30 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
     }
 
-    /// <summary>处理接收到的消息。可能是命令，也可能是事件等其它消息</summary>
-    /// <param name="message">消息。支持CommandModel/String/IPacket</param>
-    /// <param name="source">来源</param>
+    /// <summary>分发消息</summary>
+    /// <param name="data">数据包</param>
     /// <param name="cancellationToken">取消通知</param>
-    /// <exception cref="ArgumentNullException"></exception>
-    /// <exception cref="NotSupportedException"></exception>
-    public virtual Task ProcessMessageAsync(Object message, String? source = null, CancellationToken cancellationToken = default)
+    /// <returns></returns>
+    public virtual async Task<Int32> DispatchAsync(IPacket data, CancellationToken cancellationToken)
     {
-        if (message == null) throw new ArgumentNullException(nameof(message));
+        if (data == null) throw new ArgumentNullException(nameof(data));
 
-        var command = message as CommandModel;
-        var str = message as String;
-        if (command == null)
+        if (data[0] == '{')
         {
-            if (message is IPacket pk) str = pk.ToStr();
+            var str = data.ToStr();
+            if (!str.IsNullOrEmpty())
+            {
+                var command = JsonHost.Read<CommandModel>(str)!;
+                if (command != null)
+                {
+                    await ReceiveCommand(command, str, null, cancellationToken).ConfigureAwait(false);
 
-            if (!str.IsNullOrEmpty() && str[0] == '{')
-                command = JsonHost.Read<CommandModel>(str)!;
+                    return 1;
+                }
+            }
         }
 
-        //if (command == null) throw new NotSupportedException($"未支持[{str?[..64] ?? message.GetType().FullName}]");
-        if (command != null)
-            return ReceiveCommand(command, str, source, cancellationToken);
-
-#if NET45
-        return Task.FromResult(0);
-#else
-        return Task.CompletedTask;
-#endif
+        return 0;
     }
 
     /// <summary>接收命令，分发调用指定委托</summary>
