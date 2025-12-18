@@ -88,7 +88,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession
         using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _source = source;
 
-        var buf = new Byte[64];
+        var buf = new Byte[64 * 1024];
         while (!source.IsCancellationRequested && socket.State == WebSocketState.Open)
         {
             // try-catch 放在循环内，避免单次异常退出循环
