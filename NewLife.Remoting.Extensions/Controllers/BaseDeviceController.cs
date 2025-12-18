@@ -18,6 +18,7 @@ public abstract class BaseDeviceController : BaseController
     private readonly IDeviceService _deviceService;
     private readonly ITokenService _tokenService;
     private readonly ISessionManager _sessionManager;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ITracer _tracer;
 
     #region 构造
@@ -29,6 +30,7 @@ public abstract class BaseDeviceController : BaseController
         _tokenService = serviceProvider.GetRequiredService<ITokenService>();
         _sessionManager = serviceProvider.GetRequiredService<ISessionManager>();
         _tracer = serviceProvider.GetRequiredService<ITracer>();
+        _serviceProvider = serviceProvider;
     }
 
     /// <summary>实例化设备控制器</summary>
@@ -42,6 +44,7 @@ public abstract class BaseDeviceController : BaseController
         _tokenService = tokenService ?? serviceProvider.GetRequiredService<ITokenService>();
         _sessionManager = sessionManager ?? serviceProvider.GetRequiredService<ISessionManager>();
         _tracer = serviceProvider.GetRequiredService<ITracer>();
+        _serviceProvider = serviceProvider;
     }
 
     /// <summary>验证身份</summary>
@@ -218,7 +221,7 @@ public abstract class BaseDeviceController : BaseController
         var sessionManager = _sessionManager ?? throw new InvalidOperationException("未找到SessionManager服务");
 
         using var span = _tracer?.NewSpan("cmd:Ws:Create", device.Code);
-        using var session = new WsCommandSession(socket)
+        using var session = new WsCommandSession(socket, _serviceProvider)
         {
             Code = device.Code,
             Log = this,

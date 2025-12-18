@@ -122,7 +122,9 @@ public static class CommandClientHelper
                 return reply;
             }
 
-            rs.Data = result as String ?? result?.ToJson();
+            if (result != null)
+                rs.Data = result as String ?? (client as ClientBase)?.JsonHost.Write(result) ?? result.ToJson();
+
             return rs;
         }
         catch (Exception ex)

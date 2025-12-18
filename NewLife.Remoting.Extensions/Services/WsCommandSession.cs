@@ -9,7 +9,7 @@ using NewLife.Serialization;
 namespace NewLife.Remoting.Extensions.Services;
 
 /// <summary>WebSocket设备会话</summary>
-public class WsCommandSession(WebSocket socket) : CommandSession
+public class WsCommandSession(WebSocket socket, IServiceProvider serviceProvider) : CommandSession
 {
     /// <summary>是否活动中</summary>
     public override Boolean Active => socket != null && socket.State == WebSocketState.Open;
@@ -42,7 +42,16 @@ public class WsCommandSession(WebSocket socket) : CommandSession
     /// <returns></returns>
     public override Task HandleAsync(CommandModel command, String? message, CancellationToken cancellationToken)
     {
-        message ??= command.ToJson();
+        //message ??= command.ToJson();
+        if (message == null && command != null)
+        {
+            var jsonHost = serviceProvider.GetService<IJsonHost>();
+            if (jsonHost != null)
+                message = jsonHost.Write(command);
+            else
+                message = command.ToJson();
+        }
+
         return socket.SendAsync(message.GetBytes(), WebSocketMessageType.Text, true, cancellationToken);
     }
 

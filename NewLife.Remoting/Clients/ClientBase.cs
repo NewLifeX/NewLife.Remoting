@@ -1168,7 +1168,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (model.Id > 0 && !_cache.Add($"cmd:{model.Id}", model, 3600)) return null;
 
         // 埋点，建立调用链
-        message ??= model.ToJson();
+        message ??= JsonHost.Write(model);
         using var span = Tracer?.NewSpan("cmd:" + model.Command, message);
         if (!model.TraceId.IsNullOrEmpty()) span?.Detach(model.TraceId);
         try

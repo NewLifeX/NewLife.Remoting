@@ -8,6 +8,7 @@ using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
+using NewLife.Serialization;
 
 namespace NewLife.Remoting.Extensions;
 
@@ -37,6 +38,7 @@ public static class RemotingExtensions
         services.TryAddTransient<IPingResponse, PingResponse>();
 
         services.TryAddSingleton<ISessionManager, SessionManager>();
+        services.TryAddSingleton(JsonHelper.Default);
 
         // 注册Remoting所必须的服务
         if (setting != null)

@@ -129,7 +129,14 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         if (command == null && message.IsNullOrEmpty()) throw new ArgumentNullException(nameof(command), "命令和消息不能同时为空");
 
         if (command != null && command.TraceId.IsNullOrEmpty()) command.TraceId = DefaultSpan.Current?.TraceId;
-        if (message.IsNullOrEmpty()) message = command!.ToJson();
+        if (message.IsNullOrEmpty() && command != null)
+        {
+            var jsonHost = serviceProvider.GetService<IJsonHost>();
+            if (jsonHost != null)
+                message = jsonHost.Write(command);
+            else
+                message = command.ToJson();
+        }
 
         message = $"{code}#{message}";
 
