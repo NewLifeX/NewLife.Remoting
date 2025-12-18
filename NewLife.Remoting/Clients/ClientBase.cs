@@ -280,7 +280,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (msg != null && !msg.Reply && api != null && api.Action == "Notify")
         {
             if (api.Data != null)
-                _ = Process(api.Data, client.Local?.Type + "");
+                _ = ProcessMessageAsync(api.Data, client.Local?.Type + "");
         }
     }
 
@@ -1123,10 +1123,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="message">消息。支持CommandModel/String/IPacket</param>
     /// <param name="source">来源</param>
     /// <param name="cancellationToken">取消通知</param>
-    /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
     /// <exception cref="NotSupportedException"></exception>
-    public virtual async Task<Object?> Process(Object message, String? source = null, CancellationToken cancellationToken = default)
+    public virtual Task ProcessMessageAsync(Object message, String? source = null, CancellationToken cancellationToken = default)
     {
         if (message == null) throw new ArgumentNullException(nameof(message));
 
@@ -1142,7 +1141,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         if (command == null) throw new NotSupportedException($"未支持[{str?[..64] ?? message.GetType().FullName}]");
 
-        return await ReceiveCommand(command, str, source, cancellationToken).ConfigureAwait(false);
+        return ReceiveCommand(command, str, source, cancellationToken);
     }
 
     /// <summary>接收命令，分发调用指定委托</summary>

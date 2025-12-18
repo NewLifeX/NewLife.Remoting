@@ -118,7 +118,7 @@ class WsChannel(ClientBase client) : DisposeBase
     /// <summary>收到服务端主动下发消息。默认转为CommandModel命令处理</summary>
     /// <param name="data">数据包</param>
     /// <returns></returns>
-    protected Task OnReceive(IPacket data) => _client.Process(data, "WebSocket");
+    protected Task OnReceive(IPacket data) => _client.ProcessMessageAsync(data, "WebSocket");
 
     /// <summary>发送文本</summary>
     /// <param name="data">数据包</param>
