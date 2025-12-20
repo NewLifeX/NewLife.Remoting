@@ -642,7 +642,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     protected virtual void FillLoginRequest(ILoginRequest request)
     {
         request.Code = Code;
-        request.ClientId = $"{NetHelper.MyIP()}@{System.Diagnostics.Process.GetCurrentProcess().Id}";
+        request.ClientId = Runtime.ClientId;
 
         if (!Secret.IsNullOrEmpty())
             request.Secret = PasswordProvider?.Hash(Secret) ?? Secret;

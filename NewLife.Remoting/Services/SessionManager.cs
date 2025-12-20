@@ -1,5 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Diagnostics;
 using NewLife.Caching;
 using NewLife.Log;
 using NewLife.Messaging;
@@ -24,7 +23,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
     /// <summary>客户端标识。机器名+进程号</summary>
     /// <remarks>在事件总线中，用做Redis队列的消费组</remarks>
-    public String ClientId { get; set; } = $"{Environment.MachineName}-{Process.GetCurrentProcess().Id}";
+    public String ClientId { get; set; } = Runtime.ClientId;
 
     /// <summary>事件总线</summary>
     public IEventBus<String> Bus { get; set; } = null!;
@@ -72,13 +71,12 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     /// <returns></returns>
     protected virtual IEventBus<String> Create()
     {
-        //var clientId = $"{Environment.MachineName}-{Process.GetCurrentProcess().Id}";
         using var span = _tracer?.NewSpan($"cmd:{Topic}:Create", ClientId);
 
         // 创建事件总线，指定队列消费组
         IEventBus<String> bus;
         if (_cache is not MemoryCache && _cache is Cache cache)
-            bus = cache.GetEventBus<String>(Topic, ClientId);
+            bus = cache.CreateEventBus<String>(Topic, ClientId);
         else
             bus = new EventBus<String>();
 
