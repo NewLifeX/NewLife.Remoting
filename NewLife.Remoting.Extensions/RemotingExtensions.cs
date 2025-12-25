@@ -48,7 +48,15 @@ public static class RemotingExtensions
         }
 
         // 注册密码提供者，用于通信过程中保护密钥，避免明文传输
-        services.TryAddSingleton<IPasswordProvider>(new SaltPasswordProvider { Algorithm = "md5", SaltTime = 60 });
+        //services.TryAddSingleton<IPasswordProvider>(new SaltPasswordProvider { Algorithm = "md5", SaltTime = 60 });
+        services.TryAddSingleton<IPasswordProvider>(p =>
+        {
+            var auth = p.GetService<IAuthenticationSetting>() ?? setting as IAuthenticationSetting;
+            if (auth != null && !auth.Algorithm.IsNullOrEmpty())
+                return new SaltPasswordProvider { Algorithm = auth.Algorithm, SaltTime = auth.SaltTime };
+            else
+                return new SaltPasswordProvider { Algorithm = "md5", SaltTime = 60 };
+        });
 
         // 注册缓存提供者，必须有默认实现
         services.TryAddSingleton<ICacheProvider, CacheProvider>();

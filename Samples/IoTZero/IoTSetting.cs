@@ -9,7 +9,7 @@ namespace IoTZero;
 
 /// <summary>配置</summary>
 [Config("IoTZero")]
-public class IoTSetting : Config<IoTSetting>, ITokenSetting
+public class IoTSetting : Config<IoTSetting>, ITokenSetting, IAuthenticationSetting
 {
     #region 静态
     static IoTSetting() => Provider = new DbConfigProvider { UserId = 0, Category = "IoTServer" };
@@ -35,6 +35,18 @@ public class IoTSetting : Config<IoTSetting>, ITokenSetting
     [Description("自动注册。允许客户端自动注册，默认true")]
     [Category("设备管理")]
     public Boolean AutoRegister { get; set; } = true;
+    #endregion
+
+    #region 身份验证
+    /// <summary>身份验证哈希算法。支持md5/sha1/sha512，默认md5</summary>
+    [Description("身份验证哈希算法。支持md5/sha1/sha512，默认md5")]
+    [Category("身份验证")]
+    public String Algorithm { get; set; }
+
+    /// <summary>身份验证盐值时间。使用Unix秒作为盐值，该值为允许的最大时间差。0表示不使用时间盐值，而是使用随机字符串。默认60秒</summary>
+    [Description("身份验证盐值时间。使用Unix秒作为盐值，该值为允许的最大时间差。0表示不使用时间盐值，而是使用随机字符串。默认60秒")]
+    [Category("身份验证")]
+    public Int32 SaltTime { get; set; }
     #endregion
 
     #region 数据存储
