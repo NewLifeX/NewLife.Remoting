@@ -68,7 +68,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>Api客户端。ApiClient或ApiHttpClient</summary>
     public IApiClient? Client { get => _client; set => _client = value; }
 
-    String? IApiClient.Token { get => _client?.Token; set { if (_client != null) _client.Token = value; } }
+    String? IApiClient.Token { get => _client?.Token; set => _client?.Token = value; }
 
     /// <summary>登录状态</summary>
     public LoginStatus Status { get; set; }
@@ -274,7 +274,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     private void OnRpcReceive(Object? sender, ApiReceivedEventArgs e)
     {
-        var client = (sender as ApiClient)!;
+        //var client = (sender as ApiClient)!;
         var msg = e.Message;
         var api = e.ApiMessage;
         if (msg != null && !msg.Reply && api != null && api.Action == "Notify")
@@ -455,10 +455,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     /// <summary>设置令牌。派生类可重定义逻辑</summary>
     /// <param name="token"></param>
-    protected virtual void SetToken(String? token)
-    {
-        if (_client != null) _client.Token = token;
-    }
+    protected virtual void SetToken(String? token) => _client?.Token = token;
 
     /// <summary>获取相对于服务器的当前时间，本地时区，避免两端时间差</summary>
     /// <returns></returns>
