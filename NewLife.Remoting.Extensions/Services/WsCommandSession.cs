@@ -10,29 +10,60 @@ using NewLife.Serialization;
 
 namespace NewLife.Remoting.Extensions.Services;
 
-/// <summary>WebSocket设备会话</summary>
+/// <summary>WebSocket 命令会话。通过 WebSocket 长连接实现服务端与客户端的双向通信</summary>
+/// <remarks>
+/// 继承自 <see cref="CommandSession"/>，专门用于 WebSocket 协议的命令会话管理。
+/// 
+/// <para>核心功能：</para>
+/// <list type="number">
+/// <item>维护 WebSocket 连接，监听客户端消息</item>
+/// <item>处理服务端下发的命令，通过 WebSocket 发送给客户端</item>
+/// <item>支持 Ping/Pong 心跳机制，维持长连接活性</item>
+/// <item>支持数据包分发器，用于 EventHub 场景</item>
+/// </list>
+/// 
+/// <para>生命周期：</para>
+/// <list type="number">
+/// <item>客户端发起 WebSocket 连接请求</item>
+/// <item>服务端 Accept 后创建 WsCommandSession 实例</item>
+/// <item>调用 <see cref="WaitAsync"/> 进入阻塞等待，监听客户端消息</item>
+/// <item>服务端通过 <see cref="HandleAsync"/> 下发命令</item>
+/// <item>客户端断开或异常时，会话结束并触发下线回调</item>
+/// </list>
+/// 
+/// <para>心跳机制：</para>
+/// 客户端发送 "Ping" 文本消息，服务端响应 "Pong"，同时刷新在线状态。
+/// </remarks>
+/// <param name="socket">WebSocket 实例</param>
 public class WsCommandSession(WebSocket socket) : CommandSession
 {
-    /// <summary>是否活动中</summary>
+    #region 属性
+    /// <summary>是否活动中。根据 WebSocket 连接状态判断</summary>
     public override Boolean Active => socket != null && socket.State == WebSocketState.Open;
 
-    /// <summary>数据包分发器。用于EventHub</summary>
+    /// <summary>数据包分发器。用于 EventHub 场景，将收到的数据包分发给订阅者</summary>
     public IEventDispatcher<IPacket>? Dispatcher { get; set; }
 
-    /// <summary>服务提供者</summary>
+    /// <summary>服务提供者。用于获取 JSON 序列化器等服务</summary>
     public IServiceProvider? ServiceProvider { get; set; }
 
+    /// <summary>取消令牌源。用于取消 WebSocket 等待循环</summary>
     private CancellationTokenSource? _source;
+    #endregion
 
-    /// <summary>销毁</summary>
+    #region 销毁
+    /// <summary>销毁会话，关闭 WebSocket 连接</summary>
+    /// <param name="disposing">是否主动销毁</param>
     protected override void Dispose(Boolean disposing)
     {
         base.Dispose(disposing);
 
         try
         {
+            // 取消等待循环
             _source?.Cancel();
 
+            // 正常关闭 WebSocket
             if (socket != null && socket.State == WebSocketState.Open)
                 socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Dispose", default);
         }
@@ -42,52 +73,83 @@ public class WsCommandSession(WebSocket socket) : CommandSession
             socket?.Dispose();
         }
     }
+    #endregion
 
-    /// <summary>处理事件消息，通过WebSocket向下发送</summary>
+    #region 命令处理
+    /// <summary>处理服务端下发的命令，通过 WebSocket 发送给客户端</summary>
     /// <param name="command">命令模型</param>
-    /// <param name="message">原始命令消息</param>
+    /// <param name="message">原始命令消息的 JSON 字符串</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     public override Task HandleAsync(CommandModel command, String? message, CancellationToken cancellationToken)
     {
-        //message ??= command.ToJson();
+        // 优先使用原始消息，避免重复序列化
         if (message == null && command != null)
         {
             var jsonHost = ServiceProvider?.GetService<IJsonHost>();
-            if (jsonHost != null)
-                message = jsonHost.Write(command);
-            else
-                message = command.ToJson();
+            message = jsonHost != null ? jsonHost.Write(command) : command.ToJson();
         }
 
         return socket.SendAsync(message.GetBytes(), WebSocketMessageType.Text, true, cancellationToken);
     }
+    #endregion
 
-    /// <summary>阻塞WebSocket，等待连接结束</summary>  
-    /// <param name="context">上下文</param>
-    /// <param name="span">埋点</param>  
-    /// <param name="cancellationToken">取消令牌</param>  
-    /// <returns></returns>  
+    #region WebSocket 等待
+    /// <summary>阻塞等待 WebSocket 连接结束。在连接期间持续监听客户端消息</summary>
+    /// <remarks>
+    /// 此方法会阻塞当前任务，直到 WebSocket 连接关闭或取消。
+    /// 连接期间会处理客户端发送的消息，包括心跳和业务数据。
+    /// </remarks>
+    /// <param name="context">HTTP 上下文</param>
+    /// <param name="span">链路追踪埋点，进入等待前会结束该埋点</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns></returns>
     public virtual async Task WaitAsync(HttpContext context, ISpan? span, CancellationToken cancellationToken)
     {
-        var ip = context.GetUserHost();
-        var sid = Rand.Next();
+        // 获取远程地址信息
         var connection = context.Connection;
         var address = connection.RemoteIpAddress ?? IPAddress.Loopback;
         if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
         var remote = new IPEndPoint(address, connection.RemotePort);
+        var sid = Rand.Next();
+
         Log?.WriteLog("WebSocket连接", true, $"State={socket.State} sid={sid} Remote={remote}");
 
-        // 长连接上线  
+        // 通知上线
         SetOnline?.Invoke(true);
 
         // 即将进入阻塞等待，结束埋点
         span?.TryDispose();
 
-        // 链接取消令牌。当客户端断开时，触发取消，结束长连接  
+        // 链接取消令牌。当客户端断开时，触发取消，结束长连接
         using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _source = source;
 
+        try
+        {
+            await ReceiveLoopAsync(remote, source).ConfigureAwait(false);
+        }
+        finally
+        {
+            // 确保取消令牌源被重置
+            _source = null;
+        }
+
+        // 尝试正常关闭 WebSocket
+        if (socket.State == WebSocketState.Open)
+            await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default).ConfigureAwait(false);
+
+        Log?.WriteLog("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
+
+        // 通知下线
+        SetOnline?.Invoke(false);
+    }
+
+    /// <summary>WebSocket 消息接收循环</summary>
+    /// <param name="remote">远程端点地址</param>
+    /// <param name="source">取消令牌源</param>
+    private async Task ReceiveLoopAsync(IPEndPoint remote, CancellationTokenSource source)
+    {
         var buf = new Byte[64 * 1024];
         while (!source.IsCancellationRequested && socket.State == WebSocketState.Open)
         {
@@ -96,29 +158,23 @@ public class WsCommandSession(WebSocket socket) : CommandSession
             {
                 var data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), source.Token).ConfigureAwait(false);
                 if (data.MessageType == WebSocketMessageType.Close) break;
+
                 if (data.MessageType is WebSocketMessageType.Text or WebSocketMessageType.Binary)
                 {
-                    using var span2 = Tracer?.NewSpan("cmd:Ws.Receive", $"[{data.MessageType}]{remote}", data.Count);
+                    using var span = Tracer?.NewSpan("cmd:Ws.Receive", $"[{data.MessageType}]{remote}", data.Count);
 
                     var pk = new ArrayPacket(buf, 0, data.Count);
-                    await OnReceive(pk, source.Token);
+                    await OnReceive(pk, source.Token).ConfigureAwait(false);
                 }
             }
-            catch (ThreadAbortException) { break; }
-            catch (ThreadInterruptedException) { break; }
-            catch (TaskCanceledException) { }
-            catch (OperationCanceledException) { }
-            catch (WebSocketException ex)
+            catch (OperationCanceledException) { break; }
+            catch (WebSocketException ex) when (!source.IsCancellationRequested)
             {
-                if (source.IsCancellationRequested) break;
-
                 Log?.WriteLog("WebSocket异常", false, ex.Message);
                 break;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (!source.IsCancellationRequested)
             {
-                if (source.IsCancellationRequested) break;
-
                 XTrace.WriteException(ex);
             }
         }
@@ -129,33 +185,31 @@ public class WsCommandSession(WebSocket socket) : CommandSession
             if (!source.IsCancellationRequested) source.Cancel();
         }
         catch (ObjectDisposedException) { }
-        _source = null;
-
-        if (socket.State == WebSocketState.Open)
-            await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default).ConfigureAwait(false);
-
-        Log?.WriteLog("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
-
-        // 长连接下线  
-        SetOnline?.Invoke(false);
     }
+    #endregion
 
-    /// <summary>收到客户端主动上发数据</summary>
+    #region 消息处理
+    /// <summary>处理客户端上发的数据</summary>
     /// <param name="data">数据包</param>
-    /// <param name="cancellationToken">取消通知</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
-    protected async Task OnReceive(IPacket data, CancellationToken cancellationToken)
+    protected virtual async Task OnReceive(IPacket data, CancellationToken cancellationToken)
     {
+        // 处理心跳消息
         if (data.Total == 4 && data.ToStr() == "Ping")
         {
-            // 长连接上线。可能客户端心跳已经停了，WS还在，这里重新上线  
+            // 刷新在线状态。可能客户端心跳已经停了，WS 还在，这里重新上线
             SetOnline?.Invoke(true);
 
-            await socket.SendAsync("Pong".GetBytes(), WebSocketMessageType.Text, true, cancellationToken);
+            await socket.SendAsync("Pong".GetBytes(), WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
+            return;
         }
-        else if (Dispatcher != null)
+
+        // 分发业务数据
+        if (Dispatcher != null)
         {
-            await Dispatcher.DispatchAsync(data, cancellationToken);
+            await Dispatcher.DispatchAsync(data, cancellationToken).ConfigureAwait(false);
         }
     }
+    #endregion
 }

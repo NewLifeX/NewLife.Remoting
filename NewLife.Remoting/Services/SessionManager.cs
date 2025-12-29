@@ -13,26 +13,46 @@ using TaskEx = System.Threading.Tasks.Task;
 
 namespace NewLife.Remoting.Services;
 
-/// <summary>会话管理器</summary>
-/// <remarks>实例化</remarks>
+/// <summary>会话管理器。管理命令会话的生命周期，支持进程内或跨进程（Redis队列）消息分发</summary>
+/// <remarks>
+/// 主要用于管理 WebSocket 等长连接会话（如 <see cref="CommandSession"/>），实现服务端向客户端下发命令的能力。
+/// 
+/// <para>核心工作流程：</para>
+/// <list type="number">
+/// <item>客户端建立连接时，调用 <see cref="Add"/> 将会话加入管理器，以 Code 为唯一标识</item>
+/// <item>服务端需要下发命令时，调用 <see cref="PublishAsync"/> 发布消息到事件总线</item>
+/// <item>事件总线触发 <see cref="OnMessage"/>，根据 Code 找到对应会话并交由其处理（如通过 WebSocket 发送给客户端）</item>
+/// <item>客户端断开连接时，调用 <see cref="Remove"/> 从管理器移除会话</item>
+/// <item>内置定时器自动清理不活跃的会话</item>
+/// </list>
+/// 
+/// <para>事件总线模式：</para>
+/// <list type="bullet">
+/// <item>单机模式：使用内存事件总线 <see cref="EventBus{T}"/>，仅支持进程内消息分发</item>
+/// <item>集群模式：使用 Redis 事件总线，支持跨进程消息分发，适用于多实例部署场景</item>
+/// </list>
+/// 
+/// <para>消息格式：</para>
+/// 实际发送的消息格式为 "code#message"，其中 code 为会话标识，message 为 JSON 序列化的命令内容，因此 code 内不能包含 # 字符。
+/// </remarks>
 public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISessionManager
 {
     #region 属性
-    /// <summary>主题</summary>
+    /// <summary>主题。事件总线的队列名称，默认 Commands</summary>
     public String Topic { get; set; } = "Commands";
 
     /// <summary>客户端标识。机器名+进程号</summary>
-    /// <remarks>在事件总线中，用做Redis队列的消费组</remarks>
+    /// <remarks>在事件总线中，用做 Redis 队列的消费组标识，用于区分不同进程实例</remarks>
     public String ClientId { get; set; } = Runtime.ClientId;
 
-    /// <summary>事件总线</summary>
+    /// <summary>事件总线。用于跨进程消息分发，单机模式使用内存总线，集群模式使用 Redis 总线</summary>
     public IEventBus<String> Bus { get; set; } = null!;
 
-    /// <summary>清理周期。单位毫秒，默认10秒。</summary>
+    /// <summary>清理周期。单位秒，默认10秒。定时清理不活跃的会话</summary>
     public Int32 ClearPeriod { get; set; } = 10;
 
     private readonly ConcurrentDictionary<String, ICommandSession> _dic = new();
-    /// <summary>会话集合</summary>
+    /// <summary>会话集合。以 Code 为键的并发字典</summary>
     public IDictionary<String, ICommandSession> Sessions => _dic;
 
     /// <summary>清理会话计时器</summary>
@@ -53,6 +73,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         CloseAll(disposing ? "Dispose" : "GC");
     }
 
+    /// <summary>初始化事件总线。延迟初始化，首次添加会话或发布消息时触发</summary>
     private void Init()
     {
         if (Bus != null) return;
@@ -86,8 +107,8 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         return bus;
     }
 
-    /// <summary>创建会话</summary>
-    /// <param name="session"></param>
+    /// <summary>添加会话到管理器</summary>
+    /// <param name="session">命令会话</param>
     public virtual void Add(ICommandSession session)
     {
         using var span = _tracer?.NewSpan($"cmd:{Topic}:Add", session.Code);
@@ -96,23 +117,25 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
         _dic.AddOrUpdate(session.Code, session, (k, s) => s);
 
+        // 监听会话销毁事件，自动从管理器移除
         if (session is IDisposable2 ds)
             ds.OnDisposed += (s, e) => Remove((s as ICommandSession)!);
 
+        // 启动清理定时器
         var p = ClearPeriod * 1000;
         if (p > 0)
             _clearTimer ??= new TimerX(RemoveNotAlive, null, p, p) { Async = true, };
     }
 
-    /// <summary>删除会话</summary>
+    /// <summary>从管理器删除会话</summary>
+    /// <param name="session">命令会话</param>
     public virtual void Remove(ICommandSession session)
     {
-        if (session != null)
-        {
-            using var span = _tracer?.NewSpan($"cmd:{Topic}:Remove", session.Code);
+        if (session == null) return;
 
-            if (_dic.TryRemove(session.Code, out _)) span?.AppendTag(null!, 1);
-        }
+        using var span = _tracer?.NewSpan($"cmd:{Topic}:Remove", session.Code);
+
+        if (_dic.TryRemove(session.Code, out _)) span?.AppendTag(null!, 1);
     }
 
     /// <summary>向目标会话发送事件。进程内转发，或通过Redis队列</summary>
@@ -155,6 +178,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     {
         using var span = _tracer?.NewSpan($"cmd:{Topic}", message);
 
+        // 解析消息格式 code#message
         var code = "";
         var p = message.IndexOf('#');
         if (p > 0 && p < 256)
@@ -163,7 +187,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
             message = message[(p + 1)..];
         }
 
-        // 解码。即使失败，也要继续处理
+        // 解码命令模型。即使失败，也要继续处理
         CommandModel? msg = null;
         try
         {
@@ -193,8 +217,8 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         }
     }
 
-    /// <summary>获取会话</summary>
-    /// <param name="key"></param>
+    /// <summary>根据标识获取会话</summary>
+    /// <param name="key">会话标识（Code）</param>
     /// <returns></returns>
     public virtual ICommandSession? Get(String key)
     {
@@ -203,9 +227,17 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         return session;
     }
 
-    /// <summary>关闭所有</summary>
+    /// <summary>关闭所有会话并释放资源</summary>
+    /// <param name="reason">关闭原因</param>
     public virtual void CloseAll(String reason)
     {
+        // 停止清理定时器
+        _clearTimer.TryDispose();
+        _clearTimer = null;
+
+        // 释放事件总线
+        Bus.TryDispose();
+
         if (_dic.IsEmpty) return;
 
         using var span = _tracer?.NewSpan($"cmd:{Topic}:CloseAll", reason, _dic.Count);
@@ -229,7 +261,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     {
         if (_dic.IsEmpty) return;
 
-        var todel = new Dictionary<String, ICommandSession>();
+        var todel = new List<KeyValuePair<String, ICommandSession>>();
 
         foreach (var elm in _dic)
         {
@@ -237,27 +269,25 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
             var session = elm.Value;
             if (session == null || session is IDisposable2 ds && ds.Disposed || !session.Active)
             {
-                todel.Add(elm.Key, elm.Value);
+                todel.Add(elm);
             }
         }
 
         if (todel.Count == 0) return;
 
-        using var span = _tracer?.NewSpan($"cmd:{Topic}:RemoveNotAlive", todel.Keys, todel.Count);
+        using var span = _tracer?.NewSpan($"cmd:{Topic}:RemoveNotAlive", todel.Join(",", e => e.Key), todel.Count);
 
-        // 从会话集合里删除这些键值，并行字典操作安全
+        // 从会话集合里删除并释放各个会话
         foreach (var item in todel)
         {
-            //_dic.Remove(item.Key);
-            Remove(item.Value);
-        }
+            // 从字典移除
+            _dic.TryRemove(item.Key, out _);
 
-        // 慢慢释放各个会话
-        foreach (var item in todel)
-        {
+            // 记录日志
             if (item.Value is ILogFeature lf)
                 lf.Log?.Info("[{0}]不活跃销毁", item.Key);
 
+            // 关闭并释放会话
             if (item.Value is INetSession ss) ss.Close(nameof(RemoveNotAlive));
             item.Value.TryDispose();
         }
