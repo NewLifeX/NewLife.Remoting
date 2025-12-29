@@ -20,6 +20,7 @@ namespace NewLife.Remoting.Extensions.Services;
 /// <item>处理服务端下发的命令，通过 WebSocket 发送给客户端</item>
 /// <item>支持 Ping/Pong 心跳机制，维持长连接活性</item>
 /// <item>支持数据包分发器，用于 EventHub 场景</item>
+/// <item>实现 IEventDispatcher 接口，可作为 EventHub 订阅者接收广播消息</item>
 /// </list>
 /// 
 /// <para>生命周期：</para>
@@ -33,9 +34,17 @@ namespace NewLife.Remoting.Extensions.Services;
 /// 
 /// <para>心跳机制：</para>
 /// 客户端发送 "Ping" 文本消息，服务端响应 "Pong"，同时刷新在线状态。
+/// 
+/// <para>事件广播机制：</para>
+/// <list type="number">
+/// <item>客户端通过 WebSocket 发送事件消息，格式为 "event#topic#clientid#message"</item>
+/// <item>服务端解析后通过 Dispatcher 分发给 EventHub</item>
+/// <item>EventHub 根据 topic 找到事件总线并广播给所有订阅者</item>
+/// <item>作为订阅者的 WsCommandSession 收到广播后，通过 WebSocket 发送给各自的客户端</item>
+/// </list>
 /// </remarks>
 /// <param name="socket">WebSocket 实例</param>
-public class WsCommandSession(WebSocket socket) : CommandSession
+public class WsCommandSession(WebSocket socket) : CommandSession, IEventDispatcher<IPacket>
 {
     #region 属性
     /// <summary>是否活动中。根据 WebSocket 连接状态判断</summary>
@@ -91,6 +100,59 @@ public class WsCommandSession(WebSocket socket) : CommandSession
         }
 
         return socket.SendAsync(message.GetBytes(), WebSocketMessageType.Text, true, cancellationToken);
+    }
+    #endregion
+
+    #region 发送数据
+    /// <summary>向客户端发送文本消息</summary>
+    /// <param name="message">消息内容</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns></returns>
+    public Task SendAsync(String message, CancellationToken cancellationToken = default)
+    {
+        if (!Active) return Task.CompletedTask;
+
+        return socket.SendAsync(message.GetBytes(), WebSocketMessageType.Text, true, cancellationToken);
+    }
+
+    /// <summary>向客户端发送数据包</summary>
+    /// <param name="data">数据包</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns></returns>
+    public Task SendAsync(IPacket data, CancellationToken cancellationToken = default)
+    {
+        if (!Active) return Task.CompletedTask;
+
+        return socket.SendAsync(data.ToSegment(), WebSocketMessageType.Binary, true, cancellationToken);
+    }
+    #endregion
+
+    #region IEventDispatcher 实现
+    /// <summary>作为订阅者收到广播消息时，通过 WebSocket 发送给客户端</summary>
+    /// <remarks>
+    /// 当 EventHub 广播消息时，会调用此方法将消息发送给订阅的客户端。
+    /// </remarks>
+    /// <param name="data">广播的数据包</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>成功发送返回 1，否则返回 0</returns>
+    async Task<Int32> IEventDispatcher<IPacket>.DispatchAsync(IPacket data, CancellationToken cancellationToken)
+    {
+        if (!Active || data == null) return 0;
+
+        using var span = Tracer?.NewSpan("cmd:Ws.Dispatch", data.Total);
+        try
+        {
+            // 通过 WebSocket 发送给客户端
+            await socket.SendAsync(data.ToSegment(), WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
+
+            return 1;
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            span?.SetError(ex, null);
+            Log?.WriteLog("WebSocket发送异常", false, ex.Message);
+            return 0;
+        }
     }
     #endregion
 
@@ -190,6 +252,14 @@ public class WsCommandSession(WebSocket socket) : CommandSession
 
     #region 消息处理
     /// <summary>处理客户端上发的数据</summary>
+    /// <remarks>
+    /// 支持以下消息类型：
+    /// <list type="bullet">
+    /// <item>心跳消息：收到 "Ping" 时响应 "Pong"，并刷新在线状态</item>
+    /// <item>事件消息：格式为 "event#topic#clientid#message"，将消息分发到 EventHub 对应的 topic</item>
+    /// <item>其它业务数据：通过 Dispatcher 分发处理</item>
+    /// </list>
+    /// </remarks>
     /// <param name="data">数据包</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
