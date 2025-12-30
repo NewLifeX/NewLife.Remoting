@@ -159,7 +159,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
         //    data = new ArrayPacket(msg.GetBytes());
         //}
 
-        using var span = Tracer?.NewSpan("cmd:Ws.Dispatch", null, data.Total);
+        using var span = Tracer?.NewSpan("cmd:Ws.Dispatch", Code, data.Total);
         try
         {
             // 通过 WebSocket 发送给客户端
