@@ -133,6 +133,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
     /// 当 EventHub 广播消息时，会调用此方法将消息发送给订阅的客户端。
     /// </remarks>
     /// <param name="data">广播的数据包</param>
+    /// <param name="context">事件上下文。用于在发布者、订阅者及中间处理器之间传递协调数据，如 Handler、ClientId 等</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>成功发送返回 1，否则返回 0</returns>
     public async Task HandleAsync(IPacket data, IEventContext? context, CancellationToken cancellationToken)

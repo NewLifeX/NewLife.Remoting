@@ -1130,11 +1130,13 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             var str = data.ToStr();
             if (!str.IsNullOrEmpty())
             {
-                var command = JsonHost.Read<CommandModel>(str)!;
-                if (command != null)
+                var model = JsonHost.Read<CommandModel>(str)!;
+                if (model != null && !model.Command.IsNullOrEmpty())
                 {
-                    await ReceiveCommand(command, str, null, cancellationToken).ConfigureAwait(false);
+                    await ReceiveCommand(model, str, null, cancellationToken).ConfigureAwait(false);
                 }
+                else
+                    throw new InvalidDataException("无效命令！");
             }
         }
     }
@@ -1153,6 +1155,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     public virtual async Task<CommandReplyModel?> ReceiveCommand(CommandModel model, String? message, String? source, CancellationToken cancellationToken = default)
     {
         if (model == null) return null;
+        if (model.Command.IsNullOrEmpty()) return null;
 
         // 去重，避免命令被重复执行
         if (model.Id > 0 && !_cache.Add($"cmd:{model.Id}", model, 3600)) return null;
