@@ -44,14 +44,14 @@ namespace NewLife.Remoting.Extensions.Services;
 /// </list>
 /// </remarks>
 /// <param name="socket">WebSocket 实例</param>
-public class WsCommandSession(WebSocket socket) : CommandSession, IEventDispatcher<IPacket>
+public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<IPacket>
 {
     #region 属性
     /// <summary>是否活动中。根据 WebSocket 连接状态判断</summary>
     public override Boolean Active => socket != null && socket.State == WebSocketState.Open;
 
     /// <summary>数据包分发器。用于 EventHub 场景，将收到的数据包分发给订阅者</summary>
-    public IEventDispatcher<IPacket>? Dispatcher { get; set; }
+    public IEventHandler<IPacket>? Dispatcher { get; set; }
 
     /// <summary>服务提供者。用于获取 JSON 序列化器等服务</summary>
     public IServiceProvider? ServiceProvider { get; set; }
@@ -127,7 +127,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventDispatch
     }
     #endregion
 
-    #region IEventDispatcher 实现
+    #region IEventHandler 实现
     /// <summary>作为订阅者收到广播消息时，通过 WebSocket 发送给客户端</summary>
     /// <remarks>
     /// 当 EventHub 广播消息时，会调用此方法将消息发送给订阅的客户端。
@@ -135,23 +135,20 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventDispatch
     /// <param name="data">广播的数据包</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>成功发送返回 1，否则返回 0</returns>
-    async Task<Int32> IEventDispatcher<IPacket>.DispatchAsync(IPacket data, CancellationToken cancellationToken)
+    public async Task HandleAsync(IPacket data, IEventContext? context, CancellationToken cancellationToken)
     {
-        if (!Active || data == null) return 0;
+        if (!Active || data == null) return;
 
         using var span = Tracer?.NewSpan("cmd:Ws.Dispatch", data.Total);
         try
         {
             // 通过 WebSocket 发送给客户端
             await socket.SendAsync(data.ToSegment(), WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
-
-            return 1;
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             span?.SetError(ex, null);
             Log?.WriteLog("WebSocket发送异常", false, ex.Message);
-            return 0;
         }
     }
     #endregion
@@ -278,7 +275,11 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventDispatch
         // 分发业务数据
         if (Dispatcher != null)
         {
-            await Dispatcher.DispatchAsync(data, cancellationToken).ConfigureAwait(false);
+            // 可能收到订阅动作指令，在EventHub中执行订阅动作时，需要把处理器传递过去。EventHub中会读取名为Handler的上下文参数
+            var context = new EventContext();
+            context["Handler"] = this;
+
+            await Dispatcher.HandleAsync(data, context, cancellationToken).ConfigureAwait(false);
         }
     }
     #endregion

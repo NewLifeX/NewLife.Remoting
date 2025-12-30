@@ -171,10 +171,10 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     /// <summary>从事件总线收到事件</summary>
     /// <remarks>实际发送消息是 code#message，因此需要先解码消息找到code</remarks>
     /// <param name="message">原始命令消息</param>
-    /// <param name="context">上下文</param>
+    /// <param name="context">事件上下文。用于在发布者、订阅者及中间处理器之间传递协调数据，如 Handler、ClientId 等</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
-    protected virtual async Task OnMessage(String message, IEventContext<String> context, CancellationToken cancellationToken)
+    protected virtual async Task OnMessage(String message, IEventContext context, CancellationToken cancellationToken)
     {
         using var span = _tracer?.NewSpan($"cmd:{Topic}", message);
 

@@ -35,7 +35,7 @@ namespace NewLife.Remoting.Clients;
 ///     客户端ApiHttpClient通过Http/Https协议连接服务端WebApi，进行OAuth登录，获得令牌，后续每次请求都需要带上令牌。
 ///     例如星尘AppClient，AppId和AppSecret进行OAuth登录后，获得令牌，后续每次请求都需要带上令牌。
 /// </remarks>
-public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEventProvider, IEventDispatcher<IPacket>, ITracerFeature, ILogFeature
+public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEventProvider, IEventHandler<IPacket>, ITracerFeature, ILogFeature
 {
     #region 属性
     /// <summary>客户端名称。例如Device/Node/App</summary>
@@ -280,7 +280,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (msg != null && !msg.Reply && api != null && api.Action == "Notify")
         {
             if (api.Data != null)
-                _ = DispatchAsync(api.Data, default);
+                _ = HandleAsync(api.Data, null, default);
         }
     }
 
@@ -1118,9 +1118,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     /// <summary>分发消息</summary>
     /// <param name="data">数据包</param>
+    /// <param name="context">事件上下文。用于在发布者、订阅者及中间处理器之间传递协调数据，如 Handler、ClientId 等</param>
     /// <param name="cancellationToken">取消通知</param>
     /// <returns></returns>
-    public virtual async Task<Int32> DispatchAsync(IPacket data, CancellationToken cancellationToken)
+    public virtual async Task HandleAsync(IPacket data, IEventContext? context, CancellationToken cancellationToken)
     {
         if (data == null) throw new ArgumentNullException(nameof(data));
 
@@ -1133,13 +1134,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 if (command != null)
                 {
                     await ReceiveCommand(command, str, null, cancellationToken).ConfigureAwait(false);
-
-                    return 1;
                 }
             }
         }
-
-        return 0;
     }
 
     /// <summary>接收命令，分发调用指定委托</summary>

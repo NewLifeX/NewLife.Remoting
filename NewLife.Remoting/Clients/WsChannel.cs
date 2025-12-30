@@ -119,7 +119,7 @@ class WsChannel(ClientBase client) : DisposeBase
     /// <param name="data">数据包</param>
     /// <param name="cancellationToken">取消通知</param>
     /// <returns></returns>
-    protected Task OnReceive(IPacket data, CancellationToken cancellationToken) => _client.DispatchAsync(data, cancellationToken);
+    protected Task OnReceive(IPacket data, CancellationToken cancellationToken) => _client.HandleAsync(data, null, cancellationToken);
 
     /// <summary>发送文本</summary>
     /// <param name="data">数据包</param>
