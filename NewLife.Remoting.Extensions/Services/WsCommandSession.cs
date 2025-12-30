@@ -283,13 +283,18 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
     protected virtual async Task OnReceive(IPacket data, CancellationToken cancellationToken)
     {
         // 处理心跳消息
-        if (data.Total == 4 && data.ToStr() == "Ping")
+        if (data.Total == 4)
         {
-            // 刷新在线状态。可能客户端心跳已经停了，WS 还在，这里重新上线
-            SetOnline?.Invoke(true);
+            var msg = data.ToStr();
+            if (msg == "Pong") return;
+            if (msg == "Ping")
+            {
+                // 刷新在线状态。可能客户端心跳已经停了，WS 还在，这里重新上线
+                SetOnline?.Invoke(true);
 
-            await socket.SendAsync("Pong".GetBytes(), WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
-            return;
+                await socket.SendAsync("Pong".GetBytes(), WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
+                return;
+            }
         }
 
         // 分发业务数据
