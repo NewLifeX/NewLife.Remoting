@@ -214,9 +214,17 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
             _source = null;
         }
 
-        // 尝试正常关闭 WebSocket
-        if (socket.State == WebSocketState.Open)
-            await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default).ConfigureAwait(false);
+        // 尝试正常关闭 WebSocket，需检查状态避免 ObjectDisposedException
+        try
+        {
+            if (socket.State == WebSocketState.Open)
+                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default).ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException) { }
+        catch (WebSocketException ex)
+        {
+            Log?.WriteLog("WebSocket异常", false, ex.Message);
+        }
 
         Log?.WriteLog("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
 
@@ -247,6 +255,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
                 }
             }
             catch (OperationCanceledException) { break; }
+            catch (ObjectDisposedException) { break; }
             catch (WebSocketException ex) when (!source.IsCancellationRequested)
             {
                 Log?.WriteLog("WebSocket异常", false, ex.Message);
