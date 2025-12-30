@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Net.WebSockets;
+using System.Text;
 using NewLife.Data;
 using NewLife.Log;
 using NewLife.Messaging;
@@ -128,6 +129,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
     #endregion
 
     #region IEventHandler 实现
+    private static readonly Byte[] _eventPrefix = Encoding.ASCII.GetBytes("event#");
     /// <summary>作为订阅者收到广播消息时，通过 WebSocket 发送给客户端</summary>
     /// <remarks>
     /// 当 EventHub 广播消息时，会调用此方法将消息发送给订阅的客户端。
@@ -140,7 +142,24 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
     {
         if (!Active || data == null) return;
 
-        using var span = Tracer?.NewSpan("cmd:Ws.Dispatch", data.Total);
+        if (data.GetSpan().StartsWith(_eventPrefix))
+        {
+            // 事件消息，直接发送
+        }
+        // Raw记录原始数据包，分发给其它ws处理器时，可以原封不动转发给客户端
+        else if (context is IExtend ext && ext["Raw"] is IPacket raw && raw.GetSpan().StartsWith(_eventPrefix))
+            data = raw;
+        // 这里不要组包，可能上层就是要发送裸包数据
+        //else if (context is IExtend ext2)
+        //{
+        //    // 普通消息，包装成事件格式发送，方便客户端区分
+        //    var topic = (context as EventContext)?.Topic ?? ext2["Topic"]?.ToString();
+        //    var clientId = (context as EventContext)?.ClientId ?? ext2["ClientId"]?.ToString();
+        //    var msg = $"event#{topic}#{clientId}#" + data.ToStr();
+        //    data = new ArrayPacket(msg.GetBytes());
+        //}
+
+        using var span = Tracer?.NewSpan("cmd:Ws.Dispatch", null, data.Total);
         try
         {
             // 通过 WebSocket 发送给客户端
@@ -279,6 +298,9 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
             // 可能收到订阅动作指令，在EventHub中执行订阅动作时，需要把处理器传递过去。EventHub中会读取名为Handler的上下文参数
             var context = new EventContext();
             context["Handler"] = this;
+
+            // Raw记录原始数据包，分发给其它ws处理器时，可以原封不动转发给客户端
+            context["Raw"] = data;
 
             await Dispatcher.HandleAsync(data, context, cancellationToken).ConfigureAwait(false);
         }
