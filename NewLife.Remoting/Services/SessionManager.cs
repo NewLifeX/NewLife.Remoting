@@ -55,6 +55,9 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     /// <summary>会话集合。以 Code 为键的并发字典</summary>
     public IDictionary<String, ICommandSession> Sessions => _dic;
 
+    /// <summary>事件总线工厂</summary>
+    public IEventBusFactory? Factory { get; set; }
+
     /// <summary>清理会话计时器</summary>
     private TimerX? _clearTimer;
 
@@ -95,11 +98,22 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         using var span = _tracer?.NewSpan($"cmd:{Topic}:Create", ClientId);
 
         // 创建事件总线，指定队列消费组
-        IEventBus<String> bus;
-        if (_cache is not MemoryCache && _cache is Cache cache)
-            bus = cache.CreateEventBus<String>(Topic, ClientId);
-        else
-            bus = new EventBus<String>();
+        //IEventBus<String> bus;
+        //if (_cache is not MemoryCache && _cache is Cache cache)
+        //    bus = cache.CreateEventBus<String>(Topic, ClientId);
+        //else
+        //    bus = new EventBus<String>();
+
+        var factory = Factory;
+        if (factory == null && _cache != null)
+        {
+            // 使用Redis队列作为事件总线工厂。不使用内存缓存作为事件总线工厂，那样还不如直接 new EventBus<String>()
+            if (_cache is not MemoryCache && _cache.GetType() != typeof(Cache) && _cache is Cache cache)
+                factory = cache;
+        }
+
+        var bus = factory?.CreateEventBus<String>(Topic, ClientId);
+        bus ??= new EventBus<String>();
 
         // 订阅总线事件到OnMessage
         bus.Subscribe(OnMessage);
