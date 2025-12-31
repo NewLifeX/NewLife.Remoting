@@ -80,7 +80,8 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
         catch { }
         finally
         {
-            socket?.Dispose();
+            // 释放 WebSocket。使用安全销毁，因为WebSocket关闭时经常会抛出异常
+            socket.TryDispose();
         }
     }
     #endregion

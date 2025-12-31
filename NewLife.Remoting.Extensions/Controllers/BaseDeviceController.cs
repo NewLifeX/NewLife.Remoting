@@ -221,18 +221,27 @@ public abstract class BaseDeviceController : BaseController
         var sessionManager = _sessionManager ?? throw new InvalidOperationException("未找到SessionManager服务");
 
         using var span = _tracer?.NewSpan("cmd:Ws:Create", device.Code);
-        using var session = new WsCommandSession(socket)
+        try
         {
-            Code = device.Code,
-            Log = this,
-            SetOnline = online => _deviceService.SetOnline(Context, online),
-            ServiceProvider = _serviceProvider,
-            Tracer = _tracer,
-        };
+            using var session = new WsCommandSession(socket)
+            {
+                Code = device.Code,
+                Log = this,
+                SetOnline = online => _deviceService.SetOnline(Context, online),
+                ServiceProvider = _serviceProvider,
+                Tracer = _tracer,
+            };
 
-        sessionManager.Add(session);
+            sessionManager.Add(session);
 
-        await session.WaitAsync(HttpContext, span, cancellationToken);
+            await session.WaitAsync(HttpContext, span, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // 这里不一定命中，因 WaitAsync 内部会提前结束span
+            span?.SetError(ex, null);
+            throw;
+        }
     }
 
     /// <summary>设备端响应服务调用</summary>
