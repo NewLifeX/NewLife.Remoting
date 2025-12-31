@@ -7,9 +7,6 @@ using NewLife.Net;
 using NewLife.Remoting.Models;
 using NewLife.Serialization;
 using NewLife.Threading;
-#if !NET45
-using TaskEx = System.Threading.Tasks.Task;
-#endif
 
 namespace NewLife.Remoting.Services;
 
@@ -61,7 +58,8 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     /// <summary>清理会话计时器</summary>
     private TimerX? _clearTimer;
 
-    private readonly ICache? _cache = serviceProvider.GetService<ICacheProvider>()?.Cache;
+    private readonly ICacheProvider? _cacheProvider = serviceProvider.GetService<ICacheProvider>();
+    //private readonly ICache? _cache = serviceProvider.GetService<ICacheProvider>()?.Cache;
     private readonly ITracer? _tracer = serviceProvider.GetService<ITracer>();
     //private readonly ILog? _log = serviceProvider.GetService<ILog>();
     #endregion
@@ -96,29 +94,37 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     protected virtual IEventBus<String> Create()
     {
         using var span = _tracer?.NewSpan($"cmd:{Topic}:Create", ClientId);
-
-        // 创建事件总线，指定队列消费组
-        //IEventBus<String> bus;
-        //if (_cache is not MemoryCache && _cache is Cache cache)
-        //    bus = cache.CreateEventBus<String>(Topic, ClientId);
-        //else
-        //    bus = new EventBus<String>();
-
-        var factory = Factory;
-        if (factory == null && _cache != null)
+        try
         {
-            // 使用Redis队列作为事件总线工厂。不使用内存缓存作为事件总线工厂，那样还不如直接 new EventBus<String>()
-            if (_cache is not MemoryCache && _cache.GetType() != typeof(Cache) && _cache is Cache cache)
-                factory = cache;
+            // 创建事件总线，指定队列消费组
+            //IEventBus<String> bus;
+            //if (_cache is not MemoryCache && _cache is Cache cache)
+            //    bus = cache.CreateEventBus<String>(Topic, ClientId);
+            //else
+            //    bus = new EventBus<String>();
+
+            //var factory = Factory;
+            //if (factory == null && _cache != null)
+            //{
+            //    // 使用Redis队列作为事件总线工厂。不使用内存缓存作为事件总线工厂，那样还不如直接 new EventBus<String>()
+            //    if (_cache is not MemoryCache && _cache.GetType() != typeof(Cache) && _cache is Cache cache)
+            //        factory = cache;
+            //}
+
+            var bus = Factory?.CreateEventBus<String>(Topic, ClientId);
+            bus ??= _cacheProvider?.CreateEventBus<String>(Topic, ClientId);
+            bus ??= new EventBus<String>();
+
+            // 订阅总线事件到OnMessage
+            bus.Subscribe(OnMessage);
+
+            return bus;
         }
-
-        var bus = factory?.CreateEventBus<String>(Topic, ClientId);
-        bus ??= new EventBus<String>();
-
-        // 订阅总线事件到OnMessage
-        bus.Subscribe(OnMessage);
-
-        return bus;
+        catch (Exception ex)
+        {
+            span?.SetError(ex, null);
+            throw;
+        }
     }
 
     /// <summary>添加会话到管理器</summary>
