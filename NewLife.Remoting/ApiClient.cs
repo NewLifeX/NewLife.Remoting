@@ -371,6 +371,7 @@ public class ApiClient : ApiHost, IApiClient
 
             if (message.Data == null) return default;
             if (resultType == typeof(IPacket)) return (TResult)(Object)message.Data;
+#pragma warning disable CS0618 // 类型或成员已过时
             if (resultType == typeof(Packet))
             {
                 if (message.Data is Packet) return (TResult)(Object)message.Data;
@@ -378,6 +379,7 @@ public class ApiClient : ApiHost, IApiClient
 
                 return (TResult)(Object)new Packet(message.Data.ToArray());
             }
+#pragma warning restore CS0618 // 类型或成员已过时
 
             // 二进制序列化
             if (resultType.As<IAccessor>())

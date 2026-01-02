@@ -6,7 +6,7 @@
     <AssemblyTitle>客户端桌面应用</AssemblyTitle>
     <Description>CS架构的客户端桌面应用，给用户提供便捷操作，可对接硬件</Description>
     <Company>新生命开发团队</Company>
-    <Copyright>©2002-2025 NewLife</Copyright>
+    <Copyright>©2002-2026 NewLife</Copyright>
     <VersionPrefix>1.0</VersionPrefix>
     <VersionSuffix>$([System.DateTime]::Now.ToString(`yyyy.MMdd`))</VersionSuffix>
     <Version>$(VersionPrefix).$(VersionSuffix)</Version>
@@ -26,7 +26,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Stardust" Version="3.5.2025.1113" />
+    <PackageReference Include="NewLife.Stardust" Version="3.5.2026.102-beta0900" />
     <PackageReference Include="System.Speech" Version="10.0.1" />
   </ItemGroup>
 

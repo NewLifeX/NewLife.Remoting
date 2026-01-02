@@ -5,7 +5,7 @@
     <AssemblyTitle>零代服务平台</AssemblyTitle>
     <Description>CS架构服务端平台</Description>
     <Company>新生命开发团队</Company>
-    <Copyright>©2002-2025 NewLife</Copyright>
+    <Copyright>©2002-2026 NewLife</Copyright>
     <VersionPrefix>1.0</VersionPrefix>
     <VersionSuffix>$([System.DateTime]::Now.ToString(`yyyy.MMdd`))</VersionSuffix>
     <Version>$(VersionPrefix).$(VersionSuffix)</Version>
@@ -19,10 +19,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Cube.Core" Version="6.7.2025.1115" />
-    <PackageReference Include="NewLife.Redis" Version="6.4.2025.1113" />
-    <PackageReference Include="NewLife.Stardust.Extensions" Version="3.5.2025.1113" />
-    <PackageReference Include="NewLife.XCode" Version="11.22.2025.1112" />
+    <PackageReference Include="NewLife.Cube.Core" Version="6.7.2025.1226-beta0605" />
+    <PackageReference Include="NewLife.Redis" Version="6.4.2025.1230-beta0419" />
+    <PackageReference Include="NewLife.Stardust.Extensions" Version="3.5.2026.102-beta0900" />
+    <PackageReference Include="NewLife.XCode" Version="11.23.2026.102" />
   </ItemGroup>
 
   <ItemGroup>

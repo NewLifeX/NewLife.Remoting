@@ -15,7 +15,7 @@ public class HttpMessage : IMessage, IDisposable
     public Boolean Error { get; set; }
 
     /// <summary>单向请求</summary>
-    public Boolean OneWay => false;
+    public Boolean OneWay { get; set; }
 
     /// <summary>头部数据</summary>
     public IPacket? Header { get; set; }

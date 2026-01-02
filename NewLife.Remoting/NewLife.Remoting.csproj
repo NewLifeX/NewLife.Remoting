@@ -4,8 +4,8 @@
     <AssemblyTitle>协议通信库</AssemblyTitle>
     <Description>提供高性能RPC客户端服务端，提供Http/WebSocket客户端服务端，提供应用级客户端</Description>
     <Company>新生命开发团队</Company>
-    <Copyright>©2002-2025 新生命开发团队</Copyright>
-    <VersionPrefix>3.6</VersionPrefix>
+    <Copyright>©2002-2026 新生命开发团队</Copyright>
+    <VersionPrefix>3.7</VersionPrefix>
     <VersionSuffix>$([System.DateTime]::Now.ToString(`yyyy.MMdd`))</VersionSuffix>
     <Version>$(VersionPrefix).$(VersionSuffix)</Version>
     <FileVersion>$(Version)</FileVersion>
@@ -30,7 +30,7 @@
     <RepositoryUrl>https://github.com/NewLifeX/NewLife.Remoting</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>新生命团队;X组件;NewLife;$(AssemblyName)</PackageTags>
-    <PackageReleaseNotes>IDeviceService引入DeviceContext实现横切</PackageReleaseNotes>
+    <PackageReleaseNotes>ApiServer支持异步方法；ClientBase客户端支持事件总线；支持EventHub分发WebSocket事件；增加阿里云OpenAPI客户端</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -54,7 +54,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Core" Version="11.9.2025.1231-beta0256" />
+    <PackageReference Include="NewLife.Core" Version="11.10.2026.101" />
   </ItemGroup>
 
   <ItemGroup>

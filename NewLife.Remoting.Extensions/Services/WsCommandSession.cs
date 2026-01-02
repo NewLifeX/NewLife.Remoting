@@ -29,7 +29,7 @@ namespace NewLife.Remoting.Extensions.Services;
 /// <item>客户端发起 WebSocket 连接请求</item>
 /// <item>服务端 Accept 后创建 WsCommandSession 实例</item>
 /// <item>调用 <see cref="WaitAsync"/> 进入阻塞等待，监听客户端消息</item>
-/// <item>服务端通过 <see cref="HandleAsync"/> 下发命令</item>
+/// <item>服务端通过 <see cref="HandleAsync(CommandModel, String?, CancellationToken)"/> 下发命令</item>
 /// <item>客户端断开或异常时，会话结束并触发下线回调</item>
 /// </list>
 /// 

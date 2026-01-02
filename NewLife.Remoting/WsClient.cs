@@ -307,7 +307,9 @@ public class WsClient : ApiHost, IApiClient
 
             if (message.Data == null) return default;
             if (resultType == typeof(IPacket)) return (TResult)(Object)message.Data;
+#pragma warning disable CS0618 // 类型或成员已过时
             if (resultType == typeof(Packet)) return (TResult)(Object)message.Data;
+#pragma warning restore CS0618 // 类型或成员已过时
 
             try
             {

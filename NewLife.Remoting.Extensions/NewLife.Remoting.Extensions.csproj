@@ -6,8 +6,8 @@
     <AssemblyTitle>协议通信扩展库</AssemblyTitle>
     <Description>提供WebApi应用级服务端</Description>
     <Company>新生命开发团队</Company>
-    <Copyright>©2002-2025 NewLife</Copyright>
-    <VersionPrefix>3.6</VersionPrefix>
+    <Copyright>©2002-2026 NewLife</Copyright>
+    <VersionPrefix>3.7</VersionPrefix>
     <VersionSuffix>$([System.DateTime]::Now.ToString(`yyyy.MMdd`))</VersionSuffix>
     <Version>$(VersionPrefix).$(VersionSuffix)</Version>
     <FileVersion>$(Version)</FileVersion>
@@ -33,7 +33,7 @@
     <RepositoryUrl>https://github.com/NewLifeX/NewLife.Remoting</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>新生命团队;X组件;NewLife;$(AssemblyName)</PackageTags>
-    <PackageReleaseNotes>第三代协议通信库，增强RPC，引入主流Http/WebSockt/WebApi应用级封装</PackageReleaseNotes>
+    <PackageReleaseNotes>ApiServer支持异步方法；ClientBase客户端支持事件总线；支持EventHub分发WebSocket事件；增加阿里云OpenAPI客户端</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -64,7 +64,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="NewLife.XCode" Version="11.22.2025.1112" />
+    <PackageReference Include="NewLife.XCode" Version="11.23.2026.102" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\NewLife.Remoting\NewLife.Remoting.csproj" />
