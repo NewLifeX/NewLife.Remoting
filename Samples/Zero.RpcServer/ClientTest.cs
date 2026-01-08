@@ -113,5 +113,9 @@ static class ClientTest
         var state2 = Rand.NextString(8);
         var infs = await client.PostAsync<IDictionary<String, Object>>("api/info", new { state, state2 });
         client.WriteLog("服务端信息：{0}", infs.ToJson(true));
+
+        client.WriteLog("获取用户信息");
+        var user = await client.GetAsync<User>("user/findbyid", new { id = 1 });
+        client.WriteLog("用户信息：{0}", user.ToJson(true, false, false));
     }
 }

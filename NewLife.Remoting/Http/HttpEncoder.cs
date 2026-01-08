@@ -29,7 +29,9 @@ public class HttpEncoder : EncoderBase, IEncoder
         //if (value == null) return null;
 
         if (value is IPacket pk) return pk;
-        if (value is IAccessor acc) return acc.ToPacket();
+
+        //!!! 对于Http来说，实现了IAccessor的实体类不需要序列化为IPacket
+        //if (value is IAccessor acc) return acc.ToPacket();
 
         // 不支持序列化异常
         if (value is Exception ex) value = ex.GetTrue().Message;

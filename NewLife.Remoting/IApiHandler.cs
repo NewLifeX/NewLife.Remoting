@@ -126,7 +126,7 @@ public class ApiHandler : IApiHandler
             }
 
             // 特殊处理IAccessor返回值，直接进行二进制序列化
-            if (rs is IAccessor accessor) rs = accessor.ToPacket();
+            if (rs is IAccessor accessor && msg is not HttpMessage) rs = accessor.ToPacket();
         }
         catch (ThreadAbortException) { throw; }
         catch (Exception ex)
