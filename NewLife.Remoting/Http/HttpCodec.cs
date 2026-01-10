@@ -47,16 +47,15 @@ public class HttpCodec : Handler
 
         if (message is not IPacket pk) return base.Read(context, message);
 
-        // 是否Http请求
-        var isGet = pk.Length >= 4 && pk[0] == 'G' && pk[1] == 'E' && pk[2] == 'T' && pk[3] == ' ';
-        var isPost = pk.Length >= 5 && pk[0] == 'P' && pk[1] == 'O' && pk[2] == 'S' && pk[3] == 'T' && pk[4] == ' ';
-
         // 该连接第一包检查是否Http
         var ext = context.Owner as IExtend ?? throw new ArgumentOutOfRangeException(nameof(context.Owner));
         if (ext["Encoder"] is not HttpEncoder)
         {
-            // 第一个请求必须是GET/POST，才执行后续操作
-            if (!isGet && !isPost) return base.Read(context, message);
+            // 第一个请求必须像HTTP请求行，才执行后续操作
+            var msg0 = new HttpMessage();
+            if (!msg0.Read(pk)) return base.Read(context, message);
+
+            if (msg0.Method.IsNullOrEmpty()) return base.Read(context, message);
 
             ext["Encoder"] = new HttpEncoder { JsonHost = JsonHost };
         }
@@ -90,7 +89,7 @@ public class HttpCodec : Handler
             if (AllowParseHeader && !msg.ParseHeaders()) throw new XException("Http头部解码失败");
 
             // GET请求一次性过来，暂时不支持头部被拆为多包的场景
-            if (isGet)
+            if (msg.Method.EqualIgnoreCase("GET") || msg.ContentLength <= 0)
             {
                 // 匹配输入回调，让上层事件收到分包信息
                 //context.FireRead(msg);

@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using NewLife;
 using NewLife.Data;
 using NewLife.Messaging;
 
@@ -66,11 +67,34 @@ public class HttpMessage : IMessage, IDisposable
     /// <returns>是否成功</returns>
     public virtual Boolean Read(IPacket pk)
     {
-        var p = pk.GetSpan().IndexOf(NewLine);
+        var span = pk.GetSpan();
+
+        var p = span.IndexOf(NewLine);
         if (p < 0) return false;
 
         Header = pk.Slice(0, p, false);
         Payload = pk.Slice(p + 4, -1, false);
+
+        // 高性能解析请求行：METHOD SP URI SP HTTP/x.y
+
+        var lineEnd = span[..p].IndexOf((Byte)'\n');
+        if (lineEnd <= 0) return true;
+
+        var firstLine = span[..lineEnd];
+        if (firstLine.Length > 0 && firstLine[^1] == (Byte)'\r') firstLine = firstLine[..^1];
+
+        var sp1 = firstLine.IndexOf((Byte)' ');
+        if (sp1 <= 0) return true;
+
+        var sp2 = firstLine[(sp1 + 1)..].IndexOf((Byte)' ');
+        if (sp2 <= 0) return true;
+        sp2 += sp1 + 1;
+
+        var methodSpan = firstLine[..sp1];
+        var uriSpan = firstLine.Slice(sp1 + 1, sp2 - sp1 - 1);
+
+        if (methodSpan.Length > 0) Method = methodSpan.ToStr();
+        if (uriSpan.Length > 0) Uri = uriSpan.ToStr();
 
         return true;
     }
@@ -82,23 +106,58 @@ public class HttpMessage : IMessage, IDisposable
         var pk = Header;
         if (pk == null || pk.Total == 0) return false;
 
-        // 请求方法 GET / HTTP/1.1
-        var dic = new Dictionary<String, String>(StringComparer.OrdinalIgnoreCase);
-        var ss = pk.ToStr().Split("\r\n");
+        var span = pk.GetSpan();
+        if (span.IsEmpty) return false;
+
+        // 第一行：请求行 GET / HTTP/1.1
+        var lineEnd = span.IndexOf((Byte)'\n');
+        if (lineEnd < 0) return false;
+
+        var firstLine = span[..lineEnd];
+        span = span[(lineEnd + 1)..];
+        if (firstLine[^1] == (Byte)'\r') firstLine = firstLine[..^1];
+
+        // METHOD SP URI SP HTTP/x.y
+        var sp1 = firstLine.IndexOf((Byte)' ');
+        if (sp1 > 0)
         {
-            var kv = ss[0].Split(' ');
-            if (kv != null && kv.Length >= 3)
+            var rest = firstLine[(sp1 + 1)..];
+            var sp2 = rest.IndexOf((Byte)' ');
+            if (sp2 > 0)
             {
-                Method = kv[0].Trim();
-                Uri = kv[1].Trim();
+                Method = firstLine[..sp1].ToStr();
+                Uri = rest[..sp2].ToStr();
             }
         }
-        for (var i = 1; i < ss.Length; i++)
+
+        // 头部行：Name: Value（Value 可能包含冒号）
+        var dic = new Dictionary<String, String>(StringComparer.OrdinalIgnoreCase);
+        while (!span.IsEmpty)
         {
-            var kv = ss[i].Split(':');
-            if (kv != null && kv.Length >= 2)
-                dic[kv[0].Trim()] = kv[1].Trim();
+            lineEnd = span.IndexOf((Byte)'\n');
+
+            ReadOnlySpan<Byte> line;
+            if (lineEnd >= 0)
+            {
+                line = span[..lineEnd];
+                span = span[(lineEnd + 1)..];
+            }
+            else
+            {
+                line = span;
+                span = default;
+            }
+
+            if (!line.IsEmpty && line[^1] == (Byte)'\r') line = line[..^1];
+            if (line.IsEmpty) continue;
+
+            var colon = line.IndexOf((Byte)':');
+            if (colon <= 0) continue;
+
+            var name = line[..colon].Trim().ToStr();
+            dic[name] = line[(colon + 1)..].Trim().ToStr();
         }
+
         Headers = dic;
 
         // 内容长度
