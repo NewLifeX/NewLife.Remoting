@@ -42,33 +42,28 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
     private readonly IDeviceService? _deviceService;
     private readonly ITokenService _tokenService;
     private IDictionary<String, Object?>? _args;
-    //private static readonly Action<String>? _setip;
     private static readonly Pool<DeviceContext> _pool = new(256);
     #endregion
 
     #region 构造
-    //static BaseController()
-    //{
-    //    // 反射获取ManageProvider.UserHost的Set方法，避免直接引用XCode
-    //    _setip = "ManageProvider".GetTypeEx()?.GetPropertyEx("UserHost")?.SetMethod?.CreateDelegate<Action<String>>();
-    //}
-
-    /// <summary>实例化</summary>
-    /// <param name="serviceProvider"></param>
+    /// <summary>实例化控制器基类</summary>
+    /// <param name="serviceProvider">服务提供者</param>
     public BaseController(IServiceProvider serviceProvider) => _tokenService = serviceProvider.GetRequiredService<ITokenService>();
 
-    /// <summary>实例化</summary>
-    /// <param name="deviceServicde"></param>
-    /// <param name="tokenService"></param>
-    /// <param name="serviceProvider"></param>
-    public BaseController(IDeviceService? deviceServicde, ITokenService? tokenService, IServiceProvider serviceProvider)
+    /// <summary>实例化控制器基类</summary>
+    /// <param name="deviceService">设备服务</param>
+    /// <param name="tokenService">令牌服务</param>
+    /// <param name="serviceProvider">服务提供者</param>
+    public BaseController(IDeviceService? deviceService, ITokenService? tokenService, IServiceProvider serviceProvider)
     {
-        _deviceService = deviceServicde;
+        _deviceService = deviceService;
         _tokenService = tokenService ?? serviceProvider.GetRequiredService<ITokenService>();
     }
     #endregion
 
     #region 令牌验证
+    /// <summary>Action执行前处理。验证令牌和鉴权</summary>
+    /// <param name="context">Action执行上下文</param>
     void IWebFilter.OnActionExecuting(ActionExecutingContext context)
     {
         _args = context.ActionArguments;
@@ -76,7 +71,6 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
         // 向ManageProvider.UserHost写入用户主机IP地址
         var ip = HttpContext.GetUserHost();
         ManageProvider.UserHost = ip;
-        //if (!ip.IsNullOrEmpty()) _setip?.Invoke(ip);
 
         // 从池中获取上下文
         var ctx = Context = _pool.Get();
@@ -101,7 +95,7 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
                 if (!allowAnon)
                 {
                     // 匿名访问接口无需验证。例如星尘Node的SendCommand接口，并不使用Node令牌，而是使用App令牌
-                    var rs = OnAuthorize(token, ctx);
+                    var rs = OnAuthorize(token!, ctx);
                     if (!rs) throw new ApiException(ApiCode.Unauthorized, "认证失败");
                 }
             }
@@ -125,15 +119,9 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
     }
 
     /// <summary>验证令牌，并获取Jwt对象，子类可借助Jwt.Subject获取设备</summary>
-    /// <param name="token"></param>
-    /// <returns></returns>
-    [Obsolete("=>OnAuthorize(String token, DeviceContext context)", true)]
-    protected virtual Boolean OnAuthorize(String token) => OnAuthorize(token, Context);
-
-    /// <summary>验证令牌，并获取Jwt对象，子类可借助Jwt.Subject获取设备</summary>
     /// <param name="token">访问令牌</param>
-    /// <param name="context"></param>
-    /// <returns></returns>
+    /// <param name="context">设备上下文</param>
+    /// <returns>验证是否通过</returns>
     protected virtual Boolean OnAuthorize(String token, DeviceContext context)
     {
         if (token.IsNullOrEmpty()) return false;
@@ -189,6 +177,8 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
         return jwt != null;
     }
 
+    /// <summary>Action执行后处理。记录异常并回收上下文</summary>
+    /// <param name="context">Action执行上下文</param>
     void IWebFilter.OnActionExecuted(ActionExecutedContext context)
     {
         if (context.Exception != null) WriteError(context.Exception, context);
@@ -206,6 +196,9 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
         }
     }
 
+    /// <summary>记录错误信息</summary>
+    /// <param name="ex">异常对象</param>
+    /// <param name="context">Action上下文</param>
     private void WriteError(Exception ex, ActionContext context)
     {
         // 拦截全局异常，写日志
@@ -216,16 +209,16 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
     }
 
     /// <summary>输出错误日志</summary>
-    /// <param name="action"></param>
-    /// <param name="message"></param>
+    /// <param name="action">动作名称</param>
+    /// <param name="message">错误消息</param>
     protected virtual void OnWriteError(String action, String message) => WriteLog(action, false, message);
     #endregion
 
     #region 辅助
     /// <summary>写日志</summary>
-    /// <param name="action"></param>
-    /// <param name="success"></param>
-    /// <param name="message"></param>
+    /// <param name="action">动作名称</param>
+    /// <param name="success">是否成功</param>
+    /// <param name="message">消息内容</param>
     public virtual void WriteLog(String action, Boolean success, String message)
     {
         if (_deviceService != null)

@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.Log;
-using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
@@ -10,48 +9,54 @@ using WebSocket = System.Net.WebSockets.WebSocket;
 namespace NewLife.Remoting.Extensions;
 
 /// <summary>设备类控制器基类</summary>
+/// <remarks>
+/// 提供设备登录、注销、心跳、升级、命令下发等WebApi接口的默认实现。
+/// 继承自 <see cref="BaseController"/>，自动处理令牌验证和设备上下文管理。
+/// </remarks>
 [ApiFilter]
 [ApiController]
 [Route("[controller]")]
 public abstract class BaseDeviceController : BaseController
 {
+    #region 属性
     private readonly IDeviceService _deviceService;
     private readonly ITokenService _tokenService;
     private readonly ISessionManager _sessionManager;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ITracer _tracer;
+    private readonly ITracer? _tracer;
+    #endregion
 
     #region 构造
     /// <summary>实例化设备控制器</summary>
-    /// <param name="serviceProvider"></param>
+    /// <param name="serviceProvider">服务提供者</param>
     public BaseDeviceController(IServiceProvider serviceProvider) : base(serviceProvider)
     {
         _deviceService = serviceProvider.GetRequiredService<IDeviceService>();
         _tokenService = serviceProvider.GetRequiredService<ITokenService>();
         _sessionManager = serviceProvider.GetRequiredService<ISessionManager>();
-        _tracer = serviceProvider.GetRequiredService<ITracer>();
+        _tracer = serviceProvider.GetService<ITracer>();
         _serviceProvider = serviceProvider;
     }
 
     /// <summary>实例化设备控制器</summary>
-    /// <param name="deviceService"></param>
-    /// <param name="tokenService"></param>
-    /// <param name="sessionManager"></param>
-    /// <param name="serviceProvider"></param>
+    /// <param name="deviceService">设备服务</param>
+    /// <param name="tokenService">令牌服务</param>
+    /// <param name="sessionManager">会话管理器</param>
+    /// <param name="serviceProvider">服务提供者</param>
     public BaseDeviceController(IDeviceService? deviceService, ITokenService? tokenService, ISessionManager? sessionManager, IServiceProvider serviceProvider) : base(deviceService, tokenService, serviceProvider)
     {
         _deviceService = deviceService ?? serviceProvider.GetRequiredService<IDeviceService>();
         _tokenService = tokenService ?? serviceProvider.GetRequiredService<ITokenService>();
         _sessionManager = sessionManager ?? serviceProvider.GetRequiredService<ISessionManager>();
-        _tracer = serviceProvider.GetRequiredService<ITracer>();
+        _tracer = serviceProvider.GetService<ITracer>();
         _serviceProvider = serviceProvider;
     }
 
     /// <summary>验证身份</summary>
-    /// <param name="token"></param>
-    /// <param name="context"></param>
-    /// <returns></returns>
-    /// <exception cref="ApiException"></exception>
+    /// <param name="token">访问令牌</param>
+    /// <param name="context">设备上下文</param>
+    /// <returns>验证是否通过</returns>
+    /// <exception cref="ApiException">设备无效时抛出</exception>
     protected override Boolean OnAuthorize(String token, DeviceContext context)
     {
         // 先调用基类，获取Jwt。即使失败，也要继续往下走，获取设备信息。最后再决定是否抛出异常
@@ -89,12 +94,14 @@ public abstract class BaseDeviceController : BaseController
 
     #region 登录注销
     /// <summary>设备登录</summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
+    /// <param name="request">登录请求</param>
+    /// <returns>登录响应</returns>
     [AllowAnonymous]
     [HttpPost(nameof(Login))]
     public virtual ILoginResponse Login([FromBody] ILoginRequest request)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         // 先查一次，后续即使登录失败，也可以写设备历史
         if (!request.Code.IsNullOrEmpty()) Context.Device = _deviceService.QueryDevice(request.Code);
 
@@ -102,7 +109,6 @@ public abstract class BaseDeviceController : BaseController
 
         var dv = Context.Device!;
         rs ??= new LoginResponse { Name = dv.Name, };
-        //rs.Code = dv.Code;
 
         if (request is ILoginRequest2 req) rs.Time = req.Time;
         rs.ServerTime = DateTime.UtcNow.ToLong();
@@ -122,7 +128,7 @@ public abstract class BaseDeviceController : BaseController
 
     /// <summary>设备注销</summary>
     /// <param name="reason">注销原因</param>
-    /// <returns></returns>
+    /// <returns>注销响应</returns>
     [HttpGet(nameof(Logout))]
     [HttpPost(nameof(Logout))]
     public virtual ILogoutResponse Logout(String? reason)
@@ -139,19 +145,18 @@ public abstract class BaseDeviceController : BaseController
 
     #region 心跳保活
     /// <summary>设备心跳</summary>
-    /// <param name="request"></param>
-    /// <returns></returns>
+    /// <param name="request">心跳请求</param>
+    /// <returns>心跳响应</returns>
     [HttpGet(nameof(Ping))]
     [HttpPost(nameof(Ping))]
     public virtual IPingResponse Ping([FromBody] IPingRequest request)
     {
-        var rs = _deviceService.Ping(Context, request);
+        var rs = _deviceService.Ping(Context, request, null);
 
         var device = Context.Device;
         if (device != null)
         {
-            // 令牌有效期检查，10分钟内到期的令牌，颁发新令牌。
-            // 这里将来由客户端提交刷新令牌，才能颁发新的访问令牌。
+            // 令牌有效期检查，10分钟内到期的令牌，颁发新令牌
             var (jwt, ex) = _tokenService.DecodeToken(Context.Token!);
             if (ex == null && jwt != null && jwt.Expire < DateTime.Now.AddMinutes(10))
             {
@@ -168,7 +173,9 @@ public abstract class BaseDeviceController : BaseController
 
     #region 升级更新
     /// <summary>升级检查</summary>
-    /// <returns></returns>
+    /// <param name="channel">更新通道</param>
+    /// <returns>升级信息</returns>
+    /// <exception cref="ApiException">未登录时抛出</exception>
     [HttpGet(nameof(Upgrade))]
     [HttpPost(nameof(Upgrade))]
     public virtual IUpgradeInfo Upgrade(String? channel)
@@ -193,16 +200,16 @@ public abstract class BaseDeviceController : BaseController
     #endregion
 
     #region 下行通知
-    /// <summary>下行通知</summary>
+    /// <summary>下行通知。建立WebSocket长连接</summary>
     /// <returns></returns>
     [HttpGet(nameof(Notify))]
     public virtual async Task Notify()
     {
         if (HttpContext.WebSockets.IsWebSocketRequest)
         {
-            using var socket = await HttpContext.WebSockets.AcceptWebSocketAsync();
+            using var socket = await HttpContext.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
 
-            await HandleNotify(socket, HttpContext.RequestAborted);
+            await HandleNotify(socket, HttpContext.RequestAborted).ConfigureAwait(false);
         }
         else
         {
@@ -211,19 +218,18 @@ public abstract class BaseDeviceController : BaseController
     }
 
     /// <summary>长连接处理</summary>
-    /// <param name="socket"></param>
+    /// <param name="socket">WebSocket连接</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
-    /// <exception cref="InvalidOperationException"></exception>
+    /// <exception cref="InvalidOperationException">未登录或服务未注入时抛出</exception>
     protected virtual async Task HandleNotify(WebSocket socket, CancellationToken cancellationToken)
     {
         var device = Context.Device ?? throw new InvalidOperationException("未登录！");
-        var sessionManager = _sessionManager ?? throw new InvalidOperationException("未找到SessionManager服务");
 
         using var span = _tracer?.NewSpan("cmd:Ws:Create", device.Code);
         try
         {
-            using var session = new WsCommandSession(socket)
+            using var session = new Services.WsCommandSession(socket)
             {
                 Code = device.Code,
                 Log = this,
@@ -232,9 +238,9 @@ public abstract class BaseDeviceController : BaseController
                 Tracer = _tracer,
             };
 
-            sessionManager.Add(session);
+            _sessionManager.Add(session);
 
-            await session.WaitAsync(HttpContext, span, cancellationToken);
+            await session.WaitAsync(HttpContext, span, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -245,20 +251,26 @@ public abstract class BaseDeviceController : BaseController
     }
 
     /// <summary>设备端响应服务调用</summary>
-    /// <param name="model">服务</param>
-    /// <returns></returns>
+    /// <param name="model">命令响应模型</param>
+    /// <returns>处理结果</returns>
     [HttpPost(nameof(CommandReply))]
-    public virtual Int32 CommandReply(CommandReplyModel model) => _deviceService.CommandReply(Context, model);
+    public virtual Int32 CommandReply(CommandReplyModel model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        return _deviceService.CommandReply(Context, model);
+    }
 
     /// <summary>向节点发送命令。通知节点更新、安装和启停应用等</summary>
     /// <param name="model">命令模型</param>
-    /// <returns></returns>
+    /// <returns>命令响应</returns>
+    /// <exception cref="ArgumentNullException">编码或命令为空时抛出</exception>
     [AllowAnonymous]
     [HttpPost(nameof(SendCommand))]
     public Task<CommandReplyModel?> SendCommand(CommandInModel model)
     {
+        ArgumentNullException.ThrowIfNull(model);
         if (model.Code.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Code), "必须指定编码");
-        if (model.Command.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Command));
+        if (model.Command.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Command), "必须指定命令");
 
         return _deviceService.SendCommand(Context, model, HttpContext.RequestAborted);
     }
@@ -267,16 +279,16 @@ public abstract class BaseDeviceController : BaseController
     #region 事件上报
     /// <summary>批量上报事件</summary>
     /// <param name="events">事件集合</param>
-    /// <returns></returns>
+    /// <returns>处理的事件数量</returns>
     [HttpPost(nameof(PostEvents))]
     public virtual Int32 PostEvents(EventModel[] events) => _deviceService.PostEvents(Context, events);
     #endregion
 
     #region 辅助
     /// <summary>写日志</summary>
-    /// <param name="action"></param>
-    /// <param name="success"></param>
-    /// <param name="message"></param>
+    /// <param name="action">动作名称</param>
+    /// <param name="success">是否成功</param>
+    /// <param name="message">消息内容</param>
     public override void WriteLog(String action, Boolean success, String message) => _deviceService.WriteHistory(Context, action, success, message);
     #endregion
 }

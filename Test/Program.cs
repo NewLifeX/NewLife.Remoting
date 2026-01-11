@@ -33,7 +33,7 @@ class Program
         var buf = Binary.FastWrite(obj);
         var str = buf.ToHex();
 
-        var server = new ApiServer(5500)
+        var server = new ApiServer(12347)
         {
             Log = XTrace.Log,
             EncoderLog = XTrace.Log
