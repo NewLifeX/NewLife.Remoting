@@ -127,7 +127,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     public ClientBase() => Name = GetType().Name.TrimEnd("Client");
 
     /// <summary>通过客户端设置实例化</summary>
-    /// <param name="setting"></param>
+    /// <param name="setting">客户端设置</param>
     public ClientBase(IClientSetting setting) : this()
     {
         Setting = setting;
@@ -137,8 +137,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         Secret = setting.Secret;
     }
 
-    /// <summary>销毁</summary>
-    /// <param name="disposing"></param>
+    /// <summary>销毁资源</summary>
+    /// <param name="disposing">是否释放托管资源</param>
     protected override void Dispose(Boolean disposing)
     {
         base.Dispose(disposing);
@@ -163,7 +163,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     #region 方法
     /// <summary>设置各功能接口路径</summary>
-    /// <param name="prefix"></param>
+    /// <param name="prefix">接口路径前缀。例如 Device/ 或 Node/</param>
     protected virtual void SetActions(String prefix)
     {
         Actions = new Dictionary<Features, String>
@@ -181,7 +181,11 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     private String? _lastServer;
-    /// <summary>初始化</summary>
+    /// <summary>初始化客户端</summary>
+    /// <remarks>
+    /// 检查并更新服务端地址，初始化对象容器和客户端实例。
+    /// 若客户端已存在且地址未变，则直接返回。
+    /// </remarks>
     [MemberNotNull(nameof(_client))]
     protected void Init()
     {
@@ -242,8 +246,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>创建Http客户端</summary>
-    /// <param name="urls"></param>
-    /// <returns></returns>
+    /// <param name="urls">服务端地址。支持逗号分隔的多地址</param>
+    /// <returns>Http客户端实例</returns>
     protected virtual ApiHttpClient CreateHttp(String urls) => new(urls)
     {
         JsonHost = JsonHost,
@@ -253,8 +257,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     };
 
     /// <summary>创建RPC客户端</summary>
-    /// <param name="urls"></param>
-    /// <returns></returns>
+    /// <param name="urls">服务端地址。支持逗号分隔的多地址</param>
+    /// <returns>RPC客户端实例</returns>
     protected virtual ApiClient CreateRpc(String urls)
     {
         var client = new MyApiClient
@@ -295,7 +299,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="action">动作</param>
     /// <param name="args">参数</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns></returns>
+    /// <returns>调用结果</returns>
     protected virtual async Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken)
     {
         if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]=>{1}", action, args is IPacket or Byte[]? "" : args?.ToJson());
@@ -325,7 +329,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="action">动作</param>
     /// <param name="args">参数</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns></returns>
+    /// <returns>调用结果</returns>
     /// <exception cref="NotSupportedException"></exception>
     protected virtual async Task<TResult> GetAsync<TResult>(String action, Object? args, CancellationToken cancellationToken = default)
     {
@@ -391,11 +395,11 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <remarks>
     /// 所有对服务端接口的调用，都应该走这个方法，以便统一处理登录、心跳、令牌过期等问题。
     /// </remarks>
-    /// <typeparam name="TResult"></typeparam>
-    /// <param name="action"></param>
-    /// <param name="args"></param>
-    /// <param name="cancellationToken">取消通知</param>
-    /// <returns></returns>
+    /// <typeparam name="TResult">返回结果类型</typeparam>
+    /// <param name="action">动作接口路径</param>
+    /// <param name="args">请求参数</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>调用结果</returns>
     public virtual async Task<TResult?> InvokeAsync<TResult>(String action, Object? args = null, CancellationToken cancellationToken = default)
     {
         // 验证登录。如果该接口需要登录，且未登录，则先登录
@@ -442,10 +446,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>同步调用</summary>
-    /// <typeparam name="TResult"></typeparam>
-    /// <param name="action"></param>
-    /// <param name="args"></param>
-    /// <returns></returns>
+    /// <typeparam name="TResult">返回结果类型</typeparam>
+    /// <param name="action">动作接口路径</param>
+    /// <param name="args">请求参数</param>
+    /// <returns>调用结果</returns>
     [return: MaybeNull]
     public virtual TResult Invoke<TResult>(String action, Object? args = null)
     {
@@ -454,7 +458,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>设置令牌。派生类可重定义逻辑</summary>
-    /// <param name="token"></param>
+    /// <param name="token">认证令牌</param>
     protected virtual void SetToken(String? token) => _client?.Token = token;
 
     /// <summary>获取相对于服务器的当前时间，本地时区，避免两端时间差</summary>
@@ -507,7 +511,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// </remarks>
     /// <param name="source">来源。标记从哪里发起登录请求</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns></returns>
+    /// <returns>登录响应</returns>
     public virtual async Task<ILoginResponse?> Login(String? source = null, CancellationToken cancellationToken = default)
     {
         // 如果已登录，直接返回
@@ -596,8 +600,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>计算客户端到服务端的网络延迟，以及相对时间差。支持GetNow()返回基于服务器的当前时间</summary>
-    /// <param name="startTime"></param>
-    /// <param name="serverTime"></param>
+    /// <param name="startTime">请求开始时间戳（UTC毫秒）</param>
+    /// <param name="serverTime">服务器时间戳（UTC毫秒）</param>
     protected void FixTime(Int64 startTime, Int64 serverTime)
     {
         var dt = startTime.ToDateTime();
@@ -623,7 +627,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// 也可以调用基类BuildLoginRequest后得到ClientId和Secret等基本参数，然后填充自己的登录请求对象。
     /// 还可以直接使用自己的登录请求对象，调用FillLoginRequest填充基本参数。
     /// </remarks>
-    /// <returns></returns>
+    /// <returns>登录请求</returns>
     public virtual ILoginRequest BuildLoginRequest()
     {
         Init();
@@ -635,7 +639,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>填充登录请求。用户自定义登录时可选调用</summary>
-    /// <param name="request"></param>
+    /// <param name="request">登录请求</param>
     protected virtual void FillLoginRequest(ILoginRequest request)
     {
         request.Code = Code;
@@ -664,7 +668,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>注销。调用服务端注销接口，销毁令牌</summary>
     /// <param name="reason">原因</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns></returns>
+    /// <returns>注销响应</returns>
     public virtual async Task<ILogoutResponse?> Logout(String? reason, CancellationToken cancellationToken = default)
     {
         if (!Logined) return null;
@@ -697,11 +701,13 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>发起登录异步请求。由Login内部调用</summary>
     /// <param name="request">登录请求</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns></returns>
+    /// <returns>登录响应</returns>
     protected virtual Task<ILoginResponse?> LoginAsync(ILoginRequest request, CancellationToken cancellationToken) => InvokeAsync<ILoginResponse>(Actions[Features.Login], request, cancellationToken);
 
     /// <summary>发起注销异步请求。由Logout内部调用</summary>
-    /// <returns></returns>
+    /// <param name="reason">注销原因</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>注销响应</returns>
     protected virtual async Task<ILogoutResponse?> LogoutAsync(String? reason, CancellationToken cancellationToken)
     {
         if (_client is ApiHttpClient)
@@ -717,7 +723,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// 心跳逻辑内部带有失败重试机制，最大失败数MaxFails默认120，超过该数时，新的数据将被抛弃。
     /// 在网络不可用或者接口请求异常时，会将数据保存到队列，等待网络恢复或者下次心跳时重试。
     /// </remarks>
-    /// <returns></returns>
+    /// <returns>心跳响应</returns>
     public virtual async Task<IPingResponse?> Ping(CancellationToken cancellationToken = default)
     {
         Init();
@@ -872,7 +878,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>发起心跳异步请求。由Ping内部调用</summary>
     /// <param name="request">心跳请求</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns></returns>
+    /// <returns>心跳响应</returns>
     protected virtual Task<IPingResponse?> PingAsync(IPingRequest request, CancellationToken cancellationToken) => InvokeAsync<IPingResponse>(Actions[Features.Ping], request, cancellationToken);
     #endregion
 
@@ -896,7 +902,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     private String? _lastVersion;
     /// <summary>获取更新信息。如有更新，则下载解压覆盖并重启应用</summary>
-    /// <returns></returns>
+    /// <param name="channel">更新通道</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>更新信息</returns>
     public virtual async Task<IUpgradeInfo?> Upgrade(String? channel, CancellationToken cancellationToken = default)
     {
         using var span = Tracer?.NewSpan(nameof(Upgrade));
@@ -1007,7 +1015,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>放弃更新异步请求。由Upgrade内部调用</summary>
-    /// <returns></returns>
+    /// <param name="channel">更新通道</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>更新信息</returns>
     protected virtual async Task<IUpgradeInfo?> UpgradeAsync(String? channel, CancellationToken cancellationToken)
     {
         if (_client is ApiHttpClient)
@@ -1074,7 +1084,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     private WsChannel? _ws;
     /// <summary>定时心跳。由心跳定时器调用，主要用于维护WebSocket长连接</summary>
-    /// <param name="state"></param>
+    /// <param name="state">定时器状态参数</param>
     /// <returns></returns>
     protected virtual async Task OnPing(Object state)
     {
@@ -1098,10 +1108,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>发送上行消息。借助WebSocket等上行通道</summary>
-    /// <param name="packet"></param>
-    /// <param name="cancellationToken"></param>
+    /// <param name="packet">数据包</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
-    /// <exception cref="InvalidOperationException"></exception>
     public virtual async Task SendAsync(IPacket packet, CancellationToken cancellationToken = default)
     {
         if (_client is ApiHttpClient http)
@@ -1151,7 +1160,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="message">原始命令消息</param>
     /// <param name="source">来源</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns></returns>
+    /// <returns>命令回复模型</returns>
     public virtual async Task<CommandReplyModel?> ReceiveCommand(CommandModel model, String? message, String? source, CancellationToken cancellationToken = default)
     {
         if (model == null) return null;
@@ -1244,7 +1253,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="command">命令</param>
     /// <param name="argument">参数</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns></returns>
+    /// <returns>命令回复模型</returns>
     public virtual Task<CommandReplyModel?> SendCommand(String command, String argument, CancellationToken cancellationToken = default) => OnReceiveCommand(new CommandModel { Command = command, Argument = argument }, null, cancellationToken);
 
     /// <summary>上报命令调用结果</summary>
@@ -1263,8 +1272,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     void InitEvent() => _eventTimer ??= new TimerX(DoPostEvent, null, 3_000, 60_000) { Async = true };
 
     /// <summary>批量上报事件</summary>
-    /// <param name="events"></param>
-    /// <returns></returns>
+    /// <param name="events">事件模型数组</param>
+    /// <returns>上报成功数量</returns>
     public virtual Task<Int32> PostEvents(params EventModel[] events) => InvokeAsync<Int32>(Actions[Features.PostEvent], events);
 
     async Task DoPostEvent(Object state)
@@ -1316,9 +1325,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>写事件</summary>
-    /// <param name="type"></param>
-    /// <param name="name"></param>
-    /// <param name="remark"></param>
+    /// <param name="type">事件类型。info/alert/error等</param>
+    /// <param name="name">事件名称</param>
+    /// <param name="remark">事件内容</param>
+    /// <returns>是否成功加入事件队列</returns>
     public virtual Boolean WriteEvent(String type, String name, String? remark)
     {
         // 如果没有事件上报功能，直接返回
@@ -1345,8 +1355,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>
     /// 把Url相对路径格式化为绝对路径。常用于文件下载
     /// </summary>
-    /// <param name="url"></param>
-    /// <returns></returns>
+    /// <param name="url">相对或绝对路径</param>
+    /// <returns>绝对路径</returns>
     public virtual String BuildUrl(String url)
     {
         if (Client is ApiHttpClient client && !url.StartsWithIgnoreCase("http://", "https://"))
@@ -1373,8 +1383,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     public ILog Log { get; set; } = Logger.Null;
 
     /// <summary>写日志</summary>
-    /// <param name="format"></param>
-    /// <param name="args"></param>
+    /// <param name="format">格式化字符串</param>
+    /// <param name="args">参数</param>
     public void WriteLog(String format, params Object?[] args) => Log?.Info($"[{Name}]{format}", args);
     #endregion
 }

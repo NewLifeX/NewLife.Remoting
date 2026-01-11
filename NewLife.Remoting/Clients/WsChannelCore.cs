@@ -7,11 +7,18 @@ using WebSocketMessageType = System.Net.WebSockets.WebSocketMessageType;
 
 namespace NewLife.Remoting.Clients;
 
-/// <summary>WebSocket</summary>
+/// <summary>WebSocket通道（NetCore版本）</summary>
+/// <remarks>
+/// 基于System.Net.WebSockets.ClientWebSocket实现的长连接通道。
+/// 仅用于NETCOREAPP平台，提供更好的性能和稳定性。
+/// </remarks>
+/// <param name="client">客户端基类实例</param>
 class WsChannelCore(ClientBase client) : WsChannel(client)
 {
     private readonly ClientBase _client = client;
 
+    /// <summary>销毁资源</summary>
+    /// <param name="disposing">是否释放托管资源</param>
     protected override void Dispose(Boolean disposing)
     {
         base.Dispose(disposing);
@@ -19,6 +26,13 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
         StopWebSocket();
     }
 
+    /// <summary>验证并维护WebSocket连接</summary>
+    /// <remarks>
+    /// 检查WebSocket连接状态，若已连接则发送心跳保活。
+    /// 若未连接或已断开，则重新建立连接并启动消息接收循环。
+    /// </remarks>
+    /// <param name="http">Http客户端</param>
+    /// <returns></returns>
     public override async Task ValidWebSocket(ApiHttpClient http)
     {
         var svc = http.Current;
@@ -58,23 +72,30 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
 
             using var span2 = _client.Tracer?.NewSpan("WebSocketConnect", uri + "");
 
-            var client = new ClientWebSocket();
-            client.Options.SetRequestHeader("Authorization", "Bearer " + token);
+            var ws = new ClientWebSocket();
+            ws.Options.SetRequestHeader("Authorization", "Bearer " + token);
 
             span?.AppendTag($"WebSocket.Connect {uri}");
-            await client.ConnectAsync(uri, default).ConfigureAwait(false);
+            await ws.ConnectAsync(uri, default).ConfigureAwait(false);
 
-            _websocket = client;
+            _websocket = ws;
+
+            // 释放旧的CancellationTokenSource
+            _source?.Cancel();
+            _source.TryDispose();
 
             _source = new CancellationTokenSource();
-            //// 进程退出（如 Ctrl+C）时，主动取消，尽快打断Receive等待
-            //Host.RegisterExit(() => { try { _source?.Cancel(); } catch { } });
-            _ = Task.Factory.StartNew(() => DoPull(client, _source), TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(() => DoPull(ws, _source), TaskCreationOptions.LongRunning);
         }
     }
 
     private WebSocket? _websocket;
     private CancellationTokenSource? _source;
+
+    /// <summary>消息接收循环</summary>
+    /// <param name="socket">WebSocket连接</param>
+    /// <param name="source">取消令牌源</param>
+    /// <returns></returns>
     private async Task DoPull(WebSocket socket, CancellationTokenSource source)
     {
         DefaultSpan.Current = null;
@@ -117,22 +138,29 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
             await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default).ConfigureAwait(false);
     }
 
-    /// <summary>发送文本</summary>
+    /// <summary>发送文本消息</summary>
     /// <param name="data">数据包</param>
-    /// <param name="cancellationToken">取消通知</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     public override Task SendTextAsync(IPacket data, CancellationToken cancellationToken = default) => _websocket!.SendAsync(data.ToSegment(), WebSocketMessageType.Text, true, default);
 
+    /// <summary>停止WebSocket连接</summary>
     private void StopWebSocket()
     {
+        // 取消接收循环
         _source?.Cancel();
         try
         {
+            // 等待关闭完成
             if (_websocket != null && _websocket.State == WebSocketState.Open)
-                _websocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default);
+                _websocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default).Wait(1000);
         }
         catch { }
 
+        // 释放资源
+        _source.TryDispose();
+        _source = null;
+        _websocket.TryDispose();
         _websocket = null;
     }
 }

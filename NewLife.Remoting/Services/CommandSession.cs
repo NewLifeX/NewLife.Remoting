@@ -20,7 +20,7 @@ namespace NewLife.Remoting.Services;
 /// 
 /// <para>派生类实现：</para>
 /// <list type="bullet">
-/// <item><see cref="WsCommandSession"/>：WebSocket 会话实现，通过 WebSocket 长连接与客户端通信</item>
+/// <item>WsCommandSession：WebSocket 会话实现，通过 WebSocket 长连接与客户端通信</item>
 /// </list>
 /// 
 /// <para>使用场景：</para>

@@ -6,11 +6,18 @@ using NewLife.Net;
 
 namespace NewLife.Remoting.Clients;
 
-/// <summary>WebSocket</summary>
+/// <summary>WebSocket通道</summary>
+/// <remarks>
+/// 基于自研轻量级WebSocket客户端实现的长连接通道。
+/// 用于非NETCOREAPP平台，支持接收服务端主动下发的消息。
+/// </remarks>
+/// <param name="client">客户端基类实例</param>
 class WsChannel(ClientBase client) : DisposeBase
 {
     private readonly ClientBase _client = client;
 
+    /// <summary>销毁资源</summary>
+    /// <param name="disposing">是否释放托管资源</param>
     protected override void Dispose(Boolean disposing)
     {
         base.Dispose(disposing);
@@ -18,6 +25,13 @@ class WsChannel(ClientBase client) : DisposeBase
         StopWebSocket();
     }
 
+    /// <summary>验证并维护WebSocket连接</summary>
+    /// <remarks>
+    /// 检查WebSocket连接状态，若已连接则发送心跳保活。
+    /// 若未连接或已断开，则重新建立连接并启动消息接收循环。
+    /// </remarks>
+    /// <param name="http">Http客户端</param>
+    /// <returns></returns>
     public virtual async Task ValidWebSocket(ApiHttpClient http)
     {
         var svc = http.Current;
@@ -56,27 +70,33 @@ class WsChannel(ClientBase client) : DisposeBase
 
             using var span2 = _client.Tracer?.NewSpan("WebSocketConnect", uri + "");
 
-            var client = (uri.CreateRemote() as WebSocketClient)!;
-            client.SetRequestHeader("Authorization", "Bearer " + token);
+            var ws = (uri.CreateRemote() as WebSocketClient)!;
+            ws.SetRequestHeader("Authorization", "Bearer " + token);
 
             span?.AppendTag($"WebSocket.Connect {uri}");
-            client.Open();
+            ws.Open();
 
-            _websocket = client;
+            _websocket = ws;
+
+            // 释放旧的CancellationTokenSource
+            _source?.Cancel();
+            _source.TryDispose();
 
             _source = new CancellationTokenSource();
-            //// 进程退出（如 Ctrl+C）时，主动取消，尽快打断Receive等待
-            //Host.RegisterExit(() => { try { _source?.Cancel(); } catch { } });
-            _ = Task.Factory.StartNew(() => DoPull(client, _source), TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(() => DoPull(ws, _source), TaskCreationOptions.LongRunning);
         }
     }
 
     private WebSocketClient? _websocket;
     private CancellationTokenSource? _source;
+
+    /// <summary>消息接收循环</summary>
+    /// <param name="socket">WebSocket客户端</param>
+    /// <param name="source">取消令牌源</param>
+    /// <returns></returns>
     private async Task DoPull(WebSocketClient socket, CancellationTokenSource source)
     {
         DefaultSpan.Current = null;
-        var buf = new Byte[64 * 1024];
         while (!source.IsCancellationRequested && !socket.Disposed)
         {
             // try-catch 放在循环内，避免单次异常退出循环
@@ -117,9 +137,9 @@ class WsChannel(ClientBase client) : DisposeBase
 
     /// <summary>收到服务端主动下发消息。默认转为CommandModel命令处理</summary>
     /// <param name="data">数据包</param>
-    /// <param name="cancellationToken">取消通知</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
-    protected async Task OnReceive(IPacket data, CancellationToken cancellationToken)
+    protected virtual async Task OnReceive(IPacket data, CancellationToken cancellationToken)
     {
         // 处理心跳消息
         if (data.Total == 4)
@@ -136,15 +156,16 @@ class WsChannel(ClientBase client) : DisposeBase
         await _client.HandleAsync(data, null, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>发送文本</summary>
+    /// <summary>发送文本消息</summary>
     /// <param name="data">数据包</param>
-    /// <param name="cancellationToken">取消通知</param>
+    /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     public virtual Task SendTextAsync(IPacket data, CancellationToken cancellationToken = default) => _websocket!.SendTextAsync(data, default);
 
+    /// <summary>停止WebSocket连接</summary>
     private void StopWebSocket()
     {
-#if NETCOREAPP
+        // 取消接收循环
         _source?.Cancel();
         try
         {
@@ -153,7 +174,9 @@ class WsChannel(ClientBase client) : DisposeBase
         }
         catch { }
 
+        // 释放资源
+        _source.TryDispose();
+        _source = null;
         _websocket = null;
-#endif
     }
 }
