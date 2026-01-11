@@ -52,8 +52,10 @@ public abstract class BaseOAuthController(ITokenService tokenService, ITokenSett
                 // 验证应用
                 var name = jwt?.Subject;
                 var app = name.IsNullOrEmpty() ? null : FindByName(name);
-                if (app == null || !app.Enable)
-                    ex ??= new ApiException(ApiCode.Forbidden, $"无效应用[{name}]");
+                if (app == null)
+                    ex ??= new ApiException(ApiCode.NotFound, $"无效应用[{name}]");
+                else if (!app.Enable)
+                    ex ??= new ApiException(ApiCode.Forbidden, $"应用[{name}]已停用");
 
                 if (jwt != null && clientId.IsNullOrEmpty()) clientId = jwt.Id;
 
@@ -105,7 +107,7 @@ public abstract class BaseOAuthController(ITokenService tokenService, ITokenSett
         // 检查应用有效性
         if (!app.Enable) throw new ApiException(ApiCode.Forbidden, $"[{username}]已禁用！");
         //if (!app.Secret.IsNullOrEmpty() && password != app.Secret) throw new ApiException(401, $"非法访问应用[{username}]！");
-        if (!OnAuthorize(app, password, ip)) throw new ApiException(ApiCode.Forbidden, $"非法访问[{username}]！");
+        if (!OnAuthorize(app, password, ip)) throw new ApiException(ApiCode.Unauthorized, $"非法访问[{username}]！");
 
         return app;
     }

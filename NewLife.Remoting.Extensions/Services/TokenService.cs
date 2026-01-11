@@ -77,7 +77,7 @@ public class TokenService(ITokenSetting tokenSetting, ITracer tracer) : ITokenSe
 
         Exception? ex = null;
         if (!jwt.TryDecode(token, out var message))
-            ex = new ApiException(ApiCode.Forbidden, $"非法访问[{jwt.Subject}] {message}");
+            ex = new ApiException(ApiCode.Unauthorized, $"非法访问[{jwt.Subject}] {message}");
 
         return (jwt, ex);
     }
