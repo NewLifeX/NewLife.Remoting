@@ -112,7 +112,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         // 动态注册，下发节点证书
         if (autoReg && device is IDeviceModel2 device2)
         {
-            rs.Code = device2.Secret;
+            rs.Code = device2.Code;
             rs.Secret = device2.Secret;
         }
 
