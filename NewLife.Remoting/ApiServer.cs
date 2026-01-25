@@ -148,12 +148,13 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// <summary>确保已创建服务器对象</summary>
     /// <returns>已存在的服务器或新建的 <see cref="ApiNetServer"/></returns>
     /// <exception cref="ArgumentNullException">未指定 <see cref="Server"/> 且 <see cref="Port"/> 未设置</exception>
+    /// <remarks>支持 Port=0，此时由系统分配可用端口，启动后通过 <see cref="Port"/> 获取实际端口</remarks>
     public IApiServer EnsureCreate()
     {
         var svr = Server;
         if (svr != null) return svr;
 
-        if (Port <= 0) throw new ArgumentNullException(nameof(Server), "未指定服务器Server，且未指定端口Port！");
+        if (Port < 0) throw new ArgumentNullException(nameof(Server), "未指定服务器Server，且未指定端口Port！");
 
         var server = new ApiNetServer
         {
@@ -206,6 +207,9 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         svr.Host = this;
         svr.Log = Log;
         svr.Start();
+
+        // 如果是动态端口(Port=0)，从底层服务器回写实际端口
+        if (Port == 0 && svr is NetServer netServer && netServer.Port > 0) Port = netServer.Port;
 
         ShowService();
 
