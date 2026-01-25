@@ -6,7 +6,7 @@ namespace NewLife.Remoting.Services;
 public interface ITokenService
 {
     /// <summary>颁发令牌（使用ITokenSetting中的密钥）</summary>
-    TokenModel IssueToken(String name, String? id = null);
+    IToken IssueToken(String name, String? id = null);
 
     /// <summary>验证令牌</summary>
     (JwtBuilder, Exception?) DecodeToken(String token);

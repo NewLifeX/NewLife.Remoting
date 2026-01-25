@@ -28,7 +28,7 @@ public class TokenService(ITokenSetting tokenSetting, ITracer tracer) : ITokenSe
     /// <param name="name"></param>
     /// <param name="id"></param>
     /// <returns></returns>
-    public virtual TokenModel IssueToken(String name, String? id = null)
+    public virtual IToken IssueToken(String name, String? id = null)
     {
         if (id.IsNullOrEmpty()) id = Rand.NextString(8);
 

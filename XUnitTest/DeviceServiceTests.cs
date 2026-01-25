@@ -216,9 +216,9 @@ public class DeviceServiceTests
     /// <summary>测试设备</summary>
     private class TestDevice : IDeviceModel
     {
-        public string Code { get; set; } = null!;
-        public string Name { get; set; } = null!;
-        public bool Enable { get; set; }
+        public String Code { get; set; } = null!;
+        public String Name { get; set; } = null!;
+        public Boolean Enable { get; set; }
     }
     #endregion
 }

@@ -18,7 +18,7 @@ public abstract class BaseOAuthController(ITokenService tokenService, ITokenSett
     /// <returns></returns>
     /// <exception cref="NotSupportedException"></exception>
     [ApiFilter]
-    public virtual TokenModel Token([FromBody] TokenInModel model)
+    public virtual IToken Token([FromBody] TokenInModel model)
     {
         var set = setting;
 

@@ -146,7 +146,7 @@ public class SessionManagerTests
     public void TokenServiceMock()
     {
         var mockTokenService = new Mock<ITokenService>();
-        mockTokenService.Setup(x => x.IssueToken(It.IsAny<string>(), It.IsAny<string>()))
+        mockTokenService.Setup(x => x.IssueToken(It.IsAny<String>(), It.IsAny<String>()))
             .Returns(new TokenModel
             {
                 AccessToken = "test_token",
@@ -157,7 +157,7 @@ public class SessionManagerTests
         var token = mockTokenService.Object.IssueToken("device001", "client001");
 
         Assert.Equal("test_token", token.AccessToken);
-        Assert.Equal("JWT", token.TokenType);
+        Assert.Equal("JWT", (token as TokenModel)?.TokenType);
         Assert.Equal(3600, token.ExpireIn);
     }
     #endregion
@@ -166,10 +166,10 @@ public class SessionManagerTests
     /// <summary>测试命令会话</summary>
     private class TestCommandSession : CommandSession
     {
-        public bool Handled { get; private set; }
+        public Boolean Handled { get; private set; }
         public CommandModel? LastCommand { get; private set; }
 
-        public override Task HandleAsync(CommandModel command, string? message, CancellationToken cancellationToken)
+        public override Task HandleAsync(CommandModel command, String? message, CancellationToken cancellationToken)
         {
             Handled = true;
             LastCommand = command;
@@ -186,15 +186,15 @@ public class SessionManagerTests
 
         public ICache InnerCache { get => _cache; set { } }
 
-        public IProducerConsumer<T> GetQueue<T>(string topic) => _cache.GetQueue<T>(topic);
+        public IProducerConsumer<T> GetQueue<T>(String topic) => _cache.GetQueue<T>(topic);
 
-        public IProducerConsumer<T> GetQueue<T>(string topic, string? group) => _cache.GetQueue<T>(topic);
+        public IProducerConsumer<T> GetQueue<T>(String topic, String? group) => _cache.GetQueue<T>(topic);
 
-        public IProducerConsumer<T> GetInnerQueue<T>(string topic) => _cache.GetQueue<T>(topic);
+        public IProducerConsumer<T> GetInnerQueue<T>(String topic) => _cache.GetQueue<T>(topic);
 
-        public IProducerConsumer<T> GetStack<T>(string topic) => _cache.GetStack<T>(topic);
+        public IProducerConsumer<T> GetStack<T>(String topic) => _cache.GetStack<T>(topic);
 
-        public IDisposable AcquireLock(string key, int msTimeout) => throw new NotImplementedException();
+        public IDisposable AcquireLock(String key, Int32 msTimeout) => throw new NotImplementedException();
     }
     #endregion
 }
