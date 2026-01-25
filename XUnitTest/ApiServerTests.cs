@@ -35,7 +35,13 @@ public class ApiServerTests
     [Fact(DisplayName = "指定端口测试")]
     public void SpecifiedPortTest()
     {
-        var port = 23456;
+        // 先用动态端口获取一个可用端口，避免 CI 环境端口冲突
+        using var tempServer = new ApiServer(0);
+        tempServer.Start();
+        var port = tempServer.Port;
+        tempServer.Stop("获取端口");
+        tempServer.Dispose();
+
         using var server = new ApiServer(port)
         {
             Log = XTrace.Log,

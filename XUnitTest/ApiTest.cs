@@ -16,46 +16,38 @@ namespace XUnitTest.Remoting;
 [TestCaseOrderer("NewLife.UnitTest.DefaultOrderer", "NewLife.UnitTest")]
 public class ApiTest : DisposeBase
 {
-    private static ApiServer _Server;
-    private static ApiClient _Client;
-    private String _Uri;
+    private readonly ApiServer _Server;
+    private readonly ApiClient _Client;
+    private readonly String _Uri;
 
     public ApiTest()
     {
-        //var port = Rand.Next(12348);
-        var port = 12348;
-
-        if (_Server == null)
+        // 使用动态端口避免 CI 环境端口冲突
+        _Server = new ApiServer(0)
         {
-            _Server = new ApiServer(port)
-            {
-                Log = XTrace.Log,
-                //EncoderLog = XTrace.Log,
-                ShowError = true,
-            };
-            _Server.Handler = new TokenApiHandler { Host = _Server };
-            _Server.Start();
-        }
+            Log = XTrace.Log,
+            //EncoderLog = XTrace.Log,
+            ShowError = true,
+        };
+        _Server.Handler = new TokenApiHandler { Host = _Server };
+        _Server.Start();
 
-        _Uri = $"tcp://127.0.0.1:{port}";
+        _Uri = $"tcp://127.0.0.1:{_Server.Port}";
 
-        if (_Client == null)
+        _Client = new ApiClient(_Uri)
         {
-            var client = new ApiClient(_Uri)
-            {
-                //Log = XTrace.Log
-            };
-            //client.EncoderLog = XTrace.Log;
-            _Client = client;
-        }
+            //Log = XTrace.Log
+        };
+        //client.EncoderLog = XTrace.Log;
     }
 
-    //protected override void Dispose(Boolean disposing)
-    //{
-    //    base.Dispose(disposing);
+    protected override void Dispose(Boolean disposing)
+    {
+        base.Dispose(disposing);
 
-    //    _Server.TryDispose();
-    //}
+        _Client.TryDispose();
+        _Server.TryDispose();
+    }
 
     //[Order(1)]
     [Fact(DisplayName = "基础Api测试")]
@@ -140,13 +132,13 @@ public class ApiTest : DisposeBase
     [Fact]
     public async Task BigMessage()
     {
-        using var server = new ApiServer(12399);
+        using var server = new ApiServer(0);
         server.Log = XTrace.Log;
         //server.EncoderLog = XTrace.Log;
         server.Register<BigController>();
         server.Start();
 
-        using var client = new ApiClient("tcp://127.0.0.1:12399");
+        using var client = new ApiClient($"tcp://127.0.0.1:{server.Port}");
 
         var buf = new Byte[5 * 8 * 1024];
         Array.Fill(buf, (Byte)'a');
@@ -164,13 +156,13 @@ public class ApiTest : DisposeBase
     [Fact]
     public async Task BigMessage64k()
     {
-        using var server = new ApiServer(12399);
+        using var server = new ApiServer(0);
         server.Log = XTrace.Log;
         //server.EncoderLog = XTrace.Log;
         server.Register<BigController>();
         server.Start();
 
-        using var client = new ApiClient("tcp://127.0.0.1:12399");
+        using var client = new ApiClient($"tcp://127.0.0.1:{server.Port}");
 
         var buf = new Byte[65 * 1024];
         Array.Fill(buf, (Byte)'a');
@@ -211,14 +203,14 @@ public class ApiTest : DisposeBase
         ioc.AddSingleton<ICache>(cache);
         ioc.AddTransient<SPService>();
 
-        using var server = new ApiServer(12349);
+        using var server = new ApiServer(0);
         server.ServiceProvider = ioc.BuildServiceProvider();
         server.Log = XTrace.Log;
 
         server.Register<SPController>();
         server.Start();
 
-        using var client = new ApiClient("tcp://127.0.0.1:12349");
+        using var client = new ApiClient($"tcp://127.0.0.1:{server.Port}");
         var rs = client.Invoke<Int64>("SP/Test", new { key = "stone" });
         Assert.Equal(123, rs);
     }
@@ -249,7 +241,7 @@ public class ApiTest : DisposeBase
     [Fact]
     public async Task SimpleType()
     {
-        using var server = new ApiServer(12377);
+        using var server = new ApiServer(0);
         server.Log = XTrace.Log;
         server.EncoderLog = XTrace.Log;
         server.Register<SimpleController>();

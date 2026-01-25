@@ -50,20 +50,28 @@ public class ApiDownTests : DisposeBase
     }
 
     [Fact]
-    public async void Test1()
+    public async Task Test1()
     {
         var apis = await _Client.InvokeAsync<String[]>("api/all");
         Assert.NotNull(apis);
+
+        // 记录当前消息，用于判断是否有新消息到达
+        var previousMessage = _Client.LastMessage;
 
         // 服务端主动下发
         var ss = _Server.Server.AllSessions[0];
         var args = new { name = "Stone", age = 36 };
         ss.InvokeOneWay("CustomCommand", args);
 
-        Thread.Sleep(200);
+        // 等待新消息到达（与之前的消息不同）
+        for (var i = 0; i < 50 && _Client.LastMessage == previousMessage; i++)
+        {
+            await Task.Delay(50);
+        }
 
         var msg = _Client.LastMessage;
         Assert.NotNull(msg);
+        Assert.NotSame(previousMessage, msg);
 
         // 解码消息
         var messge = _Client.Encoder.Decode(msg);
