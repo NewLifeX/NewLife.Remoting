@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
@@ -33,7 +33,7 @@
     <RepositoryUrl>https://github.com/NewLifeX/NewLife.Remoting</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>新生命团队;X组件;NewLife;$(AssemblyName)</PackageTags>
-    <PackageReleaseNotes>ApiServer支持异步方法；ClientBase客户端支持事件总线；支持EventHub分发WebSocket事件；增加阿里云OpenAPI客户端</PackageReleaseNotes>
+    <PackageReleaseNotes>ApiServer支持动态端口分配；修正证书密钥赋值错误；优化OAuth异常处理；增强HttpMessage解析兼容性；提升单元测试稳定性</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -64,7 +64,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="NewLife.XCode" Version="11.23.2026.119-beta1332" />
+    <PackageReference Include="NewLife.XCode" Version="11.23.2026.131-beta0946" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\NewLife.Remoting\NewLife.Remoting.csproj" />

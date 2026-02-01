@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -21,8 +21,8 @@
 
   <ItemGroup>
     <PackageReference Include="NewLife.Redis" Version="6.4.2026.111-beta1644" />
-    <PackageReference Include="NewLife.Stardust" Version="3.6.2026.125-beta0604" />
-    <PackageReference Include="NewLife.XCode" Version="11.23.2026.119-beta1332" />
+    <PackageReference Include="NewLife.Stardust" Version="3.6.2026.131-beta0627" />
+    <PackageReference Include="NewLife.XCode" Version="11.23.2026.131-beta0946" />
   </ItemGroup>
 
   <ItemGroup>
