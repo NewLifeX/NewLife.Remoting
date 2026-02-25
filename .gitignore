@@ -21,3 +21,4 @@ bld/
 *.log
 *.nuspec
 *.nupkg
+BenchmarkDotNet.Artifacts/
