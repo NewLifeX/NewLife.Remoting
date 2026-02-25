@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Linq.Expressions;
+using System.Reflection;
 using System.Threading.Tasks;
 using NewLife.Data;
 using NewLife.Log;
@@ -35,6 +36,12 @@ public class ApiAction : IExtend
     /// <summary>是否Accessor返回</summary>
     public Boolean IsAccessorReturn { get; }
 
+    /// <summary>是否无参数方法</summary>
+    public Boolean IsNoParameter { get; }
+
+    /// <summary>预编译的快速调用委托</summary>
+    public Func<Object, Object?[], Object?>? FastInvoker { get; private set; }
+
     /// <summary>处理统计</summary>
     public ICounter StatProcess { get; set; } = new PerfCounter();
 
@@ -67,12 +74,65 @@ public class ApiAction : IExtend
             if (ps[0].ParameterType.As<IAccessor>()) IsAccessorParameter = true;
         }
 
+        IsNoParameter = ps == null || ps.Length == 0;
+
         var returnType = method.ReturnType;
         if (returnType.As(typeof(Task<>)))
             returnType = returnType.GetGenericArguments()[0];
 
         if (returnType.As<IPacket>()) IsPacketReturn = true;
         if (returnType.As<IAccessor>()) IsAccessorReturn = true;
+
+        // 预编译快速调用委托
+        FastInvoker = CompileInvoker(method);
+    }
+
+    /// <summary>使用表达式树编译快速调用委托，避免每次调用走反射</summary>
+    /// <param name="method">方法信息</param>
+    /// <returns>编译后的委托，参数为(instance, args[])，返回Object</returns>
+    private static Func<Object, Object?[], Object?>? CompileInvoker(MethodInfo method)
+    {
+        try
+        {
+            var instanceParam = Expression.Parameter(typeof(Object), "instance");
+            var argsParam = Expression.Parameter(typeof(Object?[]), "args");
+
+            // 转换实例对象类型
+            var instance = method.IsStatic ? null : Expression.Convert(instanceParam, method.DeclaringType!);
+
+            // 构造参数列表
+            var parameters = method.GetParameters();
+            var argExpressions = new Expression[parameters.Length];
+            for (var i = 0; i < parameters.Length; i++)
+            {
+                var index = Expression.ArrayIndex(argsParam, Expression.Constant(i));
+                argExpressions[i] = Expression.Convert(index, parameters[i].ParameterType);
+            }
+
+            // 调用方法
+            var call = method.IsStatic
+                ? Expression.Call(method, argExpressions)
+                : Expression.Call(instance!, method, argExpressions);
+
+            // 处理返回值
+            Expression body;
+            if (method.ReturnType == typeof(void))
+            {
+                body = Expression.Block(call, Expression.Constant(null, typeof(Object)));
+            }
+            else
+            {
+                body = Expression.Convert(call, typeof(Object));
+            }
+
+            var lambda = Expression.Lambda<Func<Object, Object?[], Object?>>(body, instanceParam, argsParam);
+            return lambda.Compile();
+        }
+        catch
+        {
+            // 编译失败时回退到反射调用
+            return null;
+        }
     }
 
     /// <summary>获取名称</summary>
