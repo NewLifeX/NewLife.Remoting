@@ -21,7 +21,7 @@ public class JsonEncoder : EncoderBase, IEncoder
         if (data == null || data.Total == 0) return null;
 
         var json = data.ToStr().Trim();
-        WriteLog("{0}[{2:X2}]<={1}", action, json, msg is DefaultMessage dm ? dm.Sequence : 0);
+        if (LogEnable) WriteLog("{0}[{2:X2}]<={1}", action, json, msg is DefaultMessage dm ? dm.Sequence : 0);
 
         // 接口只有一个入参时，客户端可能用基础类型封包传递
         if (json.IsNullOrEmpty() || json[0] != '{' && json[0] != '[') return json;
@@ -39,7 +39,7 @@ public class JsonEncoder : EncoderBase, IEncoder
     public Object? DecodeResult(String action, IPacket data, IMessage msg, Type returnType)
     {
         var json = data?.ToStr();
-        WriteLog("{0}[{2:X2}]<={1}", action, json, msg is DefaultMessage dm ? dm.Sequence : 0);
+        if (LogEnable) WriteLog("{0}[{2:X2}]<={1}", action, json, msg is DefaultMessage dm ? dm.Sequence : 0);
 
         // 支持基础类型
         if (returnType != null && returnType.GetTypeCode() != TypeCode.Object) return json.ChangeType(returnType);
@@ -70,8 +70,11 @@ public class JsonEncoder : EncoderBase, IEncoder
         // 二进制优先
         var pk = EncodeValue(args, out var str);
 
-        if (Log != null && str.IsNullOrEmpty() && pk != null) str = $"[{pk?.Total}]";
-        WriteLog("{0}=>{1}", action, str);
+        if (LogEnable)
+        {
+            if (str.IsNullOrEmpty() && pk != null) str = $"[{pk?.Total}]";
+            WriteLog("{0}=>{1}", action, str);
+        }
 
         var payload = Encode(action, null, pk);
 
@@ -91,8 +94,11 @@ public class JsonEncoder : EncoderBase, IEncoder
         // 所有权转移给返回的 IMessage，由上层 Dispose 级联释放
         var pk = EncodeValue(value, out var str);
 
-        if (Log != null && str.IsNullOrEmpty() && pk != null) str = $"[{pk?.Total}]";
-        WriteLog("{0}[{2:X2}]=>{1}", action, str, msg is DefaultMessage dm ? dm.Sequence : 0);
+        if (LogEnable)
+        {
+            if (str.IsNullOrEmpty() && pk != null) str = $"[{pk?.Total}]";
+            WriteLog("{0}[{2:X2}]=>{1}", action, str, msg is DefaultMessage dm ? dm.Sequence : 0);
+        }
 
         var payload = Encode(action, code, pk);
 
