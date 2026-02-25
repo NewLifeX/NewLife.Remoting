@@ -59,9 +59,9 @@ public class ApiHandler : IApiHandler
             ?? throw new ApiException(ApiCode.Forbidden, $"无法创建名为[{api.Name}]的服务！");
         if (controller is IApi capi) capi.Session = session;
         if (session is INetSession ss)
-            api.LastSession = ss.Remote + "";
+            api.LastSession = ss.Remote?.ToString();
         else
-            api.LastSession = session + "";
+            api.LastSession = session?.ToString();
 
         var st = api.StatProcess;
         var sw = st.StartCount();
@@ -108,6 +108,29 @@ public class ApiHandler : IApiHandler
                 {
                     rs = controller.Invoke(api.Method, args);
                 }
+                else if (api.FastInvoker != null)
+                {
+                    // 使用预编译委托快速调用，避免反射开销
+                    var ps = ctx.ActionParameters;
+                    if (api.IsNoParameter || ps == null || ps.Count == 0)
+                    {
+                        rs = api.FastInvoker(controller, _emptyArgs);
+                    }
+                    else
+                    {
+                        var pis = api.Method.GetParameters();
+                        var pv = new Object?[pis.Length];
+                        for (var i = 0; i < pis.Length; i++)
+                        {
+                            var pn = pis[i].Name;
+                            if (pn != null) ps.TryGetValue(pn, out pv[i]);
+                            // 值类型参数不能为null，否则表达式树Unbox会抛NullReferenceException
+                            if (pv[i] == null && pis[i].ParameterType.IsValueType)
+                                pv[i] = Activator.CreateInstance(pis[i].ParameterType);
+                        }
+                        rs = api.FastInvoker(controller, pv);
+                    }
+                }
                 else
                 {
                     rs = controller.InvokeWithParams(api.Method, ctx.ActionParameters as IDictionary);
@@ -152,6 +175,8 @@ public class ApiHandler : IApiHandler
         return rs;
     }
 
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, PropertyInfo?> _taskResultCache = new();
+
     private static Object? GetTaskResult(Task task)
     {
         task.GetAwaiter().GetResult();
@@ -159,7 +184,8 @@ public class ApiHandler : IApiHandler
         var taskType = task.GetType();
         if (!taskType.IsGenericType) return null;
 
-        var resultProperty = taskType.GetProperty("Result", BindingFlags.Public | BindingFlags.Instance);
+        var resultProperty = _taskResultCache.GetOrAdd(taskType,
+            t => t.GetProperty("Result", BindingFlags.Public | BindingFlags.Instance));
         return resultProperty?.GetValue(task);
     }
 
@@ -189,6 +215,9 @@ public class ApiHandler : IApiHandler
 
         // 如果服务只有一个二进制参数，则走快速通道
         if (api.IsPacketParameter) return ctx;
+
+        // 无参数方法，跳过参数解码和绑定
+        if (api.IsNoParameter) return ctx;
 
         // IAccessor参数，直接进行二进制反序列化
         if (api.IsAccessorParameter)
@@ -247,6 +276,9 @@ public class ApiHandler : IApiHandler
         return ctx;
     }
 
+    private static readonly IDictionary<String, Object?> _emptyParameters = new Dictionary<String, Object?>();
+    private static readonly Object?[] _emptyArgs = new Object?[0];
+
     /// <summary>获取接口方法对应的参数值集合</summary>
     /// <param name="method">接口方法</param>
     /// <param name="dic">请求参数</param>
@@ -256,11 +288,11 @@ public class ApiHandler : IApiHandler
     /// <returns></returns>
     protected virtual IDictionary<String, Object?> GetParameterValues(MethodInfo method, IDictionary<String, Object?> dic, Object? raw, Object? args, IEncoder encoder)
     {
-        var ps = new Dictionary<String, Object?>();
-
         // 该方法没有参数，无视外部传入参数
         var pis = method.GetParameters();
-        if (pis == null || pis.Length <= 0) return ps;
+        if (pis == null || pis.Length <= 0) return _emptyParameters;
+
+        var ps = new Dictionary<String, Object?>();
 
         if (pis.Length == 1 && dic.Count == 0)
         {

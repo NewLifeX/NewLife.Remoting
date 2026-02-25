@@ -263,7 +263,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         if (request == null || request.Action.IsNullOrEmpty()) return null;
 
         // Action动作名必须是Ascii字符，跳过扫描乱码
-        if (!request.Action.All(e => e < 127u)) return null;
+        if (!IsAscii(request.Action)) return null;
 
         // 根据动作名，开始跟踪
         using var span = Tracer?.NewSpan("rps:" + request.Action, request.Data);
@@ -402,6 +402,15 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         if (serviceType == typeof(IApiManager)) return Manager;
 
         return ServiceProvider?.GetService(serviceType)!;
+    }
+
+    private static Boolean IsAscii(String str)
+    {
+        for (var i = 0; i < str.Length; i++)
+        {
+            if (str[i] >= 127) return false;
+        }
+        return true;
     }
     #endregion
 }
