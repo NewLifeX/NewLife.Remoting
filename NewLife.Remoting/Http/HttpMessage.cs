@@ -5,8 +5,12 @@ using NewLife.Messaging;
 
 namespace NewLife.Remoting.Http;
 
-/// <summary>Http消息</summary>
-public class HttpMessage : IMessage, IDisposable
+/// <summary>Http消息。实现 IMessage 接口用于 HTTP 协议的请求/响应封装</summary>
+/// <remarks>
+/// <para>Dispose 时级联释放 Header 和 Payload，若其中包含 IOwnerPacket 则自动归还 ArrayPool 缓冲区。</para>
+/// <para>与 DefaultMessage（SRMP 协议）对应，HttpMessage 用于 HTTP 协议栈。</para>
+/// </remarks>
+public class HttpMessage : IMessage
 {
     #region 属性
     /// <summary>是否响应</summary>
@@ -38,11 +42,14 @@ public class HttpMessage : IMessage, IDisposable
     #endregion
 
     #region 构造
-    /// <summary>销毁</summary>
+    /// <summary>销毁。释放头部和负载数据包，若其中包含 IOwnerPacket 则归还缓冲区到内存池</summary>
     public void Dispose()
     {
         Header.TryDispose();
+        Header = null;
+
         Payload.TryDispose();
+        Payload = null;
     }
     #endregion
 

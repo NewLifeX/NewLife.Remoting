@@ -272,6 +272,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         var st = StatProcess;
         var sw = st.StartCount();
         Object? result = null;
+        IMessage? response = null;
         try
         {
             try
@@ -307,14 +308,21 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
                 span?.SetError(ex, request.Data?.ToStr());
             }
 
-            // 单向请求无需响应
-            if (msg.OneWay) return null;
+            // 单向请求无需响应，但 result 可能是 IOwnerPacket，需要直接释放归还 ArrayPool
+            if (msg.OneWay)
+            {
+                result.TryDispose();
+                result = null;
+                return null;
+            }
 
             // 处理http封包方式
             if (enc is HttpEncoder httpEncoder) httpEncoder.UseHttpStatus = UseHttpStatus;
 
-            // 编码响应
-            return enc.CreateResponse(msg, request.Action, code, result);
+            // 编码响应。result（若为 IOwnerPacket）的所有权转移给 IMessage.Payload 链，
+            // 由上层调用者通过 using IMessage 统一释放（级联 Dispose 到 OwnerPacket）
+            response = enc.CreateResponse(msg, request.Action, code, result);
+            return response;
         }
         catch (Exception ex)
         {
@@ -327,8 +335,9 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
             // 慢处理日志：包含 Action、最终 Code 与耗时ms。用于定位服务端热点与慢点。
             if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢处理[{request?.Action}]，Code={code}，耗时{msCost:n0}ms");
 
-            // 响应结果可能是 IOwnerPacket，需要释放资源，把缓冲区还给池
-            result.TryDispose();
+            // CreateResponse 异常时，result 未纳入响应消息，需要释放归还 ArrayPool。
+            // 正常响应路径 response!=null，不释放；OneWay 路径已在上面释放并置空。
+            if (result != null && response == null) result.TryDispose();
         }
     }
 

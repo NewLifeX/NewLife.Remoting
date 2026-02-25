@@ -93,6 +93,8 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
             {
                 try
                 {
+                    // Process 返回的 IMessage 持有 IOwnerPacket 所有权（通过 Payload 链），
+                    // using 确保发送完毕后释放，级联归还 ArrayPool 缓冲区
                     using var rs = _Host.Process(this, (m as IMessage)!, this);
                     if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
                 }
@@ -105,6 +107,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
         }
         else
         {
+            // 同步路径：using 释放响应消息，级联归还 Payload 链中的 IOwnerPacket 缓冲区
             using var rs = _Host.Process(this, msg, this);
             if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
         }

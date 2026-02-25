@@ -1,4 +1,4 @@
-# NewLife.Remoting 组件关系图
+﻿# NewLife.Remoting 组件关系图
 
 本文件说明 NewLife.Remoting 中 RPC 客户端/服务端的核心组件关系。仅聚焦 `ApiClient` / `ApiServer` 与其关键依赖，便于理解架构与扩展点。
 
@@ -62,3 +62,14 @@ flowchart LR
   - 依赖 `IEncoder` 统一编解码，支持 `UseHttpStatus` 切换 HTTP 返回语义。
 - Shared
   - 公共契约位于 `NewLife.*` 基础库，跨客户端/服务端共享。
+
+
+## 内存管理
+
+RPC 流水线采用零拷贝的 `IOwnerPacket` 所有权转移机制，Controller 返回的 `OwnerPacket` 直接挂载到 `IMessage.Payload` 链，由上层 `using IMessage` 级联释放归还 `ArrayPool` 缓冲区。详见 [RPC内存管理设计](RPC内存管理设计.md)。
+
+关键路径：
+- `ApiServer.Process`：跟踪响应是否成功创建，仅在未纳入响应时释放 result
+- `EncoderBase.Encode`：将 value 挂载到 OwnerPacket 链的 Next 节点
+- `ApiNetSession.OnReceive`：`using var rs` 确保 IMessage 在发送后正确释放
+- `HttpMessage.Dispose`：级联释放 Header 和 Payload 中的 IOwnerPacket

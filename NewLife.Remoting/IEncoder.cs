@@ -71,11 +71,15 @@ public interface IEncoder
 public abstract class EncoderBase
 {
     #region 编码/解码
-    /// <summary>编码。请求/响应</summary>
-    /// <param name="action"></param>
-    /// <param name="code"></param>
-    /// <param name="value"></param>
-    /// <returns></returns>
+    /// <summary>编码请求/响应为数据包</summary>
+    /// <param name="action">动作名称</param>
+    /// <param name="code">错误码。null 或 0/200 表示成功</param>
+    /// <param name="value">负载数据。若为 IOwnerPacket，将挂载到返回包的 Next 链，所有权随之转移</param>
+    /// <returns>编码后的数据包，头部为 OwnerPacket，value 作为 Next 链节点</returns>
+    /// <remarks>
+    /// 返回的 IPacket 链结构：[OwnerPacket(header: action+code+len)] → [value(IOwnerPacket)]。
+    /// 调用方无需单独释放 value，它的生命周期由链头的 OwnerPacket.Dispose 级联管理。
+    /// </remarks>
     public virtual IPacket Encode(String action, Int32? code, IPacket? value)
     {
         // 内存流，前面留空8字节用于协议头4字节（超长8字节）
@@ -98,7 +102,9 @@ public abstract class EncoderBase
         // 参数或结果。长度部分定长4字节
         if (value != null) writer.Write(value.Total);
 
+        // Slice(transferOwner:true) 将缓冲区所有权从 pk 转移到 pk2
         var pk2 = pk.Slice(8, writer.Position - 8, true);
+        // value（可能是 IOwnerPacket）挂载到 Next 链，所有权随链传递
         if (value != null) pk2.Next = value;
 
         return pk2;

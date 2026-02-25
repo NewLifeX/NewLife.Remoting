@@ -19,15 +19,16 @@ public class HttpEncoder : EncoderBase, IEncoder
     public Boolean UseHttpStatus { get; set; }
     #endregion
 
-    /// <summary>编码</summary>
-    /// <param name="action"></param>
-    /// <param name="code"></param>
-    /// <param name="value"></param>
-    /// <returns></returns>
+    /// <summary>编码响应数据</summary>
+    /// <param name="action">动作名称</param>
+    /// <param name="code">错误码</param>
+    /// <param name="value">响应值。若为 IPacket/IOwnerPacket 则直接透传，所有权转移给调用方</param>
+    /// <returns>编码后的数据包，可能是原始 IOwnerPacket 的直接引用</returns>
     public virtual IPacket? Encode(String action, Int32 code, Object? value)
     {
         //if (value == null) return null;
 
+        // IPacket/IOwnerPacket 直接透传，所有权随之转移给上层 IMessage.Payload
         if (value is IPacket pk) return pk;
 
         //!!! 对于Http来说，实现了IAccessor的实体类不需要序列化为IPacket
@@ -176,17 +177,17 @@ public class HttpEncoder : EncoderBase, IEncoder
         return req;
     }
 
-    /// <summary>创建响应</summary>
-    /// <param name="msg"></param>
-    /// <param name="action"></param>
-    /// <param name="code"></param>
-    /// <param name="value"></param>
-    /// <returns></returns>
+    /// <summary>创建响应消息</summary>
+    /// <param name="msg">原始请求消息</param>
+    /// <param name="action">动作名称</param>
+    /// <param name="code">错误码</param>
+    /// <param name="value">响应值。若为 IOwnerPacket，其所有权转移给返回的 HttpMessage.Payload</param>
+    /// <returns>Http响应消息，Dispose 时级联释放 Payload 中的 IOwnerPacket</returns>
     public virtual IMessage CreateResponse(IMessage msg, String action, Int32 code, Object? value)
     {
         if (code <= 0 && UseHttpStatus) code = 200;
 
-        // 编码响应数据包，二进制优先
+        // 编码响应数据包。若 value 是 IOwnerPacket 则直接透传为 Payload，所有权转移
         var pk = Encode(action, code, value);
 
         // 构造响应消息

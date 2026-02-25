@@ -61,10 +61,10 @@ public class JsonEncoder : EncoderBase, IEncoder
     /// <returns></returns>
     public Object? Convert(Object obj, Type targetType) => JsonHost.Convert(obj, targetType);
 
-    /// <summary>创建请求</summary>
-    /// <param name="action"></param>
-    /// <param name="args"></param>
-    /// <returns></returns>
+    /// <summary>创建请求消息</summary>
+    /// <param name="action">动作名称</param>
+    /// <param name="args">请求参数。若为 IPacket/IOwnerPacket 则直接挂载到 Payload 链</param>
+    /// <returns>请求消息，其 Payload 包含编码后的 action 和 args</returns>
     public virtual IMessage CreateRequest(String action, Object? args)
     {
         // 二进制优先
@@ -78,15 +78,17 @@ public class JsonEncoder : EncoderBase, IEncoder
         return new DefaultMessage { Payload = payload, };
     }
 
-    /// <summary>创建响应</summary>
-    /// <param name="msg"></param>
-    /// <param name="action"></param>
-    /// <param name="code"></param>
-    /// <param name="value"></param>
-    /// <returns></returns>
+    /// <summary>创建响应消息</summary>
+    /// <param name="msg">原始请求消息，用于创建配对的响应</param>
+    /// <param name="action">动作名称</param>
+    /// <param name="code">错误码。0/200 表示成功</param>
+    /// <param name="value">响应值。若为 IOwnerPacket，所有权转移给返回的 IMessage.Payload 链</param>
+    /// <returns>响应消息，Dispose 时级联释放 Payload 链中的 IOwnerPacket</returns>
     public IMessage CreateResponse(IMessage msg, String action, Int32 code, Object? value)
     {
-        // 编码响应数据包，二进制优先
+        // 编码响应数据包，二进制优先。
+        // 若 value 是 IPacket/IOwnerPacket，将直接挂载到 Payload 链的 Next 上，
+        // 所有权转移给返回的 IMessage，由上层 Dispose 级联释放
         var pk = EncodeValue(value, out var str);
 
         if (Log != null && str.IsNullOrEmpty() && pk != null) str = $"[{pk?.Total}]";
@@ -102,6 +104,10 @@ public class JsonEncoder : EncoderBase, IEncoder
         return rs;
     }
 
+    /// <summary>编码值对象为数据包</summary>
+    /// <param name="value">要编码的值。IPacket/IOwnerPacket 直接透传，其他类型序列化为 JSON/字符串</param>
+    /// <param name="str">输出日志用的字符串表示</param>
+    /// <returns>编码后的数据包，若为 IOwnerPacket 则保留原始引用</returns>
     internal IPacket? EncodeValue(Object? value, out String str)
     {
         str = "";
@@ -109,6 +115,7 @@ public class JsonEncoder : EncoderBase, IEncoder
 
         if (value != null)
         {
+            // IPacket/IOwnerPacket 直接透传，所有权随链转移
             if (value is IPacket pk2)
                 pk = pk2;
             else if (value is IAccessor acc)
