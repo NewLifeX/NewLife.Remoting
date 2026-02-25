@@ -143,9 +143,15 @@ public abstract class EncoderBase
     /// <summary>日志提供者</summary>
     public ILog Log { get; set; } = Logger.Null;
 
+    /// <summary>是否启用编码器日志</summary>
+    internal Boolean LogEnable => Log != null && Log != Logger.Null;
+
     /// <summary>写日志</summary>
     /// <param name="format"></param>
     /// <param name="args"></param>
-    public virtual void WriteLog(String format, params Object?[] args) => Log?.Info(format, args);
+    public virtual void WriteLog(String format, params Object?[] args)
+    {
+        if (Log != null && Log != Logger.Null) Log.Info(format, args);
+    }
     #endregion
 }
