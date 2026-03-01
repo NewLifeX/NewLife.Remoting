@@ -1,4 +1,5 @@
 ﻿using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Jobs;
 using NewLife.Data;
 using NewLife.Remoting;
 
@@ -8,6 +9,7 @@ namespace NewLife.Remoting.Benchmarks;
 
 /// <summary>RPC基准测试。对ApiClient+ApiServer进行全面性能测试，覆盖多种数据场景和并发级别</summary>
 [MemoryDiagnoser]
+[SimpleJob(RuntimeMoniker.HostProcess)]
 public class RpcBenchmarks
 {
     private ApiServer _server = null!;
@@ -18,8 +20,20 @@ public class RpcBenchmarks
     private Byte[] _smallPacketData = null!;
     private Byte[] _largePacketData = null!;
 
-    /// <summary>并发数。1为单线程，4/16/32为多线程</summary>
-    [Params(1, 4, 16, 32)]
+    /// <summary>并发线程数。动态包含当前CPU核心数</summary>
+    public static IEnumerable<Int32> ThreadCounts
+    {
+        get
+        {
+            var cores = Environment.ProcessorCount;
+            var set = new SortedSet<Int32> { 1, 4, 16, 32 };
+            set.Add(cores);
+            return set;
+        }
+    }
+
+    /// <summary>并发数</summary>
+    [ParamsSource(nameof(ThreadCounts))]
     public Int32 Concurrency { get; set; }
 
     [GlobalSetup]
@@ -61,6 +75,7 @@ public class RpcBenchmarks
         _server?.TryDispose();
     }
 
+    #region 基础调用
     /// <summary>无参返回Int32</summary>
     [Benchmark(Description = "无参返回Int32")]
     public async Task NoArg_ReturnInt32()
@@ -91,6 +106,9 @@ public class RpcBenchmarks
         await Task.WhenAll(tasks);
     }
 
+    #endregion
+
+    #region 复杂参数
     /// <summary>多基础类型参数</summary>
     [Benchmark(Description = "多基础类型参数")]
     public async Task MultiArgs()
@@ -108,6 +126,9 @@ public class RpcBenchmarks
         await Task.WhenAll(tasks);
     }
 
+    #endregion
+
+    #region 二进制数据
     /// <summary>IPacket出入参(16字节)</summary>
     [Benchmark(Description = "IPacket出入参(16字节)")]
     public async Task EchoPacket_Small()
@@ -127,4 +148,5 @@ public class RpcBenchmarks
             tasks[i] = _clients[i].InvokeAsync<Packet>("Bench/EchoPacket", _largePacketData);
         await Task.WhenAll(tasks);
     }
+    #endregion
 }
