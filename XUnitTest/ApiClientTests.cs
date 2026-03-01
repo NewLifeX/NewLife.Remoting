@@ -229,14 +229,31 @@ public class ApiClientTests : DisposeBase
     {
         using var client = new ApiClient($"tcp://127.0.0.1:{_Port}")
         {
-            Timeout = 100 // 100ms超时
+            Timeout = 100 // 100ms超时，InvokeAsync 内部自动应用
         };
 
-        // Delay 1000ms 会超时
+        // Delay 1000ms 超过 Timeout=100ms，应抛出超时异常
         var ex = await Assert.ThrowsAnyAsync<Exception>(
             () => client.InvokeAsync<String>("ClientTest/Delay", new { ms = 1000 }));
 
         Assert.True(ex is TimeoutException or TaskCanceledException);
+    }
+
+    [Fact(DisplayName = "InvokeAsync取消令牌提前取消")]
+    public async Task InvokeAsyncCancelTokenTest()
+    {
+        using var client = new ApiClient($"tcp://127.0.0.1:{_Port}")
+        {
+            Timeout = 5000 // 5s 超时，外部 token 50ms 提前触发
+        };
+
+        using var cts = new CancellationTokenSource(50);
+
+        // Delay 1000ms，外部 token 50ms 取消，应早于 Timeout=5000ms 触发
+        var ex = await Assert.ThrowsAnyAsync<Exception>(
+            () => client.InvokeAsync<String>("ClientTest/Delay", new { ms = 1000 }, cts.Token));
+
+        Assert.True(ex is TimeoutException or TaskCanceledException or OperationCanceledException);
     }
     #endregion
 

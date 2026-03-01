@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading;
 using System.Threading.Tasks;
 using NewLife;
 using NewLife.Data;
@@ -55,36 +54,40 @@ public class ApiDownTests : DisposeBase
         var apis = await _Client.InvokeAsync<String[]>("api/all");
         Assert.NotNull(apis);
 
-        // 记录当前消息，用于判断是否有新消息到达
-        var previousMessage = _Client.LastMessage;
-
         // 服务端主动下发
         var ss = _Server.Server.AllSessions[0];
         var args = new { name = "Stone", age = 36 };
         ss.InvokeOneWay("CustomCommand", args);
 
-        // 等待新消息到达（与之前的消息不同）
-        for (var i = 0; i < 50 && _Client.LastMessage == previousMessage; i++)
+        // 等待消息到达
+        for (var i = 0; i < 50 && !_Client.HasReceivedMessage; i++)
         {
             await Task.Delay(50);
         }
 
-        var msg = _Client.LastMessage;
-        Assert.NotNull(msg);
-        Assert.NotSame(previousMessage, msg);
-
-        // 解码消息
-        var messge = _Client.Encoder.Decode(msg);
-        Assert.NotNull(messge);
-        Assert.Equal("CustomCommand", messge.Action);
-        Assert.Equal(0, messge.Code);
-        Assert.Equal(JsonHelper.ToJson(args), messge.Data.ToStr());
+        Assert.True(_Client.HasReceivedMessage);
+        Assert.Equal("CustomCommand", _Client.LastAction);
+        Assert.Equal(0, _Client.LastCode);
+        Assert.Equal(JsonHelper.ToJson(args), _Client.LastData);
     }
 
     private class MyClient : ApiClient
     {
-        public IMessage LastMessage { get; set; }
+        public Boolean HasReceivedMessage { get; set; }
+        public String? LastAction { get; set; }
+        public Int32 LastCode { get; set; }
+        public String? LastData { get; set; }
 
-        protected override void OnReceive(IMessage message, ApiReceivedEventArgs e) => LastMessage = message;
+        protected override void OnReceive(IMessage message, ApiReceivedEventArgs e)
+        {
+            // OnReceive 退出后 message.Payload 和 e.ApiMessage 会被释放，必须在此处捕获数据
+            if (e.ApiMessage != null)
+            {
+                LastAction = e.ApiMessage.Action;
+                LastCode = e.ApiMessage.Code;
+                LastData = e.ApiMessage.Data?.ToStr();
+                HasReceivedMessage = true;
+            }
+        }
     }
 }

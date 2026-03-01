@@ -62,9 +62,6 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         Name = type.GetDisplayName() ?? type.Name.TrimEnd("Server");
 
         Manager = new ApiManager(this);
-
-        // 注册默认服务控制器
-        Register(new ApiController { Host = this }, null);
     }
 
     /// <summary>使用指定端口实例化网络服务应用接口提供者</summary>
@@ -183,6 +180,10 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     public virtual void Start()
     {
         if (Active) return;
+
+        // 注册默认服务控制器
+        if (Manager.Find("Api/Info") == null)
+            Register(new ApiController { Host = this }, null);
 
         var json = ServiceProvider?.GetService<IJsonHost>() ?? JsonHelper.Default;
         Encoder ??= new JsonEncoder { JsonHost = json };

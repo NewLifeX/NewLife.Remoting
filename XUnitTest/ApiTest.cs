@@ -199,7 +199,7 @@ public class ApiTest : DisposeBase
     public void ServiceProviderTest()
     {
         var cache = new MemoryCache();
-        var ioc = ObjectContainer.Current;
+        var ioc = new ObjectContainer();
         ioc.AddSingleton<ICache>(cache);
         ioc.AddTransient<SPService>();
 

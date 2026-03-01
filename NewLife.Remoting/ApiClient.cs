@@ -177,8 +177,9 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="cancellationToken">取消通知</param>
     /// <remarks>
     /// - 自动确保已 <see cref="Open"/>。
+    /// - 当 <see cref="ApiHost.Timeout"/> 大于 0 时，自动创建超时取消，并与传入的 <paramref name="cancellationToken"/> 联合生效（任意一个触发即取消）。
     /// - 发送失败若返回 401（Unauthorized），将调用 <see cref="OnLoginAsync"/> 进行一次登录后重发（同一连接）。
-    /// - 若配置了 <see cref="RetryPolicy"/> 且 <see cref="MaxRetries"/> &gt; 0，则对非 401 的异常按策略进行可选重试（默认不重试）。
+    /// - 若配置了 <see cref="RetryPolicy"/> 且 <see cref="MaxRetries"/> 大于 0，则对非 401 的异常按策略进行可选重试（默认不重试）。
     /// - 超时会将 <see cref="TaskCanceledException"/> 截断为短消息："[action]超时[Timeout]取消"。
     /// </remarks>
     /// <returns>解码后的返回值，或默认值</returns>
@@ -192,57 +193,76 @@ public class ApiClient : ApiHost, IApiClient
 
         if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
 
-        var attempts = 0;
-        while (true)
+        // 创建超时 token：Timeout > 0 时生效，与外部 token 联合取消（任意一个触发即取消）
+        CancellationTokenSource? timeoutCts = null;
+        CancellationTokenSource? linkedCts = null;
+        if (Timeout > 0)
         {
-            ISocketClient? client = null;
-            try
-            {
-                client = Cluster.Get();
+            timeoutCts = new CancellationTokenSource(Timeout);
+            cancellationToken = cancellationToken.CanBeCanceled
+                ? (linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token)).Token
+                : timeoutCts.Token;
+        }
 
+        try
+        {
+            var attempts = 0;
+            while (true)
+            {
+                ISocketClient? client = null;
                 try
                 {
-                    return await InvokeWithClientAsync<TResult>(client, action, args, 0, cancellationToken).ConfigureAwait(false);
-                }
-                catch (ApiException ex)
-                {
-                    // 这个连接没有鉴权，重新登录后再次调用（不计入重试次数）
-                    if (ex.Code == ApiCode.Unauthorized)
-                    {
-                        await OnLoginAsync(client, true, cancellationToken).ConfigureAwait(false);
+                    client = Cluster.Get();
 
+                    try
+                    {
                         return await InvokeWithClientAsync<TResult>(client, action, args, 0, cancellationToken).ConfigureAwait(false);
                     }
+                    catch (ApiException ex)
+                    {
+                        // 这个连接没有鉴权，重新登录后再次调用（不计入重试次数）
+                        if (ex.Code == ApiCode.Unauthorized)
+                        {
+                            await OnLoginAsync(client, true, cancellationToken).ConfigureAwait(false);
+
+                            return await InvokeWithClientAsync<TResult>(client, action, args, 0, cancellationToken).ConfigureAwait(false);
+                        }
+
+                        throw;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // 针对 TaskCanceledException 输出短消息（除非策略决定重试）
+                    if (RetryPolicy != null && attempts < MaxRetries && RetryPolicy.ShouldRetry(ex, attempts + 1, out var delay, out var refreshClient))
+                    {
+                        attempts++;
+                        // 需要更换连接时，归还当前（如有）
+                        // 注意：这里 client 可能为 null（Get() 之前失败）
+                        if (refreshClient && client != null)
+                        {
+                            Cluster.Return(client);
+                            client = null;
+                        }
+                        if (delay > TimeSpan.Zero) await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    if (ex is TaskCanceledException)
+                        throw new TaskCanceledException($"[{action}]超时[{Timeout:n0}ms]取消，Server={client?.Remote}");
 
                     throw;
                 }
-            }
-            catch (Exception ex)
-            {
-                // 针对 TaskCanceledException 输出短消息（除非策略决定重试）
-                if (RetryPolicy != null && attempts < MaxRetries && RetryPolicy.ShouldRetry(ex, attempts + 1, out var delay, out var refreshClient))
+                finally
                 {
-                    attempts++;
-                    // 需要更换连接时，归还当前（如有）
-                    // 注意：这里 client 可能为 null（Get() 之前失败）
-                    if (refreshClient && client != null)
-                    {
-                        Cluster.Return(client);
-                        client = null;
-                    }
-                    if (delay > TimeSpan.Zero) await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
-                    continue;
+                    if (client != null) Cluster.Return(client);
                 }
-
-                if (ex is TaskCanceledException)
-                    throw new TaskCanceledException($"[{action}]超时[{Timeout:n0}ms]取消，Server={client?.Remote}");
-
-                throw;
             }
-            finally
-            {
-                if (client != null) Cluster.Return(client);
-            }
+        }
+        finally
+        {
+            linkedCts?.Dispose();
+            timeoutCts?.Dispose();
         }
     }
 
@@ -250,11 +270,7 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
     /// <returns>解码后的返回值，或默认值</returns>
-    public virtual TResult? Invoke<TResult>(String action, Object? args = null)
-    {
-        using var source = new CancellationTokenSource(Timeout);
-        return InvokeAsync<TResult>(action, args, source.Token).ConfigureAwait(false).GetAwaiter().GetResult();
-    }
+    public virtual TResult? Invoke<TResult>(String action, Object? args = null) => InvokeAsync<TResult>(action, args).ConfigureAwait(false).GetAwaiter().GetResult();
 
     /// <summary>单向发送。同步调用，不等待返回</summary>
     /// <param name="action">服务操作</param>
@@ -313,8 +329,7 @@ public class ApiClient : ApiHost, IApiClient
         {
             // 发起异步请求，等待返回
             rs = (await client.SendMessageAsync(msg, cancellationToken).ConfigureAwait(false)) as IMessage;
-
-            if (rs == null) return default;
+            if (rs == null || rs.Payload == null) return default;
         }
         catch (AggregateException aggex)
         {

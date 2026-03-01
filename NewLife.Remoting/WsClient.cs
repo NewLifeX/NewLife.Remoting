@@ -138,6 +138,9 @@ public class WsClient : ApiHost, IApiClient
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
     /// <param name="cancellationToken">取消通知</param>
+    /// <remarks>
+    /// 当 <see cref="ApiHost.Timeout"/> 大于 0 时，自动创建超时取消，并与传入的 <paramref name="cancellationToken"/> 联合生效（任意一个触发即取消）。
+    /// </remarks>
     /// <returns></returns>
     public virtual async Task<TResult?> InvokeAsync<TResult>(String action, Object? args = null, CancellationToken cancellationToken = default)
     {
@@ -149,33 +152,52 @@ public class WsClient : ApiHost, IApiClient
 
         if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
 
-        var act = action;
-        var client = Cluster.Get();
+        // 创建超时 token：Timeout > 0 时生效，与外部 token 联合取消（任意一个触发即取消）
+        CancellationTokenSource? timeoutCts = null;
+        CancellationTokenSource? linkedCts = null;
+        if (Timeout > 0)
+        {
+            timeoutCts = new CancellationTokenSource(Timeout);
+            cancellationToken = cancellationToken.CanBeCanceled
+                ? (linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token)).Token
+                : timeoutCts.Token;
+        }
+
         try
         {
-            return await InvokeWithClientAsync<TResult>(client, act, args, 0, cancellationToken).ConfigureAwait(false);
-        }
-        catch (ApiException ex)
-        {
-            // 这个连接没有鉴权，重新登录后再次调用
-            if (ex.Code == ApiCode.Unauthorized)
+            var act = action;
+            var client = Cluster.Get();
+            try
             {
-                //await Cluster.InvokeAsync(client => OnLoginAsync(client, true)).ConfigureAwait(false);
-                await OnLoginAsync(client, true).ConfigureAwait(false);
-
                 return await InvokeWithClientAsync<TResult>(client, act, args, 0, cancellationToken).ConfigureAwait(false);
             }
+            catch (ApiException ex)
+            {
+                // 这个连接没有鉴权，重新登录后再次调用
+                if (ex.Code == ApiCode.Unauthorized)
+                {
+                    //await Cluster.InvokeAsync(client => OnLoginAsync(client, true)).ConfigureAwait(false);
+                    await OnLoginAsync(client, true).ConfigureAwait(false);
 
-            throw;
-        }
-        // 截断任务取消异常，避免过长
-        catch (TaskCanceledException)
-        {
-            throw new TaskCanceledException($"[{act}]超时[{Timeout:n0}ms]取消");
+                    return await InvokeWithClientAsync<TResult>(client, act, args, 0, cancellationToken).ConfigureAwait(false);
+                }
+
+                throw;
+            }
+            // 截断任务取消异常，避免过长
+            catch (TaskCanceledException)
+            {
+                throw new TaskCanceledException($"[{act}]超时[{Timeout:n0}ms]取消");
+            }
+            finally
+            {
+                Cluster.Return(client);
+            }
         }
         finally
         {
-            Cluster.Return(client);
+            linkedCts?.Dispose();
+            timeoutCts?.Dispose();
         }
     }
 
