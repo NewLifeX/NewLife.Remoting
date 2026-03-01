@@ -75,37 +75,38 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
         // Api解码消息得到Action和参数
         if (e.Message is not IMessage msg || msg.Reply) return;
 
-        // 连接复用
-        if (_Host is ApiServer svr && svr.Multiplex)
-        {
-            // 如果消息使用了原来SEAE的数据包，需要拷贝，避免多线程冲突
-            // 也可能在粘包处理时，已经拷贝了一次
-            if (e.Packet is ArrayPacket ap)
-            {
-                if (msg.Payload is ArrayPacket ap2 && ap.Buffer == ap2.Buffer)
-                {
-                    msg.Payload = ap2.Clone();
-                }
-            }
+        // 因为底层会把DefaultMessage还给池里，不能给其它线程使用。暂时不支持连接复用，后续再改进
+        //// 连接复用
+        //if (_Host is ApiServer svr && svr.Multiplex)
+        //{
+        //    // 如果消息使用了原来SEAE的数据包，需要拷贝，避免多线程冲突
+        //    // 也可能在粘包处理时，已经拷贝了一次
+        //    if (e.Packet is ArrayPacket ap)
+        //    {
+        //        if (msg.Payload is ArrayPacket ap2 && ap.Buffer == ap2.Buffer)
+        //        {
+        //            msg.Payload = ap2.Clone();
+        //        }
+        //    }
 
-            // 不要捕获上下文，避免多次请求串到一起
-            ThreadPool.UnsafeQueueUserWorkItem(m =>
-            {
-                try
-                {
-                    // Process 返回的 IMessage 持有 IOwnerPacket 所有权（通过 Payload 链），
-                    // using 确保发送完毕后释放，级联归还 ArrayPool 缓冲区
-                    using var rs = _Host.Process(this, (m as IMessage)!, this);
-                    if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
-                }
-                catch (Exception ex)
-                {
-                    //XTrace.WriteException(ex);
-                    OnError(this, new ExceptionEventArgs("", ex));
-                }
-            }, msg);
-        }
-        else
+        //    // 不要捕获上下文，避免多次请求串到一起
+        //    ThreadPool.UnsafeQueueUserWorkItem(m =>
+        //    {
+        //        try
+        //        {
+        //            // Process 返回的 IMessage 持有 IOwnerPacket 所有权（通过 Payload 链），
+        //            // using 确保发送完毕后释放，级联归还 ArrayPool 缓冲区
+        //            using var rs = _Host.Process(this, (m as IMessage)!, this);
+        //            if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
+        //        }
+        //        catch (Exception ex)
+        //        {
+        //            //XTrace.WriteException(ex);
+        //            OnError(this, new ExceptionEventArgs("", ex));
+        //        }
+        //    }, msg);
+        //}
+        //else
         {
             // 同步路径：using 释放响应消息，级联归还 Payload 链中的 IOwnerPacket 缓冲区
             using var rs = _Host.Process(this, msg, this);
