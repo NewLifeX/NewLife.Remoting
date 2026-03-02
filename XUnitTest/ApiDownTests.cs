@@ -20,24 +20,23 @@ public class ApiDownTests : DisposeBase
 
     public ApiDownTests()
     {
-        var port = Rand.Next(10000, 65535);
-
-        _Server = new ApiServer(port)
+        _Server = new ApiServer(0)
         {
+            Multiplex = false,
             Log = XTrace.Log,
-            //EncoderLog = XTrace.Log,
+            EncoderLog = XTrace.Log,
             ShowError = true,
         };
         _Server.Start();
 
-        _Uri = $"tcp://127.0.0.1:{port}";
+        _Uri = $"tcp://127.0.0.1:{_Server.Port}";
 
-        var client = new MyClient()
+        var client = new MyClient
         {
-            Servers = new[] { _Uri },
-            //Log = XTrace.Log
+            Servers = [_Uri],
+            Log = XTrace.Log,
+            EncoderLog = XTrace.Log,
         };
-        //client.EncoderLog = XTrace.Log;
         _Client = client;
     }
 
@@ -53,6 +52,7 @@ public class ApiDownTests : DisposeBase
     {
         var apis = await _Client.InvokeAsync<String[]>("api/all");
         Assert.NotNull(apis);
+        _Client.HasReceivedMessage = false;
 
         // 服务端主动下发
         var ss = _Server.Server.AllSessions[0];
@@ -64,6 +64,7 @@ public class ApiDownTests : DisposeBase
         {
             await Task.Delay(50);
         }
+        await Task.Delay(50);
 
         Assert.True(_Client.HasReceivedMessage);
         Assert.Equal("CustomCommand", _Client.LastAction);
@@ -80,6 +81,8 @@ public class ApiDownTests : DisposeBase
 
         protected override void OnReceive(IMessage message, ApiReceivedEventArgs e)
         {
+            XTrace.WriteLine("ApiDownTest收到：{0}", e.ApiMessage.Action);
+
             // OnReceive 退出后 message.Payload 和 e.ApiMessage 会被释放，必须在此处捕获数据
             if (e.ApiMessage != null)
             {
