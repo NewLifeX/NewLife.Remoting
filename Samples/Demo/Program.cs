@@ -12,12 +12,13 @@ internal class Program
     static void Main(String[] args)
     {
         XTrace.UseConsole();
+        XTrace.WriteLine("RPC普通测试");
 
         var netUri = new NetUri(NetType.Tcp, IPAddress.Any, 5001);
         using var server = new ApiServer(netUri)
         {
             Log = XTrace.Log,
-            EncoderLog = XTrace.Log,
+            //EncoderLog = XTrace.Log,
             ShowError = true
         };
         server.Register<BigController>();
@@ -33,18 +34,19 @@ internal class Program
         var client = new MyClient("tcp://127.0.0.1:5001")
         {
             Log = XTrace.Log,
-            EncoderLog = XTrace.Log
+            //EncoderLog = XTrace.Log
         };
         client.Received += (s, e) =>
         {
-            XTrace.WriteLine("通知：{0} 参数：{1}", e.ApiMessage?.Action, e.ApiMessage?.Data?.ToStr());
+            var msg = e.ApiMessage!;
+            XTrace.WriteLine("动作：{0} 参数[{1}]：{2}", msg.Action, msg.Data.Total, msg.Data?.ToStr(null, 0, 64));
         };
 
         var rs = client.Invoke<Int32>("Big/Sum", new { a = 123, b = 456 });
         XTrace.WriteLine("{0}+{1}={2}", 123, 456, rs);
 
         //Big Json Test 当返回值json超级大10MB 报错：System.Exception:“解码错误，无法找到服务名！” 小json一切正常
-        var resBigJsonTest = client.Invoke<string>("Big/BigJsonTest");
+        var resBigJsonTest = client.Invoke<String>("Big/BigJsonTest");
         XTrace.WriteLine($"resBigJsonTest.Length={resBigJsonTest.Length}");
     }
 
@@ -71,7 +73,6 @@ internal class Program
         }
         public String ToUpper(String str) => str.ToUpper();
 
-
         public IPacket Test(IPacket pk)
         {
             var buf = pk.ReadBytes().Select(e => (Byte)(e ^ 'x')).ToArray();
@@ -84,17 +85,17 @@ internal class Program
         /// 当循环10次拼接  正常
         /// </summary>
         /// <returns></returns>
-        public string BigJsonTest()
+        public String BigJsonTest()
         {
-            StringBuilder sb = new StringBuilder();
+            var sb = new StringBuilder();
             //拼接10万次   就报错了
-            for (int i = 0; i < 10000; i++)
+            for (var i = 0; i < 10000; i++)
             {
                 sb.AppendLine("big json big json big json big json big json big json big json big json big json big json big json big json big json big json big json big json big json big json big json ");
             }
-            string str = sb.ToString();
-            File.WriteAllText(AppDomain.CurrentDomain.BaseDirectory + "bigJsonTest.txt", str);
-            Console.WriteLine($"sb.Length={str.Length}");
+            var str = sb.ToString();
+            //File.WriteAllText(AppDomain.CurrentDomain.BaseDirectory + "bigJsonTest.txt", str);
+            XTrace.WriteLine($"sb.Length={str.Length}");
             return str;
         }
     }
