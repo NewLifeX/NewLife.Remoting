@@ -250,6 +250,8 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// - 单向请求（<c>OneWay=true</c>）不返回响应；
     /// - 在 finally 记录超过 <see cref="ApiHost.SlowTrace"/> 的慢处理日志（Action/Code/耗时ms）；
     /// - 若 <see cref="UseHttpStatus"/> 为 true，则使用 HTTP 状态码表达结果。
+    /// 
+    /// 注意：result 的缓冲区所有权会转移给返回的 response，由上层 using IMessage 级联释放。
     /// </remarks>
     /// <param name="session">网络会话</param>
     /// <param name="msg">消息</param>
@@ -260,13 +262,17 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         if (msg.Reply) return null;
 
         var enc = session["Encoder"] as IEncoder ?? Encoder;
-        using var request = enc.Decode(msg);
+
+        // 解码得到请求报文。不能 using request，因为 request.Data 是 msg.Payload 的切片，
+        // 当处理器直接返回 IPacket（如 Echo）时，result 就是 request.Data 的同一引用，
+        // CreateResponse 会将 result 直接挂载到 response.Payload 链上，
+        // 若此处 using 提前释放 request.Data，response 发送时将引用已释放的缓冲区
+        var request = enc.Decode(msg);
         if (request == null || request.Action.IsNullOrEmpty()) return null;
 
-        // Action动作名必须是Ascii字符，跳过扫描乱码
+        // 动作名必须是 ASCII，跳过乱码
         if (!IsAscii(request.Action)) return null;
 
-        // 根据动作名，开始跟踪
         using var span = Tracer?.NewSpan("rps:" + request.Action, request.Data);
 
         var code = 0;
@@ -276,11 +282,11 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         IMessage? response = null;
         try
         {
+            // 执行请求
             try
             {
                 Received?.Invoke(this, new ApiReceivedEventArgs { Session = session, Message = msg, ApiMessage = request });
 
-                // 执行请求
                 result = OnProcess(session, request.Action, request.Data, msg, serviceProvider);
             }
             catch (Exception ex)
@@ -289,7 +295,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
 
                 if (ShowError) WriteLog("{0}", ex);
 
-                // 支持自定义错误
+                // 支持自定义错误码
                 if (ex is ApiException aex)
                 {
                     code = aex.Code;
@@ -298,18 +304,16 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
                 else
                 {
                     code = 500;
-                    result = ex.Message;
-
-                    // 特殊处理数据库异常，避免泄漏SQL语句
-                    if (ex.GetType().FullName == "XCode.Exceptions.XSqlException")
-                        result = "数据库SQL错误";
+                    // 数据库异常脱敏，避免泄漏 SQL 语句
+                    result = ex.GetType().FullName == "XCode.Exceptions.XSqlException"
+                        ? "数据库SQL错误"
+                        : ex.Message;
                 }
 
-                // 跟踪异常
                 span?.SetError(ex, request.Data?.ToStr());
             }
 
-            // 单向请求无需响应，但 result 可能是 IOwnerPacket，需要直接释放归还 ArrayPool
+            // 单向请求无需响应，释放可能的 IOwnerPacket 归还 ArrayPool
             if (msg.OneWay)
             {
                 result.TryDispose();
@@ -317,11 +321,9 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
                 return null;
             }
 
-            // 处理http封包方式
             if (enc is HttpEncoder httpEncoder) httpEncoder.UseHttpStatus = UseHttpStatus;
 
-            // 编码响应。result（若为 IOwnerPacket）的所有权转移给 IMessage.Payload 链，
-            // 由上层调用者通过 using IMessage 统一释放（级联 Dispose 到 OwnerPacket）
+            // 编码响应，result 所有权转移到 response.Payload 链
             response = enc.CreateResponse(msg, request.Action, code, result);
             return response;
         }
@@ -333,11 +335,10 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         finally
         {
             var msCost = st.StopCount(sw) / 1000;
-            // 慢处理日志：包含 Action、最终 Code 与耗时ms。用于定位服务端热点与慢点。
-            if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢处理[{request?.Action}]，Code={code}，耗时{msCost:n0}ms");
+            if (SlowTrace > 0 && msCost >= SlowTrace)
+                WriteLog($"慢处理[{request?.Action}]，Code={code}，耗时{msCost:n0}ms");
 
-            // CreateResponse 异常时，result 未纳入响应消息，需要释放归还 ArrayPool。
-            // 正常响应路径 response!=null，不释放；OneWay 路径已在上面释放并置空。
+            // CreateResponse 异常时 result 未纳入响应，需要释放归还 ArrayPool
             if (result != null && response == null) result.TryDispose();
         }
     }

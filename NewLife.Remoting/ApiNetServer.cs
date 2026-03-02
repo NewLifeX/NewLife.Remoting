@@ -72,46 +72,77 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
     {
         LastActive = DateTime.Now;
 
-        // Api解码消息得到Action和参数
+        // 解码得到请求消息，忽略响应消息
         if (e.Message is not IMessage msg || msg.Reply) return;
 
-        // 因为底层会把DefaultMessage还给池里，不能给其它线程使用。暂时不支持连接复用，后续再改进
-        //// 连接复用
-        //if (_Host is ApiServer svr && svr.Multiplex)
-        //{
-        //    // 如果消息使用了原来SEAE的数据包，需要拷贝，避免多线程冲突
-        //    // 也可能在粘包处理时，已经拷贝了一次
-        //    if (e.Packet is ArrayPacket ap)
-        //    {
-        //        if (msg.Payload is ArrayPacket ap2 && ap.Buffer == ap2.Buffer)
-        //        {
-        //            msg.Payload = ap2.Clone();
-        //        }
-        //    }
+        // 连接复用
+        if (_Host is ApiServer svr && svr.Multiplex)
+        {
+            // 防御性检查：正常情况下 Payload 不会为 null（即使无参调用，SRMP 协议头也已填充），
+            // 若此处触发，说明下层编解码实现存在设计缺陷
+            if (msg.Payload == null)
+            {
+                WriteLog("Payload 不应为 null，请检查下层编解码实现");
+                return;
+            }
 
-        //    // 不要捕获上下文，避免多次请求串到一起
-        //    ThreadPool.UnsafeQueueUserWorkItem(m =>
-        //    {
-        //        try
-        //        {
-        //            // Process 返回的 IMessage 持有 IOwnerPacket 所有权（通过 Payload 链），
-        //            // using 确保发送完毕后释放，级联归还 ArrayPool 缓冲区
-        //            using var rs = _Host.Process(this, (m as IMessage)!, this);
-        //            if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
-        //        }
-        //        catch (Exception ex)
-        //        {
-        //            //XTrace.WriteException(ex);
-        //            OnError(this, new ExceptionEventArgs("", ex));
-        //        }
-        //    }, msg);
-        //}
-        //else
+            // 投递线程池前确保 Payload 独立持有内存，避免 SAEA buffer 或 ArrayPool 内存被提前回收
+            // 如果消息使用了原来SEAE的数据包，需要拷贝，避免多线程冲突
+            // 也可能在粘包处理时，已经拷贝了一次
+            EnsureOwnedPayload(msg, e.Packet);
+
+            // 不要捕获上下文，避免多次请求串到一起
+            ThreadPool.UnsafeQueueUserWorkItem(m =>
+            {
+                try
+                {
+                    // 防御性检查：m 必然是 IMessage 且 Payload 非 null，理论上不会执行到此处，
+                    // 若触发则说明下层消息投递逻辑存在设计缺陷
+                    if (m is not IMessage msg2 || msg2.Payload == null)
+                    {
+                        WriteLog("线程池回调收到非法消息，不应发生，请检查下层消息投递实现");
+                        return;
+                    }
+
+                    // Process 返回的 IMessage 持有 IOwnerPacket 所有权（通过 Payload 链），
+                    // using 确保发送完毕后释放，级联归还 ArrayPool 缓冲区
+                    using var rs = _Host.Process(this, msg2, this);
+                    if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
+
+                    // 归还消息对象到池
+                    if (m is DefaultMessage dm) DefaultMessage.Return(dm);
+                }
+                catch (Exception ex)
+                {
+                    //XTrace.WriteException(ex);
+                    OnError(this, new ExceptionEventArgs("", ex));
+                }
+            }, msg);
+        }
+        else
         {
             // 同步路径：using 释放响应消息，级联归还 Payload 链中的 IOwnerPacket 缓冲区
             using var rs = _Host.Process(this, msg, this);
             if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
+
+            // 归还消息对象到池
+            if (msg is DefaultMessage dm) DefaultMessage.Return(dm);
         }
+    }
+
+    /// <summary>确保消息 Payload 独立持有内存，避免与 SAEA 缓冲区或 ArrayPool 租用内存共享导致多线程冲突</summary>
+    /// <param name="msg">待处理的请求消息</param>
+    /// <param name="saeaPacket">本次 SAEA 接收的原始数据包</param>
+    private static void EnsureOwnedPayload(IMessage msg, IPacket? saeaPacket)
+    {
+        if (msg.Payload == null || saeaPacket is not ArrayPacket ap) return;
+
+        if (msg.Payload is ArrayPacket ap2 && ap.Buffer == ap2.Buffer)
+            // 小数据：Payload 直接切片自 SAEA buffer，异步路径下 buffer 可能被下一次接收复用
+            msg.Payload = ap2.Clone();
+        else if (msg.Payload is IOwnerPacket)
+            // 大数据：OwnerPacket 持有 ArrayPool 租用内存，OnReceive 同步返回后管道会归还
+            msg.Payload = msg.Payload.Clone();
     }
 
     /// <summary>单向远程调用，无需等待返回</summary>

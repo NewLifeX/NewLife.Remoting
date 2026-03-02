@@ -328,26 +328,43 @@ public class ApiServerTests
     public async Task ServiceProviderTest()
     {
         var cache = new MemoryCache();
-        var ioc = ObjectContainer.Current;
+        cache["Name"] = "Stone";
+
+        // 使用自定义ObjectContainer，避免被 ObjectContainer.Current 意外解析
+        var ioc = new ObjectContainer();
         ioc.AddSingleton<ICache>(cache);
-        ioc.AddTransient<DIService>();
+        ioc.AddSingleton<DIService>();
 
         using var server = new ApiServer(0)
         {
             Log = XTrace.Log,
+            //EncoderLog = XTrace.Log,
+            ShowError = true,
             ServiceProvider = ioc.BuildServiceProvider(),
         };
         server.Register<DIController>();
         server.Start();
 
-        using var client = new ApiClient($"tcp://127.0.0.1:{server.Port}");
-        var rs = await client.InvokeAsync<Int64>("DI/Increment", new { key = "test", value = 100 });
+        Assert.True(server.Port > 0, $"服务器端口应大于0，实际值：{server.Port}");
 
+        using var client = new ApiClient($"tcp://127.0.0.1:{server.Port}");
+        //client.Log = XTrace.Log;
+        //client.EncoderLog = XTrace.Log;
+
+        // 验证连通性和服务注册
+        var apis = await client.InvokeAsync<String[]>("Api/All");
+        Assert.NotNull(apis);
+        Assert.True(apis.Any(e => e.Contains("DI/Increment")), $"DI/Increment 未注册: [{String.Join(", ", apis)}]");
+
+        var rs = await client.InvokeAsync<Int64>("DI/Increment", new { key = "test_di", value = 100 });
+
+        Assert.Equal(100, cache["test_di"].ToInt());
         Assert.Equal(100, rs);
 
         // 再次调用应累加
-        rs = await client.InvokeAsync<Int64>("DI/Increment", new { key = "test", value = 50 });
+        rs = await client.InvokeAsync<Int64>("DI/Increment", new { key = "test_di", value = 50 });
         Assert.Equal(150, rs);
+        Assert.Equal(150, cache["test_di"].ToInt());
     }
     #endregion
 
@@ -434,22 +451,14 @@ public class ApiServerTests
         public Int32 Add(Int32 a, Int32 b) => a + b;
     }
 
-    class DIController
+    class DIController(DIService service)
     {
-        private readonly DIService _service;
-
-        public DIController(DIService service) => _service = service;
-
-        public Int64 Increment(String key, Int64 value) => _service.Increment(key, value);
+        public Int64 Increment(String key, Int64 value) => service.Increment(key, value);
     }
 
-    class DIService
+    class DIService(ICache cache)
     {
-        private readonly ICache _cache;
-
-        public DIService(ICache cache) => _cache = cache;
-
-        public Int64 Increment(String key, Int64 value) => _cache.Increment(key, value);
+        public Int64 Increment(String key, Int64 value) => cache.Increment(key, value);
     }
 
     class ErrorController

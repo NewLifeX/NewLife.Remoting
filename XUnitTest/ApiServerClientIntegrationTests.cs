@@ -4,14 +4,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using NewLife;
-using NewLife.Caching;
 using NewLife.Data;
 using NewLife.Log;
 using NewLife.Messaging;
-using NewLife.Model;
 using NewLife.Remoting;
 using NewLife.Security;
-using NewLife.Serialization;
 using Xunit;
 
 namespace XUnitTest.Remoting;
@@ -26,6 +23,7 @@ public class ApiServerClientIntegrationTests : DisposeBase
     {
         _Server = new ApiServer(0)
         {
+            //Multiplex = false,
             Log = XTrace.Log,
             ShowError = true,
         };
