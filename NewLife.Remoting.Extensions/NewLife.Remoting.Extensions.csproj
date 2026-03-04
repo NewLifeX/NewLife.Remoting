@@ -3,8 +3,8 @@
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <TargetFrameworks>net6.0;net7.0;net8.0;net9.0;net10.0</TargetFrameworks>
-    <AssemblyTitle>协议通信扩展库</AssemblyTitle>
-    <Description>提供WebApi应用级服务端</Description>
+    <AssemblyTitle>远程通信服务扩展</AssemblyTitle>
+    <Description>提供设备接入控制器、令牌服务与会话管理扩展</Description>
     <Company>新生命开发团队</Company>
     <Copyright>©2002-2026 NewLife</Copyright>
     <VersionPrefix>3.7</VersionPrefix>

@@ -1,10 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <AssemblyTitle>客户端桌面应用</AssemblyTitle>
-    <Description>CS架构的客户端桌面应用，给用户提供便捷操作，可对接硬件</Description>
+    <AssemblyTitle>零代桌面客户端</AssemblyTitle>
+    <Description>提供设备运维、指令交互与业务操作的桌面入口</Description>
     <Company>新生命开发团队</Company>
     <Copyright>©2002-2026 NewLife</Copyright>
     <VersionPrefix>1.0</VersionPrefix>

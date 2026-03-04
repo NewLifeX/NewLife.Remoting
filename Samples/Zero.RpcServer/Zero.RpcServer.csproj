@@ -3,8 +3,8 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
-    <AssemblyTitle>RPC服务端</AssemblyTitle>
-    <Description>高性能，长连接，数据接口</Description>
+    <AssemblyTitle>高性能RPC服务</AssemblyTitle>
+    <Description>提供长连接高吞吐接口服务与远程调用能力</Description>
     <Company>新生命开发团队</Company>
     <Copyright>©2002-2026 NewLife</Copyright>
     <VersionPrefix>1.0</VersionPrefix>
