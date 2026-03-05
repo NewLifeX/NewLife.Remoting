@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NewLife.Remoting\NewLife.Remoting.csproj" />
+    <ProjectReference Include="..\NewLife.Remoting.Extensions\NewLife.Remoting.Extensions.csproj" />
   </ItemGroup>
 
 </Project>
