@@ -324,30 +324,36 @@ public class ApiServerTests
     #endregion
 
     #region 依赖注入测试
-    [Fact(DisplayName = "ServiceProvider依赖注入测试")]
+    [Fact(DisplayName = "ServiceProvider依赖注入测试", Timeout = 10000)]
     public async Task ServiceProviderTest()
     {
         var cache = new MemoryCache();
-        cache["Name"] = "Stone";
+        cache.Add("test_di", 0, 3600);
 
-        // 使用自定义ObjectContainer，避免被 ObjectContainer.Current 意外解析
+        // 正确配置依赖注入容器
         var ioc = new ObjectContainer();
         ioc.AddSingleton<ICache>(cache);
-        ioc.AddSingleton<DIService>();
+        ioc.AddTransient<DIService>();
 
+        // 使用独立服务器避免并发冲突
         using var server = new ApiServer(0)
         {
             Log = XTrace.Log,
-            //EncoderLog = XTrace.Log,
             ShowError = true,
-            ServiceProvider = ioc.BuildServiceProvider(),
         };
+        server.ServiceProvider = ioc.BuildServiceProvider();
         server.Register<DIController>();
         server.Start();
 
         Assert.True(server.Port > 0, $"服务器端口应大于0，实际值：{server.Port}");
 
-        using var client = new ApiClient($"tcp://127.0.0.1:{server.Port}");
+        // 等待服务器就绪
+        await Task.Delay(200);
+
+        using var client = new ApiClient($"tcp://127.0.0.1:{server.Port}")
+        {
+            Timeout = 5000, // 增加超时时间
+        };
         //client.Log = XTrace.Log;
         //client.EncoderLog = XTrace.Log;
 

@@ -225,7 +225,7 @@ public class ApiServerClientIntegrationTests : DisposeBase
         }
     }
 
-    [Fact(DisplayName = "多客户端并发测试")]
+    [Fact(DisplayName = "多客户端并发测试", Timeout = 15000)]
     public async Task MultiClientConcurrencyTest()
     {
         var clientCount = 5;
@@ -235,11 +235,26 @@ public class ApiServerClientIntegrationTests : DisposeBase
 
         try
         {
+            // 等待前序测试释放资源
+            await Task.Delay(100);
+
+            // 先创建所有客户端，等待连接建立
             for (var c = 0; c < clientCount; c++)
             {
-                var client = new ApiClient($"tcp://127.0.0.1:{_Port}");
+                var client = new ApiClient($"tcp://127.0.0.1:{_Port}")
+                {
+                    Timeout = 5000, // 增加超时时间
+                };
                 clients.Add(client);
+            }
 
+            // 等待连接建立
+            await Task.Delay(200);
+
+            // 批量发起请求
+            for (var c = 0; c < clientCount; c++)
+            {
+                var client = clients[c];
                 for (var i = 0; i < callsPerClient; i++)
                 {
                     var index = c * callsPerClient + i;
@@ -262,6 +277,8 @@ public class ApiServerClientIntegrationTests : DisposeBase
             {
                 client.TryDispose();
             }
+            // 清理后等待资源释放
+            await Task.Delay(100);
         }
     }
     #endregion

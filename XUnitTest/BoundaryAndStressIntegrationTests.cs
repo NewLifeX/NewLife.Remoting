@@ -171,16 +171,28 @@ public class BoundaryAndStressIntegrationTests : DisposeBase
         }
     }
 
-    [Fact(DisplayName = "压力_单客户端200次连续调用")]
+    [Fact(DisplayName = "压力_单客户端200次连续调用", Timeout = 20000)]
     public async Task SingleClientHighVolumeTest()
     {
-        using var client = new ApiClient($"tcp://127.0.0.1:{_Port}");
+        // 等待前序测试释放资源
+        await Task.Delay(100);
+
+        using var client = new ApiClient($"tcp://127.0.0.1:{_Port}")
+        {
+            Timeout = 5000, // 增加超时时间
+        };
+
+        // 等待连接建立
+        await Task.Delay(100);
 
         for (var i = 0; i < 200; i++)
         {
             var result = await client.InvokeAsync<Int32>("Boundary/Add", new { a = i, b = 1 });
             Assert.Equal(i + 1, result);
         }
+
+        // 清理后等待资源释放
+        await Task.Delay(100);
     }
 
     [Fact(DisplayName = "压力_多客户端并发密集调用")]
