@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.WebSockets;
 using System.Text;
+using NewLife.Collections;
 using NewLife.Data;
 using NewLife.Log;
 using NewLife.Messaging;
@@ -56,6 +57,9 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
 
     /// <summary>服务提供者。用于获取 JSON 序列化器等服务</summary>
     public IServiceProvider? ServiceProvider { get; set; }
+
+    /// <summary>WebSocket接收缓冲区大小。默认64k</summary>
+    public Int32 BufferSize { get; set; } = 64 * 1024;
 
     /// <summary>取消令牌源。用于取消 WebSocket 等待循环</summary>
     private CancellationTokenSource? _source;
@@ -238,34 +242,41 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
     /// <param name="source">取消令牌源</param>
     private async Task ReceiveLoopAsync(IPEndPoint remote, CancellationTokenSource source)
     {
-        var buf = new Byte[64 * 1024];
-        while (!source.IsCancellationRequested && socket.State == WebSocketState.Open)
+        var buf = Pool.Shared.Rent(BufferSize);
+        try
         {
-            // try-catch 放在循环内，避免单次异常退出循环
-            try
+            while (!source.IsCancellationRequested && socket.State == WebSocketState.Open)
             {
-                var data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), source.Token).ConfigureAwait(false);
-                if (data.MessageType == WebSocketMessageType.Close) break;
-
-                if (data.MessageType is WebSocketMessageType.Text or WebSocketMessageType.Binary)
+                // try-catch 放在循环内，避免单次异常退出循环
+                try
                 {
-                    using var span = Tracer?.NewSpan("cmd:Ws.Receive", $"[{data.MessageType}]{remote}", data.Count);
+                    var data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), source.Token).ConfigureAwait(false);
+                    if (data.MessageType == WebSocketMessageType.Close) break;
 
-                    var pk = new ArrayPacket(buf, 0, data.Count);
-                    await OnReceive(pk, source.Token).ConfigureAwait(false);
+                    if (data.MessageType is WebSocketMessageType.Text or WebSocketMessageType.Binary)
+                    {
+                        using var span = Tracer?.NewSpan("cmd:Ws.Receive", $"[{data.MessageType}]{remote}", data.Count);
+
+                        var pk = new ArrayPacket(buf, 0, data.Count);
+                        await OnReceive(pk, source.Token).ConfigureAwait(false);
+                    }
+                }
+                catch (OperationCanceledException) { break; }
+                catch (ObjectDisposedException) { break; }
+                catch (WebSocketException ex) when (!source.IsCancellationRequested)
+                {
+                    Log?.WriteLog("WebSocket异常", false, ex.Message);
+                    break;
+                }
+                catch (Exception ex) when (!source.IsCancellationRequested)
+                {
+                    XTrace.WriteException(ex);
                 }
             }
-            catch (OperationCanceledException) { break; }
-            catch (ObjectDisposedException) { break; }
-            catch (WebSocketException ex) when (!source.IsCancellationRequested)
-            {
-                Log?.WriteLog("WebSocket异常", false, ex.Message);
-                break;
-            }
-            catch (Exception ex) when (!source.IsCancellationRequested)
-            {
-                XTrace.WriteException(ex);
-            }
+        }
+        finally
+        {
+            Pool.Shared.Return(buf);
         }
 
         // 通知取消

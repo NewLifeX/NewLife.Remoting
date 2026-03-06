@@ -1,5 +1,6 @@
 ﻿#if NETCOREAPP
 using System.Net.WebSockets;
+using NewLife.Collections;
 using NewLife.Data;
 using NewLife.Log;
 using WebSocket = System.Net.WebSockets.WebSocket;
@@ -15,6 +16,9 @@ namespace NewLife.Remoting.Clients;
 /// <param name="client">客户端基类实例</param>
 class WsChannelCore(ClientBase client) : WsChannel(client)
 {
+    /// <summary>WebSocket接收缓冲区大小。默认64k</summary>
+    public Int32 BufferSize { get; set; } = 64 * 1024;
+
     private readonly ClientBase _client = client;
 
     /// <summary>销毁资源</summary>
@@ -99,32 +103,39 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
     private async Task DoPull(WebSocket socket, CancellationTokenSource source)
     {
         DefaultSpan.Current = null;
-        var buf = new Byte[64 * 1024];
-        while (!source.IsCancellationRequested && socket.State == WebSocketState.Open)
+        var buf = Pool.Shared.Rent(BufferSize);
+        try
         {
-            // try-catch 放在循环内，避免单次异常退出循环
-            try
+            while (!source.IsCancellationRequested && socket.State == WebSocketState.Open)
             {
-                var data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), source.Token).ConfigureAwait(false);
-                if (data.MessageType == WebSocketMessageType.Close) break;
-                if (data.MessageType is WebSocketMessageType.Text or WebSocketMessageType.Binary)
+                // try-catch 放在循环内，避免单次异常退出循环
+                try
                 {
-                    var pk = new ArrayPacket(buf, 0, data.Count);
-                    await OnReceive(pk, source.Token).ConfigureAwait(false);
+                    var data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), source.Token).ConfigureAwait(false);
+                    if (data.MessageType == WebSocketMessageType.Close) break;
+                    if (data.MessageType is WebSocketMessageType.Text or WebSocketMessageType.Binary)
+                    {
+                        var pk = new ArrayPacket(buf, 0, data.Count);
+                        await OnReceive(pk, source.Token).ConfigureAwait(false);
+                    }
+                }
+                catch (ThreadAbortException) { break; }
+                catch (ThreadInterruptedException) { break; }
+                catch (TaskCanceledException) { }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    if (source.IsCancellationRequested) break;
+
+                    if (ex is not WebSocketException || socket.State != WebSocketState.Aborted)
+                        _client.Log?.Error("[{0}]WebSocket异常[{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
+                    if (ex is WebSocketException) break;
                 }
             }
-            catch (ThreadAbortException) { break; }
-            catch (ThreadInterruptedException) { break; }
-            catch (TaskCanceledException) { }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                if (source.IsCancellationRequested) break;
-
-                if (ex is not WebSocketException || socket.State != WebSocketState.Aborted)
-                    _client.Log?.Error("[{0}]WebSocket异常[{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
-                if (ex is WebSocketException) break;
-            }
+        }
+        finally
+        {
+            Pool.Shared.Return(buf);
         }
 
         // 通知取消

@@ -42,6 +42,9 @@ public class WsClient : ApiHost, IApiClient
 
     /// <summary>调用统计</summary>
     public ICounter? StatInvoke { get; set; }
+
+    /// <summary>WebSocket接收缓冲区大小。默认64k</summary>
+    public Int32 BufferSize { get; set; } = 64 * 1024;
     #endregion
 
     #region 构造
@@ -256,6 +259,7 @@ public class WsClient : ApiHost, IApiClient
 
         var invoker = client.State + "";
         IMessage? rs = null;
+        var buf = Pool.Shared.Rent(BufferSize);
         try
         {
             // 发起异步请求，等待返回
@@ -267,7 +271,6 @@ public class WsClient : ApiHost, IApiClient
             var pk = codec.Write(context, msg) as IPacket;
             await client.SendAsync(pk!.ToSegment(), WebSocketMessageType.Binary, true, default).ConfigureAwait(false);
 
-            var buf = new Byte[64 * 1024];
             var data = await client.ReceiveAsync(new ArraySegment<Byte>(buf), default).ConfigureAwait(false);
             rs = codec.Read(context, data) as IMessage;
 
@@ -304,6 +307,7 @@ public class WsClient : ApiHost, IApiClient
         }
         finally
         {
+            Pool.Shared.Return(buf);
             //msg.Payload.TryDispose();
 
             var msCost = st.StopCount(sw) / 1000;
