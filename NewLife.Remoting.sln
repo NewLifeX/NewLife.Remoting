@@ -37,6 +37,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Benchmark", "Benchmark", "{
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NewLife.Remoting.Benchmarks", "Benchmark\NewLife.Remoting.Benchmarks.csproj", "{F57E02C1-1ED8-4029-BB8A-14CDCE233551}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XUnitTest.Samples", "XUnitTest.Samples\XUnitTest.Samples.csproj", "{8058AB29-267E-4678-8615-61F44F733DAE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -167,6 +169,18 @@ Global
 		{F57E02C1-1ED8-4029-BB8A-14CDCE233551}.Release|x64.Build.0 = Release|Any CPU
 		{F57E02C1-1ED8-4029-BB8A-14CDCE233551}.Release|x86.ActiveCfg = Release|Any CPU
 		{F57E02C1-1ED8-4029-BB8A-14CDCE233551}.Release|x86.Build.0 = Release|Any CPU
+		{8058AB29-267E-4678-8615-61F44F733DAE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8058AB29-267E-4678-8615-61F44F733DAE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8058AB29-267E-4678-8615-61F44F733DAE}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8058AB29-267E-4678-8615-61F44F733DAE}.Debug|x64.Build.0 = Debug|Any CPU
+		{8058AB29-267E-4678-8615-61F44F733DAE}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8058AB29-267E-4678-8615-61F44F733DAE}.Debug|x86.Build.0 = Debug|Any CPU
+		{8058AB29-267E-4678-8615-61F44F733DAE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8058AB29-267E-4678-8615-61F44F733DAE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8058AB29-267E-4678-8615-61F44F733DAE}.Release|x64.ActiveCfg = Release|Any CPU
+		{8058AB29-267E-4678-8615-61F44F733DAE}.Release|x64.Build.0 = Release|Any CPU
+		{8058AB29-267E-4678-8615-61F44F733DAE}.Release|x86.ActiveCfg = Release|Any CPU
+		{8058AB29-267E-4678-8615-61F44F733DAE}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

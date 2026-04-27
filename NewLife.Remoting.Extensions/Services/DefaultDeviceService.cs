@@ -436,11 +436,14 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         var target = GetDevice(model.Code!);
         if (target == null) throw new ArgumentNullException(nameof(model.Code), "未找到指定设备 " + model.Code);
 
-        // 验证令牌
+        // 验证令牌。[AllowAnonymous] 接口（如 SendCommand）使用应用令牌而非设备令牌：
+        // 若未注册 ITokenService（测试环境），则跳过；注册了则必须携带合法令牌。
         var tokenService = serviceProvider.GetService<ITokenService>();
         if (tokenService != null)
         {
-            var (jwt, ex) = tokenService.DecodeToken(context.Token!);
+            if (context.Token.IsNullOrEmpty())
+                throw new ApiException(ApiCode.Unauthorized, "SendCommand 需要应用令牌");
+            var (jwt, ex) = tokenService.DecodeToken(context.Token);
             if (ex != null) throw ex;
         }
 

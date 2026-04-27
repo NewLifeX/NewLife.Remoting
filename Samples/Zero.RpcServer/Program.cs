@@ -24,7 +24,7 @@ services.AddSingleton<ICacheProvider, RedisCacheProvider>();
 
 EntityFactory.InitAll();
 
-var port = 8080;
+var port = 8780;
 
 // 实例化RPC服务端，指定端口，同时在Tcp/Udp/IPv4/IPv6上监听
 using var server = new ApiServer(port)

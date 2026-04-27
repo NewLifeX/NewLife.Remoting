@@ -57,18 +57,26 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=CubeHome}/{action=Index}/{id?}");
 
-app.RegisterService(star.AppId, null, app.Environment.EnvironmentName);
+if (!app.Environment.IsEnvironment("Testing"))
+    app.RegisterService(star.AppId, null, app.Environment.EnvironmentName);
 
 // 反射查找并调用客户端测试，该代码仅用于测试，实际项目中不要这样做
-var clientType = "ZeroClient.ClientTest".GetTypeEx();
-var test = clientType?.GetMethodEx("Process").As<Func<IServiceProvider, Task>>();
-if (test != null) _ = Task.Run(() => test(app.Services));
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    var clientType = "ZeroClient.ClientTest".GetTypeEx();
+    var test = clientType?.GetMethodEx("Process").As<Func<IServiceProvider, Task>>();
+    if (test != null) _ = Task.Run(() => test(app.Services));
+}
 
 app.Run();
 
 void InitConfig()
 {
     // 把数据目录指向上层，例如部署到 /root/iot/edge/，这些目录放在 /root/iot/
+    // Testing 环境下路径已由 Fixture 配置，跳过默认路径重写
+    // 注意：InitConfig 在 builder.Build() 之前调用，必须用 builder.Environment 而非 app.Environment
+    if (builder.Environment.IsEnvironment("Testing")) return;
+
     var set = NewLife.Setting.Current;
     if (set.IsNew)
     {
@@ -93,3 +101,6 @@ void InitConfig()
         set3.Save();
     }
 }
+
+// 供 WebApplicationFactory 反射访问
+public partial class Program { }

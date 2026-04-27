@@ -106,7 +106,7 @@ static class ClientTest
         var client = new ApiHttpClient($"http://127.0.0.2:{port}");
         client.Log = XTrace.Log;
 
-        var apis = await client.GetAsync<String[]>("api/all");
+         var apis = await client.GetAsync<String[]>("api/all");
         client.WriteLog("共有接口数：{0}", apis.Length);
 
         var state = Rand.NextString(8);
