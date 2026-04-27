@@ -15,8 +15,9 @@ namespace XUnitTest.Samples.IoTZero;
 /// <summary>
 /// IoTZero HTTP 全链路集成测试。
 /// 使用 WebApplicationFactory 启动真实 Kestrel（端口自动分配），HttpDevice 通过 HTTP 连接。
-/// 单个测试方法串行执行 9 步，覆盖：自动注册登录、配置持久化、服务端实体验证、注销/重登、
-/// 心跳计数、WebSocket 通知建立、SendCommand 投递、升级检查、事件上报。
+/// 9 个有序 [Fact] 方法（由 DefaultOrderer 按源码顺序执行），共用 IoTZeroWebFactory 持有的客户端状态。
+/// 覆盖：自动注册登录、配置持久化、服务端实体验证、注销/重登、心跳计数、
+///        WebSocket 通知建立、SendCommand 投递、升级检查、事件上报。
 /// </summary>
 [Collection("SamplesIntegration")]
 [TestCaseOrderer("NewLife.UnitTest.DefaultOrderer", "NewLife.UnitTest")]
@@ -26,58 +27,21 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
 
     public IoTZeroIntegrationTests(IoTZeroWebFactory factory) => _factory = factory;
 
-    #region 9 步串行集成测试
-    [Fact(DisplayName = "IoTZero_9步全链路集成测试")]
-    public async Task FullIntegrationFlow_AllNineSteps()
+    #region Step 1 — 自动注册登录
+    [Fact(DisplayName = "IoTZero_Step1_自动注册登录")]
+    public async Task Step1_AutoRegisterLogin()
     {
-        // 确保 Factory 已启动（首次访问时触发 ConfigureWebHost + CreateHost）
+        // 确保 Factory 已启动
         Assert.False(_factory.BaseUrl.IsNullOrEmpty(), "BaseUrl 未初始化，Factory 启动失败");
         XTrace.WriteLine("IoTZero 测试服务地址：{0}", _factory.BaseUrl);
 
-        // 清空上次测试残留数据：XCode DAL 连接 IoT 持久化在 AppBase/Data 目录，
-        // 跨测试运行累积；若不清理，Step3 的 Assert.Empty(DeviceOnline) 会因旧记录而误判失败
+        // Factory 的 CleanTestData() 已在 InitializeAsync 中执行；
+        // 此处再次清理 DeviceOnline/DeviceHistory，防止同一进程内多次测试运行时的残留（步骤级清理）
         DeviceOnline.Delete("1=1");
         DeviceHistory.Delete("1=1");
 
-        // 创建新的 ClientSetting（空 DeviceCode/DeviceSecret，触发服务端自动注册）
-        var setting = new ClientSetting { Server = _factory.BaseUrl };
-
-        using var client = new HttpDevice(setting);
-        client.Log = XTrace.Log;
-
-        // Step 1 - 自动注册登录
-        var (code, secret) = await Step1_AutoRegisterLogin(client, setting);
-
-        // Step 2 - 服务端实体验证（通过 XCode 直接查询，同进程内共享 DAL 连接）
-        var deviceId = await Step2_VerifyServerEntities(code);
-
-        // Step 3 - 注销
-        await Step3_Logout(client, deviceId);
-
-        // Step 4 - 修改密钥后重登
-        await Step4_ReLoginWithNewSecret(client, setting, code, deviceId);
-
-        // Step 5 - 心跳
-        await Step5_Ping(client, deviceId);
-
-        // Step 6 - WebSocket 建立确认
-        await Step6_WaitWebSocket(deviceId);
-
-        // Step 7 - SendCommand 投递（Timeout=0，服务端立即返回，客户端通过 WebSocket 收到命令）
-        await Step7_SendCommandAndReceive(client, code);
-
-        // Step 8 - 升级检查
-        await Step8_Upgrade(client);
-
-        // Step 9 - 事件上报
-        await Step9_PostEvents(client);
-    }
-    #endregion
-
-    #region Step 1 — 自动注册登录
-    private async Task<(String code, String secret)> Step1_AutoRegisterLogin(HttpDevice client, ClientSetting setting)
-    {
-        XTrace.WriteLine("=== Step 1: 自动注册登录 ===");
+        var client  = _factory.TestClient;
+        var setting = _factory.TestSetting;
 
         // 确保以空 DeviceCode/DeviceSecret 开始，触发服务端自动注册
         setting.DeviceCode   = null!;
@@ -105,14 +69,18 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
 
         XTrace.WriteLine("配置文件已写入，内容长度={0}", configContent!.Length);
 
-        return (setting.DeviceCode, setting.DeviceSecret);
+        // 保存 DeviceCode 到 Factory，供后续步骤使用
+        _factory.TestCode = setting.DeviceCode;
     }
     #endregion
 
     #region Step 2 — 服务端实体验证
-    private async Task<Int32> Step2_VerifyServerEntities(String code)
+    [Fact(DisplayName = "IoTZero_Step2_验证服务端实体")]
+    public async Task Step2_VerifyServerEntities()
     {
         XTrace.WriteLine("=== Step 2: 验证服务端实体 ===");
+
+        var code = _factory.TestCode;
 
         // 等待服务端异步写库完成（Device/DeviceOnline 由 Save 同步写入，无需长等待）
         await Task.Delay(300).ConfigureAwait(false);
@@ -141,22 +109,26 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
 
         XTrace.WriteLine("DeviceOnline 数量={0}", onlines.Count);
 
-        // 验证 DeviceHistory 已记录登录（DefaultDeviceService.OnLogin 写 source+"登录"，source=Http）
-        // WriteHistory 调用 SaveAsync，XCode EntityQueue ~1秒刷新，需轮询等待
+        // 验证 DeviceHistory 已记录登录（WriteHistory 使用 EntityQueue 异步写库，需轮询等待）
         var logins = await WaitForDeviceHistory(device.Id, "Http登录").ConfigureAwait(false);
         Assert.NotEmpty(logins);
         Assert.True(logins[0].Success, "第一次登录的 DeviceHistory 应为成功");
 
         XTrace.WriteLine("DeviceHistory 登录记录={0}", logins.Count);
 
-        return device.Id;
+        // 保存 DeviceId 到 Factory，供后续步骤使用
+        _factory.TestDeviceId = device.Id;
     }
     #endregion
 
     #region Step 3 — 注销
-    private async Task Step3_Logout(HttpDevice client, Int32 deviceId)
+    [Fact(DisplayName = "IoTZero_Step3_注销")]
+    public async Task Step3_Logout()
     {
         XTrace.WriteLine("=== Step 3: 注销 ===");
+
+        var client   = _factory.TestClient;
+        var deviceId = _factory.TestDeviceId;
 
         await client.Logout("集成测试注销", CancellationToken.None).ConfigureAwait(false);
 
@@ -174,8 +146,7 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
         }
         Assert.True(onlines.Count == 0, $"DeviceOnline 应已清除，但有 {onlines.Count} 条记录，SessionIds=[{String.Join(",", onlines.Select(o => o.SessionId))}]");
 
-        // DeviceHistory 应有下线记录（DefaultDeviceService.Logout 写 source+"设备下线"，source=Http）
-        // WriteHistory 调用 SaveAsync，XCode EntityQueue ~1秒刷新，需轮询等待
+        // DeviceHistory 应有下线记录（WriteHistory 使用 EntityQueue 异步写库，需轮询等待）
         var logouts = await WaitForDeviceHistory(deviceId, "Http设备下线").ConfigureAwait(false);
         Assert.NotEmpty(logouts);
 
@@ -184,9 +155,15 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
     #endregion
 
     #region Step 4 — 修改密钥后重登
-    private async Task Step4_ReLoginWithNewSecret(HttpDevice client, ClientSetting setting, String code, Int32 deviceId)
+    [Fact(DisplayName = "IoTZero_Step4_修改密钥后重登")]
+    public async Task Step4_ReLoginWithNewSecret()
     {
         XTrace.WriteLine("=== Step 4: 修改密钥后重登 ===");
+
+        var client   = _factory.TestClient;
+        var setting  = _factory.TestSetting;
+        var code     = _factory.TestCode;
+        var deviceId = _factory.TestDeviceId;
 
         // 在服务端直接修改 Device.Secret（模拟运维修改密钥场景）
         var device = Device.FindByCode(code)!;
@@ -209,8 +186,7 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
         var onlines = DeviceOnline.FindAll(DeviceOnline._.DeviceId == deviceId);
         Assert.NotEmpty(onlines);
 
-        // 登录历史应有 2 条记录（第一次自动注册 + 本次）
-        // WriteHistory 调用 SaveAsync，XCode EntityQueue ~1秒刷新，需轮询等待
+        // 登录历史应有 2 条记录（第一次自动注册 + 本次）；EntityQueue 异步写入，需轮询等待
         var logins = await WaitForDeviceHistory(deviceId, "Http登录", 2).ConfigureAwait(false);
         Assert.True(logins.Count >= 2, $"应有至少 2 条登录历史，实际={logins.Count}");
 
@@ -219,9 +195,13 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
     #endregion
 
     #region Step 5 — 心跳
-    private async Task Step5_Ping(HttpDevice client, Int32 deviceId)
+    [Fact(DisplayName = "IoTZero_Step5_心跳")]
+    public async Task Step5_Ping()
     {
         XTrace.WriteLine("=== Step 5: 心跳 ===");
+
+        var client   = _factory.TestClient;
+        var deviceId = _factory.TestDeviceId;
 
         // 记录心跳前的 Pings（DeviceOnline 的 AdditionalFields 有 Pings 累加字段）
         var onlineBefore = DeviceOnline.Find(DeviceOnline._.DeviceId == deviceId);
@@ -244,9 +224,12 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
     #endregion
 
     #region Step 6 — WebSocket 建立确认
-    private async Task Step6_WaitWebSocket(Int32 deviceId)
+    [Fact(DisplayName = "IoTZero_Step6_WebSocket建立确认")]
+    public async Task Step6_WaitWebSocket()
     {
         XTrace.WriteLine("=== Step 6: 等待 WebSocket 建立 ===");
+
+        var deviceId = _factory.TestDeviceId;
 
         // HttpDevice 登录后会自动建立 WebSocket 通知连接（Features 包含 Notify）
         // 轮询最长 5 秒等待 DeviceOnline.WebSocket = true
@@ -267,9 +250,13 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
     #endregion
 
     #region Step 7 — SendCommand 投递
-    private async Task Step7_SendCommandAndReceive(HttpDevice client, String code)
+    [Fact(DisplayName = "IoTZero_Step7_SendCommand投递")]
+    public async Task Step7_SendCommandAndReceive()
     {
         XTrace.WriteLine("=== Step 7: SendCommand 投递 ===");
+
+        var client = _factory.TestClient;
+        var code   = _factory.TestCode;
 
         var tcs = new TaskCompletionSource<CommandEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -311,9 +298,12 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
     #endregion
 
     #region Step 8 — 升级检查
-    private async Task Step8_Upgrade(HttpDevice client)
+    [Fact(DisplayName = "IoTZero_Step8_升级检查")]
+    public async Task Step8_Upgrade()
     {
         XTrace.WriteLine("=== Step 8: 升级检查 ===");
+
+        var client = _factory.TestClient;
 
         // 无新版本时应返回 null，不应抛出异常
         IUpgradeInfo? info = null;
@@ -329,9 +319,12 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
     #endregion
 
     #region Step 9 — 事件上报
-    private async Task Step9_PostEvents(HttpDevice client)
+    [Fact(DisplayName = "IoTZero_Step9_事件上报")]
+    public async Task Step9_PostEvents()
     {
         XTrace.WriteLine("=== Step 9: 事件上报 ===");
+
+        var client = _factory.TestClient;
 
         var events = new[]
         {

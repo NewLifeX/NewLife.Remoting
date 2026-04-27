@@ -15,8 +15,9 @@ namespace XUnitTest.Samples.ZeroServer;
 /// <summary>
 /// ZeroServer HTTP 全链路集成测试。
 /// 使用 WebApplicationFactory 启动真实 Kestrel（端口自动分配），NodeClient 通过 HTTP 连接。
-/// 单个测试方法串行执行 9 步，覆盖：自动注册登录、配置持久化、服务端实体验证、注销/重登、
-/// 心跳计数、WebSocket 通知建立、SendCommand + CommandReply、升级检查、事件上报。
+/// 9 个有序 [Fact] 方法（由 DefaultOrderer 按源码顺序执行），共用 ZeroServerWebFactory 持有的客户端状态。
+/// 覆盖：自动注册登录、配置持久化、服务端实体验证、注销/重登、心跳计数、
+///        WebSocket 通知建立、SendCommand + CommandReply、升级检查、事件上报。
 /// </summary>
 [Collection("SamplesIntegration")]
 [TestCaseOrderer("NewLife.UnitTest.DefaultOrderer", "NewLife.UnitTest")]
@@ -26,11 +27,11 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
 
     public ZeroServerIntegrationTests(ZeroServerWebFactory factory) => _factory = factory;
 
-    #region 9 步串行集成测试
-    [Fact(DisplayName = "ZeroServer_9步全链路集成测试")]
-    public async Task FullIntegrationFlow_AllNineSteps()
+    #region Step 1 — 自动注册登录
+    [Fact(DisplayName = "ZeroServer_Step1_自动注册登录")]
+    public async Task Step1_AutoRegisterLogin()
     {
-        // 确保 Factory 已启动（首次访问时触发 ConfigureWebHost + CreateHost）
+        // 确保 Factory 已启动
         Assert.False(_factory.BaseUrl.IsNullOrEmpty(), "BaseUrl 未初始化，Factory 启动失败");
         XTrace.WriteLine("ZeroServer 测试服务地址：{0}", _factory.BaseUrl);
 
@@ -39,51 +40,14 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
         NodeOnline.Delete("1=1");
         NodeHistory.Delete("1=1");
 
-        // 创建新的 ClientSetting（空 Code/Secret，触发服务端自动注册）
-        var setting = new ClientSetting { Server = _factory.BaseUrl };
-
-        using var client = new NodeClient(setting);
-        client.Log = XTrace.Log;
-
-        // Step 1 - 自动注册登录
-        var (code, secret) = await Step1_AutoRegisterLogin(client, setting);
-
-        // Step 2 - 服务端实体验证（通过 XCode 直接查询，同进程内共享 DAL 连接）
-        var nodeId = await Step2_VerifyServerEntities(code);
-
-        // Step 3 - 注销
-        await Step3_Logout(client, nodeId);
-
-        // Step 4 - 修改密钥后重登
-        await Step4_ReLoginWithNewSecret(client, setting, code, nodeId);
-
-        // Step 5 - 心跳
-        await Step5_Ping(client, nodeId);
-
-        // Step 6 - WebSocket 建立确认
-        await Step6_WaitWebSocket(nodeId);
-
-        // Step 7 - SendCommand + CommandReply
-        await Step7_SendCommandAndReply(client, code);
-
-        // Step 8 - 升级检查
-        await Step8_Upgrade(client);
-
-        // Step 9 - 事件上报
-        await Step9_PostEvents(client);
-    }
-    #endregion
-
-    #region Step 1 — 自动注册登录
-    private async Task<(String code, String secret)> Step1_AutoRegisterLogin(NodeClient client, ClientSetting setting)
-    {
-        XTrace.WriteLine("=== Step 1: 自动注册登录 ===");
+        var client  = _factory.TestClient;
+        var setting = _factory.TestSetting;
 
         // 确保以空 Code/Secret 开始，触发服务端自动注册
         setting.Code   = null!;
         setting.Secret = null!;
 
-        await client.Login(null, CancellationToken.None).ConfigureAwait(false);
+        await client.Login(null, CancellationToken.None);
 
         // 客户端状态验证
         Assert.True(client.Logined, "Login 后 Logined 应为 true");
@@ -95,7 +59,7 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
         XTrace.WriteLine("自动注册成功，Code={0}", setting.Code);
 
         // 等待 ClientSetting.Save() 写文件（异步 IO，稍作等待）
-        await Task.Delay(300).ConfigureAwait(false);
+        await Task.Delay(300);
 
         // 配置文件持久化验证
         var configContent = _factory.ReadClientConfigFile();
@@ -105,17 +69,21 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
 
         XTrace.WriteLine("配置文件已写入，内容长度={0}", configContent!.Length);
 
-        return (setting.Code, setting.Secret);
+        // 保存 Code 到 Factory，供后续步骤使用
+        _factory.TestCode = setting.Code;
     }
     #endregion
 
     #region Step 2 — 服务端实体验证
-    private async Task<Int32> Step2_VerifyServerEntities(String code)
+    [Fact(DisplayName = "ZeroServer_Step2_验证服务端实体")]
+    public async Task Step2_VerifyServerEntities()
     {
         XTrace.WriteLine("=== Step 2: 验证服务端实体 ===");
 
-        // 等待服务端异步写库完成（Node 实体同步写入，短暂等待即可）
-        await Task.Delay(300).ConfigureAwait(false);
+        var code = _factory.TestCode;
+
+        // 等待服务端异步写库完成
+        await Task.Delay(300);
 
         // 验证 Node 实体已创建
         var node = Node.FindByCodeWithCache(code, false);
@@ -139,20 +107,25 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
 
         XTrace.WriteLine("NodeHistory 登录记录={0}", logins.Count);
 
-        return node.Id;
+        // 保存 NodeId 到 Factory，供后续步骤使用
+        _factory.TestNodeId = node.Id;
     }
     #endregion
 
     #region Step 3 — 注销
-    private async Task Step3_Logout(NodeClient client, Int32 nodeId)
+    [Fact(DisplayName = "ZeroServer_Step3_注销")]
+    public async Task Step3_Logout()
     {
         XTrace.WriteLine("=== Step 3: 注销 ===");
 
-        await client.Logout("集成测试注销", CancellationToken.None).ConfigureAwait(false);
+        var client = _factory.TestClient;
+        var nodeId = _factory.TestNodeId;
+
+        await client.Logout("集成测试注销", CancellationToken.None);
 
         Assert.False(client.Logined, "Logout 后 Logined 应为 false");
 
-        // 轮询等待 NodeOnline 被删除（RemoveOnline 同步执行，但直接 SQL 读取可能有短暂延迟）
+        // 轮询等待 NodeOnline 被删除
         var emptyOnlines = await WaitForNodeOnlineEmpty(nodeId);
         Assert.Empty(emptyOnlines);
 
@@ -165,9 +138,15 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
     #endregion
 
     #region Step 4 — 修改密钥后重登
-    private async Task Step4_ReLoginWithNewSecret(NodeClient client, ClientSetting setting, String code, Int32 nodeId)
+    [Fact(DisplayName = "ZeroServer_Step4_修改密钥后重登")]
+    public async Task Step4_ReLoginWithNewSecret()
     {
         XTrace.WriteLine("=== Step 4: 修改密钥后重登 ===");
+
+        var client  = _factory.TestClient;
+        var setting = _factory.TestSetting;
+        var code    = _factory.TestCode;
+        var nodeId  = _factory.TestNodeId;
 
         // 在服务端直接修改 Node.Secret（模拟运维修改密钥场景）
         var node = Node.FindByCodeWithCache(code, false)!;
@@ -179,7 +158,7 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
         setting.Secret = newSecret;
 
         // 重新登录
-        await client.Login("重登测试", CancellationToken.None).ConfigureAwait(false);
+        await client.Login("重登测试", CancellationToken.None);
 
         Assert.True(client.Logined, "修改密钥后重登，Logined 应为 true");
 
@@ -196,19 +175,23 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
     #endregion
 
     #region Step 5 — 心跳
-    private async Task Step5_Ping(NodeClient client, Int32 nodeId)
+    [Fact(DisplayName = "ZeroServer_Step5_心跳")]
+    public async Task Step5_Ping()
     {
         XTrace.WriteLine("=== Step 5: 心跳 ===");
 
+        var client = _factory.TestClient;
+        var nodeId = _factory.TestNodeId;
+
         // 记录心跳前的 PingCount
-        var onlineBefore = NodeOnline.FindByNodeId(nodeId);
+        var onlineBefore    = NodeOnline.FindByNodeId(nodeId);
         var pingCountBefore = onlineBefore?.PingCount ?? 0;
 
-        var rs = await client.Ping(CancellationToken.None).ConfigureAwait(false);
+        var rs = await client.Ping(CancellationToken.None);
         Assert.NotNull(rs);
 
         // 等待服务端写库
-        await Task.Delay(300).ConfigureAwait(false);
+        await Task.Delay(300);
 
         // 刷新实体缓存后验证 PingCount 增加
         var onlineAfter = NodeOnline.Find(NodeOnline._.NodeId == nodeId);
@@ -220,12 +203,15 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
     }
     #endregion
 
-    #region Step 6 — WebSocket 通知建立
-    private async Task Step6_WaitWebSocket(Int32 nodeId)
+    #region Step 6 — WebSocket 建立确认
+    [Fact(DisplayName = "ZeroServer_Step6_WebSocket建立确认")]
+    public async Task Step6_WaitWebSocket()
     {
         XTrace.WriteLine("=== Step 6: 等待 WebSocket 建立 ===");
 
-        // NodeClient 登录后会自动建立 WebSocket 通知连接（因为 Features 包含 Notify）
+        var nodeId = _factory.TestNodeId;
+
+        // NodeClient 登录后会自动建立 WebSocket 通知连接
         // 轮询最长 5 秒等待 NodeOnline.WebSocket = true
         var deadline = DateTime.Now.AddSeconds(5);
         NodeOnline? online = null;
@@ -233,7 +219,7 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
         {
             online = NodeOnline.Find(NodeOnline._.NodeId == nodeId);
             if (online?.WebSocket == true) break;
-            await Task.Delay(200).ConfigureAwait(false);
+            await Task.Delay(200);
         }
 
         Assert.NotNull(online);
@@ -244,21 +230,22 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
     #endregion
 
     #region Step 7 — SendCommand + CommandReply
-    private async Task Step7_SendCommandAndReply(NodeClient client, String code)
+    [Fact(DisplayName = "ZeroServer_Step7_SendCommand与CommandReply")]
+    public async Task Step7_SendCommandAndReply()
     {
         XTrace.WriteLine("=== Step 7: SendCommand + CommandReply ===");
+
+        var client = _factory.TestClient;
+        var code   = _factory.TestCode;
 
         var tcs = new TaskCompletionSource<CommandEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         client.Received += (_, e) =>
         {
-            // 只接受我们发出的命令
             if (e.Model?.Command == "test:echo")
                 tcs.TrySetResult(e);
         };
 
-        // 通过 HttpClient 调用 [AllowAnonymous] 的 Node/SendCommand 接口
-        // SendCommand 在 Service 层使用应用令牌验证，此处用已登录的设备令牌代替（测试环境 TokenService 不区分令牌来源）
         using var http = new HttpClient();
         var deviceToken = ((NewLife.Remoting.IApiClient)client).Token;
         if (!deviceToken.IsNullOrEmpty())
@@ -268,16 +255,15 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
             Code     = code,
             Command  = "test:echo",
             Argument = "hello",
-            Timeout  = 10,   // 等待响应最多 10 秒
+            Timeout  = 10,
         });
         var content = new StringContent(payload, System.Text.Encoding.UTF8, "application/json");
 
-        var response = await http.PostAsync($"{_factory.BaseUrl}/Node/SendCommand", content).ConfigureAwait(false);
+        var response = await http.PostAsync($"{_factory.BaseUrl}/Node/SendCommand", content);
         XTrace.WriteLine("SendCommand HTTP 状态={0}", response.StatusCode);
 
-        // 等待客户端收到命令（最多 10 秒）
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var cmdEvt = await tcs.Task.WaitAsync(cts.Token).ConfigureAwait(false);
+        var cmdEvt = await tcs.Task.WaitAsync(cts.Token);
 
         Assert.NotNull(cmdEvt.Model);
         Assert.Equal("test:echo", cmdEvt.Model!.Command);
@@ -288,20 +274,42 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
     #endregion
 
     #region Step 8 — 升级检查
-    private async Task Step8_Upgrade(NodeClient client)
+    [Fact(DisplayName = "ZeroServer_Step8_升级检查")]
+    public async Task Step8_Upgrade()
     {
         XTrace.WriteLine("=== Step 8: 升级检查 ===");
 
-        // 无新版本时应返回 null，不应抛出异常
+        var client = _factory.TestClient;
+
         IUpgradeInfo? info = null;
         var ex = await Record.ExceptionAsync(async () =>
         {
-            info = await client.Upgrade(null, CancellationToken.None).ConfigureAwait(false);
+            info = await client.Upgrade(null, CancellationToken.None);
         });
 
         Assert.Null(ex);
-        // info 为 null 表示无可用升级，合法
         XTrace.WriteLine("升级检查成功，info={0}", info == null ? "null（无升级）" : info.Version);
+    }
+    #endregion
+
+    #region Step 9 — 事件上报
+    [Fact(DisplayName = "ZeroServer_Step9_事件上报")]
+    public async Task Step9_PostEvents()
+    {
+        XTrace.WriteLine("=== Step 9: 事件上报 ===");
+
+        var client = _factory.TestClient;
+
+        var events = new[]
+        {
+            new EventModel { Name = "TestEvent1", Type = "info",  Remark = "集成测试事件1" },
+            new EventModel { Name = "TestEvent2", Type = "alert", Remark = "集成测试事件2" },
+        };
+
+        var count = await client.PostEvents(events);
+
+        Assert.Equal(2, count);
+        XTrace.WriteLine("事件上报成功，返回数量={0}", count);
     }
     #endregion
 
@@ -316,10 +324,9 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
         var deadline = DateTime.Now.AddSeconds(5);
         while (DateTime.Now < deadline)
         {
-            // 直接 SQL，绕过 EntityListCache（EntityQueue 异步写入，缓存尚未更新）
             var list = NodeHistory.FindAll(NodeHistory._.NodeId == nodeId & NodeHistory._.Action == action);
             if (list.Count >= minCount) return list;
-            await Task.Delay(200).ConfigureAwait(false);
+            await Task.Delay(200);
         }
         return NodeHistory.FindAll(NodeHistory._.NodeId == nodeId & NodeHistory._.Action == action);
     }
@@ -334,27 +341,9 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
         {
             var list = NodeOnline.FindAll(NodeOnline._.NodeId == nodeId);
             if (list.Count == 0) return list;
-            await Task.Delay(200).ConfigureAwait(false);
+            await Task.Delay(200);
         }
         return NodeOnline.FindAll(NodeOnline._.NodeId == nodeId);
-    }
-    #endregion
-
-    #region Step 9 — 事件上报
-    private async Task Step9_PostEvents(NodeClient client)
-    {
-        XTrace.WriteLine("=== Step 9: 事件上报 ===");
-
-        var events = new[]
-        {
-            new EventModel { Name = "TestEvent1", Type = "info",  Remark = "集成测试事件1" },
-            new EventModel { Name = "TestEvent2", Type = "alert", Remark = "集成测试事件2" },
-        };
-
-        var count = await client.PostEvents(events).ConfigureAwait(false);
-
-        Assert.Equal(2, count);
-        XTrace.WriteLine("事件上报成功，返回数量={0}", count);
     }
     #endregion
 }

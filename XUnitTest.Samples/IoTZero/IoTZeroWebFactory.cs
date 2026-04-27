@@ -1,6 +1,7 @@
 extern alias IoTZero;
 
 using IoTZero::IoT.Data;
+using IoTZero::IoTEdge;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -22,6 +23,18 @@ public sealed class IoTZeroWebFactory : WebApplicationFactory<IoTZero::Program>,
 
     /// <summary>原始工作目录（析构时恢复）</summary>
     private String _origCurrentDir = null!;
+
+    /// <summary>共享测试状态：已登录的客户端（贯穿全部 9 个测试步骤）</summary>
+    public HttpDevice TestClient { get; private set; } = null!;
+
+    /// <summary>共享测试状态：客户端设置（DeviceCode/DeviceSecret 在 Step1 登录后回填）</summary>
+    public ClientSetting TestSetting { get; private set; } = null!;
+
+    /// <summary>共享测试状态：设备编码（Step1 登录后填充，后续步骤使用）</summary>
+    public String TestCode { get; set; } = null!;
+
+    /// <summary>共享测试状态：设备 ID（Step2 验证实体后填充，后续步骤使用）</summary>
+    public Int32 TestDeviceId { get; set; }
     #endregion
 
     #region WebApplicationFactory 重写
@@ -77,11 +90,15 @@ public sealed class IoTZeroWebFactory : WebApplicationFactory<IoTZero::Program>,
         CleanTestData();
         // 预置测试所需的 Product（EdgeGateway），否则 OnRegister 会抛出“无效产品”
         SeedProduct();
+        // 初始化共享测试状态：创建客户端（Step1 时以空 DeviceCode/DeviceSecret 触发自动注册）
+        TestSetting = new ClientSetting { Server = BaseUrl };
+        TestClient  = new HttpDevice(TestSetting) { Log = XTrace.Log };
         await Task.CompletedTask;
     }
 
     async Task IAsyncLifetime.DisposeAsync()
     {
+        (TestClient as IDisposable)?.Dispose();
         Dispose();
         await Task.CompletedTask;
     }
