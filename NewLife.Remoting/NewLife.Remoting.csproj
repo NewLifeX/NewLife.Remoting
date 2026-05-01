@@ -30,7 +30,7 @@
     <RepositoryUrl>https://github.com/NewLifeX/NewLife.Remoting</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>新生命团队;X组件;NewLife;$(AssemblyName)</PackageTags>
-    <PackageReleaseNotes>优化RPC内存管理与连接复用；提升服务端处理性能，预编译委托减少反射；优化ApiClient/WsClient超时与取消机制；新增性能基准测试项目；数据库异常信息脱敏</PackageReleaseNotes>
+    <PackageReleaseNotes>新增RemotingServiceResolver多协议服务解析器；优化WebSocket消息收发内存管理与异常处理；集成测试重构为有序独立步骤方法；扩展测试覆盖至409项；升级依赖组件</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -54,7 +54,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Core" Version="11.14.2026.402" />
+    <PackageReference Include="NewLife.Core" Version="11.15.2026.501" />
   </ItemGroup>
 
   <ItemGroup>

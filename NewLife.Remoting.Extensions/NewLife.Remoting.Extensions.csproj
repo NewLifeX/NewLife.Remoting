@@ -33,7 +33,7 @@
     <RepositoryUrl>https://github.com/NewLifeX/NewLife.Remoting</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>新生命团队;X组件;NewLife;$(AssemblyName)</PackageTags>
-    <PackageReleaseNotes>ApiServer支持动态端口分配；修正证书密钥赋值错误；优化OAuth异常处理；增强HttpMessage解析兼容性；提升单元测试稳定性</PackageReleaseNotes>
+    <PackageReleaseNotes>新增RemotingServiceResolver多协议服务解析器；优化WebSocket消息收发内存管理与异常处理；集成测试重构为有序独立步骤方法；扩展测试覆盖至409项；升级依赖组件</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
