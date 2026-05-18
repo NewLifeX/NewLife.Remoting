@@ -494,6 +494,10 @@ public class ApiClient : ApiHost, IApiClient
         // Api解码消息得到Action和参数
         if (e.Message is not IMessage msg) return;
 
+        // 响应消息由 SendMessageAsync 匹配机制处理，InvokeWithClientAsync 会在异步 continuation 中解码 Payload。
+        // 若在此重复解码并 Dispose，会将 cloned payload buffer 提前归还 ArrayPool，导致并发 Decode 读到脏数据（buffer 被复用覆盖）。
+        if (msg.Reply) return;
+
         using var apiMessage = Encoder.Decode(msg);
         var e2 = new ApiReceivedEventArgs
         {
