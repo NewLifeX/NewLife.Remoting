@@ -125,8 +125,14 @@ public class ApiHandler : IApiHandler
                             var pn = pis[i].Name;
                             if (pn != null) ps.TryGetValue(pn, out pv[i]);
                             // 值类型参数不能为null，否则表达式树Unbox会抛NullReferenceException
-                            if (pv[i] == null && pis[i].ParameterType.IsValueType)
-                                pv[i] = Activator.CreateInstance(pis[i].ParameterType);
+                            // 优先使用参数自身的默认值，其次才使用类型默认值
+                            if (pv[i] == null)
+                            {
+                                if (pis[i].HasDefaultValue)
+                                    pv[i] = pis[i].DefaultValue;
+                                else if (pis[i].ParameterType.IsValueType)
+                                    pv[i] = Activator.CreateInstance(pis[i].ParameterType);
+                            }
                         }
                         rs = api.FastInvoker(controller, pv);
                     }
@@ -303,7 +309,10 @@ public class ApiHandler : IApiHandler
                 if (pi.ParameterType.GetTypeCode() == TypeCode.Object)
                 {
                     //ps[pi.Name] = raw.ChangeType(pi.ParameterType);
-                    ps[pi.Name] = raw == null ? null : encoder.Convert(raw, pi.ParameterType);
+                    if (raw == null)
+                        ps[pi.Name] = pi.HasDefaultValue ? pi.DefaultValue : null;
+                    else
+                        ps[pi.Name] = encoder.Convert(raw, pi.ParameterType);
 
                     return ps;
                 }
@@ -324,8 +333,16 @@ public class ApiHandler : IApiHandler
             var name = pi.Name;
             if (name.IsNullOrEmpty()) continue;
 
-            Object? v = null;
-            if (dic != null && dic.TryGetValue(name, out var v2)) v = v2;
+            Object? v2 = null;
+            var found = dic != null && dic.TryGetValue(name, out v2);
+            var v = found ? v2 : null;
+
+            // 参数未从外部传入时，优先使用参数自身的默认值，而非类型默认值
+            if (!found && pi.HasDefaultValue)
+            {
+                ps[name] = pi.DefaultValue;
+                continue;
+            }
 
             // 基本类型
             if (pi.ParameterType.GetTypeCode() != TypeCode.Object)
