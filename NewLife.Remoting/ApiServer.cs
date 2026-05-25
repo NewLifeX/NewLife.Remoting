@@ -59,7 +59,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     public ApiServer()
     {
         var type = GetType();
-        Name = type.GetDisplayName() ?? type.Name.TrimEnd("Server");
+        Name = type.GetDisplayName() ?? type.Name.TrimSuffix("Server");
 
         Manager = new ApiManager(this);
     }

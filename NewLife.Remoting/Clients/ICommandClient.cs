@@ -119,7 +119,7 @@ public static class CommandClientHelper
             }
 
             if (result != null)
-                rs.Data = result as String ?? (client as ClientBase)?.JsonHost.Write(result) ?? result.ToJson();
+                rs.Data = result as String ?? (client as ClientBase)?.JsonHost.Write(result, (client as ClientBase)?.JsonOptions) ?? result.ToJson();
 
             return rs;
         }

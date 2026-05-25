@@ -105,6 +105,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>Json主机。提供序列化能力</summary>
     public IJsonHost JsonHost { get; set; } = null!;
 
+    /// <summary>JSON序列化选项，影响复杂对象的编码和解码行为</summary>
+    public JsonOptions? JsonOptions { get; set; }
+
     /// <summary>客户端设置</summary>
     public IClientSetting? Setting { get; set; }
 
@@ -124,7 +127,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>实例化</summary>
-    public ClientBase() => Name = GetType().Name.TrimEnd("Client");
+    public ClientBase() => Name = GetType().Name.TrimSuffix("Client");
 
     /// <summary>通过客户端设置实例化</summary>
     /// <param name="setting">客户端设置</param>
@@ -1139,7 +1142,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             var str = data.ToStr();
             if (!str.IsNullOrEmpty())
             {
-                var model = JsonHost.Read<CommandModel>(str)!;
+                var model = JsonHost.Read<CommandModel>(str, JsonOptions)!;
                 if (model != null && !model.Command.IsNullOrEmpty())
                 {
                     await ReceiveCommand(model, str, null, cancellationToken).ConfigureAwait(false);
@@ -1170,7 +1173,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (model.Id > 0 && !_cache.Add($"cmd:{model.Id}", model, 3600)) return null;
 
         // 埋点，建立调用链
-        message ??= JsonHost.Write(model);
+        message ??= JsonHost.Write(model, JsonOptions);
         using var span = Tracer?.NewSpan("cmd:" + model.Command, message);
         if (!model.TraceId.IsNullOrEmpty()) span?.Detach(model.TraceId);
         try

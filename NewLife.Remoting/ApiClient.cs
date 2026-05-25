@@ -69,7 +69,7 @@ public class ApiClient : ApiHost, IApiClient
     public ApiClient()
     {
         var type = GetType();
-        Name = type.GetDisplayName() ?? type.Name.TrimEnd("Client");
+        Name = type.GetDisplayName() ?? type.Name.TrimSuffix("Client");
     }
 
     /// <summary>实例化应用接口客户端</summary>

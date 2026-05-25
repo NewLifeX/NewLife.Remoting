@@ -308,7 +308,7 @@ public class Upgrade
     /// <param name="name"></param>
     public void Trim(String name)
     {
-        var name2 = name.TrimEnd(".exe", ".dll");
+        var name2 = name.TrimSuffix(".exe", ".dll");
         if (Runtime.Windows || Runtime.Mono)
         {
             var file = name2.GetFullPath();
@@ -400,7 +400,7 @@ public class Upgrade
         var root = src.FullName.EnsureEnd(Path.DirectorySeparatorChar.ToString());
         foreach (var item in src.GetAllFiles(null, true))
         {
-            var name = item.FullName.TrimStart(root);
+            var name = item.FullName.TrimPrefix(root);
             var dst = dest.CombinePath(name).GetBasePath();
 
             // 如果是应用配置文件，不要更新

@@ -144,7 +144,7 @@ public class ApiAction : IExtend
         if (type == null) type = method.DeclaringType!;
         //if (type == null) return null;
 
-        var typeName = type.Name.TrimEnd("Controller", "Service");
+        var typeName = type.Name.TrimSuffix("Controller", "Service");
         var att = type.GetCustomAttribute<ApiAttribute>(true);
         if (att != null) typeName = att.Name;
 

@@ -67,7 +67,7 @@ public class ApiHandler : IApiHandler
         var sw = st.StartCount();
 
         // 准备调用上下文
-        var ctx = Prepare(session, action, args, api, msg);
+        var ctx = Prepare(session!, action, args, api, msg);
         ctx.Controller = controller;
 
         // 释放参数到跟踪片段
@@ -272,7 +272,7 @@ public class ApiHandler : IApiHandler
             if (hmsg.Headers.TryGetValue("x-token", out var token2))
                 session.Token = token2;
             else if (hmsg.Headers.TryGetValue("Authorization", out token2))
-                session.Token = token2.TrimStart("Bearer ");
+                session.Token = token2.TrimPrefix("Bearer ");
         }
 
         // 准备好参数
