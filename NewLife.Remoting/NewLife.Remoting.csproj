@@ -30,7 +30,7 @@
     <RepositoryUrl>https://github.com/NewLifeX/NewLife.Remoting</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>新生命团队;X组件;NewLife;$(AssemblyName)</PackageTags>
-    <PackageReleaseNotes>新增RemotingServiceResolver多协议服务解析器；优化WebSocket消息收发内存管理与异常处理；集成测试重构为有序独立步骤方法；扩展测试覆盖至409项；升级依赖组件</PackageReleaseNotes>
+    <PackageReleaseNotes>修复响应消息重复解码导致的处理异常；修复缓冲区脏读问题并提升并发稳定性；优化ApiHandler参数默认值处理逻辑；优化字符串处理并升级依赖组件</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -54,7 +54,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Core" Version="11.15.2026.525-beta1518" />
+    <PackageReference Include="NewLife.Core" Version="11.16.2026.601" />
   </ItemGroup>
 
   <ItemGroup>
