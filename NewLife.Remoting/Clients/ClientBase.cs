@@ -1049,7 +1049,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         {
             lock (this)
             {
-                _timerUpgrade ??= new TimerX(CheckUpgrade, null, 5_000, 600_000) { Async = true };
+                _timerUpgrade ??= new TimerX(CheckUpgrade, null, DateTime.Now.AddSeconds(15), 600_000) { Async = true };
             }
         }
 
@@ -1086,6 +1086,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     private WsChannel? _ws;
+    private Boolean _firstPingDone;
     /// <summary>定时心跳。由心跳定时器调用，主要用于维护WebSocket长连接</summary>
     /// <param name="state">定时器状态参数</param>
     /// <returns></returns>
@@ -1096,6 +1097,12 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (_client is ApiHttpClient http && Features.HasFlag(Features.Notify))
         {
             await ValidWebSocket(http).ConfigureAwait(false);
+
+            if (!_firstPingDone)
+            {
+                _firstPingDone = true;
+                _timerUpgrade?.SetNext(-1);
+            }
         }
     }
 
