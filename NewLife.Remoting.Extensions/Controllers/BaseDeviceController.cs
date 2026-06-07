@@ -227,6 +227,7 @@ public abstract class BaseDeviceController : BaseController
         var device = Context.Device ?? throw new InvalidOperationException("未登录！");
 
         using var span = _tracer?.NewSpan("cmd:Ws:Create", device.Code);
+        span?.Detach(HttpContext.Request.Headers);
         try
         {
             using var session = new Services.WsCommandSession(socket)

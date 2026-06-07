@@ -93,7 +93,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     /// <returns></returns>
     protected virtual IEventBus<String> Create()
     {
-        using var span = _tracer?.NewSpan($"cmd:{Topic}:Create", ClientId);
+        using var span = _tracer?.NewSpan($"cmd:{Topic}:CreateBus", ClientId);
         try
         {
             // 创建事件总线，指定队列消费组
@@ -116,6 +116,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
             bus ??= new EventBus<String>();
 
             // 订阅总线事件到OnMessage
+            span?.AppendTag($"订阅[{Topic}]的总线事件到OnMessage，再根据消息头的设备号分发给各Session，一般是WebSocket下发指令");
             bus.Subscribe(OnMessage);
 
             return bus;
@@ -215,7 +216,10 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
             msg = JsonHelper.Convert<CommandModel>(dic);
             span?.Detach(dic);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            span?.SetError(ex);
+        }
 
         // 修正时间
         if (msg != null)
@@ -232,8 +236,10 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
             {
                 await session.HandleAsync(msg!, message, cancellationToken).ConfigureAwait(false);
 
-                if (span != null) span.Value = 1;
+                span?.Value = 1;
             }
+            else
+                span?.AppendTag($"未找到编号为[{code}]的会话，无法处理消息。在集群中一般只有一个实例处理该消息。");
         }
     }
 
@@ -242,6 +248,8 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     /// <returns></returns>
     public virtual ICommandSession? Get(String key)
     {
+        if (key.IsNullOrEmpty()) return null;
+
         if (!_dic.TryGetValue(key, out var session)) return null;
 
         return session;
