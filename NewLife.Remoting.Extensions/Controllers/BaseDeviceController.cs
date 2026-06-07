@@ -241,6 +241,17 @@ public abstract class BaseDeviceController : BaseController
 
             _sessionManager.Add(session);
 
+            // WebSocket连接建立后，立即获取积压命令并推送
+            if (_deviceService is IDeviceService2 ds2)
+            {
+                var commands = ds2.AcquireCommands(Context);
+                if (commands != null)
+                {
+                    foreach (var cmd in commands)
+                        await session.HandleAsync(cmd, null, cancellationToken).ConfigureAwait(false);
+                }
+            }
+
             await session.WaitAsync(HttpContext, span, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
