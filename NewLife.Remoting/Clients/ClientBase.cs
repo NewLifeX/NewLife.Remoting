@@ -1013,7 +1013,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
         else
         {
-            this.WriteInfoEvent("Upgrade", "强制更新完成，但拉起新进程失败");
+            this.WriteInfoEvent("Upgrade", "强制更新完成，但拉起新进程失败！" + upgrade.LastErrorMessage);
         }
     }
 

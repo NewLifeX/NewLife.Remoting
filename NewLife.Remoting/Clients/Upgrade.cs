@@ -35,6 +35,11 @@ public class Upgrade
     public UpdateModes Mode { get; set; } = UpdateModes.Standard;
     #endregion
 
+    #region 最后错误
+    /// <summary>最后一次启动进程的错误消息，用于外部诊断。在 systemd 等隔离环境下，Process.Start 失败的原因无法直接通过返回布尔值表达，此属性可将 catch 的异常详情透传给调用方，最终输出到节点历史（WriteInfoEvent）</summary>
+    public String? LastErrorMessage { get; private set; }
+    #endregion
+
     #region 构造
     /// <summary>实例化一个升级对象实例，获取当前应用信息</summary>
     public Upgrade()
@@ -243,7 +248,7 @@ public class Upgrade
             file = (name + ".dll").GetFullPath();
         else if (Runtime.Linux)
         {
-            // 执行Shell命令，要求 UseShellExecute = true
+            // 执行Shell命令，设置可执行权限
             RunShell("chmod", "+x " + file);
             // 授权文件可执行权限以后，需要等一会才能生效
             Thread.Sleep(1000);
@@ -252,22 +257,51 @@ public class Upgrade
         WriteLog("拉起进程 {0} {1}", file, args);
         try
         {
-            var p = file.EndsWithIgnoreCase(".dll") ?
-                RunShell("dotnet", $"{file} {args}") :
-                RunShell(file, args);
+            var workingDir = Path.GetDirectoryName(file)!;
+            Process? p;
+            if (file.EndsWithIgnoreCase(".dll"))
+            {
+                // 使用 UseShellExecute=false 直接 fork/exec，避免 systemd 隔离环境下 UseShellExecute=true 走 shell 导致的 PATH 解析失败问题。
+                // systemd 服务的工作目录和 PATH 环境变量可能与用户登录 shell 不同，UseShellExecute=true 在 .NET 7+ Linux 上通过 shell 启动，
+                // 在精简环境中可能因找不到 dotnet 而抛出异常或返回 null。改为 false 后直接指定 FileName 和 Arguments，
+                // 同时显式设置 WorkingDirectory 确保新进程在正确的目录下启动。
+                p = Process.Start(new ProcessStartInfo
+                {
+                    FileName = "dotnet",
+                    Arguments = $"{file} {args}",
+                    WorkingDirectory = workingDir,
+                    UseShellExecute = false,
+                });
+            }
+            else
+            {
+                // 直接执行原生可执行文件（Linux 上为无扩展名的二进制文件），同样避免 shell 层
+                p = Process.Start(new ProcessStartInfo
+                {
+                    FileName = file,
+                    Arguments = args,
+                    WorkingDirectory = workingDir,
+                    UseShellExecute = false,
+                });
+            }
 
             // 如果进程在指定时间退出，说明启动失败
             return p != null && (!p.WaitForExit(msWait) || p.ExitCode == 0);
         }
         catch (Exception ex)
         {
-            WriteLog("启动进程失败：{0}", ex.Message);
+            // 保存完整异常信息供调用方通过 WriteInfoEvent 上报到节点历史，
+            // 方便用户在 Web 管理界面直接看到失败原因（如 dotnet 未找到、文件无权限等）
+            LastErrorMessage = ex.ToString();
+            WriteLog("启动进程失败：{0}", ex);
             return false;
         }
     }
 
     static Process? RunShell(String fileName, String args) => Process.Start(new ProcessStartInfo(fileName, args) { UseShellExecute = true });
+    #endregion
 
+    #region 辅助
     /// <summary>
     /// 自杀
     /// </summary>
