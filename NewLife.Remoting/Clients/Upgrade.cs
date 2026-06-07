@@ -248,10 +248,12 @@ public class Upgrade
             file = (name + ".dll").GetFullPath();
         else if (Runtime.Linux)
         {
-            // 执行Shell命令，设置可执行权限
-            RunShell("chmod", "+x " + file);
-            // 授权文件可执行权限以后，需要等一会才能生效
-            Thread.Sleep(1000);
+            // 等待 chmod 完成（WaitForExit），避免 fire-and-forget 导致权限未及时生效的竞态条件。
+            // 在慢速 ARM64 设备上，升级刚完成后系统 I/O 繁忙，chmod 可能超过 1 秒才能完成，
+            // 若此时新进程尚无执行权限，UseShellExecute=false 会抛出 EACCES 导致启动失败。
+            // 使用绝对路径 /bin/chmod 避免 PATH 解析，UseShellExecute=false 确保同步等待。
+            var p = Process.Start(new ProcessStartInfo("/bin/chmod", "+x " + file) { UseShellExecute = false });
+            p?.WaitForExit(5_000);
         }
 
         WriteLog("拉起进程 {0} {1}", file, args);
