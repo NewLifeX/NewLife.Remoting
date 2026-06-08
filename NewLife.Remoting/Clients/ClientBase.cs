@@ -979,6 +979,15 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     /// <summary>更新完成，重启自己</summary>
+    /// <remarks>
+    /// 自更新策略（冒烟测试 + 自动回滚）：
+    /// 1. 新版文件已覆盖到位，旧版 .exe/.dll/.json 备份为 .del
+    /// 2. 旧进程尝试拉起新进程作为冒烟测试——若新版本在 3 秒内异常退出，说明存在致命缺陷
+    /// 3. 首次失败不立即判定为缺陷——等待 5 秒（给慢速存储落盘 + 运行时 JIT 预热等留出时间），重试一次
+    /// 4. 重试仍失败 → 回滚所有 .del 恢复旧版文件 → 旧进程继续提供服务
+    ///    （同一启动周期内 exec 从页缓存读取，落盘延迟不是 root cause；重试主要应对 eMMC GC、JIT 冷启动等）
+    /// 5. 两次均通过 → 旧进程退出，新进程接管
+    /// </remarks>
     /// <param name="upgrade"></param>
     protected virtual void Restart(Upgrade upgrade)
     {
@@ -989,23 +998,22 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (name.IsNullOrEmpty()) return;
 
         // 重新拉起进程。对于大多数应用，都是拉起新进程，然后退出当前进程；对于星尘代理，通过新进程来重启服务。
-        var args = Environment.GetCommandLineArgs();
-        if (args == null || args.Length == 0) args = new String[1];
-        args[0] = "-upgrade";
-        var gs = args.Join(" ");
+        var gs = BuildRestartArguments();
 
-        // 执行重启，如果失败，延迟后再次尝试
+        // 冒烟测试：尝试拉起新版本进程
         var rs = upgrade.Run(name, gs, 3_000);
         if (!rs)
         {
-            var delay = 3_000;
-            this.WriteInfoEvent("Upgrade", $"拉起新进程失败，延迟{delay}ms后重试");
+            // 首次失败可能是慢速存储落盘延迟或 JIT 冷启动，等待后重试一次
+            var delay = 5_000;
+            this.WriteInfoEvent("Upgrade", $"新版首次启动失败，等待{delay}ms后重试。{upgrade.LastErrorMessage}");
             Thread.Sleep(delay);
-            rs = upgrade.Run(name, gs, 1_000);
+            rs = upgrade.Run(name, gs, 3_000);
         }
 
         if (rs)
         {
+            // 新版启动成功（冒烟测试通过），旧版退出
             var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
             this.WriteInfoEvent("Upgrade", "强制更新完成，新进程已拉起，准备退出当前进程！PID=" + pid);
 
@@ -1013,8 +1021,24 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
         else
         {
-            this.WriteInfoEvent("Upgrade", "强制更新完成，但拉起新进程失败！" + upgrade.LastErrorMessage);
+            // 两次均失败，确认新版有致命缺陷，回滚 .del 恢复旧版文件，旧进程继续运行
+            upgrade.Rollback();
+            this.WriteInfoEvent("Upgrade", "新版启动失败（冒烟测试不通过），已回滚旧版文件，当前服务继续运行。" + upgrade.LastErrorMessage);
         }
+    }
+
+    /// <summary>构建重启命令行参数。派生类可重载以支持服务模式等自定义逻辑</summary>
+    /// <remarks>
+    /// 默认行为：从当前进程命令行去掉 args[0]（可执行文件路径），注入 -upgrade 标记。
+    /// MyStarClient 可重载此方法生成 -restart -upgrade（服务模式）或 -run -upgrade（进程模式）。
+    /// </remarks>
+    /// <returns>重启参数</returns>
+    protected virtual String BuildRestartArguments()
+    {
+        var args = Environment.GetCommandLineArgs();
+        if (args == null || args.Length == 0) args = new String[1];
+        args[0] = "-upgrade";
+        return args.Join(" ");
     }
 
     /// <summary>放弃更新异步请求。由Upgrade内部调用</summary>

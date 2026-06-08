@@ -3,6 +3,9 @@ using System.Net.Http;
 using System.Reflection;
 using NewLife.Log;
 using NewLife.Remoting.Models;
+#if !NET40
+using TaskEx = System.Threading.Tasks.Task;
+#endif
 
 namespace NewLife.Remoting.Clients;
 
@@ -33,6 +36,21 @@ public class Upgrade
 
     /// <summary>更新模式</summary>
     public UpdateModes Mode { get; set; } = UpdateModes.Standard;
+
+    /// <summary>下载超时时间（秒）。默认30秒</summary>
+    public Int32 DownloadTimeoutSeconds { get; set; } = 30;
+
+    /// <summary>落盘等待延迟（毫秒）。sync 后等待存储设备完成回写。Linux ARM64 慢速存储（eMMC/SD）默认 800ms，x86 默认 0</summary>
+    public Int32 StorageFlushDelay { get; set; } = GetDefaultFlushDelay();
+
+    private static Int32 GetDefaultFlushDelay()
+    {
+#if NETCOREAPP || NETSTANDARD2_0_OR_GREATER
+        if (Runtime.Linux && System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.Arm64)
+            return 800;
+#endif
+        return 0;
+    }
     #endregion
 
     #region 最后错误
@@ -50,7 +68,7 @@ public class Upgrade
     #endregion
 
     #region 方法
-    /// <summary>开始下载更新</summary>
+    /// <summary>下载更新包，支持超时与瞬时失败重试</summary>
     public virtual async Task<Boolean> Download(CancellationToken cancellationToken = default)
     {
         var url = Url;
@@ -68,7 +86,23 @@ public class Upgrade
         var sw = Stopwatch.StartNew();
 
         var web = CreateClient();
-        file = await DownloadFileAsync(web, url, file, cancellationToken).ConfigureAwait(false);
+
+        // 瞬时网络故障重试两次（共三次尝试）
+        var retry = 2;
+        while (true)
+        {
+            try
+            {
+                file = await DownloadFileAsync(web, url, file, cancellationToken).ConfigureAwait(false);
+                break;
+            }
+            catch (Exception ex) when (ex is IOException || ex is HttpRequestException)
+            {
+                if (retry-- <= 0) throw;
+                WriteLog("下载失败，2秒后重试：{0}", ex.Message);
+                await TaskEx.Delay(2_000, cancellationToken).ConfigureAwait(false);
+            }
+        }
 
         sw.Stop();
         WriteLog("下载完成！{2} 大小{0:n0}字节，耗时{1:n0}ms", file.AsFile().Length, sw.ElapsedMilliseconds, file);
@@ -117,7 +151,7 @@ public class Upgrade
         return true;
     }
 
-    /// <summary>执行更新，拷贝文件</summary>
+    /// <summary>执行更新，拷贝文件。按更新模式清理目标目录</summary>
     public virtual Boolean Update()
     {
         var dest = DestinationPath;
@@ -135,39 +169,102 @@ public class Upgrade
         var dic = new Dictionary<String, String>();
         try
         {
-            //!!! 此处递归删除，导致也删掉了Update里面的文件
-            // 更新覆盖之前，需要把exe/dll可执行文件移走，否则Linux下覆盖运行中文件会报段错误
-            foreach (var item in dest.AsDirectory().GetAllFiles("*.exe;*.dll", false))
+            switch (Mode)
             {
-                var ori = item.FullName;
-                var del = $"{item.FullName}.del";
-                WriteLog("MoveTo {0}", del);
-                try
-                {
-                    //if (File.Exists(del)) File.Delete(del);
-                    // 如果.del文件已存在，不能直接删，因为进程可能正在使用（上次升级未完成）。
-                    if (File.Exists(del)) del = $"{item.FullName}_{DateTime.Now:yyMMddHHmmss}.del";
-                    item.MoveTo(del);
-
-                    dic[ori] = del;
-                }
-                catch (Exception ex)
-                {
-                    WriteLog(ex.Message);
-
-                    try
+                case UpdateModes.Full:
+                    // 完整包：清空目标目录（保护配置、更新目录、备份和日志）
+                    WriteLog("完整包模式，清空目标目录");
                     {
-                        // 删除失败时，移动到临时目录随机文件
-                        var target = Path.GetTempFileName();
-                        item.MoveTo(target);
-
-                        dic[ori] = target;
+                        var protectedNames = new[] { "appsettings.json", "appsettings.*.json", "Update", "Log", "Config" };
+                        foreach (var item in dest.AsDirectory().GetAllFiles(null, false))
+                        {
+                            if (!item.Name.EndsWithIgnoreCase(".del") && !protectedNames.Any(e => item.Name.EqualIgnoreCase(e)))
+                            {
+                                var ori = item.FullName;
+                                var del = $"{ori}.del";
+                                if (File.Exists(del)) del = $"{ori}_{DateTime.Now:yyMMddHHmmss}.del";
+                                WriteLog("MoveTo {0}", del);
+                                item.MoveTo(del);
+                                dic[ori] = del;
+                            }
+                        }
+                        // 递归清理子目录（保留 Update/ Log/ Config/）
+                        foreach (var dir in dest.AsDirectory().GetDirectories())
+                        {
+                            if (protectedNames.Any(e => dir.Name.EqualIgnoreCase(e))) continue;
+                            WriteLog("DeleteDir {0}", dir.FullName);
+                            dir.Delete(true);
+                        }
                     }
-                    catch (Exception ex2)
+                    break;
+                case UpdateModes.Partial:
+                    // 部分包：不清理目标，直接覆盖
+                    WriteLog("部分包模式，直接覆盖");
+                    break;
+                case UpdateModes.Standard:
+                default:
+                    //!!! 此处递归删除，导致也删掉了Update里面的文件
+                    // 更新覆盖之前，需要把exe/dll可执行文件移走，否则Linux下覆盖运行中文件会报段错误
+                    foreach (var item in dest.AsDirectory().GetAllFiles("*.exe;*.dll", false))
                     {
-                        WriteLog(ex2.Message);
+                        var ori = item.FullName;
+                        var del = $"{item.FullName}.del";
+                        WriteLog("MoveTo {0}", del);
+                        try
+                        {
+                            //if (File.Exists(del)) File.Delete(del);
+                            // 如果.del文件已存在，不能直接删，因为进程可能正在使用（上次升级未完成）。
+                            if (File.Exists(del)) del = $"{item.FullName}_{DateTime.Now:yyMMddHHmmss}.del";
+                            item.MoveTo(del);
+
+                            dic[ori] = del;
+                        }
+                        catch (Exception ex)
+                        {
+                            WriteLog(ex.Message);
+
+                            try
+                            {
+                                // 删除失败时，移动到临时目录随机文件
+                                var target = Path.GetTempFileName();
+                                item.MoveTo(target);
+
+                                dic[ori] = target;
+                            }
+                            catch (Exception ex2)
+                            {
+                                WriteLog(ex2.Message);
+                            }
+                        }
                     }
-                }
+
+                    // 备份将被覆盖的 JSON 文件（runtimeconfig.json / deps.json 等随 .NET 版本变化的文件），确保 Rollback 能完整恢复
+                    {
+                        var jsonPatterns = new[] { "*.runtimeconfig.json", "*.deps.json" };
+                        foreach (var pattern in jsonPatterns)
+                        {
+                            foreach (var item in dest.AsDirectory().GetAllFiles(pattern, false))
+                            {
+                                // 跳过已在 exe/dll 环节备份的文件
+                                if (dic.ContainsKey(item.FullName)) continue;
+
+                                var ori = item.FullName;
+                                var del = $"{ori}.del";
+                                WriteLog("MoveTo {0}", del);
+                                try
+                                {
+                                    if (File.Exists(del)) del = $"{ori}_{DateTime.Now:yyMMddHHmmss}.del";
+                                    item.MoveTo(del);
+                                    dic[ori] = del;
+                                }
+                                catch (Exception ex)
+                                {
+                                    WriteLog(ex.Message);
+                                }
+                            }
+                        }
+                    }
+                    break;
             }
 
             // 拷贝替换更新
@@ -176,6 +273,20 @@ public class Upgrade
             //// 删除备份文件
             //DeleteBackup(DestinationPath);
             //!!! 先别急着删除，在Linux上，删除正在使用的文件可能导致进程崩溃
+
+            // 强制 fsync 将页缓存提交到存储介质。同一启动周期内 exec() 通过页缓存读取文件是内核级一致的，
+            // sync 的主要价值是防止系统崩溃/断电重启后读到半写入数据。
+            if (Runtime.Linux)
+            {
+                Process.Start(new ProcessStartInfo("sync", "") { UseShellExecute = false })?.WaitForExit(10_000);
+
+                // ARM64 慢速存储额外等待页缓存回写完成
+                if (StorageFlushDelay > 0)
+                {
+                    WriteLog("等待落盘 {0}ms（慢速存储保护）", StorageFlushDelay);
+                    Thread.Sleep(StorageFlushDelay);
+                }
+            }
 
             WriteLog("更新成功！");
         }
@@ -223,72 +334,168 @@ public class Upgrade
         }
     }
 
+    /// <summary>回滚更新。将目标目录中备份的 .del 文件恢复为原始文件，用于新版本启动失败（冒烟测试不通过）时回退到旧版本</summary>
+    /// <remarks>
+    /// 设计理念：自更新最怕新版本有 bug 把自己"玩死"。
+    /// 更新完成后旧进程尝试拉起新进程作为冒烟测试——若新版本在 msWait 内异常退出，
+    /// 说明新版本存在致命缺陷，此时回滚所有 .del 恢复旧版文件，旧进程继续提供服务。
+    /// 即使设备随后重启，加载的仍是经过验证的旧版本。
+    /// </remarks>
+    /// <returns>恢复的文件数量</returns>
+    public Int32 Rollback()
+    {
+        var dest = DestinationPath;
+        if (dest.IsNullOrEmpty()) return 0;
+
+        var count = 0;
+        // 扫描目标目录中的 .del 文件（含时间戳变体 xxx_yyMMddHHmmss.del）
+        foreach (var item in dest.AsDirectory().GetAllFiles("*.del", false))
+        {
+            var delName = item.FullName;
+            // 去掉 .del 后缀得到原始文件名
+            var ori = delName.TrimSuffix(".del");
+
+            // 时间戳变体：xxx_yyMMddHHmmss.del → 原始文件名为 xxx（去掉 _12位时间戳）
+            var p = ori.LastIndexOf('_');
+            if (p > 0)
+            {
+                var suffix = ori.Substring(p + 1);
+                // 判断是否为 12 位纯数字时间戳（避免误判含下划线的正常文件名）
+                if (suffix.Length == 12 && suffix.All(Char.IsDigit))
+                    ori = ori.Substring(0, p);
+            }
+
+            WriteLog("Rollback {0} -> {1}", item.Name, Path.GetFileName(ori));
+            try
+            {
+                if (File.Exists(ori)) File.Delete(ori);
+                File.Move(delName, ori);
+                count++;
+            }
+            catch (Exception ex)
+            {
+                WriteLog("回滚失败：{0}", ex.Message);
+            }
+        }
+
+        if (count > 0) WriteLog("回滚完成，共恢复 {0} 个文件", count);
+
+        return count;
+    }
+
     /// <summary>启动当前应用的新进程。当前进程退出</summary>
     public Boolean Run(String name, String args) => Run(name, args, 3_000);
 
-    /// <summary>启动当前应用的新进程。当前进程退出</summary>
-    /// <param name="name"></param>
-    /// <param name="args"></param>
-    /// <param name="msWait"></param>
-    /// <returns></returns>
+    /// <summary>启动当前应用的新进程</summary>
+    /// <param name="name">应用名称（不含扩展名）。如 StarAgent</param>
+    /// <param name="args">启动参数</param>
+    /// <param name="msWait">等待毫秒数。若进程在此期间未退出视为启动成功</param>
+    /// <returns>是否成功拉起</returns>
     public Boolean Run(String name, String args, Int32 msWait)
     {
-        var file = "";
-        if (Runtime.Windows || Runtime.Mono)
-            file = name + ".exe";
-        else if (Runtime.Linux)
-            file = name;
+        // 通过 runtimeconfig.json 判定是否为 .NET Core 应用（muxer 优先）
+        var runtimeConfig = $"{name}.runtimeconfig.json".GetFullPath();
+        var isNetCore = File.Exists(runtimeConfig);
+
+        String fileName;
+        String? dotnetPath = null;
+        if (isNetCore)
+        {
+            // .NET Core 应用：使用 dotnet <name>.dll <args>，跨平台标准写法
+            fileName = (name + ".dll").GetFullPath();
+            if (!File.Exists(fileName)) throw new FileNotFoundException($"未找到 .NET 应用入口：{fileName}");
+
+            dotnetPath = ResolveDotNetPath();
+        }
         else
-            file = name + ".dll";
+        {
+            // 非 .NET Core 应用：按平台选择可执行文件
+            if (Runtime.Windows || Runtime.Mono)
+                fileName = (name + ".exe").GetFullPath();
+            else if (Runtime.Linux)
+                fileName = name.GetFullPath();
+            else
+                fileName = (name + ".dll").GetFullPath();
 
-        file = file.GetFullPath();
+            // 如果入口文件不存在，则尝试 dll 启动（.NET Framework 也可能用 dotnet 启动）
+            if (!File.Exists(fileName))
+            {
+                var dllFile = (name + ".dll").GetFullPath();
+                if (File.Exists(dllFile))
+                {
+                    fileName = dllFile;
+                    dotnetPath = ResolveDotNetPath();
+                    isNetCore = true;
+                }
+            }
 
-        // 如果入口文件不存在，则直接使用dll启动
-        if (!File.Exists(file))
-            file = (name + ".dll").GetFullPath();
-        else if (Runtime.Linux)
+            if (!File.Exists(fileName)) throw new FileNotFoundException($"未找到可执行文件：{fileName}");
+        }
+
+        // Linux 上对新二进制文件执行 chmod +x，确保有执行权限
+        if (Runtime.Linux && !isNetCore)
         {
             // 等待 chmod 完成（WaitForExit），避免 fire-and-forget 导致权限未及时生效的竞态条件。
             // 在慢速 ARM64 设备上，升级刚完成后系统 I/O 繁忙，chmod 可能超过 1 秒才能完成，
             // 若此时新进程尚无执行权限，UseShellExecute=false 会抛出 EACCES 导致启动失败。
             // 使用绝对路径 /bin/chmod 避免 PATH 解析，UseShellExecute=false 确保同步等待。
-            var p = Process.Start(new ProcessStartInfo("/bin/chmod", "+x " + file) { UseShellExecute = false });
+            var p = Process.Start(new ProcessStartInfo("/bin/chmod", "+x " + fileName) { UseShellExecute = false });
             p?.WaitForExit(5_000);
         }
 
-        WriteLog("拉起进程 {0} {1}", file, args);
+        WriteLog("拉起进程 {0} {1}", fileName, args);
         try
         {
-            var workingDir = Path.GetDirectoryName(file)!;
+            var workingDir = Path.GetDirectoryName(fileName)!;
             Process? p;
-            if (file.EndsWithIgnoreCase(".dll"))
+
+            if (isNetCore)
             {
-                // 使用 UseShellExecute=false 直接 fork/exec，避免 systemd 隔离环境下 UseShellExecute=true 走 shell 导致的 PATH 解析失败问题。
-                // systemd 服务的工作目录和 PATH 环境变量可能与用户登录 shell 不同，UseShellExecute=true 在 .NET 7+ Linux 上通过 shell 启动，
-                // 在精简环境中可能因找不到 dotnet 而抛出异常或返回 null。改为 false 后直接指定 FileName 和 Arguments，
-                // 同时显式设置 WorkingDirectory 确保新进程在正确的目录下启动。
-                p = Process.Start(new ProcessStartInfo
+                var startInfo = new ProcessStartInfo
                 {
-                    FileName = "dotnet",
-                    Arguments = $"{file} {args}",
+                    FileName = dotnetPath!,
+                    Arguments = $"{fileName} {args}",
                     WorkingDirectory = workingDir,
                     UseShellExecute = false,
-                });
+                    RedirectStandardError = true,
+                };
+
+                // 注入 DOTNET_ROOT 环境变量，确保子进程在 systemd 隔离环境下找到运行时
+                InjectDotNetRoot(startInfo, dotnetPath!);
+
+                p = Process.Start(startInfo);
             }
             else
             {
                 // 直接执行原生可执行文件（Linux 上为无扩展名的二进制文件），同样避免 shell 层
                 p = Process.Start(new ProcessStartInfo
                 {
-                    FileName = file,
+                    FileName = fileName,
                     Arguments = args,
                     WorkingDirectory = workingDir,
                     UseShellExecute = false,
+                    RedirectStandardError = true,
                 });
             }
 
-            // 如果进程在指定时间退出，说明启动失败
-            return p != null && (!p.WaitForExit(msWait) || p.ExitCode == 0);
+            if (p == null) return false;
+
+            // 如果进程在指定时间内退出，说明启动失败，捕获 stderr 用于诊断
+            if (p.WaitForExit(msWait))
+            {
+                if (p.ExitCode == 0) return true;
+
+                // 非零退出：读取 stderr 写入 LastErrorMessage
+                var stderr = p.StandardError.ReadToEnd();
+                LastErrorMessage = !stderr.IsNullOrEmpty()
+                    ? $"ExitCode={p.ExitCode}, stderr={stderr}"
+                    : $"ExitCode={p.ExitCode}（无错误输出）";
+                WriteLog("启动进程失败：{0}", LastErrorMessage);
+                return false;
+            }
+
+            // 进程持续运行 → 成功
+            return true;
         }
         catch (Exception ex)
         {
@@ -300,21 +507,102 @@ public class Upgrade
         }
     }
 
+    /// <summary>解析 dotnet 可执行文件路径</summary>
+    /// <remarks>
+    /// 优先级：DOTNET_ROOT 环境变量 → /usr/bin/dotnet（Linux 标准软链接，NetRuntime.InstallOnLinux 创建）→ /usr/local/bin/dotnet → 回退 "dotnet"
+    /// </remarks>
+    /// <returns>dotnet 可执行文件路径</returns>
+    internal static String ResolveDotNetPath()
+    {
+        // 优先使用 DOTNET_ROOT 环境变量
+        var dotnetRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+        if (!dotnetRoot.IsNullOrEmpty())
+        {
+            var path = Path.Combine(dotnetRoot, "dotnet");
+            if (File.Exists(path)) return path;
+        }
+
+        // Linux 标准路径：/usr/bin/dotnet（NetRuntime.InstallOnLinux 创建的软链接）
+        if (Runtime.Linux)
+        {
+            if (File.Exists("/usr/bin/dotnet")) return "/usr/bin/dotnet";
+            if (File.Exists("/usr/local/bin/dotnet")) return "/usr/local/bin/dotnet";
+        }
+
+        // 回退到系统 PATH
+        return "dotnet";
+    }
+
+    /// <summary>向子进程注入 DOTNET_ROOT 环境变量，确保在 systemd 隔离环境下找到运行时</summary>
+    /// <param name="startInfo">进程启动信息</param>
+    /// <param name="dotnetPath">已解析的 dotnet 路径</param>
+    static void InjectDotNetRoot(ProcessStartInfo startInfo, String dotnetPath)
+    {
+#if NET5_0_OR_GREATER
+        // 如果 dotnetPath 是绝对路径，反推运行时根目录
+        if (Path.IsPathRooted(dotnetPath) && Runtime.Linux)
+        {
+            // /usr/bin/dotnet → /usr, /usr/share/dotnet/dotnet → /usr/share/dotnet
+            var binDir = Path.GetDirectoryName(dotnetPath)!;
+            var dotnetRoot = Path.GetDirectoryName(binDir);
+
+            // /usr/bin/dotnet → 运行时在 /usr/share/dotnet 而不是 /usr
+            if (dotnetRoot != null && (dotnetRoot.EndsWith("/bin") || dotnetRoot!.EndsWith("\\bin")))
+                dotnetRoot = Path.Combine(Path.GetDirectoryName(dotnetRoot)!, "share", "dotnet");
+
+            if (!dotnetRoot.IsNullOrEmpty() && Directory.Exists(dotnetRoot))
+                startInfo.Environment["DOTNET_ROOT"] = dotnetRoot;
+        }
+
+        // 注入当前进程的 DOTNET_ROOT（如果有）
+        var currentRoot = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+        if (!currentRoot.IsNullOrEmpty() && !startInfo.Environment.ContainsKey("DOTNET_ROOT"))
+            startInfo.Environment["DOTNET_ROOT"] = currentRoot;
+
+        // 注入架构特定的 DOTNET_ROOT 变量（ARM64/x64）
+        if (startInfo.Environment.TryGetValue("DOTNET_ROOT", out var root) && !root.IsNullOrEmpty())
+        {
+            var arch = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture;
+            if (arch == System.Runtime.InteropServices.Architecture.Arm64)
+                startInfo.Environment["DOTNET_ROOT_ARM64"] = root;
+            else if (arch == System.Runtime.InteropServices.Architecture.X64)
+                startInfo.Environment["DOTNET_ROOT_X64"] = root;
+        }
+#else
+        // .NET Framework：使用 EnvironmentVariables
+        if (Path.IsPathRooted(dotnetPath) && Runtime.Linux)
+        {
+            var binDir = Path.GetDirectoryName(dotnetPath)!;
+            var dotnetRoot = Path.GetDirectoryName(binDir);
+
+            if (dotnetRoot != null && (dotnetRoot.EndsWith("/bin") || dotnetRoot!.EndsWith("\\bin")))
+                dotnetRoot = Path.Combine(Path.GetDirectoryName(dotnetRoot)!, "share", "dotnet");
+
+            if (!dotnetRoot.IsNullOrEmpty() && Directory.Exists(dotnetRoot))
+                startInfo.EnvironmentVariables["DOTNET_ROOT"] = dotnetRoot;
+        }
+
+        var currentRoot2 = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+        if (!currentRoot2.IsNullOrEmpty() && !startInfo.EnvironmentVariables.ContainsKey("DOTNET_ROOT"))
+            startInfo.EnvironmentVariables["DOTNET_ROOT"] = currentRoot2;
+#endif
+    }
+
     static Process? RunShell(String fileName, String args) => Process.Start(new ProcessStartInfo(fileName, args) { UseShellExecute = true });
     #endregion
 
     #region 辅助
-    /// <summary>
-    /// 自杀
-    /// </summary>
+    /// <summary>终止当前进程</summary>
     public virtual void KillSelf()
     {
         var p = Process.GetCurrentProcess();
         WriteLog("退出当前进程 {0}", p.Id);
 
-        if (!Runtime.IsConsole) p.CloseMainWindow();
+        if (!Runtime.IsConsole)
+            p.CloseMainWindow();
+
+        // 直接退出进程，不再执行任何代码
         Environment.Exit(0);
-        p.Kill();
     }
 
     /// <summary>
@@ -364,7 +652,10 @@ public class Upgrade
     {
         if (_Client != null) return _Client;
 
-        return _Client = new HttpClient();
+        return _Client = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(DownloadTimeoutSeconds),
+        };
     }
 
     /// <summary>下载文件</summary>
