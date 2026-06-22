@@ -287,7 +287,11 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (msg != null && !msg.Reply && api != null && api.Action == "Notify")
         {
             if (api.Data != null)
-                _ = HandleAsync(api.Data, null, default);
+                _ = HandleAsync(api.Data, null, default).ContinueWith(t =>
+                {
+                    if (t.IsFaulted)
+                        Log?.Error("HandleAsync通知失败: {0}", t.Exception?.GetTrue()?.Message);
+                }, TaskScheduler.Default);
         }
     }
 
@@ -502,8 +506,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             if (!Logined) return;
         }
 
+        // 仅当 _timerLogin 未被其他线程替换时才置 null，避免误销毁新 timer
+        Interlocked.CompareExchange(ref _timerLogin, null, timer);
         timer.TryDispose();
-        _timerLogin = null;
     }
 
     /// <summary>登录。使用编码和密钥登录服务端，获取令牌用于后续接口调用</summary>
@@ -552,10 +557,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             // 登录前清空令牌，避免服务端使用上一次信息
             SetToken(null);
 
-            // 滚动的登录超时时间，实际上只对StarServer有效
-            var timeout = times * 1000;
-            if (timeout > Timeout) timeout = Timeout;
-            using var timeoutSource = new CancellationTokenSource(timeout);
+            // 滚动的登录超时时间（防止 Int32 溢出）
+            var timeout = (Int64)times * 1000;
+            if (timeout > Timeout || timeout < 0) timeout = Timeout;
+            using var timeoutSource = new CancellationTokenSource((Int32)timeout);
             using var ts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutSource.Token);
 
             response = await LoginAsync(request, ts.Token).ConfigureAwait(false);
@@ -595,9 +600,17 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         FixTime(response.Time, response.ServerTime);
 
-        OnLogined?.Invoke(this, new(request, response));
-
+        // 先启动定时器再触发事件，防止事件处理器异常导致定时器未启动
         StartTimer();
+
+        try
+        {
+            OnLogined?.Invoke(this, new(request, response));
+        }
+        catch (Exception ex)
+        {
+            Log?.Error("[{0}]OnLogined事件异常: {1}", Name, ex.Message);
+        }
 
         return response;
     }
@@ -1226,9 +1239,16 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     //}, (Int32)ts.TotalMilliseconds);
                     _ = Task.Run(async () =>
                     {
-                        await TaskEx.Delay((Int32)ts.TotalMilliseconds).ConfigureAwait(false);
-                        WriteLog("[{0}] 延迟执行: {1}", source, message);
-                        await OnReceiveCommand(model, message, CancellationToken.None).ConfigureAwait(false);
+                        try
+                        {
+                            await TaskEx.Delay((Int32)ts.TotalMilliseconds).ConfigureAwait(false);
+                            WriteLog("[{0}] 延迟执行: {1}", source, message);
+                            await OnReceiveCommand(model, message, CancellationToken.None).ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log?.Error("延迟命令执行失败: {0}", ex.Message);
+                        }
                     }, cancellationToken);
 
                     var reply = new CommandReplyModel

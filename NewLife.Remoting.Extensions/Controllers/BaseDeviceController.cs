@@ -107,7 +107,9 @@ public abstract class BaseDeviceController : BaseController
 
         var rs = _deviceService.Login(Context, request, "Http");
 
-        var dv = Context.Device!;
+        var dv = Context.Device;
+        if (dv == null) throw new ApiException(ApiCode.Forbidden, "未找到设备");
+
         rs ??= new LoginResponse { Name = dv.Name, };
 
         if (request is ILoginRequest2 req) rs.Time = req.Time;
@@ -151,13 +153,13 @@ public abstract class BaseDeviceController : BaseController
     [HttpPost(nameof(Ping))]
     public virtual IPingResponse Ping([FromBody] IPingRequest request)
     {
-        var rs = _deviceService.Ping(Context, request, null);
+        var rs = _deviceService.Ping(Context, request, null) ?? new PingResponse();
 
         var device = Context.Device;
-        if (device != null)
+        if (device != null && Context.Token != null)
         {
             // 令牌有效期检查，10分钟内到期的令牌，颁发新令牌
-            var (jwt, ex) = _tokenService.DecodeToken(Context.Token!);
+            var (jwt, ex) = _tokenService.DecodeToken(Context.Token);
             if (ex == null && jwt != null && jwt.Expire < DateTime.Now.AddMinutes(10))
             {
                 using var span = _tracer?.NewSpan("RefreshToken", new { device.Code, jwt.Subject });
@@ -178,7 +180,7 @@ public abstract class BaseDeviceController : BaseController
     /// <exception cref="ApiException">未登录时抛出</exception>
     [HttpGet(nameof(Upgrade))]
     [HttpPost(nameof(Upgrade))]
-    public virtual IUpgradeInfo Upgrade(String? channel)
+    public virtual IUpgradeInfo? Upgrade(String? channel)
     {
         if (Context.Device == null) throw new ApiException(ApiCode.Unauthorized, "未登录");
 
@@ -195,7 +197,7 @@ public abstract class BaseDeviceController : BaseController
             info.Source = new Uri(new Uri(uri), info.Source) + "";
         }
 
-        return info!;
+        return info;
     }
     #endregion
 
@@ -203,18 +205,18 @@ public abstract class BaseDeviceController : BaseController
     /// <summary>下行通知。建立WebSocket长连接</summary>
     /// <returns></returns>
     [HttpGet(nameof(Notify))]
-    public virtual async Task Notify()
+    public virtual async Task<IActionResult> Notify()
     {
         if (HttpContext.WebSockets.IsWebSocketRequest)
         {
             using var socket = await HttpContext.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
 
             await HandleNotify(socket, HttpContext.RequestAborted).ConfigureAwait(false);
+
+            return new EmptyResult();
         }
-        else
-        {
-            HttpContext.Response.StatusCode = 400;
-        }
+
+        return BadRequest("不是WebSocket请求");
     }
 
     /// <summary>长连接处理</summary>
