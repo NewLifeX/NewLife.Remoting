@@ -8,6 +8,8 @@ using NewLife.Reflection;
 using NewLife.Remoting.Http;
 using NewLife.Serialization;
 using NewLife.Threading;
+using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 #if !NET40
 using TaskEx = System.Threading.Tasks.Task;
 #endif
@@ -314,6 +316,17 @@ public class ApiClient : ApiHost, IApiClient
             args = dic;
         }
 
+        // Headers 注入
+        if (Headers.Count > 0 && args != null)
+        {
+            var dic = args.ToDictionary();
+            foreach (var item in Headers)
+            {
+                if (!dic.ContainsKey(item.Key)) dic[item.Key] = item.Value;
+            }
+            args = dic;
+        }
+
         // 埋点，注入traceParent到参数集合
         var span = Tracer?.NewSpan("rpc:" + action, args);
         if (args != null && span != null) args = span.Attach(args);
@@ -499,6 +512,8 @@ public class ApiClient : ApiHost, IApiClient
         if (msg.Reply) return;
 
         using var apiMessage = Encoder.Decode(msg);
+        if (apiMessage == null) return;
+
         var e2 = new ApiReceivedEventArgs
         {
             Remote = sender as ISocketRemote,
@@ -619,5 +634,122 @@ public class ApiClient : ApiHost, IApiClient
     #region 日志
     /// <summary>Socket层日志</summary>
     public ILog SocketLog { get; set; } = Logger.Null;
+
+    /// <summary>请求头。每次调用自动作为顶级参数注入到请求中，服务端可通过参数字典读取</summary>
+    public IDictionary<String, String?> Headers { get; set; } = new Dictionary<String, String?>();
+    #endregion
+
+    #region 流式调用
+    /// <summary>流式异步调用，返回 IAsyncEnumerable 逐条接收服务端推送</summary>
+    /// <typeparam name="TResult">每条数据的返回类型</typeparam>
+    /// <param name="action">服务操作</param>
+    /// <param name="args">参数</param>
+    /// <param name="cancellationToken">取消通知</param>
+    /// <returns>流式数据序列</returns>
+    /// <remarks>
+    /// 客户端发送请求，服务端检测到流式 Action 后逐条推送响应帧。
+    /// 所有数据帧（含首帧）通过临时 Received 事件统一收集，避免 SendMessageAsync 与事件重复接收。
+    /// SendMessageAsync 仅用于确认流已建立并在出错时抛异常。
+    /// 结束标记（空 data）自动停止迭代。
+    /// </remarks>
+    public virtual async IAsyncEnumerable<TResult> InvokeStreamAsync<TResult>(String action, Object? args = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        Open();
+
+        if (Cluster == null) throw new ArgumentNullException(nameof(Cluster));
+
+        var client = Cluster.Get();
+        var enc = Encoder;
+
+        // 注入 Headers
+        if (Headers.Count > 0 && args != null)
+        {
+            var dic = args.ToDictionary();
+            foreach (var item in Headers)
+            {
+                if (!dic.ContainsKey(item.Key)) dic[item.Key] = item.Value;
+            }
+            args = dic;
+        }
+
+        using var msg = enc.CreateRequest(action, args);
+
+        // 提前注册 Received 处理器，确保首帧不会因竞态丢失
+        var signal = new SemaphoreSlim(0);
+        var queue = new ConcurrentQueue<IMessage>();
+
+        void onReceived(Object? s, ReceivedEventArgs e)
+        {
+            if (cancellationToken.IsCancellationRequested) return;
+
+            if (e.Message is IMessage chunkMsg)
+            {
+                queue.Enqueue(chunkMsg);
+                signal.Release();
+            }
+        }
+
+        client.Received += onReceived;
+        try
+        {
+            // 发送请求并等待首个响应（仅验证流已建立/检查错误，不消费数据）
+            var firstRs = await client.SendMessageAsync(msg, cancellationToken).ConfigureAwait(false) as IMessage;
+            if (firstRs == null || firstRs.Payload == null) yield break;
+
+            var firstMessage = enc.Decode(firstRs);
+            if (firstMessage != null && firstMessage.Code is not ApiCode.Ok and not ApiCode.Ok200)
+                throw new ApiException(firstMessage.Code, firstMessage.Data?.ToStr().Trim('\"') ?? "") { Source = client.Remote + "/" + action };
+
+            // 首帧无数据即为结束标记（空流）
+            if (firstMessage == null || firstMessage.Data == null || firstMessage.Data.Total == 0)
+            {
+                firstMessage.TryDispose();
+                firstRs.Payload.TryDispose();
+                yield break;
+            }
+
+            firstMessage.TryDispose();
+            firstRs.Payload.TryDispose();
+
+            // 统一从队列收集所有数据帧（含首帧的副本，由 onReceived 捕获）
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await signal.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+                while (queue.TryDequeue(out var chunkMsg))
+                {
+                    var chunkMessage = enc.Decode(chunkMsg);
+                    // 空 action（无效帧）或空 data（结束标记）
+                    if (chunkMessage == null || chunkMessage.Data == null || chunkMessage.Data.Total == 0)
+                    {
+                        chunkMessage.TryDispose();
+                        chunkMsg.Payload.TryDispose();
+                        yield break;
+                    }
+
+                    if (chunkMessage.Code is not ApiCode.Ok and not ApiCode.Ok200)
+                        throw new ApiException(chunkMessage.Code, chunkMessage.Data?.ToStr().Trim('\"') ?? "");
+
+                    if (chunkMessage.Data.Total > 0)
+                    {
+                        var chunkResult = enc.DecodeResult(action, chunkMessage.Data, chunkMsg, typeof(TResult));
+                        if (chunkResult is TResult ctr) yield return ctr;
+                    }
+
+                    chunkMessage.TryDispose();
+                    chunkMsg.Payload.TryDispose();
+                }
+            }
+
+            // 循环因取消退出时抛出 OperationCanceledException，让 await foreach 能捕获
+            if (cancellationToken.IsCancellationRequested)
+                throw new OperationCanceledException(cancellationToken);
+        }
+        finally
+        {
+            client.Received -= onReceived;
+            Cluster.Return(client);
+        }
+    }
     #endregion
 }

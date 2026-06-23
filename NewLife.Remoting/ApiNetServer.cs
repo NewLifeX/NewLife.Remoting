@@ -180,4 +180,9 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
             //msg.Payload.TryDispose();
         }
     }
+
+    /// <summary>发送消息</summary>
+    /// <param name="msg">消息</param>
+    /// <returns></returns>
+    public Int32 SendMessage(IMessage msg) => Session.SendMessage(msg);
 }

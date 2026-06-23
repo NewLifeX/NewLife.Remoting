@@ -33,6 +33,9 @@ public class ControllerContext
     /// <summary>获取或设置一个值，该值指示是否处理异常。</summary>
     public Boolean ExceptionHandled { get; set; }
 
+    /// <summary>扩展数据字典</summary>
+    public IDictionary<String, Object?> Items { get; } = new Dictionary<String, Object?>();
+
     /// <summary>实例化</summary>
     public ControllerContext() { }
 

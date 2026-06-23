@@ -334,5 +334,8 @@ class MockApiSession : IApiSession, IServiceProvider
 
     public Int32 InvokeOneWay(String action, Object? args = null, Byte flag = 0) => 0;
 
+    /// <summary>发送消息。Mock 实现不经过网络</summary>
+    public Int32 SendMessage(IMessage msg) => 0;
+
     public Object? GetService(Type serviceType) => (_host as IServiceProvider).GetService(serviceType);
 }

@@ -65,6 +65,15 @@ public interface IEncoder
 
     /// <summary>日志提供者</summary>
     ILog Log { get; set; }
+
+    /// <summary>创建流式响应帧</summary>
+    /// <param name="msg">原始请求消息</param>
+    /// <param name="action">动作名称</param>
+    /// <param name="code">错误码</param>
+    /// <param name="value">流数据块</param>
+    /// <param name="isLast">是否最后一帧</param>
+    /// <returns></returns>
+    IMessage CreateStreamResponse(IMessage msg, String action, Int32 code, Object? value, Boolean isLast);
 }
 
 /// <summary>编码器基类</summary>
@@ -123,7 +132,8 @@ public abstract class EncoderBase
         var reader = new SpanReader(msg.Payload!.GetSpan());
 
         message.Action = reader.ReadString();
-        if (message.Action.IsNullOrEmpty()) throw new Exception("解码错误，无法找到服务名！");
+        // 空 action 视为无效帧（如流式结束标记），返回 null 让上层检测
+        if (message.Action.IsNullOrEmpty()) return null;
 
         // 异常响应才有code
         if (msg.Reply && msg.Error) message.Code = reader.ReadInt32();
@@ -136,6 +146,44 @@ public abstract class EncoderBase
         }
 
         return message;
+    }
+    #endregion
+
+    #region 流式编码
+    /// <summary>编码流式数据块为数据包</summary>
+    /// <param name="action">动作名称</param>
+    /// <param name="code">错误码</param>
+    /// <param name="value">流数据块。若为 IOwnerPacket，将挂载到返回包的 Next 链</param>
+    /// <param name="isLast">是否最后一帧</param>
+    /// <returns>编码后的数据包，isLast=true且value=null时返回空包标记结束</returns>
+    public virtual IPacket EncodeStreamChunk(String action, Int32? code, IPacket? value, Boolean isLast)
+    {
+        if (isLast && value == null)
+        {
+            // 末帧空包：保留 action 名 + 无数据体，客户端通过 Data==null 检测结束
+            var endPk = new OwnerPacket(8 + 1 + Encoding.UTF8.GetByteCount(action));
+            var endWriter = new SpanWriter(endPk.GetSpan());
+            endWriter.Advance(8);
+            endWriter.Write(action);
+            return endPk.Slice(8, endWriter.Position - 8, true);
+        }
+
+        var len = 8 + 1 + Encoding.UTF8.GetByteCount(action);
+        if (code != null && code.Value is not ApiCode.Ok and not 200) len += 4;
+        if (value != null) len += 4; // 数据长度字段固定4字节
+        var pk = new OwnerPacket(len);
+
+        var writer = new SpanWriter(pk.GetSpan());
+        writer.Advance(8);
+        writer.Write(action);
+
+        if (code != null && code.Value is not ApiCode.Ok and not 200) writer.Write(code.Value);
+        if (value != null) writer.Write(value.Total);
+
+        var pk2 = pk.Slice(8, writer.Position - 8, true);
+        if (value != null) pk2.Next = value;
+
+        return pk2;
     }
     #endregion
 

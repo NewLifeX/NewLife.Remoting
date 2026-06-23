@@ -1,4 +1,5 @@
 ﻿using NewLife.Data;
+using NewLife.Messaging;
 
 namespace NewLife.Remoting;
 
@@ -36,4 +37,9 @@ public interface IApiSession : IExtend
     /// <param name="flag">标识</param>
     /// <returns></returns>
     Int32 InvokeOneWay(String action, Object? args = null, Byte flag = 0);
+
+    /// <summary>发送消息。用于流式推送等场景</summary>
+    /// <param name="msg">消息</param>
+    /// <returns></returns>
+    Int32 SendMessage(IMessage msg);
 }

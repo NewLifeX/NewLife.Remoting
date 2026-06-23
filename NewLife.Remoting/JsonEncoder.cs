@@ -110,6 +110,34 @@ public class JsonEncoder : EncoderBase, IEncoder
         return rs;
     }
 
+    /// <summary>创建流式响应帧</summary>
+    /// <param name="msg">原始请求消息</param>
+    /// <param name="action">动作名称</param>
+    /// <param name="code">错误码</param>
+    /// <param name="value">流数据块</param>
+    /// <param name="isLast">是否最后一帧</param>
+    /// <returns></returns>
+    public IMessage CreateStreamResponse(IMessage msg, String action, Int32 code, Object? value, Boolean isLast)
+    {
+        var pk = EncodeValue(value, out var str);
+
+        if (LogEnable)
+        {
+            if (str.IsNullOrEmpty() && pk != null) str = $"[{pk?.Total}]";
+            var marker = isLast ? "[End]" : "[Stream]";
+            WriteLog("{0}[{2:X2}]{3}=>{1}", action, str, msg is DefaultMessage dm ? dm.Sequence : 0, marker);
+        }
+
+        var payload = EncodeStreamChunk(action, code, pk, isLast);
+
+        // 流式帧也使用 CreateReply 保持一致性，客户端通过临时 Received 处理器接收
+        var rs = msg.CreateReply()!;
+        rs.Payload = payload;
+        if (code is not ApiCode.Ok and not 200) rs.Error = true;
+
+        return rs;
+    }
+
     /// <summary>编码值对象为数据包</summary>
     /// <param name="value">要编码的值。IPacket/IOwnerPacket 直接透传，其他类型序列化为 JSON/字符串</param>
     /// <param name="str">输出日志用的字符串表示</param>

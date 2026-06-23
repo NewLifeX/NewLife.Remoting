@@ -94,6 +94,37 @@ public class HttpEncoder : EncoderBase, IEncoder
         }
     }
 
+    /// <summary>创建流式响应帧。HTTP 模式输出 SSE 格式（text/event-stream）</summary>
+    /// <param name="msg">原始请求消息</param>
+    /// <param name="action">动作名称</param>
+    /// <param name="code">错误码</param>
+    /// <param name="value">流数据块</param>
+    /// <param name="isLast">是否最后一帧</param>
+    /// <returns></returns>
+    public virtual IMessage CreateStreamResponse(IMessage msg, String action, Int32 code, Object? value, Boolean isLast)
+    {
+        if (isLast && value == null)
+        {
+            // SSE 结束：发送空 data
+            var endResponse = msg.CreateReply()!;
+            endResponse.Payload = (ArrayPacket)"data: \n\n".GetBytes();
+            return endResponse;
+        }
+
+        // 编码为 JSON
+        var json = UseHttpStatus
+            ? JsonHost.Write(value, false, false, false)
+            : JsonHost.Write(new { action, code, data = value }, false, true, false);
+
+        WriteLog("{0}=>{1}", action, json);
+
+        var sseData = $"data: {json}\n\n";
+        var response = msg.CreateReply()!;
+        response.Payload = (ArrayPacket)sseData.GetBytes();
+
+        return response;
+    }
+
     /// <summary>解码结果</summary>
     /// <param name="action"></param>
     /// <param name="data"></param>

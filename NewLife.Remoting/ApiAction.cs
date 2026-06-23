@@ -36,6 +36,9 @@ public class ApiAction : IExtend
     /// <summary>是否Accessor返回</summary>
     public Boolean IsAccessorReturn { get; }
 
+    /// <summary>是否流式返回（返回 IAsyncEnumerable&lt;T&gt;）</summary>
+    public Boolean IsStreaming { get; }
+
     /// <summary>是否无参数方法</summary>
     public Boolean IsNoParameter { get; }
 
@@ -82,6 +85,10 @@ public class ApiAction : IExtend
 
         if (returnType.As<IPacket>()) IsPacketReturn = true;
         if (returnType.As<IAccessor>()) IsAccessorReturn = true;
+
+        // 检测流式返回：IAsyncEnumerable<T>
+        if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
+            IsStreaming = true;
 
         // 预编译快速调用委托
         FastInvoker = CompileInvoker(method);

@@ -10,7 +10,7 @@
 ![Nuget](https://img.shields.io/nuget/v/NewLife.Remoting.Extensions?logo=nuget)
 ![Nuget (with prereleases)](https://img.shields.io/nuget/vpre/NewLife.Remoting.Extensions?label=dev%20nuget&logo=nuget)
 
-> 简单、统一、可扩展、跨多目标框架 (net45 ~ net9.0) 的远程通信基础设施。单一生态内同时覆盖：
+> 简单、统一、可扩展、跨多目标框架 (net45 ~ net10.0) 的远程通信基础设施。单一生态内同时覆盖：
 > - 二进制高性能 RPC (长连接 / 主动下发 / 海量连接与吞吐)
 > - 标准 HTTP / REST (易集群 / 生态丰富 / 负载均衡)
 > - WebSocket 指令下发与事件推送
@@ -21,24 +21,88 @@
 > NuGet：`NewLife.Remoting` / `NewLife.Remoting.Extensions`
 
 ---
+
+## 🔥 RPC 核心亮点与快速用例
+
+**5 行服务端，5 行客户端，即刻跑通 RPC 调用：**
+
+```csharp
+// === 服务端 ===
+var server = new ApiServer(12345);
+server.Register<MyController>();
+server.Start();
+
+public class MyController : ApiController
+{
+    public String Ping(String name) => $"Hello {name}, {DateTime.Now:HH:mm:ss}";
+    // 流式推送：返回 IAsyncEnumerable<T> 自动逐条下发
+    public async IAsyncEnumerable<String> StreamLogs(Int32 count)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            await Task.Delay(100);
+            yield return $"Log #{i}: {DateTime.Now:HH:mm:ss}";
+        }
+    }
+}
+
+// === 客户端 ===
+var client = new ApiClient("tcp://127.0.0.1:12345");
+client.Open();
+
+// 普通调用
+var rs = await client.InvokeAsync<String>("My/Ping", new { name = "dev" });
+
+// 流式调用 — 逐条接收服务端推送
+await foreach (var log in client.InvokeStreamAsync<String>("My/StreamLogs", new { count = 10 }))
+    Console.WriteLine(log);
+
+// 元数据传递（自动注入 TraceId）
+client.Headers["TenantId"] = "tenant-01";
+```
+
+| 维度 | 指标 |
+|------|------|
+| 🔌 **传输协议** | TCP / UDP / HTTP / WebSocket 统一 API |
+| ⚡ **单次 RPC 延迟** | ~41 μs（端到端，含 TCP 往返 + JSON 编解码） |
+| 🚀 **RPC 吞吐** | 典型 10 万 TPS，实验峰值 **2266 万 TPS** |
+| 🔗 **TCP 长连接** | 典型 1 万，实验峰值 **400 万** |
+| 📦 **序列化** | JSON（默认）+ IPacket 二进制直通 |
+| 🌊 **流式调用** | Server-Streaming（`IAsyncEnumerable<T>`），HTTP 自动兼容 SSE |
+| 🏷️ **元数据传递** | `client.Headers` 字典透传 TraceId/TenantId 等 |
+| 🔁 **集群与重试** | 故障转移 / 连接池 / 自动重试 / 401 自动重登 |
+| 🛡️ **可观测性** | 慢调用日志、`ITracer` 链路追踪、`ICounter` 统计 |
+| 🎯 **框架兼容** | net45 / net461 / netstandard2.0 / netstandard2.1 / net5.0 ~ net10.0 |
+
+---
 ## 目录导航
-- [核心特性](#核心特性)
-- [架构概览](#架构概览)
-- [适用场景对比](#适用场景对比)
-- [快速开始](#快速开始)
-  - [RPC 服务端最小示例](#rpc-服务端最小示例)
-  - [RPC 客户端调用示例](#rpc-客户端调用示例)
-  - [HTTP + WebSocket 设备接入](#http--websocket-设备接入)
-- [统一客户端 ClientBase 能力](#统一客户端-clientbase-能力)
-- [SRMP 协议简介](#srmp-协议简介)
-- [性能指标](#性能指标)
-- [认证与安全](#认证与安全)
-- [扩展与二次开发](#扩展与二次开发)
-- [与其它 NewLife 组件协同](#与其它-newlife-组件协同)
-- [多目标框架兼容策略](#多目标框架兼容策略)
-- [项目生态矩阵](#项目生态矩阵)
-- [贡献与反馈](#贡献与反馈)
-- [团队与版权](#团队与版权)
+- [NewLife.Remoting - 统一高性能远程通信框架 (RPC + HTTP + WebSocket + SRMP)](#newliferemoting---统一高性能远程通信框架-rpc--http--websocket--srmp)
+  - [🔥 RPC 核心亮点与快速用例](#-rpc-核心亮点与快速用例)
+  - [目录导航](#目录导航)
+  - [核心特性](#核心特性)
+  - [架构概览](#架构概览)
+  - [适用场景对比](#适用场景对比)
+  - [快速开始](#快速开始)
+    - [安装模板（推荐）](#安装模板推荐)
+    - [RPC 服务端最小示例](#rpc-服务端最小示例)
+    - [RPC 客户端调用示例](#rpc-客户端调用示例)
+    - [HTTP + WebSocket 设备接入](#http--websocket-设备接入)
+    - [Server-Streaming 流式调用](#server-streaming-流式调用)
+    - [元数据传递（Headers）](#元数据传递headers)
+  - [统一客户端 ClientBase 能力](#统一客户端-clientbase-能力)
+  - [SRMP 协议简介](#srmp-协议简介)
+  - [性能指标](#性能指标)
+  - [认证与安全](#认证与安全)
+  - [扩展与二次开发](#扩展与二次开发)
+  - [与其它 NewLife 组件协同](#与其它-newlife-组件协同)
+  - [多目标框架兼容策略](#多目标框架兼容策略)
+  - [项目生态矩阵](#项目生态矩阵)
+  - [贡献与反馈](#贡献与反馈)
+  - [快速命令回顾](#快速命令回顾)
+  - [新生命项目矩阵](#新生命项目矩阵)
+  - [团队与版权](#团队与版权)
+  - [变更记录](#变更记录)
+  - [License](#license)
 
 ---
 ## 核心特性
@@ -51,7 +115,9 @@
 7. 安全：令牌颁发 + 可插拔密码/签名提供者 + Token 续期策略
 8. WebSocket 通道：HTTP 架构下的实时指令下发与推送
 9. 控制器模型：与 WebApi 类似的 Controller/Action 调用体验（ApiServer / ApiController）
-10. 扩展组建：`NewLife.Remoting.Extensions` 提供 ASP.NET Core 设备接入基类、令牌服务、会话管理、模型绑定器
+10. **流式调用**：Action 返回 `IAsyncEnumerable<T>` 自动 Server-Streaming，HTTP 兼容 SSE，客户端 `await foreach` 逐条接收
+11. **元数据传递**：`client.Headers` 字典注入 TraceId/TenantId 等上下文，服务端自动提取
+12. 扩展组件：`NewLife.Remoting.Extensions` 提供 ASP.NET Core 设备接入基类、令牌服务、会话管理、模型绑定器
 
 ---
 ## 架构概览
@@ -137,6 +203,41 @@ public class DeviceController : BaseDeviceController
 ```
 客户端使用 ApiHttpClient 登录 + 周期 Ping，服务端可通过 WebSocket 通道下发指令。
 
+### Server-Streaming 流式调用
+Controller Action 返回 `IAsyncEnumerable<T>` 时，框架自动以流式模式逐条推送，客户端 `await foreach` 逐条接收：
+```csharp
+// 服务端 — 逐条推送日志
+public async IAsyncEnumerable<String> GetLogs(Int32 count)
+{
+    for (var i = 0; i < count; i++)
+    {
+        await Task.Delay(100);
+        yield return $"Log #{i}: {DateTime.Now:HH:mm:ss}";
+    }
+}
+
+// 客户端 — 逐条接收
+await foreach (var log in client.InvokeStreamAsync<String>("My/GetLogs", new { count = 10 }))
+    Console.WriteLine(log);
+```
+- TCP/SRMP：二进制帧逐条下发，首帧 ~41μs，后续帧 <1ms
+- HTTP：自动兼容 SSE（`text/event-stream`），浏览器原生支持
+- 支持 `CancellationToken` 中途取消，客户端断开时服务端自动停止推送
+
+### 元数据传递（Headers）
+`ApiClient.Headers` 字典在每次调用时自动注入到参数字典，服务端可通过 `ControllerContext.Current.Items` 读取：
+```csharp
+// 客户端
+client.Headers["TenantId"] = "tenant-01";
+var rs = await client.InvokeAsync<String>("My/Ping", new { name = "dev" });
+
+// 服务端
+var headers = ControllerContext.Current.Items;
+var tenantId = headers?["TenantId"] as String;
+```
+- 常用场景：分布式链路追踪（TraceId 自动注入）、多租户标识透传
+- 不改 `IMessage` 接口，不影响协议兼容性
+
 ---
 ## 统一客户端 ClientBase 能力
 ClientBase 抽象了设备 / 节点 / 应用常见生命周期：
@@ -151,7 +252,7 @@ ClientBase 抽象了设备 / 节点 / 应用常见生命周期：
 ## SRMP 协议简介
 SRMP (Simple Remote Message Protocol)：
 - 面向消息的远程调用与推送协议
-- 支持标志位：OneWay / Reply / Flag 扩展
+- 支持标志位：OneWay / Reply / Streaming / EndOfStream
 - 设计目标：比 HTTP 更低的开销；比原始 TCP 更易解析与调试
 - 在 ApiNetServer 中通过 WebSocketServerCodec + 标准消息编解码器组合使用
 详见：`Doc/SRMP.MD`。
@@ -198,7 +299,7 @@ SRMP (Simple Remote Message Protocol)：
 
 ---
 ## 多目标框架兼容策略
-- 支持：net45 / net461 / netstandard2.0 / netstandard2.1 / net5.0~net9.0
+- 支持：net45 / net461 / netstandard2.0 / netstandard2.1 / net5.0~net10.0
 - 通过条件编译隔离新旧 API（Span / ValueTask / Socket 特性等）
 - 遵循：不主动移除旧 TFM；新增功能优先判断可用性再启用
 

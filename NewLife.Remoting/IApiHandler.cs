@@ -144,6 +144,20 @@ public class ApiHandler : IApiHandler
 
                 if (rs is Task task) rs = GetTaskResult(task);
 
+                // 流式返回：IAsyncEnumerable<T> 不拆解，原样返回给 Process 处理
+                if (api.IsStreaming)
+                {
+                    ctx.Result = rs;
+
+                    if (controller is IActionFilter filter2b)
+                    {
+                        filter2b.OnActionExecuted(ctx);
+                        rs = ctx.Result;
+                    }
+
+                    return rs;
+                }
+
                 ctx.Result = rs;
             }
 

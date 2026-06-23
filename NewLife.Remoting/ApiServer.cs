@@ -7,6 +7,7 @@ using NewLife.Net;
 using NewLife.Remoting.Http;
 using NewLife.Serialization;
 using NewLife.Threading;
+using System.Reflection;
 
 namespace NewLife.Remoting;
 
@@ -288,6 +289,20 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
                 Received?.Invoke(this, new ApiReceivedEventArgs { Session = session, Message = msg, ApiMessage = request });
 
                 result = OnProcess(session, request.Action, request.Data, msg, serviceProvider);
+
+                // 流式返回：IAsyncEnumerable<T> 逐条推送
+                // 注意：result.GetType() 返回编译器生成的具体类型（如 <Range>d__0），
+                // 需通过接口检测而非具体类型
+                if (result != null)
+                {
+                    var resultType = result.GetType();
+                    if (resultType.IsGenericType && resultType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>)
+                        || resultType.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>)))
+                    {
+                        ProcessStream(session, msg, request.Action, result, enc);
+                        return null;
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -394,6 +409,83 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         _Last = msg;
 
         WriteLog(msg);
+    }
+    #endregion
+
+    #region 流式处理
+    /// <summary>处理流式调用。逐条迭代 IAsyncEnumerable，编码并发送每个数据块，最后发送结束标记</summary>
+    /// <param name="session">会话</param>
+    /// <param name="msg">原始请求消息</param>
+    /// <param name="action">动作名</param>
+    /// <param name="streamResult">IAsyncEnumerable 实例</param>
+    /// <param name="enc">编码器</param>
+    private void ProcessStream(IApiSession session, IMessage msg, String action, Object streamResult, IEncoder enc)
+    {
+        // 在线程池线程中同步等待异步流完成（Process 本身在 ThreadPool 回调中，不会阻塞 UI）
+        ProcessStreamAsync(session, msg, action, streamResult, enc).GetAwaiter().GetResult();
+    }
+
+    private async Task ProcessStreamAsync(IApiSession session, IMessage msg, String action, Object streamResult, IEncoder enc)
+    {
+        try
+        {
+            // IAsyncEnumerable<out T> 是协变的，引用类型可转为 IAsyncEnumerable<Object?>
+            if (streamResult is IAsyncEnumerable<Object?> refStream)
+            {
+#pragma warning disable CA2007 // 库内部线程池调用，无需 ConfigureAwait
+                await foreach (var item in refStream)
+                {
+                    using var rs = enc.CreateStreamResponse(msg, action, 0, item, false);
+                    session.SendMessage(rs);
+                }
+#pragma warning restore CA2007
+            }
+            else
+            {
+                // 值类型 IAsyncEnumerable（如 IAsyncEnumerable<Int32>），通过泛型 Helper 迭代
+                var resultType = streamResult.GetType();
+                var iface = resultType.GetInterfaces().FirstOrDefault(i =>
+                    i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>));
+                if (iface == null)
+                    throw new InvalidOperationException($"流式返回类型 {resultType.FullName} 未实现 IAsyncEnumerable<T>");
+
+                var elementType = iface.GetGenericArguments()[0];
+                var helperMethod = typeof(ApiServer).GetMethod(nameof(SendStreamItems), BindingFlags.NonPublic | BindingFlags.Static)
+                    ?? throw new InvalidOperationException("找不到 SendStreamItems 方法");
+                var genericHelper = helperMethod.MakeGenericMethod(elementType);
+                var invokeTask = (Task)genericHelper.Invoke(null, [streamResult, session, msg, action, enc])!;
+                await invokeTask.ConfigureAwait(false);
+            }
+
+            // 发送结束标记
+            using var endRs = enc.CreateStreamResponse(msg, action, 0, null, true);
+            session.SendMessage(endRs);
+        }
+        catch (Exception ex)
+        {
+            // 异常时发送错误帧并结束
+            using var errRs = enc.CreateStreamResponse(msg, action, 500, ex.GetTrue().Message, true);
+            try { session.SendMessage(errRs); } catch { }
+        }
+    }
+
+    /// <summary>泛型 Helper：逐条迭代 IAsyncEnumerable&lt;T&gt; 并发送流式帧</summary>
+    /// <typeparam name="T">元素类型（值类型或引用类型）</typeparam>
+    /// <param name="streamObj">IAsyncEnumerable&lt;T&gt; 实例</param>
+    /// <param name="session">会话</param>
+    /// <param name="msg">原始请求消息</param>
+    /// <param name="action">动作名</param>
+    /// <param name="enc">编码器</param>
+    private static async Task SendStreamItems<T>(Object streamObj, IApiSession session, IMessage msg, String action, IEncoder enc)
+    {
+        var stream = (IAsyncEnumerable<T>)streamObj;
+#pragma warning disable CA2007
+        await foreach (var item in stream)
+        {
+            using var rs = enc.CreateStreamResponse(msg, action, 0, item, false);
+            session.SendMessage(rs);
+        }
+#pragma warning restore CA2007
     }
     #endregion
 

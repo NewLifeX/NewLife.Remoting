@@ -425,6 +425,8 @@ public class WsClient : ApiHost, IApiClient
         if (e.Message is not IMessage msg) return;
 
         using var apiMessage = Encoder.Decode(msg);
+        if (apiMessage == null) return;
+
         var e2 = new ApiReceivedEventArgs
         {
             Remote = sender as ISocketRemote,
