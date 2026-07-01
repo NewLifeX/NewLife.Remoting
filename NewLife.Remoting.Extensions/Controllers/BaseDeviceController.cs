@@ -219,6 +219,52 @@ public abstract class BaseDeviceController : BaseController
         return BadRequest("不是WebSocket请求");
     }
 
+    /// <summary>SSE 下行通知。WebSocket 不可用时的降级通道，通过 Server-Sent Events 单向推送命令</summary>
+    /// <remarks>
+    /// SSE 作为 WebSocket 的轻量降级方案，适用于客户端不支持 WebSocket 或代理限制场景。
+    /// 客户端通过 HTTP GET 建立长连接，服务端通过 SSE 事件流推送命令。
+    /// 与 WebSocket 不同，SSE 仅支持服务端→客户端单向推送，客户端响应需通过 CommandReply HTTP 接口。
+    /// </remarks>
+    /// <returns></returns>
+    [HttpGet(nameof(NotifySSE))]
+    public virtual async Task NotifySSE()
+    {
+        var device = Context.Device ?? throw new ApiException(ApiCode.Unauthorized, "未登录");
+
+        using var span = _tracer?.NewSpan("cmd:SSE:Create", device.Code);
+        span?.Detach(HttpContext.Request.Headers);
+        try
+        {
+            using var session = new Services.SseCommandSession(Response, device.Code, _serviceProvider)
+            {
+                Log = this,
+                SetOnline = online => _deviceService.SetOnline(Context, online),
+                ServiceProvider = _serviceProvider,
+                Tracer = _tracer,
+            };
+
+            _sessionManager.Add(session);
+
+            // 下发积压命令
+            if (_deviceService is IDeviceService2 ds2)
+            {
+                var commands = ds2.AcquireCommands(Context);
+                if (commands != null)
+                {
+                    foreach (var cmd in commands)
+                        await session.HandleAsync(cmd, null, HttpContext.RequestAborted).ConfigureAwait(false);
+                }
+            }
+
+            await session.WaitAsync(span, HttpContext.RequestAborted).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            span?.SetError(ex, null);
+            throw;
+        }
+    }
+
     /// <summary>长连接处理</summary>
     /// <param name="socket">WebSocket连接</param>
     /// <param name="cancellationToken">取消令牌</param>
@@ -280,7 +326,7 @@ public abstract class BaseDeviceController : BaseController
     /// <exception cref="ArgumentNullException">编码或命令为空时抛出</exception>
     [AllowAnonymous]
     [HttpPost(nameof(SendCommand))]
-    public Task<CommandReplyModel?> SendCommand(CommandInModel model)
+    public virtual Task<CommandReplyModel?> SendCommand(CommandInModel model)
     {
         ArgumentNullException.ThrowIfNull(model);
         if (model.Code.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Code), "必须指定编码");

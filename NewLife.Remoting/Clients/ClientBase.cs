@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -463,6 +464,54 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         using var source = new CancellationTokenSource(Timeout);
         return InvokeAsync<TResult>(action, args, source.Token).ConfigureAwait(false).GetAwaiter().GetResult();
     }
+
+    /// <summary>流式异步调用，返回 IAsyncEnumerable 逐条接收服务端推送</summary>
+    /// <remarks>
+    /// 当前仅支持 TCP RPC 模式（ApiClient），HTTP 模式将抛出 NotSupportedException。
+    /// 使用 await foreach 逐条接收，支持 CancellationToken 中途取消。
+    /// </remarks>
+    /// <typeparam name="TResult">每条数据的返回类型</typeparam>
+    /// <param name="action">服务操作</param>
+    /// <param name="args">参数</param>
+    /// <param name="cancellationToken">取消通知</param>
+    /// <returns>流式数据序列</returns>
+    /// <exception cref="NotSupportedException">当前客户端不是 ApiClient（TCP RPC）时抛出</exception>
+    public virtual async IAsyncEnumerable<TResult> InvokeStreamAsync<TResult>(String action, Object? args = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        // 验证登录
+        var needLogin = !Actions[Features.Login].EqualIgnoreCase(action);
+        if (needLogin && !Logined && Features.HasFlag(Features.Login))
+        {
+            if (Disposed) throw new ObjectDisposedException(GetType().Name);
+
+            await Login(action, cancellationToken).ConfigureAwait(false);
+        }
+
+        Init();
+
+        if (_client is ApiClient rpc)
+        {
+            // 注入 ClientBase 的 Headers 到底层 ApiClient
+            if (Headers is IDictionary<String, String?> h && h.Count > 0)
+            {
+                foreach (var item in h)
+                {
+                    if (!rpc.Headers.ContainsKey(item.Key))
+                        rpc.Headers[item.Key] = item.Value;
+                }
+            }
+
+            await foreach (var item in rpc.InvokeStreamAsync<TResult>(action, args, cancellationToken).ConfigureAwait(false))
+                yield return item;
+        }
+        else
+        {
+            throw new NotSupportedException("流式调用当前仅支持 TCP RPC 模式（ApiClient），不支持 HTTP 模式");
+        }
+    }
+
+    /// <summary>请求头。每次调用自动注入到请求参数中</summary>
+    public IDictionary<String, String?> Headers { get; set; } = new Dictionary<String, String?>();
 
     /// <summary>设置令牌。派生类可重定义逻辑</summary>
     /// <param name="token">认证令牌</param>

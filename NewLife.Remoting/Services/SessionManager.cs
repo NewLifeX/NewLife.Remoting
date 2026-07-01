@@ -119,6 +119,18 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
             span?.AppendTag($"订阅[{Topic}]的总线事件到OnMessage，再根据消息头的设备号分发给各Session，一般是WebSocket下发指令");
             bus.Subscribe(OnMessage);
 
+            // 订阅节点专用转发频道。集群中其它节点会向此频道转发本节点的指令
+            if (Factory != null)
+            {
+                var nodeTopic = $"{Topic}:Node:{ClientId}";
+                var nodeBus = Factory.CreateEventBus<String>(nodeTopic, ClientId);
+                if (nodeBus != null)
+                {
+                    nodeBus.Subscribe(OnMessage);
+                    span?.AppendTag($"订阅节点转发频道[{nodeTopic}]");
+                }
+            }
+
             return bus;
         }
         catch (Exception ex)
@@ -138,6 +150,9 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
         _dic.AddOrUpdate(session.Code, session, (k, s) => s);
 
+        // 注册全局路由：集群中其它节点可通过此路由找到设备所在节点
+        RegisterRoute(session.Code);
+
         // 监听会话销毁事件，自动从管理器移除
         if (session is IDisposable2 ds)
             ds.OnDisposed += (s, e) => Remove((s as ICommandSession)!);
@@ -156,7 +171,51 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
         using var span = _tracer?.NewSpan($"cmd:{Topic}:Remove", session.Code);
 
-        if (_dic.TryRemove(session.Code, out _)) span?.AppendTag(null!, 1);
+        if (_dic.TryRemove(session.Code, out _))
+        {
+            span?.AppendTag(null!, 1);
+
+            // 注销全局路由
+            UnregisterRoute(session.Code);
+        }
+    }
+
+    /// <summary>注册全局设备路由。将设备所在节点写入 Redis Hash</summary>
+    /// <param name="code">设备编码</param>
+    protected virtual void RegisterRoute(String code)
+    {
+        if (code.IsNullOrEmpty()) return;
+
+        var cache = _cacheProvider?.Cache;
+        if (cache == null) return;
+
+        try
+        {
+            cache.Set($"device_routing:{code}", ClientId, 3600);
+        }
+        catch (Exception ex)
+        {
+            _tracer?.NewSpan($"cmd:{Topic}:RegisterRoute")?.SetError(ex, null);
+        }
+    }
+
+    /// <summary>注销全局设备路由</summary>
+    /// <param name="code">设备编码</param>
+    protected virtual void UnregisterRoute(String code)
+    {
+        if (code.IsNullOrEmpty()) return;
+
+        var cache = _cacheProvider?.Cache;
+        if (cache == null) return;
+
+        try
+        {
+            cache.Remove($"device_routing:{code}");
+        }
+        catch (Exception ex)
+        {
+            _tracer?.NewSpan($"cmd:{Topic}:UnregisterRoute")?.SetError(ex, null);
+        }
     }
 
     /// <summary>向目标会话发送事件。进程内转发，或通过Redis队列</summary>
@@ -238,6 +297,18 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
                 span?.Value = 1;
             }
+            else if (!code.IsNullOrEmpty())
+            {
+                // 本地无会话，尝试集群路由转发
+                var targetNode = GetRoute(code);
+                if (!targetNode.IsNullOrEmpty() && targetNode != ClientId)
+                {
+                    span?.AppendTag($"本地无会话[{code}]，转发到节点[{targetNode}]");
+                    await ForwardToNode(targetNode, code, msg!, message, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                    span?.AppendTag($"未找到编号为[{code}]的会话，无法处理消息。在集群中一般只有一个实例处理该消息。");
+            }
             else
                 span?.AppendTag($"未找到编号为[{code}]的会话，无法处理消息。在集群中一般只有一个实例处理该消息。");
         }
@@ -253,6 +324,60 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         if (!_dic.TryGetValue(key, out var session)) return null;
 
         return session;
+    }
+
+    /// <summary>查询全局路由表，获取设备所在节点</summary>
+    /// <param name="code">设备编码</param>
+    /// <returns>节点 ClientId，未找到返回 null</returns>
+    protected virtual String? GetRoute(String code)
+    {
+        if (code.IsNullOrEmpty()) return null;
+
+        var cache = _cacheProvider?.Cache;
+        if (cache == null) return null;
+
+        try
+        {
+            return cache.Get<String>($"device_routing:{code}");
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>转发消息到目标节点。通过节点专用频道发送</summary>
+    /// <param name="targetNode">目标节点 ClientId</param>
+    /// <param name="code">设备编码</param>
+    /// <param name="command">命令模型</param>
+    /// <param name="message">原始消息</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns></returns>
+    protected virtual async Task ForwardToNode(String targetNode, String code, CommandModel command, String? message, CancellationToken cancellationToken)
+    {
+        if (message.IsNullOrEmpty() && command != null)
+        {
+            var jsonHost = serviceProvider.GetService<IJsonHost>();
+            message = jsonHost != null ? jsonHost.Write(command) : command.ToJson();
+        }
+
+        message = $"{code}#{message}";
+
+        // 发布到目标节点的专用频道
+        var nodeTopic = $"{Topic}:Node:{targetNode}";
+        var nodeBus = Factory?.CreateEventBus<String>(nodeTopic, ClientId);
+        if (nodeBus != null)
+        {
+            using var span = _tracer?.NewSpan($"cmd:Forward:{targetNode}", message);
+            try
+            {
+                await nodeBus.PublishAsync(message, null, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                nodeBus.TryDispose();
+            }
+        }
     }
 
     /// <summary>关闭所有会话并释放资源</summary>

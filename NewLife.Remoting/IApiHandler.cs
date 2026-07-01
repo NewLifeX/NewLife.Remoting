@@ -278,6 +278,9 @@ public class ApiHandler : IApiHandler
         ctx.Parameters = dic;
         //session.Parameters = dic;
 
+        // 提取 Headers 到 ControllerContext.Items，便于后续通过标准方式读取
+        ctx.Items["Headers"] = dic;
+
         // 令牌，作为参数或者http头传递
         if (dic.TryGetValue("Token", out var token)) session.Token = token + "";
         if (session.Token.IsNullOrEmpty() && msg is HttpMessage hmsg && hmsg.Headers != null)

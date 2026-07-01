@@ -316,6 +316,11 @@ public class ApiClient : ApiHost, IApiClient
             args = dic;
         }
 
+        // 自动注入当前 TraceId 到 Headers（若 Tracer 已启用且 Headers 中尚未设置）
+        var currentTraceId = DefaultSpan.Current?.TraceId;
+        if (!currentTraceId.IsNullOrEmpty() && !Headers.ContainsKey("TraceId"))
+            Headers["TraceId"] = currentTraceId;
+
         // Headers 注入
         if (Headers.Count > 0 && args != null)
         {
@@ -660,6 +665,11 @@ public class ApiClient : ApiHost, IApiClient
 
         var client = Cluster.Get();
         var enc = Encoder;
+
+        // 自动注入当前 TraceId 到 Headers（若 Tracer 已启用且 Headers 中尚未设置）
+        var currentTraceId = DefaultSpan.Current?.TraceId;
+        if (!currentTraceId.IsNullOrEmpty() && !Headers.ContainsKey("TraceId"))
+            Headers["TraceId"] = currentTraceId;
 
         // 注入 Headers
         if (Headers.Count > 0 && args != null)
