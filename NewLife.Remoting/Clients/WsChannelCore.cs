@@ -21,6 +21,9 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
 
     private readonly ClientBase _client = client;
 
+    /// <summary>是否已连接</summary>
+    public override Boolean Active => _websocket != null && _websocket.State == WebSocketState.Open;
+
     /// <summary>销毁资源</summary>
     /// <param name="disposing">是否释放托管资源</param>
     protected override void Dispose(Boolean disposing)

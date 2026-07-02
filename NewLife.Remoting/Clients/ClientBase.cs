@@ -103,6 +103,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>各功能的动作集合。记录每一种功能所对应的动作接口路径。</summary>
     public IDictionary<Features, String> Actions { get; set; } = null!;
 
+    /// <summary>SSE 通知端点路径。默认为 Notify 动作路径后追加 SSE。例如 Device/Notify → Device/NotifySSE</summary>
+    protected String NotifySseAction => (Actions != null && Actions.TryGetValue(Features.Notify, out var act)) ? act + "SSE" : "Device/NotifySSE";
+
     /// <summary>Json主机。提供序列化能力</summary>
     public IJsonHost JsonHost { get; set; } = null!;
 
@@ -1155,6 +1158,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         _ws.TryDispose();
         _ws = null;
+        _sse.TryDispose();
+        _sse = null;
     }
 
     private async Task DoPing(Object state)
@@ -1172,6 +1177,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     }
 
     private WsChannel? _ws;
+    private SseChannel? _sse;
     private Boolean _firstPingDone;
     /// <summary>定时心跳。由心跳定时器调用，主要用于维护WebSocket长连接</summary>
     /// <param name="state">定时器状态参数</param>
@@ -1183,6 +1189,18 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (_client is ApiHttpClient http && Features.HasFlag(Features.Notify))
         {
             await ValidWebSocket(http).ConfigureAwait(false);
+
+            // WS 不可用时降级到 SSE
+            if (_ws == null || !_ws.Active)
+            {
+                _sse ??= new SseChannel(this);
+                await _sse.ValidSse(http, NotifySseAction).ConfigureAwait(false);
+            }
+            else
+            {
+                // WS 恢复，关闭 SSE
+                _sse?.StopSse();
+            }
 
             if (!_firstPingDone)
             {

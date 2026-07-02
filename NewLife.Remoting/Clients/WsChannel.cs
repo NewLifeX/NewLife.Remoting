@@ -16,6 +16,9 @@ class WsChannel(ClientBase client) : DisposeBase
 {
     private readonly ClientBase _client = client;
 
+    /// <summary>是否已连接</summary>
+    public virtual Boolean Active => _websocket != null && !_websocket.Disposed;
+
     /// <summary>销毁资源</summary>
     /// <param name="disposing">是否释放托管资源</param>
     protected override void Dispose(Boolean disposing)
