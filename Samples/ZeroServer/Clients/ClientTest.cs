@@ -1,5 +1,7 @@
 ﻿using NewLife;
 using NewLife.Log;
+using NewLife.Remoting.Models;
+using NewLife.Remoting.Services;
 
 namespace ZeroClient;
 
@@ -38,5 +40,89 @@ public static class ClientTest
 
         var life = serviceProvider.GetService<IHostApplicationLifetime>();
         life.ApplicationStopping.Register(() => client.TryDispose());
+
+        // 启动自测：延迟等待SSE通道建立后，验证响应总线端到端流程
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(10_000);
+            await SelfTest(serviceProvider, client.Code, XTrace.Log);
+        });
+    }
+
+    /// <summary>自测：发送命令并通过响应总线等待设备回复，验证完整调用链</summary>
+    private static async Task SelfTest(IServiceProvider serviceProvider, String code, ILog log)
+    {
+        using var span = _tracer?.NewSpan("SelfTest:ResponseBus");
+
+        var deviceService = serviceProvider.GetService<IDeviceService>();
+        var responseBus = serviceProvider.GetService<ICommandResponseBus>();
+
+        if (deviceService == null)
+        {
+            XTrace.WriteLine("[SelfTest] ❌ IDeviceService 未注册，跳过响应总线测试");
+            return;
+        }
+        if (responseBus == null)
+        {
+            XTrace.WriteLine("[SelfTest] ❌ ICommandResponseBus 未注册，响应总线未启用");
+            return;
+        }
+
+        XTrace.WriteLine("========== [SelfTest] 开始响应总线端到端测试 ==========");
+        XTrace.WriteLine($"[SelfTest] 目标设备: {code}");
+        XTrace.WriteLine($"[SelfTest] 命令总线: SessionManager (Topic=Commands)");
+        XTrace.WriteLine($"[SelfTest] 响应总线: CommandResponseBus (Topic=CommandReplies)");
+
+        // 查找设备
+        var device = deviceService.QueryDevice(code);
+        if (device == null)
+        {
+            XTrace.WriteLine($"[SelfTest] ❌ 未找到设备 {code}");
+            return;
+        }
+        XTrace.WriteLine($"[SelfTest] 设备名称: {device.Name}");
+
+        // 构建测试命令
+        var cmd = new CommandModel
+        {
+            Command = "test/ping",
+            Argument = "hello-response-bus",
+            Expire = DateTime.UtcNow.AddSeconds(30),
+        };
+
+        using var stepSpan = _tracer?.NewSpan("SelfTest:SendAndWait", cmd);
+
+        try
+        {
+            // 通过新 API 一步完成「发送命令 + 阻塞等待响应」（内部由 SessionManager.PublishAsync 闭环）
+            XTrace.WriteLine($"[SelfTest] → 发送命令并等待响应 (超时10s): {cmd.Command}({cmd.Argument})");
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var reply = await deviceService.SendCommand(device, cmd, 10, CancellationToken.None);
+            sw.Stop();
+
+            if (reply != null)
+            {
+                XTrace.WriteLine($"[SelfTest] ← 收到响应! 耗时={sw.ElapsedMilliseconds}ms");
+                XTrace.WriteLine($"[SelfTest]   Status: {reply.Status}");
+                XTrace.WriteLine($"[SelfTest]   Data: {reply.Data}");
+                XTrace.WriteLine($"[SelfTest]   Code: {reply.Code}");
+                XTrace.WriteLine($"[SelfTest]   SenderNodeId: {reply.SenderNodeId}");
+                XTrace.WriteLine("[SelfTest] ✅ 响应总线端到端测试通过！");
+                stepSpan?.AppendTag($"Success: {sw.ElapsedMilliseconds}ms, {reply.Data}");
+            }
+            else
+            {
+                XTrace.WriteLine($"[SelfTest] ← 超时! 耗时={sw.ElapsedMilliseconds}ms，未收到响应");
+                XTrace.WriteLine("[SelfTest] ⚠️ 可能原因：客户端SSE通道未建立，或命令处理器未注册");
+                stepSpan?.AppendTag($"Timeout: {sw.ElapsedMilliseconds}ms");
+            }
+        }
+        catch (Exception ex)
+        {
+            XTrace.WriteLine($"[SelfTest] ❌ 异常: {ex.Message}");
+            stepSpan?.SetError(ex, null);
+        }
+
+        XTrace.WriteLine("========== [SelfTest] 响应总线测试结束 ==========");
     }
 }

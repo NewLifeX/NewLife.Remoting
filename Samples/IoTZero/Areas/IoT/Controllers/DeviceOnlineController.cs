@@ -72,7 +72,7 @@ public class DeviceOnlineController : EntityController<DeviceOnline>
                     Command = "device/upgrade",
                     Expire = DateTime.UtcNow.AddSeconds(600),
                 };
-                ts.Add(_deviceService.SendCommand(online.Device, cmd, HttpContext.RequestAborted));
+                ts.Add(_deviceService.SendCommand(online.Device, cmd, 0, HttpContext.RequestAborted));
             }
         }
 
@@ -88,7 +88,7 @@ public class DeviceOnlineController : EntityController<DeviceOnline>
         if (GetRequest("keys") == null) throw new ArgumentNullException(nameof(SelectKeys));
         if (command.IsNullOrEmpty()) throw new ArgumentNullException(nameof(command));
 
-        var ts = new List<Task<Int32>>();
+        var ts = new List<Task<CommandReplyModel?>>();
         foreach (var item in SelectKeys)
         {
             var online = DeviceOnline.FindById(item.ToInt());
@@ -100,12 +100,12 @@ public class DeviceOnlineController : EntityController<DeviceOnline>
                     Argument = argument,
                     Expire = DateTime.UtcNow.AddSeconds(30),
                 };
-                ts.Add(_deviceService.SendCommand(online.Device, cmd, HttpContext.RequestAborted));
+                ts.Add(_deviceService.SendCommand(online.Device, cmd, 0, HttpContext.RequestAborted));
             }
         }
 
         var rs = await Task.WhenAll(ts);
 
-        return JsonRefresh($"操作成功！下发指令{rs.Length}个，成功{rs.Count(e => e > 0)}个");
+        return JsonRefresh($"操作成功！下发指令{rs.Length}个，成功{rs.Count(e => e != null)}个");
     }
 }

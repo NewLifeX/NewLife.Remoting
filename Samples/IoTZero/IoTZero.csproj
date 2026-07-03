@@ -26,9 +26,9 @@
     <PackageReference Include="NewLife.Cube.Core" Version="6.10.2026.404" />
     <PackageReference Include="NewLife.IoT" Version="3.0.2026.601" />
     <PackageReference Include="NewLife.MQTT" Version="3.1.2026.602" />
-    <PackageReference Include="NewLife.Redis" Version="6.5.2026.601" />
+    <PackageReference Include="NewLife.Redis" Version="6.5.2026.701" />
     <PackageReference Include="NewLife.Stardust.Extensions" Version="3.8.2026.601" />
-    <PackageReference Include="NewLife.XCode" Version="11.27.2026.601" />
+    <PackageReference Include="NewLife.XCode" Version="12.0.2026.701" />
   </ItemGroup>
 
   <ItemGroup>

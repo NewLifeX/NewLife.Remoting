@@ -418,29 +418,16 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     #endregion
 
     #region 下行通知
-    /// <summary>发送命令。内部调用</summary>
+    /// <summary>发送命令并等待响应。内部调用，不需要应用令牌</summary>
     /// <param name="device">目标设备</param>
     /// <param name="command">命令对象</param>
+    /// <param name="timeout">超时秒数。0 不等待（fire-and-forget），大于 0 阻塞等待</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>发送结果</returns>
-    public virtual async Task<Int32> SendCommand(IDeviceModel device, CommandModel command, CancellationToken cancellationToken)
+    /// <returns>命令响应，超时或 fire-and-forget 时返回 null</returns>
+    public virtual async Task<CommandReplyModel?> SendCommand(IDeviceModel device, CommandModel command, Int32 timeout = 0, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(device);
-        ArgumentNullException.ThrowIfNull(command);
-
-        var id = WriteHistory(device, "发送命令", true, command.ToJson(false, false, false));
-        if (command.Id == 0) command.Id = id;
-
-        // 记录设备和发起方信息，便于响应广播时精确定位
-        command.Code = device.Code;
-        command.SenderNodeId = Runtime.ClientId;
-
-        // 持久化保存：设备重连或心跳时可恢复未完成的指令
-        SaveCommand(command);
-
-        command.Status = CommandStatus.已发送;
-
-        return await sessionManager.PublishAsync(device.Code, command, null, cancellationToken).ConfigureAwait(false);
+        PrepareCommand(device, command);
+        return await sessionManager.PublishAsync(device.Code, command, null, timeout, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>发送命令。外部平台级接口调用</summary>
@@ -479,41 +466,42 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         if (model.StartTime > 0) cmd.StartTime = now.AddSeconds(model.StartTime);
         if (model.Expire > 0) cmd.Expire = now.AddSeconds(model.Expire);
 
-        await SendCommand(target, cmd, cancellationToken).ConfigureAwait(false);
+        PrepareCommand(target, cmd);
 
-        // 挂起等待。优先使用事件总线响应广播，降级到 Redis 队列
-        var timeout = model.Timeout;
-        if (timeout > 0)
+        // 通过 SessionManager 发布并等待响应（内部已集成响应总线或 Redis 队列降级）
+        var reply = await sessionManager.PublishAsync(target.Code, cmd, null, model.Timeout, cancellationToken).ConfigureAwait(false);
+        if (reply != null)
         {
-            CommandReplyModel? reply = null;
+            using var span = _tracer?.NewSpan($"cmd:CommandReply", reply);
 
-            if (_responseBus != null)
-            {
-                // 新方案：事件总线广播响应
-                reply = await _responseBus.WaitResponseAsync(cmd.Id, timeout, cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                // 旧方案（兼容）：Redis 队列等待响应
-                var q = cacheProvider.GetQueue<CommandReplyModel>($"cmdreply:{cmd.Id}");
-                reply = await q.TakeOneAsync(timeout, cancellationToken).ConfigureAwait(false);
-            }
+            if (reply.Status == CommandStatus.错误)
+                throw new Exception($"命令错误！{reply.Data}");
+            else if (reply.Status == CommandStatus.取消)
+                throw new Exception($"命令已取消！{reply.Data}");
 
-            if (reply != null)
-            {
-                // 埋点
-                using var span = _tracer?.NewSpan($"cmd:CommandReply", reply);
-
-                if (reply.Status == CommandStatus.错误)
-                    throw new Exception($"命令错误！{reply.Data}");
-                else if (reply.Status == CommandStatus.取消)
-                    throw new Exception($"命令已取消！{reply.Data}");
-
-                return reply;
-            }
+            return reply;
         }
 
         return null;
+    }
+
+    /// <summary>命令准备。写历史、填路由信息、持久化</summary>
+    private void PrepareCommand(IDeviceModel device, CommandModel command)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+        ArgumentNullException.ThrowIfNull(command);
+
+        var id = WriteHistory(device, "发送命令", true, command.ToJson(false, false, false));
+        if (command.Id == 0) command.Id = id;
+
+        // 记录设备和发起方信息，便于响应广播时精确定位
+        command.Code = device.Code;
+        command.SenderNodeId = Runtime.ClientId;
+
+        // 持久化保存：设备重连或心跳时可恢复未完成的指令
+        SaveCommand(command);
+
+        command.Status = CommandStatus.已发送;
     }
 
     /// <summary>命令响应</summary>

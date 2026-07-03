@@ -40,12 +40,13 @@ public interface IDeviceService
     /// <param name="online">上线/下线状态，true表示上线，false表示下线</param>
     void SetOnline(DeviceContext context, Boolean online);
 
-    /// <summary>发送命令。内部调用</summary>
+    /// <summary>发送命令并等待响应。内部调用，不需要应用令牌</summary>
     /// <param name="device">目标设备</param>
     /// <param name="command">命令对象</param>
+    /// <param name="timeout">超时秒数。0 不等待（fire-and-forget），大于 0 阻塞等待</param>
     /// <param name="cancellationToken">取消令牌</param>
-    /// <returns>发送结果</returns>
-    Task<Int32> SendCommand(IDeviceModel device, CommandModel command, CancellationToken cancellationToken = default);
+    /// <returns>命令响应，超时或 fire-and-forget 时返回 null</returns>
+    Task<CommandReplyModel?> SendCommand(IDeviceModel device, CommandModel command, Int32 timeout = 0, CancellationToken cancellationToken = default);
 
     /// <summary>发送命令。外部平台级接口调用</summary>
     /// <param name="context">设备上下文</param>

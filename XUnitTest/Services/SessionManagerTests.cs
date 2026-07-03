@@ -118,7 +118,7 @@ public class SessionManagerTests
             Argument = "arg1"
         };
 
-        await manager.PublishAsync("device003", cmd, null, CancellationToken.None);
+        await manager.PublishAsync("device003", cmd, null, 0, CancellationToken.None);
 
         // 等待消息处理
         await Task.Delay(100);
@@ -137,7 +137,7 @@ public class SessionManagerTests
         using var manager = new SessionManager(sp);
 
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            manager.PublishAsync("device001", null!, null, CancellationToken.None));
+            manager.PublishAsync("device001", null!, null, 0, CancellationToken.None));
     }
     #endregion
 

@@ -65,7 +65,7 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
     [EntityAuthorize((PermissionFlags)16)]
     public async Task<ActionResult> CheckUpgrade()
     {
-        var ts = new List<Task>();
+        var ts = new List<Task<CommandReplyModel?>>();
         foreach (var item in SelectKeys)
         {
             var online = NodeOnline.FindById(item.ToInt());
@@ -76,13 +76,15 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
                     Command = "node/upgrade",
                     Expire = DateTime.UtcNow.AddSeconds(600),
                 };
-                ts.Add(_deviceService.SendCommand(online.Node, cmd, HttpContext.RequestAborted));
+                ts.Add(_deviceService.SendCommand(online.Node, cmd, 10, HttpContext.RequestAborted));
             }
         }
 
-        await Task.WhenAll(ts);
+        var rs = await Task.WhenAll(ts);
+        var success = rs.Count(e => e != null);
+        var timeout = rs.Count(e => e == null);
 
-        return JsonRefresh("操作成功！");
+        return JsonRefresh($"操作成功！下发{rs.Length}个，响应{success}个，超时{timeout}个");
     }
 
     [DisplayName("执行命令")]
@@ -92,7 +94,7 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
         if (GetRequest("keys") == null) throw new ArgumentNullException(nameof(SelectKeys));
         if (command.IsNullOrEmpty()) throw new ArgumentNullException(nameof(command));
 
-        var ts = new List<Task<Int32>>();
+        var ts = new List<Task<CommandReplyModel?>>();
         foreach (var item in SelectKeys)
         {
             var online = NodeOnline.FindById(item.ToInt());
@@ -104,12 +106,14 @@ public class NodeOnlineController : NodeEntityController<NodeOnline>
                     Argument = argument,
                     Expire = DateTime.UtcNow.AddSeconds(30),
                 };
-                ts.Add(_deviceService.SendCommand(online.Node, cmd, HttpContext.RequestAborted));
+                ts.Add(_deviceService.SendCommand(online.Node, cmd, 10, HttpContext.RequestAborted));
             }
         }
 
         var rs = await Task.WhenAll(ts);
+        var success = rs.Count(e => e != null);
+        var timeout = rs.Count(e => e == null);
 
-        return JsonRefresh($"操作成功！下发指令{rs.Length}个，成功{rs.Count(e => e > 0)}个");
+        return JsonRefresh($"操作成功！下发{rs.Length}个，响应{success}个，超时{timeout}个");
     }
 }

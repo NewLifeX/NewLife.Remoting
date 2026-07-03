@@ -48,6 +48,18 @@ public class NodeClient : ClientBase
             container.TryAddTransient<IPingRequest, PingInfo>();
         }
 
+        // 注册测试命令处理器：收到命令后自动回复，验证响应总线唤醒机制
+        this.RegisterCommand("test/ping", (CommandModel cmd, CancellationToken ct) =>
+        {
+            WriteLog("收到测试命令: {0}({1})", cmd.Command, cmd.Argument);
+            return Task.FromResult(new CommandReplyModel
+            {
+                Id = cmd.Id,
+                Status = CommandStatus.已完成,
+                Data = $"pong: {cmd.Argument}"
+            });
+        });
+
         base.OnInit();
     }
     #endregion

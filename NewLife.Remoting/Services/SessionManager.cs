@@ -225,7 +225,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     /// <param name="message">原始命令消息</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
-    public virtual Task<Int32> PublishAsync(String code, CommandModel command, String? message, CancellationToken cancellationToken)
+    public virtual async Task<CommandReplyModel?> PublishAsync(String code, CommandModel command, String? message, Int32 timeout = 0, CancellationToken cancellationToken = default)
     {
         if (command == null && message.IsNullOrEmpty()) throw new ArgumentNullException(nameof(command), "命令和消息不能同时为空");
 
@@ -245,7 +245,25 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
         Init();
 
-        return Bus.PublishAsync(message, null, cancellationToken);
+        // 发布到命令总线
+        await Bus.PublishAsync(message, null, cancellationToken).ConfigureAwait(false);
+
+        if (timeout <= 0) return null;
+
+        // 优先使用响应总线等待设备回复
+        var responseBus = serviceProvider.GetService<ICommandResponseBus>();
+        if (responseBus != null)
+            return await responseBus.WaitResponseAsync(command!.Id, timeout, cancellationToken).ConfigureAwait(false);
+
+        // 降级到 Redis 队列
+        var cacheProvider = serviceProvider.GetService<ICacheProvider>();
+        if (cacheProvider != null)
+        {
+            var q = cacheProvider.GetQueue<CommandReplyModel>($"cmdreply:{command!.Id}");
+            return await q.TakeOneAsync(timeout, cancellationToken).ConfigureAwait(false);
+        }
+
+        return null;
     }
 
     /// <summary>从事件总线收到事件</summary>
