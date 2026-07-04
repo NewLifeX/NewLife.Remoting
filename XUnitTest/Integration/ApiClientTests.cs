@@ -380,7 +380,7 @@ public class ApiClientTests : DisposeBase
         using var client = new ApiClient($"tcp://127.0.0.1:{_Port}");
 
         var data = Rand.NextBytes(1024);
-        var result = await client.InvokeAsync<Packet>("ClientTest/ProcessData", data);
+        var result = await client.InvokeAsync<IPacket>("ClientTest/ProcessData", data);
 
         Assert.NotNull(result);
         Assert.Equal(data.Length, result.Total);

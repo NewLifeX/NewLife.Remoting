@@ -178,7 +178,7 @@ public class ApiServerClientIntegrationTests : DisposeBase
         using var client = new ApiClient($"tcp://127.0.0.1:{_Port}");
 
         var data = Rand.NextBytes(size);
-        var result = await client.InvokeAsync<Packet>("Integration/Echo", data);
+        var result = await client.InvokeAsync<IPacket>("Integration/Echo", data);
 
         Assert.NotNull(result);
         Assert.Equal(size, result.Total);
@@ -194,7 +194,7 @@ public class ApiServerClientIntegrationTests : DisposeBase
         for (var i = 0; i < 5; i++)
         {
             var data = Rand.NextBytes(10 * 1024);
-            var result = await client.InvokeAsync<Packet>("Integration/Echo", data);
+            var result = await client.InvokeAsync<IPacket>("Integration/Echo", data);
 
             Assert.NotNull(result);
             Assert.Equal(data.Length, result.Total);

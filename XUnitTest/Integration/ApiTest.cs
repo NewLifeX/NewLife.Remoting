@@ -82,7 +82,7 @@ public class ApiTest : DisposeBase
     //{
     //    var buf = Rand.NextBytes(32);
 
-    //    var pk = await _Client.InvokeAsync<Packet>("api/info2", buf);
+    //    var pk = await _Client.InvokeAsync<IPacket>("api/info2", buf);
     //    Assert.NotNull(pk);
     //    Assert.True(pk.Total > buf.Length);
     //    Assert.Equal(buf, pk.Slice(pk.Total - buf.Length, -1).ToArray());
@@ -142,7 +142,7 @@ public class ApiTest : DisposeBase
 
         var buf = new Byte[5 * 8 * 1024];
         Array.Fill(buf, (Byte)'a');
-        var rs = await client.InvokeAsync<Packet>("big/test", buf);
+        var rs = await client.InvokeAsync<IPacket>("big/test", buf);
 
         Assert.NotNull(rs);
         Assert.Equal(buf.Length, rs.Total);
@@ -166,7 +166,7 @@ public class ApiTest : DisposeBase
 
         var buf = new Byte[65 * 1024];
         Array.Fill(buf, (Byte)'a');
-        var rs = await client.InvokeAsync<Packet>("big/test", buf);
+        var rs = await client.InvokeAsync<IPacket>("big/test", buf);
 
         Assert.NotNull(rs);
         Assert.Equal(buf.Length, rs.Total);

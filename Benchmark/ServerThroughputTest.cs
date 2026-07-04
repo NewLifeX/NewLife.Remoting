@@ -5,6 +5,7 @@ using NewLife.Messaging;
 using NewLife.Remoting;
 
 #pragma warning disable CS0618 // Packet obsolete
+#nullable enable
 
 namespace NewLife.Remoting.Benchmarks;
 

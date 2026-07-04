@@ -113,7 +113,7 @@ public class HttpEncoder : EncoderBase, IEncoder
 
         // 编码为 JSON
         var json = UseHttpStatus
-            ? JsonHost.Write(value, false, false, false)
+            ? JsonHost.Write(value!, false, false, false)
             : JsonHost.Write(new { action, code, data = value }, false, true, false);
 
         WriteLog("{0}=>{1}", action, json);

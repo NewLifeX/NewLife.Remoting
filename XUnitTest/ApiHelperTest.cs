@@ -86,7 +86,7 @@ public class ApiHelperTest : DisposeBase
                 args = Rand.NextBytes(16);
                 break;
             case "[packet]":
-                args = new Packet(Rand.NextBytes(16));
+                args = new ArrayPacket(Rand.NextBytes(16));
                 break;
             case "[object]":
                 args = new { name = Rand.NextString(8), code = Rand.Next() };
@@ -142,7 +142,7 @@ public class ApiHelperTest : DisposeBase
                         break;
                     case "[packet]":
                         Assert.Equal("application/octet-stream", request.Content.Headers.ContentType + "");
-                        Assert.Equal((args as Packet).ToHex(), (await content.ReadAsByteArrayAsync()).ToHex());
+                        Assert.Equal((args as IPacket)!.ToHex(), (await content.ReadAsByteArrayAsync()).ToHex());
                         break;
                     case "[object]":
                     case "[dictionary]":
@@ -235,7 +235,7 @@ public class ApiHelperTest : DisposeBase
         if (!content.IsNullOrEmpty()) msg.Content = new ByteArrayContent(content.ToHex());
 
         // 处理
-        var rs = await ApiHelper.ProcessResponse<Packet>(msg);
+        var rs = await ApiHelper.ProcessResponse<IPacket>(msg);
         if (content != null)
         {
             Assert.NotNull(rs);
@@ -334,7 +334,7 @@ public class ApiHelperTest : DisposeBase
     }
 
     //[Fact]
-    public async Task ProcessResponse_DingTalk()
+    private async Task ProcessResponse_DingTalk()
     {
         var key = "dingbvcq0mz3pidpwtch";
         var secret = "7OTdnimQwf5LJnVp8e0udX1wPxKyCsspLqM2YcBDawvg3BlIkzxIsOs1YhDjiOxj";
@@ -362,7 +362,7 @@ public class ApiHelperTest : DisposeBase
         Assert.True(dic.Count >= 10);
         Assert.StartsWith("testhost", (dic["Name"] + ""));
 
-        var pk = await _Client.GetAsync<Packet>("api/info");
+        var pk = await _Client.GetAsync<IPacket>("api/info");
         Assert.NotNull(pk);
         Assert.True(pk.Total > 100);
 
@@ -425,7 +425,7 @@ public class ApiHelperTest : DisposeBase
         Assert.StartsWith("testhost", (dic["Name"] + ""));
         Assert.Equal("12345678", (dic["token"] + ""));
 
-        var pk = await _Client.GetAsync<Packet>("api/info");
+        var pk = await _Client.GetAsync<IPacket>("api/info");
         Assert.NotNull(pk);
         Assert.True(pk.Total > 100);
 

@@ -170,7 +170,7 @@ public class MultiControllerRoutingTests : DisposeBase
         var data = new Byte[256];
         for (var i = 0; i < data.Length; i++) data[i] = (Byte)(i & 0xFF);
 
-        var result = await client.InvokeAsync<Packet>("Packet/Echo", data);
+        var result = await client.InvokeAsync<IPacket>("Packet/Echo", data);
         Assert.NotNull(result);
         Assert.Equal(data.Length, result.Total);
         Assert.True(data.SequenceEqual(result.ToArray()));
@@ -188,7 +188,7 @@ public class MultiControllerRoutingTests : DisposeBase
         var data = new Byte[128];
         Array.Fill(data, (Byte)0xAA);
 
-        var result = await client.InvokeAsync<Packet>("Packet/Xor", data);
+        var result = await client.InvokeAsync<IPacket>("Packet/Xor", data);
         Assert.NotNull(result);
         Assert.Equal(data.Length, result.Total);
 

@@ -234,7 +234,7 @@ public class DualProtocolIntegrationTests : DisposeBase
         using var client = new ApiClient($"tcp://127.0.0.1:{_TcpPort}");
 
         var data = Rand.NextBytes(4096);
-        var result = await client.InvokeAsync<Packet>("Dual/Echo", data);
+        var result = await client.InvokeAsync<IPacket>("Dual/Echo", data);
 
         Assert.NotNull(result);
         Assert.Equal(data.Length, result.Total);

@@ -8,6 +8,8 @@
     <SignAssembly>True</SignAssembly>
     <AssemblyOriginatorKeyFile>..\Doc\newlife.snk</AssemblyOriginatorKeyFile>
     <IsPackable>false</IsPackable>
+    <!-- 测试代码中大量使用 ? 注解但无可空上下文，统一抑制 CS8632 -->
+    <NoWarn>$(NoWarn);CS8632</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

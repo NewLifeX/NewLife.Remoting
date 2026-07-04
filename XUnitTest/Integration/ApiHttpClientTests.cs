@@ -72,7 +72,7 @@ public class ApiHttpClientTests : DisposeBase
     //{
     //    var buf = Rand.NextBytes(32);
 
-    //    var pk = await _Client.InvokeAsync<Packet>("api/info2", buf);
+    //    var pk = await _Client.InvokeAsync<IPacket>("api/info2", buf);
     //    Assert.NotNull(pk);
     //    Assert.True(pk.Total > buf.Length);
     //    Assert.Equal(buf, pk.Slice(pk.Total - buf.Length, -1).ToArray());
@@ -154,7 +154,7 @@ public class ApiHttpClientTests : DisposeBase
     {
         var client = new ApiHttpClient("test1=3*http://127.0.0.1:10000,test2=7*http://127.0.0.1:20000,")
         {
-            RoundRobin = true,
+            LoadBalanceMode = LoadBalanceMode.RoundRobin,
             Timeout = 3_000,
             Log = XTrace.Log,
         };

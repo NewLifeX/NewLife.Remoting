@@ -97,7 +97,7 @@ public class BoundaryAndStressIntegrationTests : DisposeBase
         using var client = new ApiClient($"tcp://127.0.0.1:{_Port}");
 
         var data = Array.Empty<Byte>();
-        var result = await client.InvokeAsync<Packet>("Boundary/EchoPacket", data);
+        var result = await client.InvokeAsync<IPacket>("Boundary/EchoPacket", data);
 
         // 零字节场景下，结果可能为空或长度为0
         if (result != null)
@@ -110,7 +110,7 @@ public class BoundaryAndStressIntegrationTests : DisposeBase
         using var client = new ApiClient($"tcp://127.0.0.1:{_Port}");
 
         var data = new Byte[] { 0xAB };
-        var result = await client.InvokeAsync<Packet>("Boundary/EchoPacket", data);
+        var result = await client.InvokeAsync<IPacket>("Boundary/EchoPacket", data);
 
         Assert.NotNull(result);
         Assert.Equal(1, result.Total);
@@ -130,7 +130,7 @@ public class BoundaryAndStressIntegrationTests : DisposeBase
         using var client = new ApiClient($"tcp://127.0.0.1:{_Port}");
 
         var data = Rand.NextBytes(size);
-        var result = await client.InvokeAsync<Packet>("Boundary/EchoPacket", data);
+        var result = await client.InvokeAsync<IPacket>("Boundary/EchoPacket", data);
 
         Assert.NotNull(result);
         Assert.Equal(size, result.Total);
