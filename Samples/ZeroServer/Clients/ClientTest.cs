@@ -104,8 +104,6 @@ public static class ClientTest
                 XTrace.WriteLine($"[SelfTest] ← 收到响应! 耗时={sw.ElapsedMilliseconds}ms");
                 XTrace.WriteLine($"[SelfTest]   Status: {reply.Status}");
                 XTrace.WriteLine($"[SelfTest]   Data: {reply.Data}");
-                XTrace.WriteLine($"[SelfTest]   Code: {reply.Code}");
-                XTrace.WriteLine($"[SelfTest]   SenderNodeId: {reply.SenderNodeId}");
                 XTrace.WriteLine("[SelfTest] ✅ 响应总线端到端测试通过！");
                 stepSpan?.AppendTag($"Success: {sw.ElapsedMilliseconds}ms, {reply.Data}");
             }

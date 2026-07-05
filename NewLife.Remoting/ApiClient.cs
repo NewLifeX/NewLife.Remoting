@@ -316,10 +316,10 @@ public class ApiClient : ApiHost, IApiClient
             args = dic;
         }
 
-        // 自动注入当前 TraceId 到 Headers（若 Tracer 已启用且 Headers 中尚未设置）
-        var currentTraceId = DefaultSpan.Current?.TraceId;
-        if (!currentTraceId.IsNullOrEmpty() && !Headers.ContainsKey("TraceId"))
-            Headers["TraceId"] = currentTraceId;
+        // 自动注入当前 Span 上下文字符串到 Headers，包含 TraceId+SpanId 便于星尘构建调用链上下级关系
+        var currentSpan = DefaultSpan.Current?.ToString();
+        if (!currentSpan.IsNullOrEmpty() && !Headers.ContainsKey("TraceId"))
+            Headers["TraceId"] = currentSpan;
 
         // Headers 注入
         if (Headers.Count > 0 && args != null)
@@ -666,10 +666,10 @@ public class ApiClient : ApiHost, IApiClient
         var client = Cluster.Get();
         var enc = Encoder;
 
-        // 自动注入当前 TraceId 到 Headers（若 Tracer 已启用且 Headers 中尚未设置）
-        var currentTraceId = DefaultSpan.Current?.TraceId;
-        if (!currentTraceId.IsNullOrEmpty() && !Headers.ContainsKey("TraceId"))
-            Headers["TraceId"] = currentTraceId;
+        // 自动注入当前 Span 上下文字符串到 Headers，包含 TraceId+SpanId 便于星尘构建调用链上下级关系
+        var currentSpan = DefaultSpan.Current?.ToString();
+        if (!currentSpan.IsNullOrEmpty() && !Headers.ContainsKey("TraceId"))
+            Headers["TraceId"] = currentSpan;
 
         // 注入 Headers
         if (Headers.Count > 0 && args != null)
@@ -681,6 +681,10 @@ public class ApiClient : ApiHost, IApiClient
             }
             args = dic;
         }
+
+        // 埋点，注入traceParent到参数集合
+        var span = Tracer?.NewSpan("rpc:" + action, args);
+        if (args != null && span != null) args = span.Attach(args);
 
         using var msg = enc.CreateRequest(action, args);
 

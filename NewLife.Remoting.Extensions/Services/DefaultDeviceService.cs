@@ -400,20 +400,10 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         return _cache.Remove($"{Name}Online:{sid}");
     }
 
-    /// <summary>获取下行命令。合并持久化的待处理命令和业务自定义命令</summary>
+    /// <summary>获取下行命令。默认返回空，子类可重写实现持久化命令查询</summary>
     /// <param name="context">设备上下文</param>
     /// <returns>待下发的命令列表</returns>
-    public virtual CommandModel[] AcquireCommands(DeviceContext context)
-    {
-        var code = context.Device?.Code ?? context.Code;
-        if (code.IsNullOrEmpty()) return [];
-
-        // 从持久化存储查询未完成的指令
-        var pending = GetPendingCommands(code);
-        if (pending.Count == 0) return [];
-
-        return pending.ToArray();
-    }
+    public virtual CommandModel[] AcquireCommands(DeviceContext context) => [];
     #endregion
 
     #region 下行通知
@@ -423,10 +413,15 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <param name="timeout">超时秒数。0 不等待（fire-and-forget），大于 0 阻塞等待</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>命令响应，超时或 fire-and-forget 时返回 null</returns>
-    public virtual async Task<CommandReplyModel?> SendCommand(IDeviceModel device, CommandModel command, Int32 timeout = 0, CancellationToken cancellationToken = default)
+    public virtual Task<CommandReplyModel?> SendCommand(IDeviceModel device, CommandModel command, Int32 timeout = 0, CancellationToken cancellationToken = default)
     {
-        PrepareCommand(device, command);
-        return await sessionManager.PublishAsync(device.Code, command, null, timeout, cancellationToken).ConfigureAwait(false);
+        ArgumentNullException.ThrowIfNull(device);
+        ArgumentNullException.ThrowIfNull(command);
+
+        var id = WriteHistory(device, "发送命令", true, command.ToJson(false, false, false));
+        if (command.Id == 0) command.Id = id;
+
+        return sessionManager.PublishAsync(device.Code, command, null, timeout, cancellationToken);
     }
 
     /// <summary>发送命令。外部平台级接口调用</summary>
@@ -465,10 +460,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         if (model.StartTime > 0) cmd.StartTime = now.AddSeconds(model.StartTime);
         if (model.Expire > 0) cmd.Expire = now.AddSeconds(model.Expire);
 
-        PrepareCommand(target, cmd);
-
-        // 通过 SessionManager 发布并等待响应（内部已集成响应总线或 Redis 队列降级）
-        var reply = await sessionManager.PublishAsync(target.Code, cmd, null, model.Timeout, cancellationToken).ConfigureAwait(false);
+        var reply = await SendCommand(target, cmd, model.Timeout, cancellationToken).ConfigureAwait(false);
         if (reply != null)
         {
             using var span = _tracer?.NewSpan($"cmd:CommandReply", reply);
@@ -484,23 +476,6 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         return null;
     }
 
-    /// <summary>命令准备。写历史、填路由信息、持久化</summary>
-    private void PrepareCommand(IDeviceModel device, CommandModel command)
-    {
-        ArgumentNullException.ThrowIfNull(device);
-        ArgumentNullException.ThrowIfNull(command);
-
-        var id = WriteHistory(device, "发送命令", true, command.ToJson(false, false, false));
-        if (command.Id == 0) command.Id = id;
-
-        // 记录设备和发起方信息，便于响应广播时精确定位
-        command.Code = device.Code;
-        command.SenderNodeId = Runtime.ClientId;
-
-        // 持久化保存：设备重连或心跳时可恢复未完成的指令
-        SaveCommand(command);
-    }
-
     /// <summary>命令响应</summary>
     /// <param name="context">设备上下文</param>
     /// <param name="model">命令响应模型</param>
@@ -508,10 +483,6 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     public virtual Int32 CommandReply(DeviceContext context, CommandReplyModel model)
     {
         ArgumentNullException.ThrowIfNull(model);
-
-        // 记录设备信息，便于响应路由
-        model.Code = context.Device?.Code ?? context.Code;
-        model.SenderNodeId = Runtime.ClientId;
 
         // 通过会话管理器内置的响应事件总线广播响应（fire-and-forget，跨实例广播不阻塞）
         _ = sessionManager.PublishResponseAsync(model, default);
@@ -521,56 +492,6 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         return 1;
     }
 
-    /// <summary>持久化保存命令。使用 Redis Hash 存储，TTL 默认 1 小时或按命令过期时间</summary>
-    /// <param name="command">命令对象</param>
-    /// <returns>保存后的命令</returns>
-    public virtual CommandModel SaveCommand(CommandModel command)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-
-        var cacheKey = $"{Name}Cmd:{command.Id}";
-        _cache.Set(cacheKey, command, 3600);
-
-        // 如果命令有过期时间，使用命令过期时间作为 TTL
-        if (command.Expire.Year > 2000)
-        {
-            var ttl = (Int32)(command.Expire - DateTime.UtcNow).TotalSeconds;
-            if (ttl > 0 && ttl < 3600)
-                _cache.SetExpire(cacheKey, TimeSpan.FromSeconds(ttl));
-        }
-
-        return command;
-    }
-
-    /// <summary>更新命令状态</summary>
-    /// <param name="commandId">命令 Id</param>
-    /// <param name="status">新状态</param>
-    /// <param name="data">附加数据（如执行结果）</param>
-    /// <returns>更新后的命令，不存在时返回 null</returns>
-    public virtual CommandModel? UpdateCommandStatus(Int64 commandId, CommandStatus status, String? data = null)
-    {
-        var cacheKey = $"{Name}Cmd:{commandId}";
-        var command = _cache.Get<CommandModel>(cacheKey);
-        if (command == null) return null;
-
-        command.Status = status;
-        if (data != null) command.Data = data;
-
-        _cache.Set(cacheKey, command, 3600);
-
-        return command;
-    }
-
-    /// <summary>获取待处理命令。遍历缓存查找状态为就绪/已发送/处理中的命令</summary>
-    /// <param name="deviceCode">设备编码</param>
-    /// <returns>待下发的命令列表</returns>
-    public virtual IList<CommandModel> GetPendingCommands(String deviceCode)
-    {
-        // 使用缓存模式匹配查找：{Name}Cmd:*
-        // 由于 ICache 不支持模糊查询，这里返回空列表，业务方可重写
-        // 生产环境建议使用 Redis Keys 或 XCode 实体表实现
-        return [];
-    }
     #endregion
 
     #region 升级更新

@@ -15,12 +15,6 @@ public class CommandModelTests
         var model = new CommandModel();
 
         Assert.Equal(CommandStatus.就绪, model.Status);
-        Assert.Equal(0, model.RetryCount);
-        Assert.Equal(3, model.MaxRetries);
-        Assert.Equal(10, model.RetryInterval);
-        Assert.Null(model.Code);
-        Assert.Null(model.SenderNodeId);
-        Assert.Null(model.Data);
     }
 
     [Fact(DisplayName = "CommandModel新增字段读写")]
@@ -30,24 +24,12 @@ public class CommandModelTests
         {
             Id = 123,
             Command = "Restart",
-            Status = CommandStatus.已发送,
-            RetryCount = 2,
-            MaxRetries = 5,
-            RetryInterval = 15,
-            Code = "device001",
-            SenderNodeId = "node-A",
-            Data = "reboot ok"
+            Status = CommandStatus.已完成,
         };
 
         Assert.Equal(123, model.Id);
         Assert.Equal("Restart", model.Command);
-        Assert.Equal(CommandStatus.已发送, model.Status);
-        Assert.Equal(2, model.RetryCount);
-        Assert.Equal(5, model.MaxRetries);
-        Assert.Equal(15, model.RetryInterval);
-        Assert.Equal("device001", model.Code);
-        Assert.Equal("node-A", model.SenderNodeId);
-        Assert.Equal("reboot ok", model.Data);
+        Assert.Equal(CommandStatus.已完成, model.Status);
     }
 
     [Fact(DisplayName = "CommandModel已有字段不受影响")]
@@ -72,16 +54,12 @@ public class CommandModelTests
     #endregion
 
     #region CommandStatus枚举新增值
-    [Theory(DisplayName = "CommandStatus新增枚举值验证")]
+    [Theory(DisplayName = "CommandStatus枚举值验证")]
     [InlineData(CommandStatus.就绪, 0)]
     [InlineData(CommandStatus.处理中, 1)]
     [InlineData(CommandStatus.已完成, 2)]
     [InlineData(CommandStatus.取消, 3)]
     [InlineData(CommandStatus.错误, 4)]
-    [InlineData(CommandStatus.已发送, 5)]
-    [InlineData(CommandStatus.已送达, 6)]
-    [InlineData(CommandStatus.已过期, 7)]
-    [InlineData(CommandStatus.已超时, 8)]
     public void CommandStatus_NewValues_CorrectIntValue(CommandStatus status, Int32 expectedInt)
     {
         Assert.Equal(expectedInt, (Int32)status);
@@ -97,11 +75,11 @@ public class CommandModelTests
         }
     }
 
-    [Fact(DisplayName = "CommandStatus共计9个状态")]
-    public void CommandStatus_Count_IsNine()
+    [Fact(DisplayName = "CommandStatus共计5个状态")]
+    public void CommandStatus_Count_IsFive()
     {
         var count = Enum.GetValues(typeof(CommandStatus)).Length;
-        Assert.Equal(9, count);
+        Assert.Equal(5, count);
     }
 
     [Fact(DisplayName = "CommandStatus_旧值不受影响")]
@@ -115,33 +93,20 @@ public class CommandModelTests
     }
     #endregion
 
-    #region CommandReplyModel新增字段
-    [Fact(DisplayName = "CommandReplyModel新增字段默认值")]
-    public void CommandReplyModel_NewFields_DefaultValues()
-    {
-        var model = new CommandReplyModel();
-
-        Assert.Null(model.Code);
-        Assert.Null(model.SenderNodeId);
-    }
-
-    [Fact(DisplayName = "CommandReplyModel新增字段读写")]
-    public void CommandReplyModel_NewFields_ReadWrite()
+    #region CommandReplyModel字段
+    [Fact(DisplayName = "CommandReplyModel字段读写")]
+    public void CommandReplyModel_Fields_ReadWrite()
     {
         var model = new CommandReplyModel
         {
             Id = 456,
             Status = CommandStatus.已完成,
-            Data = "ok",
-            Code = "device002",
-            SenderNodeId = "node-B"
+            Data = "ok"
         };
 
         Assert.Equal(456, model.Id);
         Assert.Equal(CommandStatus.已完成, model.Status);
         Assert.Equal("ok", model.Data);
-        Assert.Equal("device002", model.Code);
-        Assert.Equal("node-B", model.SenderNodeId);
     }
     #endregion
 }

@@ -141,23 +141,6 @@ public interface IDeviceService2 : IDeviceService
     /// <returns>待下发的命令列表</returns>
     CommandModel[] AcquireCommands(DeviceContext context);
 
-    /// <summary>持久化保存命令</summary>
-    /// <remarks>指令状态机入口：下发前先持久化，设备重连时可恢复</remarks>
-    /// <param name="command">命令对象</param>
-    /// <returns>保存后的命令</returns>
-    CommandModel SaveCommand(CommandModel command);
-
-    /// <summary>更新命令状态</summary>
-    /// <param name="commandId">命令 Id</param>
-    /// <param name="status">新状态</param>
-    /// <param name="data">附加数据（如执行结果）</param>
-    /// <returns>更新后的命令，不存在时返回 null</returns>
-    CommandModel? UpdateCommandStatus(Int64 commandId, CommandStatus status, String? data = null);
-
-    /// <summary>获取待处理命令。设备重连或心跳时调用</summary>
-    /// <param name="deviceCode">设备编码</param>
-    /// <returns>待下发的命令列表</returns>
-    IList<CommandModel> GetPendingCommands(String deviceCode);
 }
 
 /// <summary>设备服务扩展</summary>

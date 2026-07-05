@@ -31,22 +31,4 @@ public class CommandModel
 
     /// <summary>指令状态。用于指令持久化和状态机追踪</summary>
     public CommandStatus Status { get; set; } = CommandStatus.就绪;
-
-    /// <summary>已重试次数</summary>
-    public Int32 RetryCount { get; set; }
-
-    /// <summary>最大重试次数。默认 3 次</summary>
-    public Int32 MaxRetries { get; set; } = 3;
-
-    /// <summary>重试间隔（秒）。默认 10 秒，指数退避：10s, 20s, 40s</summary>
-    public Int32 RetryInterval { get; set; } = 10;
-
-    /// <summary>设备编码。用于响应广播时定位发起方</summary>
-    public String? Code { get; set; }
-
-    /// <summary>发起方节点标识。用于集群中精确定位 SendCommand 发起实例</summary>
-    public String? SenderNodeId { get; set; }
-
-    /// <summary>响应数据。设备执行完成后上报的结果数据</summary>
-    public String? Data { get; set; }
 }
