@@ -55,23 +55,22 @@ public static class ClientTest
         using var span = _tracer?.NewSpan("SelfTest:ResponseBus");
 
         var deviceService = serviceProvider.GetService<IDeviceService>();
-        var responseBus = serviceProvider.GetService<ICommandResponseBus>();
+        var sessionManager = serviceProvider.GetService<ISessionManager>();
 
         if (deviceService == null)
         {
             XTrace.WriteLine("[SelfTest] ❌ IDeviceService 未注册，跳过响应总线测试");
             return;
         }
-        if (responseBus == null)
+        if (sessionManager == null)
         {
-            XTrace.WriteLine("[SelfTest] ❌ ICommandResponseBus 未注册，响应总线未启用");
+            XTrace.WriteLine("[SelfTest] ❌ ISessionManager 未注册，响应总线未启用");
             return;
         }
 
         XTrace.WriteLine("========== [SelfTest] 开始响应总线端到端测试 ==========");
         XTrace.WriteLine($"[SelfTest] 目标设备: {code}");
-        XTrace.WriteLine($"[SelfTest] 命令总线: SessionManager (Topic=Commands)");
-        XTrace.WriteLine($"[SelfTest] 响应总线: CommandResponseBus (Topic=CommandReplies)");
+        XTrace.WriteLine($"[SelfTest] 会话管理器: SessionManager (Topic=Commands, ResponseTopic=CommandsReplies)");
 
         // 查找设备
         var device = deviceService.QueryDevice(code);

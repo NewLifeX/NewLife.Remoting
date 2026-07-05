@@ -35,10 +35,6 @@ public static class IoTExtensions
         // 注册Remoting所必须的服务
         services.AddRemoting(setting);
 
-        // 注册命令响应总线，启用命令响应广播机制（替代旧 Redis cmdreply 队列）
-        // 与 SessionManager 共用 IEventBusFactory 基础设施，各自独立的 IEventBus 实例（不同 Topic）
-        services.TryAddSingleton<ICommandResponseBus, CommandResponseBus>();
-
         // 后台服务
         services.AddHostedService<NodeOnlineService>();
 

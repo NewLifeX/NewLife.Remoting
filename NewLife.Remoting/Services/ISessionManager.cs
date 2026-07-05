@@ -33,7 +33,7 @@ public interface ISessionManager
     /// <summary>向目标会话发送命令，支持同步等待响应</summary>
     /// <remarks>
     /// timeout=0 时 fire-and-forget，立即返回 null；timeout>0 时阻塞等待设备 CommandReply。
-    /// 内部优先使用 ICommandResponseBus 事件总线等待，未注册时降级到 Redis 队列。
+    /// 内部通过事件总线注册回调等待响应，未配置事件总线时降级到 Redis 队列。
     /// </remarks>
     /// <param name="code">设备编码</param>
     /// <param name="command">命令模型</param>
@@ -42,4 +42,10 @@ public interface ISessionManager
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>命令响应，超时或 fire-and-forget 时返回 null</returns>
     Task<CommandReplyModel?> PublishAsync(String code, CommandModel command, String? message, Int32 timeout = 0, CancellationToken cancellationToken = default);
+
+    /// <summary>发布命令响应。由 CommandReply 入口调用，通过事件总线广播到所有实例</summary>
+    /// <param name="reply">命令响应</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns></returns>
+    Task<Int32> PublishResponseAsync(CommandReplyModel reply, CancellationToken cancellationToken);
 }

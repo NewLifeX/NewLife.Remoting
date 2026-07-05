@@ -32,7 +32,6 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     private static Func<String, TDevice?>? _findDevice;
     private static Func<String, TOnline?>? _findOnline;
     private readonly ITracer? _tracer = serviceProvider.GetService<ITracer>();
-    private readonly ICommandResponseBus? _responseBus = serviceProvider.GetService<ICommandResponseBus>();
     #endregion
 
     #region 静态构造
@@ -500,8 +499,6 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
 
         // 持久化保存：设备重连或心跳时可恢复未完成的指令
         SaveCommand(command);
-
-        command.Status = CommandStatus.已发送;
     }
 
     /// <summary>命令响应</summary>
@@ -516,21 +513,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         model.Code = context.Device?.Code ?? context.Code;
         model.SenderNodeId = Runtime.ClientId;
 
-        if (_responseBus != null)
-        {
-            // 新方案：事件总线广播响应（fire-and-forget，广播不阻塞）
-            _ = _responseBus.PublishResponseAsync(model, default);
-        }
-        else
-        {
-            // 旧方案（兼容）：写入 Redis 队列
-            var topic = $"cmdreply:{model.Id}";
-            var q = cacheProvider.GetQueue<CommandReplyModel>(topic);
-            q.Add(model);
-
-            // 设置过期时间，过期自动清理
-            cacheProvider.Cache.SetExpire(topic, TimeSpan.FromSeconds(60));
-        }
+        // 通过会话管理器内置的响应事件总线广播响应（fire-and-forget，跨实例广播不阻塞）
+        _ = sessionManager.PublishResponseAsync(model, default);
 
         WriteHistory(context, "命令响应", true, model.ToJson(false, false, false));
 

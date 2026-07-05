@@ -10,27 +10,48 @@ using NewLife.Threading;
 
 namespace NewLife.Remoting.Services;
 
-/// <summary>会话管理器。管理命令会话的生命周期，支持进程内或跨进程（Redis队列）消息分发</summary>
+/// <summary>会话管理器。管理命令会话生命周期，内置命令下发、响应等待、响应广播的完整闭环</summary>
 /// <remarks>
-/// 主要用于管理 WebSocket 等长连接会话（如 <see cref="CommandSession"/>），实现服务端向客户端下发命令的能力。
+/// 主要用于管理 WebSocket 等长连接会话（如 <see cref="CommandSession"/>），
+/// 实现服务端向客户端下发命令并同步等待设备响应的能力，无需额外依赖独立响应总线服务。
 /// 
-/// <para>核心工作流程：</para>
+/// <para>四大核心流程：</para>
 /// <list type="number">
-/// <item>客户端建立连接时，调用 <see cref="Add"/> 将会话加入管理器，以 Code 为唯一标识</item>
-/// <item>服务端需要下发命令时，调用 <see cref="PublishAsync"/> 发布消息到事件总线</item>
-/// <item>事件总线触发 <see cref="OnMessage"/>，根据 Code 找到对应会话并交由其处理（如通过 WebSocket 发送给客户端）</item>
-/// <item>客户端断开连接时，调用 <see cref="Remove"/> 从管理器移除会话</item>
-/// <item>内置定时器自动清理不活跃的会话</item>
+/// <item>
+/// <b>命令下发管线</b>：<see cref="PublishAsync"/> → <see cref="Init"/>/<see cref="Create"/>（事件总线 <see cref="Topic"/>）→ 广播 code#json →
+/// <see cref="OnMessage"/>（匹配 Code 找到 Session）→ session.HandleAsync（WebSocket 下发）
+/// </item>
+/// <item>
+/// <b>响应等待管线</b>：<see cref="PublishAsync"/> timeout&gt;0 → <see cref="WaitResponseAsync"/>（注册 <see cref="CallbackEntry"/> 到 _callbacks 字典）→
+/// 阻塞等待 TCS → 超时/取消/收到响应后返回
+/// </item>
+/// <item>
+/// <b>响应广播管线</b>：设备 CommandReply → <see cref="PublishResponseAsync"/> → <see cref="InitResponse"/>（事件总线 <see cref="ResponseTopic"/>）→
+/// 广播 JSON → <see cref="OnCommandResponse"/>（按 CommandId 匹配 _callbacks）→ 完成 TCS
+/// </item>
+/// <item>
+/// <b>会话生命周期</b>：<see cref="Add"/> → <see cref="Remove"/> → <see cref="CloseAll"/> → 定时器 <see cref="RemoveNotAlive"/>
+/// </item>
+/// </list>
+/// 
+/// <para>集群多实例工作流（ABC 三实例典型场景）：</para>
+/// <list type="bullet">
+/// <item>A 实例调用 <see cref="PublishAsync"/> 发起命令，通过事件总线「广播」命令到全部实例</item>
+/// <item>B 实例的 <see cref="OnMessage"/> 匹配到设备会话，通过 WebSocket 下发给设备</item>
+/// <item>设备执行完毕，HTTP 上报 CommandReply 到 C 实例的接口</item>
+/// <item>C 实例调用 <see cref="PublishResponseAsync"/> 通过事件总线「广播」响应到全部实例</item>
+/// <item>A 实例的 <see cref="OnCommandResponse"/> 按 CommandId 匹配 _callbacks 中的等待回调，完成 TCS</item>
+/// <item>超时或取消时自动清理回调注册（finally + 定时器兜底），防止内存泄漏</item>
 /// </list>
 /// 
 /// <para>事件总线模式：</para>
 /// <list type="bullet">
-/// <item>单机模式：使用内存事件总线 <see cref="EventBus{T}"/>，仅支持进程内消息分发</item>
-/// <item>集群模式：使用 Redis 事件总线，支持跨进程消息分发，适用于多实例部署场景</item>
+/// <item>单机模式：使用内存 <see cref="EventBus{T}"/>，仅支持进程内消息分发</item>
+/// <item>集群模式：通过 <see cref="IEventBusFactory"/> 创建 Redis EventBus，支持跨进程消息分发</item>
 /// </list>
 /// 
 /// <para>消息格式：</para>
-/// 实际发送的消息格式为 "code#message"，其中 code 为会话标识，message 为 JSON 序列化的命令内容，因此 code 内不能包含 # 字符。
+/// 命令消息为 "code#json"；响应消息为纯 JSON（<see cref="CommandReplyModel"/>），code 内不能包含 #。
 /// </remarks>
 public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISessionManager
 {
@@ -55,14 +76,29 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     /// <summary>事件总线工厂</summary>
     public IEventBusFactory? Factory { get; set; }
 
+    /// <summary>响应主题。事件总线的响应频道名称，默认从 Topic 派生</summary>
+    public String ResponseTopic => $"{Topic}Replies";
+
+    /// <summary>命令响应回调注册表。Key=CommandId，Value=TaskCompletionSource</summary>
+    private readonly ConcurrentDictionary<Int64, CallbackEntry> _callbacks = new();
+
+    /// <summary>命令响应事件总线。用于跨进程响应广播</summary>
+    private IEventBus<String>? _responseBus;
+
     /// <summary>清理会话计时器</summary>
     private TimerX? _clearTimer;
 
     private readonly ICacheProvider? _cacheProvider = serviceProvider.GetService<ICacheProvider>();
     private readonly ITracer? _tracer = serviceProvider.GetService<ITracer>();
+
+#if NET45
+    private static readonly Task _completedTask = TaskEx.FromResult(0);
+#else
+    private static readonly Task _completedTask = Task.CompletedTask;
+#endif
     #endregion
 
-    #region 方法
+    #region 构造/销毁
     /// <summary>销毁</summary>
     /// <param name="disposing"></param>
     protected override void Dispose(Boolean disposing)
@@ -71,8 +107,47 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
         CloseAll(disposing ? "Dispose" : "GC");
     }
+    #endregion
 
-    /// <summary>初始化事件总线。延迟初始化，首次添加会话或发布消息时触发</summary>
+    #region 命令下发管线
+    /// <summary>向目标会话发送命令，支持同步等待响应。进程内转发或通过 Redis 事件总线</summary>
+    /// <remarks>实际发送的消息是 code#message，因此 code 内不能带有 #</remarks>
+    /// <param name="code">设备编码</param>
+    /// <param name="command">命令模型</param>
+    /// <param name="message">原始命令消息</param>
+    /// <param name="timeout">超时时间（秒），0 表示不超时</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>命令响应，超时或 fire-and-forget 时返回 null</returns>
+    public virtual async Task<CommandReplyModel?> PublishAsync(String code, CommandModel command, String? message, Int32 timeout = 0, CancellationToken cancellationToken = default)
+    {
+        if (command == null && message.IsNullOrEmpty()) throw new ArgumentNullException(nameof(command), "命令和消息不能同时为空");
+
+        if (command != null && command.TraceId.IsNullOrEmpty()) command.TraceId = DefaultSpan.Current?.TraceId;
+        if (message.IsNullOrEmpty() && command != null)
+        {
+            var jsonHost = serviceProvider.GetService<IJsonHost>();
+            if (jsonHost != null)
+                message = jsonHost.Write(command);
+            else
+                message = command.ToJson();
+        }
+
+        message = $"{code}#{message}";
+
+        using var span = _tracer?.NewSpan($"cmd:{Topic}:Publish", message);
+
+        Init();
+
+        // 发布到命令总线
+        await Bus.PublishAsync(message, null, cancellationToken).ConfigureAwait(false);
+
+        if (timeout <= 0) return null;
+
+        // 通过内置事件总线回调机制等待设备响应
+        return await WaitResponseAsync(command!.Id, timeout, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>初始化命令事件总线。延迟初始化，首次添加会话或发布消息时触发</summary>
     private void Init()
     {
         if (Bus != null) return;
@@ -82,12 +157,12 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
             Bus = Create();
 
-            // 进程退出（如 Ctrl+C）时，主动销毁会话管理器，尽快打断会话的Receive等待
+            // 进程退出（如 Ctrl+C）时，主动销毁会话管理器，尽快打断会话的 Receive 等待
             Host.RegisterExit(() => this.TryDispose());
         }
     }
 
-    /// <summary>创建事件总线，用于转发会话消息</summary>
+    /// <summary>创建命令事件总线，用于转发会话消息</summary>
     /// <returns></returns>
     protected virtual IEventBus<String> Create()
     {
@@ -99,7 +174,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
             bus ??= _cacheProvider?.CreateEventBus<String>(Topic, ClientId);
             bus ??= new EventBus<String>();
 
-            // 订阅总线事件到OnMessage
+            // 订阅总线事件到 OnMessage
             span?.AppendTag($"订阅[{Topic}]的总线事件到OnMessage，再根据消息头的设备号分发给各Session，一般是WebSocket下发指令");
             bus.Subscribe(OnMessage);
 
@@ -112,6 +187,229 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         }
     }
 
+    /// <summary>从事件总线收到命令消息。解析 code#message 格式，找到对应会话并下发给设备</summary>
+    /// <param name="message">原始命令消息</param>
+    /// <param name="context">事件上下文。用于在发布者、订阅者及中间处理器之间传递协调数据，如 Handler、ClientId 等</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns></returns>
+    protected virtual async Task OnMessage(String message, IEventContext context, CancellationToken cancellationToken)
+    {
+        using var span = _tracer?.NewSpan($"cmd:{Topic}", message);
+
+        // 解析消息格式 code#message
+        var code = "";
+        var p = message.IndexOf('#');
+        if (p > 0 && p < 256)
+        {
+            code = message[..p];
+            message = message[(p + 1)..];
+        }
+
+        // 解码命令模型。即使失败，也要继续处理
+        CommandModel? msg = null;
+        try
+        {
+            var dic = JsonParser.Decode(message)!;
+            span?.Detach(dic);
+            msg = JsonHelper.Convert<CommandModel>(dic);
+        }
+        catch (Exception ex)
+        {
+            span?.SetError(ex);
+        }
+
+        // 修正时间
+        if (msg != null)
+        {
+            if (msg.StartTime.Year < 2000) msg.StartTime = DateTime.MinValue;
+            if (msg.Expire.Year < 2000) msg.Expire = DateTime.MinValue;
+        }
+
+        // 交由命令会话处理，包括过期处理，因其内部可能需要写过期日志
+        //if (msg != null && (msg.Expire.Year <= 2000 || msg.Expire >= Runtime.UtcNow))
+        {
+            var session = Get(code);
+            if (session != null)
+            {
+                await session.HandleAsync(msg!, message, cancellationToken).ConfigureAwait(false);
+
+                span?.Value = 1;
+            }
+            else
+                span?.AppendTag($"未找到编号为[{code}]的会话，无法处理消息。集群模式下事件总线广播到所有实例，该消息将由持有该设备会话的实例处理。");
+        }
+    }
+    #endregion
+
+    #region 响应等待管线
+    /// <summary>等待命令响应。注册 CallbackEntry 并阻塞直到收到响应或超时</summary>
+    /// <remarks>
+    /// 内部通过 ConcurrentDictionary{CommandId, CallbackEntry} 维护回调注册表。
+    /// 每个回调生命周期 ≤ timeout 秒，finally 保证清理，定时器兜底清理过期项，不会内存泄漏。
+    /// </remarks>
+    /// <param name="commandId">命令 Id</param>
+    /// <param name="timeout">超时时间（秒）</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>命令响应，超时返回 null</returns>
+    protected virtual async Task<CommandReplyModel?> WaitResponseAsync(Int64 commandId, Int32 timeout, CancellationToken cancellationToken)
+    {
+        if (timeout <= 0) return null;
+
+        InitResponse();
+
+        using var span = _tracer?.NewSpan($"cmd:{ResponseTopic}:Wait", commandId);
+        try
+        {
+#if NET45
+            var tcs = new TaskCompletionSource<CommandReplyModel>();
+#else
+            var tcs = new TaskCompletionSource<CommandReplyModel>(TaskCreationOptions.RunContinuationsAsynchronously);
+#endif
+            var entry = new CallbackEntry
+            {
+                Tcs = tcs,
+                CreatedAt = Runtime.TickCount64,
+                Timeout = timeout * 1000,
+                Span = span,
+            };
+
+            _callbacks.TryAdd(commandId, entry);
+
+            // 使用取消令牌注册清理
+            using var ctr = cancellationToken.Register(() =>
+            {
+                if (_callbacks.TryRemove(commandId, out var e))
+                {
+#if NET45
+                    e.Tcs.TrySetCanceled();
+#else
+                    e.Tcs.TrySetCanceled(cancellationToken);
+#endif
+                    e.Span?.AppendTag($"cancelled: commandId={commandId}");
+                }
+            });
+
+            // 超时清理
+            var timeoutMs = timeout * 1000;
+            var delayTask = Task.Delay(timeoutMs, cancellationToken);
+            var completedTask = await Task.WhenAny(tcs.Task, delayTask).ConfigureAwait(false);
+
+            if (completedTask == delayTask)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    span?.AppendTag($"cancelled: commandId={commandId}");
+                    throw new OperationCanceledException(cancellationToken);
+                }
+
+                if (_callbacks.TryRemove(commandId, out var e))
+                {
+                    e.Tcs.TrySetResult(null!);
+                    span?.AppendTag($"timeout: commandId={commandId}, timeout={timeout}s");
+                    return null;
+                }
+            }
+
+            return await tcs.Task.ConfigureAwait(false);
+        }
+        finally
+        {
+            _callbacks.TryRemove(commandId, out _);
+        }
+    }
+
+    /// <summary>发布命令响应。由 CommandReply 入口调用，通过响应事件总线广播到所有实例</summary>
+    /// <param name="reply">命令响应</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns></returns>
+    public virtual async Task<Int32> PublishResponseAsync(CommandReplyModel reply, CancellationToken cancellationToken)
+    {
+        if (reply == null) throw new ArgumentNullException(nameof(reply));
+
+        InitResponse();
+
+        var jsonHost = serviceProvider.GetService<IJsonHost>();
+        var message = jsonHost != null ? jsonHost.Write(reply) : reply.ToJson();
+
+        using var span = _tracer?.NewSpan($"cmd:{ResponseTopic}:Publish", message);
+        try
+        {
+            return await _responseBus!.PublishAsync(message, null, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            span?.SetError(ex, null);
+            throw;
+        }
+    }
+
+    /// <summary>初始化命令响应事件总线。延迟初始化，首次发送带超时的命令或发布响应时触发</summary>
+    private void InitResponse()
+    {
+        if (_responseBus != null) return;
+        lock (this)
+        {
+            if (_responseBus != null) return;
+
+            var topic = ResponseTopic;
+            using var span = _tracer?.NewSpan($"cmd:{topic}:CreateResponseBus", ClientId);
+            try
+            {
+                // 优先使用工厂创建跨进程总线（如 Redis），降级到内存总线
+                _responseBus = Factory?.CreateEventBus<String>(topic, ClientId);
+                _responseBus ??= _cacheProvider?.CreateEventBus<String>(topic, ClientId);
+                _responseBus ??= new EventBus<String>();
+
+                span?.AppendTag($"订阅[{topic}]的总线事件到OnCommandResponse，用于匹配命令响应回调");
+                _responseBus.Subscribe(OnCommandResponse);
+            }
+            catch (Exception ex)
+            {
+                span?.SetError(ex, null);
+                throw;
+            }
+        }
+    }
+
+    /// <summary>收到命令响应广播。按 CommandId 匹配本地 _callbacks 字典中的等待回调并完成 TCS</summary>
+    /// <param name="message">响应 JSON</param>
+    /// <param name="context">事件上下文</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns></returns>
+    protected virtual Task OnCommandResponse(String message, IEventContext context, CancellationToken cancellationToken)
+    {
+        using var span = _tracer?.NewSpan($"cmd:{ResponseTopic}:OnResponse", message);
+
+        CommandReplyModel? reply = null;
+        try
+        {
+            var dic = JsonParser.Decode(message)!;
+            span?.Detach(dic);
+            reply = JsonHelper.Convert<CommandReplyModel>(dic);
+        }
+        catch (Exception ex)
+        {
+            span?.SetError(ex);
+            return _completedTask;
+        }
+
+        if (reply == null || reply.Id == 0) return _completedTask;
+
+        // 按 CommandId 匹配本地回调
+        if (_callbacks.TryGetValue(reply.Id, out var entry))
+        {
+            span?.AppendTag($"matched: commandId={reply.Id}, status={reply.Status}");
+            entry.Tcs.TrySetResult(reply);
+            entry.Span?.AppendTag($"resolved: status={reply.Status}");
+        }
+        else
+            span?.AppendTag($"no callback for commandId={reply.Id} on this node");
+
+        return _completedTask;
+    }
+    #endregion
+
+    #region 会话生命周期
     /// <summary>添加会话到管理器</summary>
     /// <param name="session">命令会话</param>
     public virtual void Add(ICommandSession session)
@@ -144,109 +442,6 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
             span?.AppendTag(null!, 1);
     }
 
-    /// <summary>向目标会话发送事件。进程内转发，或通过Redis队列</summary>
-    /// <remarks>实际发送的消息是 code#message，因此code内不能带有#</remarks>
-    /// <param name="code">设备编码</param>
-    /// <param name="command">命令模型</param>
-    /// <param name="message">原始命令消息</param>
-    /// <param name="timeout">超时时间（秒），0 表示不超时</param>
-    /// <param name="cancellationToken">取消令牌</param>
-    /// <returns></returns>
-    public virtual async Task<CommandReplyModel?> PublishAsync(String code, CommandModel command, String? message, Int32 timeout = 0, CancellationToken cancellationToken = default)
-    {
-        if (command == null && message.IsNullOrEmpty()) throw new ArgumentNullException(nameof(command), "命令和消息不能同时为空");
-
-        if (command != null && command.TraceId.IsNullOrEmpty()) command.TraceId = DefaultSpan.Current?.TraceId;
-        if (message.IsNullOrEmpty() && command != null)
-        {
-            var jsonHost = serviceProvider.GetService<IJsonHost>();
-            if (jsonHost != null)
-                message = jsonHost.Write(command);
-            else
-                message = command.ToJson();
-        }
-
-        message = $"{code}#{message}";
-
-        using var span = _tracer?.NewSpan($"cmd:{Topic}:Publish", message);
-
-        Init();
-
-        // 发布到命令总线
-        await Bus.PublishAsync(message, null, cancellationToken).ConfigureAwait(false);
-
-        if (timeout <= 0) return null;
-
-        // 优先使用响应总线等待设备回复
-        var responseBus = serviceProvider.GetService<ICommandResponseBus>();
-        if (responseBus != null)
-            return await responseBus.WaitResponseAsync(command!.Id, timeout, cancellationToken).ConfigureAwait(false);
-
-        // 降级到 Redis 队列
-        var cacheProvider = serviceProvider.GetService<ICacheProvider>();
-        if (cacheProvider != null)
-        {
-            var q = cacheProvider.GetQueue<CommandReplyModel>($"cmdreply:{command!.Id}");
-            return await q.TakeOneAsync(timeout, cancellationToken).ConfigureAwait(false);
-        }
-
-        return null;
-    }
-
-    /// <summary>从事件总线收到事件</summary>
-    /// <remarks>实际发送消息是 code#message，因此需要先解码消息找到code</remarks>
-    /// <param name="message">原始命令消息</param>
-    /// <param name="context">事件上下文。用于在发布者、订阅者及中间处理器之间传递协调数据，如 Handler、ClientId 等</param>
-    /// <param name="cancellationToken">取消令牌</param>
-    /// <returns></returns>
-    protected virtual async Task OnMessage(String message, IEventContext context, CancellationToken cancellationToken)
-    {
-        using var span = _tracer?.NewSpan($"cmd:{Topic}", message);
-
-        // 解析消息格式 code#message
-        var code = "";
-        var p = message.IndexOf('#');
-        if (p > 0 && p < 256)
-        {
-            code = message[..p];
-            message = message[(p + 1)..];
-        }
-
-        // 解码命令模型。即使失败，也要继续处理
-        CommandModel? msg = null;
-        try
-        {
-            var dic = JsonParser.Decode(message)!;
-            msg = JsonHelper.Convert<CommandModel>(dic);
-            span?.Detach(dic);
-        }
-        catch (Exception ex)
-        {
-            span?.SetError(ex);
-        }
-
-        // 修正时间
-        if (msg != null)
-        {
-            if (msg.StartTime.Year < 2000) msg.StartTime = DateTime.MinValue;
-            if (msg.Expire.Year < 2000) msg.Expire = DateTime.MinValue;
-        }
-
-        // 交由命令会话处理，包括过期处理，因其内部可能需要写过期日志
-        //if (msg != null && (msg.Expire.Year <= 2000 || msg.Expire >= Runtime.UtcNow))
-        {
-            var session = Get(code);
-            if (session != null)
-            {
-                await session.HandleAsync(msg!, message, cancellationToken).ConfigureAwait(false);
-
-                span?.Value = 1;
-            }
-            else
-                span?.AppendTag($"未找到编号为[{code}]的会话，无法处理消息。集群模式下事件总线广播到所有实例，该消息将由持有该设备会话的实例处理。");
-        }
-    }
-
     /// <summary>根据标识获取会话</summary>
     /// <param name="key">会话标识（Code）</param>
     /// <returns></returns>
@@ -267,8 +462,20 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         _clearTimer.TryDispose();
         _clearTimer = null;
 
+        // 清理响应回调
+        if (!_callbacks.IsEmpty)
+        {
+            foreach (var kv in _callbacks)
+            {
+                kv.Value.Tcs.TrySetCanceled();
+            }
+            _callbacks.Clear();
+        }
+
         // 释放事件总线
         Bus.TryDispose();
+        _responseBus.TryDispose();
+        _responseBus = null;
 
         if (_dic.IsEmpty) return;
 
@@ -287,7 +494,9 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
             }
         }
     }
+    #endregion
 
+    #region 定时清理
     /// <summary>移除不活动的会话</summary>
     private void RemoveNotAlive(Object? state)
     {
@@ -323,6 +532,45 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
             if (item.Value is INetSession ss) ss.Close(nameof(RemoveNotAlive));
             item.Value.TryDispose();
         }
+
+        // 清理过期的命令响应回调
+        CleanupExpiredCallbacks();
+    }
+
+    /// <summary>清理过期的命令响应回调。定时器兜底，防止极端情况下 callback 泄漏</summary>
+    private void CleanupExpiredCallbacks()
+    {
+        if (_callbacks.IsEmpty) return;
+
+        var now = Runtime.TickCount64;
+        var count = 0;
+
+        foreach (var kv in _callbacks)
+        {
+            if (now - kv.Value.CreatedAt > kv.Value.Timeout)
+            {
+                if (_callbacks.TryRemove(kv.Key, out var entry))
+                {
+                    entry.Tcs.TrySetResult(null!);
+                    count++;
+                }
+            }
+        }
+
+        if (count > 0)
+        {
+            using var span = _tracer?.NewSpan($"cmd:{Topic}:CleanupCallbacks", count);
+        }
+    }
+    #endregion
+
+    #region 内部类
+    private class CallbackEntry
+    {
+        public TaskCompletionSource<CommandReplyModel> Tcs { get; set; } = null!;
+        public Int64 CreatedAt { get; set; }
+        public Int32 Timeout { get; set; }
+        public ISpan? Span { get; set; }
     }
     #endregion
 }
