@@ -6,6 +6,7 @@ using NewLife.IoT.ThingModels;
 using NewLife.IoT.ThingSpecification;
 using NewLife.Remoting;
 using NewLife.Remoting.Extensions;
+using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 
 namespace IoTZero.Controllers;
@@ -80,7 +81,17 @@ public class ThingController(IDeviceService deviceService, ThingService thingSer
     /// <param name="model">服务</param>
     /// <returns></returns>
     [HttpPost(nameof(ServiceReply))]
-    public Int32 ServiceReply(ServiceReplyModel model) => throw new NotImplementedException();
+    public Int32 ServiceReply(ServiceReplyModel model)
+    {
+        // 将物模型服务响应转为命令响应模型，走标准响应总线流程
+        var cmdReply = new CommandReplyModel
+        {
+            Id = model.Id,
+            Status = (CommandStatus)(Int32)model.Status,
+            Data = model.Data,
+        };
+        return deviceService.CommandReply(Context, cmdReply);
+    }
     #endregion
 
     #region 物模型

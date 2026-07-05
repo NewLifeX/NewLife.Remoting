@@ -61,24 +61,34 @@ public class DeviceOnlineController : EntityController<DeviceOnline>
     [EntityAuthorize((PermissionFlags)16)]
     public async Task<ActionResult> CheckUpgrade()
     {
-        var ts = new List<Task>();
+        var ts = new List<(String name, Task<CommandReplyModel?> task)>();
         foreach (var item in SelectKeys)
         {
             var online = DeviceOnline.FindById(item.ToInt());
             if (online?.Device != null)
             {
+                var name = online.Device.Name ?? online.Device.Code;
                 var cmd = new CommandModel
                 {
                     Command = "device/upgrade",
                     Expire = DateTime.UtcNow.AddSeconds(600),
                 };
-                ts.Add(_deviceService.SendCommand(online.Device, cmd, 0, HttpContext.RequestAborted));
+                ts.Add((name, _deviceService.SendCommand(online.Device, cmd, 10, HttpContext.RequestAborted)));
             }
         }
 
-        await Task.WhenAll(ts);
+        await Task.WhenAll(ts.Select(t => t.task));
+        var success = ts.Count(t => t.task.Result != null);
+        var timeout = ts.Count(t => t.task.Result == null);
+        var msg = $"操作成功！下发{ts.Count}个，响应{success}个，超时{timeout}个";
+        foreach (var (name, task) in ts)
+        {
+            var reply = task.Result;
+            if (reply != null)
+                msg += $"\n{name}: {reply.Data}";
+        }
 
-        return JsonRefresh("操作成功！");
+        return JsonRefresh(msg);
     }
 
     [DisplayName("执行命令")]
@@ -88,24 +98,34 @@ public class DeviceOnlineController : EntityController<DeviceOnline>
         if (GetRequest("keys") == null) throw new ArgumentNullException(nameof(SelectKeys));
         if (command.IsNullOrEmpty()) throw new ArgumentNullException(nameof(command));
 
-        var ts = new List<Task<CommandReplyModel?>>();
+        var ts = new List<(String name, Task<CommandReplyModel?> task)>();
         foreach (var item in SelectKeys)
         {
             var online = DeviceOnline.FindById(item.ToInt());
             if (online?.Device != null)
             {
+                var name = online.Device.Name ?? online.Device.Code;
                 var cmd = new CommandModel
                 {
                     Command = command,
                     Argument = argument,
                     Expire = DateTime.UtcNow.AddSeconds(30),
                 };
-                ts.Add(_deviceService.SendCommand(online.Device, cmd, 0, HttpContext.RequestAborted));
+                ts.Add((name, _deviceService.SendCommand(online.Device, cmd, 10, HttpContext.RequestAborted)));
             }
         }
 
-        var rs = await Task.WhenAll(ts);
+        await Task.WhenAll(ts.Select(t => t.task));
+        var success = ts.Count(t => t.task.Result != null);
+        var timeout = ts.Count(t => t.task.Result == null);
+        var msg = $"操作成功！下发{ts.Count}个，响应{success}个，超时{timeout}个";
+        foreach (var (name, task) in ts)
+        {
+            var reply = task.Result;
+            if (reply != null)
+                msg += $"\n{name}: {reply.Data}";
+        }
 
-        return JsonRefresh($"操作成功！下发指令{rs.Length}个，成功{rs.Count(e => e != null)}个");
+        return JsonRefresh(msg);
     }
 }
