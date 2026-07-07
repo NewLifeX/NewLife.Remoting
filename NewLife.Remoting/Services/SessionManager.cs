@@ -328,8 +328,12 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
         InitResponse();
 
+        // 转字典注入 TraceId，用于调用链关联。不污染 CommandReplyModel 的数据契约
+        var dic = reply.ToDictionary();
+        dic["TraceId"] = DefaultSpan.Current?.ToString();
+
         var jsonHost = serviceProvider.GetService<IJsonHost>();
-        var message = jsonHost != null ? jsonHost.Write(reply) : reply.ToJson();
+        var message = jsonHost != null ? jsonHost.Write(dic) : dic.ToJson();
 
         using var span = _tracer?.NewSpan($"cmd:{ResponseTopic}:Publish", message);
         try
