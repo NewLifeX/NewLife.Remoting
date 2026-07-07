@@ -126,7 +126,8 @@ public class AliyunClient : ApiHttpClient
                 .Select(p => $"{HttpUtility.UrlEncode(p.Key)}={HttpUtility.UrlEncode(p.Value + "")}"));
 
         // HashedRequestPayload。RequestBody经过Hash摘要处理后再进行Base16编码得到HashedRequestPayload，并将RequestHeader中x-acs-content-sha256的值更新为HashedRequestPayload的值。
-        var body = request.Method != HttpMethod.Post ? null : request.Content?.ReadAsByteArrayAsync().Result;
+        // 使用 GetAwaiter().GetResult() 而非 .Result 以避免 AggregateException 包装，提升异常诊断体验
+        var body = request.Method != HttpMethod.Post ? null : request.Content?.ReadAsByteArrayAsync().ConfigureAwait(false).GetAwaiter().GetResult();
         body ??= _empty;
         var hashedRequestPayload = body.SHA256().ToHex("").ToLowerInvariant();
         request.Headers.Add("x-acs-content-sha256", hashedRequestPayload);

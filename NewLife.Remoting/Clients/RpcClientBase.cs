@@ -38,14 +38,14 @@ public class RpcClientBase : ClientBase
     /// <returns></returns>
     public override async Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken)
     {
-        return await _client.InvokeAsync<TResult>(action, args, cancellationToken);
+        return await _client.InvokeAsync<TResult>(action, args, cancellationToken).ConfigureAwait(false);
     }
 
     class MyApiClient : ApiClient
     {
         public ClientBase Client { get; set; } = null!;
 
-        protected override async Task<Object?> OnLoginAsync(ISocketClient client, Boolean force) => await InvokeWithClientAsync<Object>(client, Client.Prefix + "/Login", Client.BuildLoginRequest());
+        protected override async Task<Object?> OnLoginAsync(ISocketClient client, Boolean force, CancellationToken cancellationToken) => await InvokeWithClientAsync<Object>(client, Client.Prefix + "/Login", Client.BuildLoginRequest(), 0, cancellationToken);
     }
 
     /// <summary>设置令牌。派生类可重定义逻辑</summary>

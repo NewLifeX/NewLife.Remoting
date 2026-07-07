@@ -1,10 +1,16 @@
 ﻿using System.ComponentModel;
 using NewLife.Collections;
 using NewLife.Log;
+using NewLife.Net;
 
 namespace NewLife.Remoting;
 
 /// <summary>客户端连接池负载均衡集群</summary>
+/// <remarks>
+/// 基于 ObjectPool 实现多连接并发复用，配合 Round-Robin 在多个服务端地址间负载均衡。
+/// 借出时通过 <see cref="ObjectPool{T}.OnGet"/> 检查连接活性，自动丢弃死连接并重建。
+/// 池参数（Max/Min/IdleTime/WaitTimeout/MaxLifetime）可通过 <c>((ObjectPool&lt;T&gt;)cluster.Pool)</c> 直接设置。
+/// </remarks>
 [DisplayName("负载均衡")]
 public class ClientPoolCluster<T> : ICluster<String, T> where T : class
 {
@@ -107,8 +113,23 @@ public class ClientPoolCluster<T> : ICluster<String, T> where T : class
 
         protected override T OnCreate() => Host.CreateClient();
 
-        /// <summary>释放时，返回是否有效。无效对象将会被抛弃</summary>
-        /// <param name="value"></param>
+        /// <summary>借出时检查连接是否仍可用。已销毁的连接将被基类自动丢弃并重建，避免返回死连接给调用方</summary>
+        /// <param name="value">待借出连接</param>
+        /// <returns>是否可借出</returns>
+        protected override Boolean OnGet(T value)
+        {
+            // 检查连接是否已被外部被动销毁（如网络断开、超时清理等）
+            if (value is IDisposable2 ds && ds.Disposed) return false;
+
+            // 检查连接是否处于非活跃状态（ISocketClient 断开后 Active=false）
+            if (value is ISocketClient sc && !sc.Active) return false;
+
+            return true;
+        }
+
+        /// <summary>归还时检查连接是否有效。无效对象将会被抛弃</summary>
+        /// <param name="value">待归还连接</param>
+        /// <returns>是否可归还入池</returns>
         protected override Boolean OnReturn(T value) => value != null && (value is not IDisposable2 ds || !ds.Disposed);
     }
 

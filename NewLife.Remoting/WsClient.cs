@@ -208,7 +208,7 @@ public class WsClient : ApiHost, IApiClient
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
     /// <returns></returns>
-    public virtual TResult? Invoke<TResult>(String action, Object? args = null) => Task.Run(() => InvokeAsync<TResult>(action, args)).Result;
+    public virtual TResult? Invoke<TResult>(String action, Object? args = null) => InvokeAsync<TResult>(action, args).ConfigureAwait(false).GetAwaiter().GetResult();
 
     /// <summary>单向发送。同步调用，不等待返回</summary>
     /// <param name="action">服务操作</param>
@@ -269,9 +269,9 @@ public class WsClient : ApiHost, IApiClient
             var codec = GetMessageCodec();
             var context = new NetHandlerContext();
             var pk = codec.Write(context, msg) as IPacket;
-            await client.SendAsync(pk!.ToSegment(), WebSocketMessageType.Binary, true, default).ConfigureAwait(false);
+            await client.SendAsync(pk!.ToSegment(), WebSocketMessageType.Binary, true, cancellationToken).ConfigureAwait(false);
 
-            var data = await client.ReceiveAsync(new ArraySegment<Byte>(buf), default).ConfigureAwait(false);
+            var data = await client.ReceiveAsync(new ArraySegment<Byte>(buf), cancellationToken).ConfigureAwait(false);
             rs = codec.Read(context, data) as IMessage;
 
             if (rs == null) return default;
@@ -442,7 +442,25 @@ public class WsClient : ApiHost, IApiClient
     #region 登录
     /// <summary>新会话。客户端每次连接或断线重连后，可用InvokeWithClientAsync做登录</summary>
     /// <param name="client">会话</param>
-    public virtual void OnNewSession(WebSocket client) => OnLoginAsync(client, true)?.Wait();
+    public virtual void OnNewSession(WebSocket client)
+    {
+        // Fire & forget，避免同步阻塞导致线程池/IO 线程被占用。异常写日志。
+        try
+        {
+            var task = OnLoginAsync(client, true);
+            if (task != null && !task.IsCompleted)
+            {
+                task.ContinueWith(t =>
+                {
+                    if (t.Exception != null) Log?.Error("[{0}]自动登录失败：{1}", Name, t.Exception.GetTrue().Message);
+                }, TaskScheduler.Default);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log?.Error("[{0}]自动登录触发失败：{1}", Name, ex.Message);
+        }
+    }
 
     /// <summary>连接后自动登录</summary>
     /// <param name="client">客户端</param>

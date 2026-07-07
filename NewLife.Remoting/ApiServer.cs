@@ -421,7 +421,13 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// <param name="enc">编码器</param>
     private void ProcessStream(IApiSession session, IMessage msg, String action, Object streamResult, IEncoder enc)
     {
-        // 在线程池线程中同步等待异步流完成（Process 本身在 ThreadPool 回调中，不会阻塞 UI）
+        // 在线程池线程中同步等待异步流完成
+        // Process 在以下两种上下文中被调用，均不会阻塞 UI 或造成死锁：
+        //   1. OnReceive 投递到 ThreadPool.UnsafeQueueUserWorkItem（默认 Multiplex=true）
+        //   2. OnReceive 直接调用（Multiplex=false，网络 IO 线程）
+        // 网络 IO 线程虽非线程池线程，但 IAsyncEnumerable 流式迭代不含同步上下文捕获，
+        // 因此 GetAwaiter().GetResult() 不会死锁。
+        // 若将来 Process 改为 async 方法，应移除该同步包装，直接 await ProcessStreamAsync。
         ProcessStreamAsync(session, msg, action, streamResult, enc).GetAwaiter().GetResult();
     }
 
