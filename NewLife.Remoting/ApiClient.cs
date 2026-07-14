@@ -324,12 +324,17 @@ public class ApiClient : ApiHost, IApiClient
         // Headers 注入
         if (Headers.Count > 0 && args != null)
         {
-            var dic = args.ToDictionary();
-            foreach (var item in Headers)
+            var type = args.GetType();
+            // 数组/列表类型不转换为字典，避免丢失原始数据
+            if (!type.IsArray && !typeof(System.Collections.IList).IsAssignableFrom(type))
             {
-                if (!dic.ContainsKey(item.Key)) dic[item.Key] = item.Value;
+                var dic = args.ToDictionary();
+                foreach (var item in Headers)
+                {
+                    if (!dic.ContainsKey(item.Key)) dic[item.Key] = item.Value;
+                }
+                args = dic;
             }
-            args = dic;
         }
 
         // 埋点，注入traceParent到参数集合
