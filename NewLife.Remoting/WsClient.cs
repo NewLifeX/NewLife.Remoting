@@ -1,4 +1,5 @@
 ﻿#if !NET40
+using System.Collections;
 using System.Net.WebSockets;
 using NewLife.Collections;
 using NewLife.Data;
@@ -243,9 +244,14 @@ public class WsClient : ApiHost, IApiClient
         // 令牌
         if (!Token.IsNullOrEmpty() && args != null)
         {
-            var dic = args.ToDictionary();
-            if (!dic.ContainsKey("Token")) dic["Token"] = Token;
-            args = dic;
+            var type = args.GetType();
+            // 数组/列表类型不转换为字典，避免丢失原始数据
+            if (!type.IsArray && !typeof(IList).IsAssignableFrom(type))
+            {
+                var dic = args.ToDictionary();
+                if (!dic.ContainsKey("Token")) dic["Token"] = Token;
+                args = dic;
+            }
         }
 
         // 埋点，注入traceParent到参数集合

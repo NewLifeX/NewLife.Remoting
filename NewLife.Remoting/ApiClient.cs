@@ -8,6 +8,7 @@ using NewLife.Reflection;
 using NewLife.Remoting.Http;
 using NewLife.Serialization;
 using NewLife.Threading;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 #if !NET40
@@ -308,31 +309,28 @@ public class ApiClient : ApiHost, IApiClient
 
         LastActive = DateTime.Now;
 
-        // 令牌
-        if (!Token.IsNullOrEmpty() && args != null)
-        {
-            var dic = args.ToDictionary();
-            if (!dic.ContainsKey("Token")) dic["Token"] = Token;
-            args = dic;
-        }
-
         // 自动注入当前 Span 上下文字符串到 Headers，包含 TraceId+SpanId 便于星尘构建调用链上下级关系
         var currentSpan = DefaultSpan.Current?.ToString();
         if (!currentSpan.IsNullOrEmpty() && !Headers.ContainsKey("TraceId"))
             Headers["TraceId"] = currentSpan;
 
-        // Headers 注入
-        if (Headers.Count > 0 && args != null)
+        // 令牌与请求头一并注入参数集合。一次类型检查、一次 ToDictionary，避免重复转换
+        if (args != null && (!Token.IsNullOrEmpty() || Headers.Count > 0))
         {
             var type = args.GetType();
             // 数组/列表类型不转换为字典，避免丢失原始数据
-            if (!type.IsArray && !typeof(System.Collections.IList).IsAssignableFrom(type))
+            if (!type.IsArray && !typeof(IList).IsAssignableFrom(type))
             {
                 var dic = args.ToDictionary();
+
+                if (!Token.IsNullOrEmpty() && !dic.ContainsKey("Token"))
+                    dic["Token"] = Token;
+
                 foreach (var item in Headers)
                 {
                     if (!dic.ContainsKey(item.Key)) dic[item.Key] = item.Value;
                 }
+
                 args = dic;
             }
         }
@@ -465,12 +463,30 @@ public class ApiClient : ApiHost, IApiClient
 
         LastActive = DateTime.Now;
 
-        // 令牌
-        if (!Token.IsNullOrEmpty() && args != null)
+        // 自动注入当前 Span 上下文字符串到 Headers，包含 TraceId+SpanId 便于星尘构建调用链上下级关系
+        var currentSpan = DefaultSpan.Current?.ToString();
+        if (!currentSpan.IsNullOrEmpty() && !Headers.ContainsKey("TraceId"))
+            Headers["TraceId"] = currentSpan;
+
+        // 令牌与请求头一并注入参数集合。一次类型检查、一次 ToDictionary，避免重复转换
+        if (args != null && (!Token.IsNullOrEmpty() || Headers.Count > 0))
         {
-            var dic = args.ToDictionary();
-            if (!dic.ContainsKey("Token")) dic["Token"] = Token;
-            args = dic;
+            var type = args.GetType();
+            // 数组/列表类型不转换为字典，避免丢失原始数据
+            if (!type.IsArray && !typeof(IList).IsAssignableFrom(type))
+            {
+                var dic = args.ToDictionary();
+
+                if (!Token.IsNullOrEmpty() && !dic.ContainsKey("Token"))
+                    dic["Token"] = Token;
+
+                foreach (var item in Headers)
+                {
+                    if (!dic.ContainsKey(item.Key)) dic[item.Key] = item.Value;
+                }
+
+                args = dic;
+            }
         }
 
         using var span = Tracer?.NewSpan("rpc:" + action, args);
@@ -676,15 +692,25 @@ public class ApiClient : ApiHost, IApiClient
         if (!currentSpan.IsNullOrEmpty() && !Headers.ContainsKey("TraceId"))
             Headers["TraceId"] = currentSpan;
 
-        // 注入 Headers
-        if (Headers.Count > 0 && args != null)
+        // 令牌与请求头一并注入参数集合。一次类型检查、一次 ToDictionary，避免重复转换
+        if (args != null && (!Token.IsNullOrEmpty() || Headers.Count > 0))
         {
-            var dic = args.ToDictionary();
-            foreach (var item in Headers)
+            var type = args.GetType();
+            // 数组/列表类型不转换为字典，避免丢失原始数据
+            if (!type.IsArray && !typeof(IList).IsAssignableFrom(type))
             {
-                if (!dic.ContainsKey(item.Key)) dic[item.Key] = item.Value;
+                var dic = args.ToDictionary();
+
+                if (!Token.IsNullOrEmpty() && !dic.ContainsKey("Token"))
+                    dic["Token"] = Token;
+
+                foreach (var item in Headers)
+                {
+                    if (!dic.ContainsKey(item.Key)) dic[item.Key] = item.Value;
+                }
+
+                args = dic;
             }
-            args = dic;
         }
 
         // 埋点，注入traceParent到参数集合
