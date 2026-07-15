@@ -22,7 +22,22 @@
 
 ---
 
-## 🔥 RPC 核心亮点与快速用例
+## � 文档索引
+
+| 文档 | 说明 |
+|------|------|
+| [Doc/需求文档.md](Doc/需求文档.md) | 需求定义：愿景、功能需求（M1~M7）、非功能需求、暂缓清单 |
+| [Doc/架构设计.md](Doc/架构设计.md) | 架构设计：分层概览、核心模块架构、内存管理、测试策略 |
+| [Doc/功能清单.md](Doc/功能清单.md) | 功能追踪：58 个功能点的实现/测试/注释状态 |
+| [Doc/SRMP.MD](Doc/SRMP.MD) | SRMP 协议规范：消息结构、通信方式、RPC 报文格式 |
+| [Doc/RPC内存管理设计.md](Doc/RPC内存管理设计.md) | 零拷贝内存管理：IOwnerPacket 所有权转移与级联释放 |
+| [Doc/自动更新机制.md](Doc/自动更新机制.md) | 自动更新：检测→下载→校验→解压→覆盖→重启全链路 |
+| [Doc/重试策略.md](Doc/重试策略.md) | 重试策略：IRetryPolicy 接口与指数退避示例 |
+| [Doc/remoting-compare.md](Doc/remoting-compare.md) | 竞品对比：与 gRPC、ASP.NET Core Minimal APIs 的差异 |
+
+---
+
+## �🔥 RPC 核心亮点与快速用例
 
 **5 行服务端，5 行客户端，即刻跑通 RPC 调用：**
 
@@ -77,7 +92,8 @@ client.Headers["TenantId"] = "tenant-01";
 ---
 ## 目录导航
 - [NewLife.Remoting - 统一高性能远程通信框架 (RPC + HTTP + WebSocket + SRMP)](#newliferemoting---统一高性能远程通信框架-rpc--http--websocket--srmp)
-  - [🔥 RPC 核心亮点与快速用例](#-rpc-核心亮点与快速用例)
+  - [� 文档索引](#-文档索引)
+  - [�🔥 RPC 核心亮点与快速用例](#-rpc-核心亮点与快速用例)
   - [目录导航](#目录导航)
   - [核心特性](#核心特性)
   - [架构概览](#架构概览)

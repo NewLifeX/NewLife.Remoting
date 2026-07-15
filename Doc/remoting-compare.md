@@ -12,8 +12,8 @@
   - gRPC：强契约（.proto），默认 Protobuf（高性能、跨语言）。
   - Minimal APIs：HTTP/JSON，OpenAPI/Swagger 生态完善。
 - 连接与并发
-  - NewLife.Remoting：长连接/连接池、`Multiplex` 并发复用、`ISocketClient` 事件回推（服务端可主动推单向消息）。
-  - gRPC：HTTP/2 多路复用、流式调用天然支持。
+  - NewLife.Remoting：长连接/连接池、`Multiplex` 并发复用、`ISocketClient` 事件回推（服务端可主动推单向消息）。**新增 Server-Streaming 流式调用**：Controller 返回 `IAsyncEnumerable<T>` 自动逐条推送，HTTP 兼容 SSE。
+  - gRPC：HTTP/2 多路复用、双向流/服务端流/客户端流/Unary 调用。
   - Minimal APIs：短连接或 HTTP/2 复用，无“会话级”API 概念。
 - 认证与拦截
   - NewLife.Remoting：`Token` 注入、`IApiHandler`/`IApiManager` 扩展、`Received` 事件、`ServiceProvider` 注入。
@@ -58,7 +58,7 @@
 ## 快速对照表（摘要）
 - 契约：消息（JSON/可替换） | .proto/Protobuf | HTTP/JSON
 - 连接：长连接/池/复用 | HTTP/2 复用/流 | HTTP/1.1/2/3
-- 推送：支持（单向） | 支持（流） | 需 WebSocket/SignalR
+- 推送：支持（单向/Server-Streaming 流式） | 支持（流） | 需 WebSocket/SignalR
 - 认证：Token 注入/登录钩子 | Metadata/Interceptor | Middleware/Auth
 - 可观测性：ILog/ITracer/Counter | OTel/Activity | ASP.NET Core 生态
 
