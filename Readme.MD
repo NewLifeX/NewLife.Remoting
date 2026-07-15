@@ -33,7 +33,7 @@
 | [Doc/RPC内存管理设计.md](Doc/RPC内存管理设计.md) | 零拷贝内存管理：IOwnerPacket 所有权转移与级联释放 |
 | [Doc/自动更新机制.md](Doc/自动更新机制.md) | 自动更新：检测→下载→校验→解压→覆盖→重启全链路 |
 | [Doc/重试策略.md](Doc/重试策略.md) | 重试策略：IRetryPolicy 接口与指数退避示例 |
-| [Doc/remoting-compare.md](Doc/remoting-compare.md) | 竞品对比：与 gRPC、ASP.NET Core Minimal APIs 的差异 |
+| [Doc/竞品分析.md](Doc/竞品分析.md) | 竞品分析：RPC 框架对比 + IoT 指令下发对比矩阵 |
 
 ---
 
