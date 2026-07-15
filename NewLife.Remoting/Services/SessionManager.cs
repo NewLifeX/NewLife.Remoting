@@ -236,7 +236,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
                 span?.Value = 1;
             }
             else
-                span?.AppendTag($"未找到编号为[{code}]的会话，无法处理消息。集群模式下事件总线广播到所有实例，该消息将由持有该设备会话的实例处理。");
+                span?.AppendTag($"未找到编号为[{code}]的会话，无法处理消息。");
         }
     }
     #endregion
