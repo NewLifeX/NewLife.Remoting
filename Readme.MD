@@ -241,15 +241,17 @@ await foreach (var log in client.InvokeStreamAsync<String>("My/GetLogs", new { c
 - 支持 `CancellationToken` 中途取消，客户端断开时服务端自动停止推送
 
 ### 元数据传递（Headers）
-`ApiClient.Headers` 字典在每次调用时自动注入到参数字典，服务端可通过 `ControllerContext.Current.Items` 读取：
+`ApiClient.Headers` 字典在每次调用时自动注入到参数字典，服务端可通过方法参数直接接收，或通过 `ControllerContext.Current.Parameters` 访问：
 ```csharp
 // 客户端
 client.Headers["TenantId"] = "tenant-01";
 var rs = await client.InvokeAsync<String>("My/Ping", new { name = "dev" });
 
-// 服务端
-var headers = ControllerContext.Current.Items;
-var tenantId = headers?["TenantId"] as String;
+// 服务端 — 方法参数直接接收
+public String Ping(String name, String tenantId) => $"Hello {name}, tenant={tenantId}";
+
+// 或通过 Parameters 字典访问
+// var tenantId = ControllerContext.Current.Parameters?["tenantId"] as String;
 ```
 - 常用场景：分布式链路追踪（TraceId 自动注入）、多租户标识透传
 - 不改 `IMessage` 接口，不影响协议兼容性
