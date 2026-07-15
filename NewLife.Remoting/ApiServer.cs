@@ -428,10 +428,36 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         // 网络 IO 线程虽非线程池线程，但 IAsyncEnumerable 流式迭代不含同步上下文捕获，
         // 因此 GetAwaiter().GetResult() 不会死锁。
         // 若将来 Process 改为 async 方法，应移除该同步包装，直接 await ProcessStreamAsync。
-        ProcessStreamAsync(session, msg, action, streamResult, enc).GetAwaiter().GetResult();
+
+        // 创建取消令牌链接到会话生命周期。当客户端断开时，底层 Session 被释放，
+        // ApiNetSession.Session.Disposed 变为 true，轮询检测到后取消令牌，
+        // ProcessStreamAsync 的 await foreach 通过 WithCancellation 感知并停止枚举
+        using var cts = new CancellationTokenSource();
+        if (session is ApiNetSession netSession)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    while (!netSession.Session.Disposed && !cts.IsCancellationRequested)
+                        await Task.Delay(200, cts.Token).ConfigureAwait(false);
+                    cts.Cancel();
+                }
+                catch (OperationCanceledException) { }
+            });
+        }
+
+        try
+        {
+            ProcessStreamAsync(session, msg, action, streamResult, enc, cts.Token).GetAwaiter().GetResult();
+        }
+        finally
+        {
+            cts.Cancel();
+        }
     }
 
-    private async Task ProcessStreamAsync(IApiSession session, IMessage msg, String action, Object streamResult, IEncoder enc)
+    private async Task ProcessStreamAsync(IApiSession session, IMessage msg, String action, Object streamResult, IEncoder enc, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -439,7 +465,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
             if (streamResult is IAsyncEnumerable<Object?> refStream)
             {
 #pragma warning disable CA2007 // 库内部线程池调用，无需 ConfigureAwait
-                await foreach (var item in refStream)
+                await foreach (var item in refStream.WithCancellation(cancellationToken))
                 {
                     using var rs = enc.CreateStreamResponse(msg, action, 0, item, false);
                     session.SendMessage(rs);
@@ -459,7 +485,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
                 var helperMethod = typeof(ApiServer).GetMethod(nameof(SendStreamItems), BindingFlags.NonPublic | BindingFlags.Static)
                     ?? throw new InvalidOperationException("找不到 SendStreamItems 方法");
                 var genericHelper = helperMethod.MakeGenericMethod(elementType);
-                var invokeTask = (Task)genericHelper.Invoke(null, [streamResult, session, msg, action, enc])!;
+                var invokeTask = (Task)genericHelper.Invoke(null, [streamResult, session, msg, action, enc, cancellationToken])!;
                 await invokeTask.ConfigureAwait(false);
             }
 
@@ -467,11 +493,16 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
             using var endRs = enc.CreateStreamResponse(msg, action, 0, null, true);
             session.SendMessage(endRs);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
-            // 异常时发送错误帧并结束
+            // 非取消异常时发送错误帧并结束
             using var errRs = enc.CreateStreamResponse(msg, action, 500, ex.GetTrue().Message, true);
             try { session.SendMessage(errRs); } catch { }
+        }
+        catch (OperationCanceledException)
+        {
+            // 客户端断开导致的取消，静默结束
+            WriteLog("流式调用已取消（客户端断开）");
         }
     }
 
@@ -482,11 +513,12 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// <param name="msg">原始请求消息</param>
     /// <param name="action">动作名</param>
     /// <param name="enc">编码器</param>
-    private static async Task SendStreamItems<T>(Object streamObj, IApiSession session, IMessage msg, String action, IEncoder enc)
+    /// <param name="cancellationToken">取消令牌</param>
+    private static async Task SendStreamItems<T>(Object streamObj, IApiSession session, IMessage msg, String action, IEncoder enc, CancellationToken cancellationToken = default)
     {
         var stream = (IAsyncEnumerable<T>)streamObj;
 #pragma warning disable CA2007
-        await foreach (var item in stream)
+        await foreach (var item in stream.WithCancellation(cancellationToken))
         {
             using var rs = enc.CreateStreamResponse(msg, action, 0, item, false);
             session.SendMessage(rs);

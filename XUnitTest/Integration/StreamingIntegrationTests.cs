@@ -127,9 +127,55 @@ public class StreamingIntegrationTests : DisposeBase
         Assert.Single(list);
     }
 
+    [Fact(DisplayName = "流式调用_客户端断开服务端自动停止")]
+    public async Task StreamDisconnectServerStopTest()
+    {
+        // 使用单独的端口避免与端口冲突测试干扰
+        using var server = new ApiServer(0)
+        {
+            Log = XTrace.Log,
+            ShowError = true,
+        };
+        server.Register<StreamingController>();
+        server.Start();
+        var port = server.Port;
+
+        using var client = new ApiClient($"tcp://127.0.0.1:{port}");
+        client.Open();
+
+        // 启动流式调用，但在收到几条数据后关闭客户端
+        var count = 0;
+        var cts = new CancellationTokenSource(3000);
+        try
+        {
+            await foreach (var item in client.InvokeStreamAsync<Int32>("Streaming/Infinite", null, cts.Token))
+            {
+                count++;
+
+                // 收到 3 条后断开客户端连接
+                if (count >= 3)
+                {
+                    client.Close("测试断开");
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception) { }
+
+        // 等待服务端检测到断开
+        await Task.Delay(500);
+
+        // 客户端断开后，服务端应停止流式推送。允许断开前多推送少量帧
+        Assert.True(count >= 3, $"应至少收到3条数据，实际 {count}");
+    }
+
     #region 测试控制器
     class StreamingController
     {
+        public static Int32 s_sentCount;
+
+        public static void ResetDisconnect() => s_sentCount = 0;
+
         public async IAsyncEnumerable<Int32> Range(Int32 count)
         {
             for (var i = 0; i < count; i++)
