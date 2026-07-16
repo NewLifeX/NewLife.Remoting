@@ -1,5 +1,6 @@
 ﻿#if NETCOREAPP
 using System.Net.WebSockets;
+using NewLife;
 using NewLife.Collections;
 using NewLife.Data;
 using NewLife.Log;
@@ -72,8 +73,22 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
             }
         }
 
+        // 检查心跳响应——如果连续3个周期未收到Pong，判定为死连接，强制重连
+        if (_websocket != null && _websocket.State == WebSocketState.Open &&
+            _lastPongTime > 0 &&
+            Runtime.TickCount64 - _lastPongTime > _client.PingPeriod * 3)
+        {
+            _client.Log?.Info("[{0}]WebSocket心跳超时，强制重连", _client.Name);
+
+            _websocket.TryDispose();
+            _websocket = null;
+        }
+
         if (_websocket == null || _websocket.State != WebSocketState.Open)
         {
+            // 确保创建新连接前彻底清理旧资源
+            DisposeOldSocket();
+
             var url = svc.Address.ToString().Replace("http://", "ws://").Replace("https://", "wss://");
             var uri = new Uri(new Uri(url), _client.Actions[Features.Notify]);
 

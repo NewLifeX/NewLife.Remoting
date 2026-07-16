@@ -69,6 +69,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>Api客户端。ApiClient或ApiHttpClient</summary>
     public IApiClient? Client { get => _client; set => _client = value; }
 
+    /// <summary>当前心跳周期（毫秒）。读取自心跳定时器，可由服务端动态调整，默认60秒</summary>
+    public Int32 PingPeriod { get => _timerPing?.Period ?? 60_000; set => _timerPing?.Period = value; }
+
     String? IApiClient.Token { get => _client?.Token; set => _client?.Token = value; }
 
     /// <summary>登录状态</summary>

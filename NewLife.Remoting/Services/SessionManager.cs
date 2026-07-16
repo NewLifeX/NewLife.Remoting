@@ -422,7 +422,12 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
         Init();
 
-        _dic.AddOrUpdate(session.Code, session, (k, s) => s);
+        // 如果已存在相同 Code 的旧会话，先移除再添加新会话。
+        // 这样新会话能立即被 Get 找到用于命令下发，旧会话的 OnDisposed 也不会误删新会话。
+        if (_dic.TryRemove(session.Code, out var oldSession))
+            span?.AppendTag($"replaced old session: {oldSession}");
+
+        _dic.TryAdd(session.Code, session);
 
         // 监听会话销毁事件，自动从管理器移除
         if (session is IDisposable2 ds)
@@ -442,8 +447,14 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
         using var span = _tracer?.NewSpan($"cmd:{Topic}:Remove", session.Code);
 
-        if (_dic.TryRemove(session.Code, out _))
-            span?.AppendTag(null!, 1);
+        // 只有当前字典中确实是该会话时才移除，避免旧会话的 OnDisposed 误删新会话
+        if (_dic.TryGetValue(session.Code, out var current) && current == session)
+        {
+            if (_dic.TryRemove(session.Code, out _))
+                span?.AppendTag(null!, 1);
+        }
+        else
+            span?.AppendTag($"skip remove, current session is different");
     }
 
     /// <summary>根据标识获取会话</summary>

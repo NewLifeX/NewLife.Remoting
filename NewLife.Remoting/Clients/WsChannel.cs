@@ -1,4 +1,5 @@
 ﻿using System.Net.Sockets;
+using NewLife;
 using NewLife.Data;
 using NewLife.Http;
 using NewLife.Log;
@@ -18,6 +19,9 @@ class WsChannel(ClientBase client) : DisposeBase
 
     /// <summary>是否已连接</summary>
     public virtual Boolean Active => _websocket != null && !_websocket.Disposed;
+
+    /// <summary>最后一次收到Pong的时间戳（TickCount64）。用于检测WebSocket心跳响应是否正常</summary>
+    protected Int64 _lastPongTime;
 
     /// <summary>销毁资源</summary>
     /// <param name="disposing">是否释放托管资源</param>
@@ -66,8 +70,22 @@ class WsChannel(ClientBase client) : DisposeBase
             }
         }
 
+        // 检查心跳响应——如果连续3个周期未收到Pong，判定为死连接，强制重连
+        if (_websocket != null && !_websocket.Disposed &&
+            _lastPongTime > 0 &&
+            Runtime.TickCount64 - _lastPongTime > _client.PingPeriod * 3)
+        {
+            _client.Log?.Info("[{0}]WebSocket心跳超时，强制重连", _client.Name);
+
+            _websocket.TryDispose();
+            _websocket = null;
+        }
+
         if (_websocket == null || _websocket.Disposed)
         {
+            // 确保创建新连接前彻底清理旧资源
+            DisposeOldSocket();
+
             var url = svc.Address.ToString().Replace("http://", "ws://").Replace("https://", "wss://");
             var uri = new Uri(new Uri(url), _client.Actions[Features.Notify]);
 
@@ -92,6 +110,22 @@ class WsChannel(ClientBase client) : DisposeBase
 
     private WebSocketClient? _websocket;
     private CancellationTokenSource? _source;
+
+    /// <summary>清理旧WebSocket资源。在创建新连接前确保旧资源被释放</summary>
+    protected void DisposeOldSocket()
+    {
+        var old = _websocket;
+        if (old != null && !old.Disposed)
+        {
+            try
+            {
+                old.CloseAsync(1000, "reconnect", default).Wait(1000);
+            }
+            catch { }
+            old.TryDispose();
+        }
+        _websocket = null;
+    }
 
     /// <summary>消息接收循环</summary>
     /// <param name="socket">WebSocket客户端</param>
@@ -148,7 +182,11 @@ class WsChannel(ClientBase client) : DisposeBase
         if (data.Total == 4)
         {
             var msg = data.ToStr();
-            if (msg == "Pong") return;
+            if (msg == "Pong")
+            {
+                _lastPongTime = Runtime.TickCount64;
+                return;
+            }
             if (msg == "Ping")
             {
                 await SendTextAsync((ArrayPacket)"Pong".GetBytes(), cancellationToken).ConfigureAwait(false);
