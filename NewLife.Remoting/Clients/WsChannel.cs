@@ -3,6 +3,7 @@ using NewLife;
 using NewLife.Data;
 using NewLife.Http;
 using NewLife.Log;
+using NewLife.Messaging;
 using NewLife.Net;
 
 namespace NewLife.Remoting.Clients;
@@ -194,7 +195,8 @@ class WsChannel(ClientBase client) : DisposeBase
             }
         }
 
-        await _client.HandleAsync(data, null, cancellationToken).ConfigureAwait(false);
+        var ctx = new EventContext { ["Source"] = "WebSocket" };
+        await _client.HandleAsync(data, ctx, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>发送文本消息</summary>

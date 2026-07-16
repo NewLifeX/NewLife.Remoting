@@ -4,6 +4,7 @@ using System.Text;
 using NewLife.Data;
 using NewLife.Http;
 using NewLife.Log;
+using NewLife.Messaging;
 
 namespace NewLife.Remoting.Clients;
 
@@ -184,7 +185,8 @@ class SseChannel(ClientBase client) : DisposeBase
         try
         {
             var pk = new ArrayPacket(data.GetBytes());
-            await _client.HandleAsync(pk, null, cancellationToken).ConfigureAwait(false);
+            var ctx = new EventContext { ["Source"] = "SSE" };
+            await _client.HandleAsync(pk, ctx, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

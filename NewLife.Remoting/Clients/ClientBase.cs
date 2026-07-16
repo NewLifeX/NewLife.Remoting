@@ -1259,7 +1259,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 var model = JsonHost.Read<CommandModel>(str, JsonOptions)!;
                 if (model != null && !model.Command.IsNullOrEmpty())
                 {
-                    await ReceiveCommand(model, str, null, cancellationToken).ConfigureAwait(false);
+                    // 从上下文中提取来源渠道信息
+                    var source = (context is IExtend ext && ext["Source"] is String src) ? src : null;
+                    await ReceiveCommand(model, str, source, cancellationToken).ConfigureAwait(false);
                 }
                 else
                     throw new InvalidDataException("无效命令！");
@@ -1290,6 +1292,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         message ??= JsonHost.Write(model, JsonOptions);
         using var span = Tracer?.NewSpan("cmd:" + model.Command, message);
         if (!model.TraceId.IsNullOrEmpty()) span?.Detach(model.TraceId);
+        if (!source.IsNullOrEmpty()) span?.AppendTag($"source={source}");
         try
         {
             // 有效期判断前把UTC转为本地时间
