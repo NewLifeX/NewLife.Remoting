@@ -1,4 +1,5 @@
 ﻿#if NETCOREAPP
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using NewLife;
 using NewLife.Collections;
@@ -141,6 +142,19 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
                 catch (ThreadInterruptedException) { break; }
                 catch (TaskCanceledException) { }
                 catch (OperationCanceledException) { }
+                catch (ObjectDisposedException) { break; }
+                catch (WebSocketException wex) when (
+                    wex.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely ||
+                    socket.State == WebSocketState.Aborted)
+                {
+                    _client.Log?.Debug("[{0}]WebSocket连接断开[{1}]", _client.Name, wex.WebSocketErrorCode);
+                    break;
+                }
+                catch (SocketException sex) when (IsNormalDisconnect(sex.SocketErrorCode))
+                {
+                    _client.Log?.Debug("[{0}]WebSocket连接断开[{1}]", _client.Name, sex.SocketErrorCode);
+                    break;
+                }
                 catch (Exception ex)
                 {
                     if (source.IsCancellationRequested) break;
