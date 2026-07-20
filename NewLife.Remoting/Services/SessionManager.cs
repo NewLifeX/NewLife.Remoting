@@ -425,7 +425,12 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         // 如果已存在相同 Code 的旧会话，先移除再添加新会话。
         // 这样新会话能立即被 Get 找到用于命令下发，旧会话的 OnDisposed 也不会误删新会话。
         if (_dic.TryRemove(session.Code, out var oldSession))
+        {
             span?.AppendTag($"replaced old session: {oldSession}");
+
+            // 优雅关闭旧会话，完成 WebSocket close 握手，避免 RST 导致 "The remote party closed without close handshake"
+            oldSession.TryDispose();
+        }
 
         _dic.TryAdd(session.Code, session);
 

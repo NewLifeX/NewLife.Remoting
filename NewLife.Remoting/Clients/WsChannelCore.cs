@@ -74,9 +74,11 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
         }
 
         // 检查心跳响应——如果连续3个周期未收到Pong，判定为死连接，强制重连
+        // 确保断连判断周期至少180秒，避免服务端 KeepAlive(60s) 与客户端心跳周期叠加导致频繁误判
+        var pingPeriod = Math.Max(_client.PingPeriod, 60_000);
         if (_websocket != null && _websocket.State == WebSocketState.Open &&
             _lastPongTime > 0 &&
-            Runtime.TickCount64 - _lastPongTime > _client.PingPeriod * 3)
+            Runtime.TickCount64 - _lastPongTime > pingPeriod * 3)
         {
             _client.Log?.Info("[{0}]WebSocket心跳超时，强制重连", _client.Name);
 
