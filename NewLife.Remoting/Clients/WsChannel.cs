@@ -156,6 +156,12 @@ class WsChannel(ClientBase client) : DisposeBase
             catch (ThreadInterruptedException) { break; }
             catch (TaskCanceledException) { }
             catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { break; }
+            catch (SocketException sex) when (IsNormalDisconnect(sex.SocketErrorCode))
+            {
+                _client.Log?.Debug("[{0}]WebSocket连接断开[{1}]", _client.Name, sex.SocketErrorCode);
+                break;
+            }
             catch (Exception ex)
             {
                 if (source.IsCancellationRequested) break;
@@ -200,6 +206,14 @@ class WsChannel(ClientBase client) : DisposeBase
         var ctx = new EventContext { ["Source"] = "WebSocket" };
         await _client.HandleAsync(data, ctx, cancellationToken).ConfigureAwait(false);
     }
+
+    /// <summary>判断是否为正常断开的SocketError，这类错误降级为Debug日志</summary>
+    /// <param name="socketError">Socket错误码</param>
+    /// <returns>是否为正常断开</returns>
+    protected static Boolean IsNormalDisconnect(SocketError socketError) =>
+        socketError is SocketError.ConnectionReset       // 10054 - 对方重置连接
+            or SocketError.ConnectionAborted             // 10053 - 连接被中止
+            or SocketError.OperationAborted;             // 995   - 操作被中止（本地socket关闭时）
 
     /// <summary>发送文本消息</summary>
     /// <param name="data">数据包</param>
