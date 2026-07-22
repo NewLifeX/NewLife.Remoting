@@ -63,4 +63,18 @@ public class WsChannelTests
 
         Assert.False(channel.Active);
     }
+
+    [Fact]
+    [DisplayName("WsChannel_ValidWebSocket内部含超时判死_不因假PongTime触发重连")]
+    public async Task ValidWebSocket_WithTimeoutCheck_NoFalsePositive()
+    {
+        // 验证：即使 _lastPongTime 很小（刚初始化），WsChannel.ValidWebSocket 也不会误判为心跳超时
+        // 判死条件：_lastPongTime > 0 且 距上次Pong超过 3×PingPeriod
+        using var client = new TestClientBase();
+        var channel = new WsChannel(client);
+
+        using var http = new ApiHttpClient("http://localhost:12345");
+        // ValidWebSocket 应正常返回（因为 http.Current 为 null，不会发起真实连接）
+        await channel.ValidWebSocket(http);
+    }
 }

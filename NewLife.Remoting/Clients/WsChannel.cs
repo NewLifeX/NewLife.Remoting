@@ -21,8 +21,11 @@ class WsChannel(ClientBase client) : DisposeBase
     /// <summary>是否已连接</summary>
     public virtual Boolean Active => _websocket != null && !_websocket.Disposed;
 
-    /// <summary>最后一次收到Pong的时间戳（TickCount64）。用于检测WebSocket心跳响应是否正常</summary>
+    /// <summary>最后一次收到Pong的时间戳（TickCount64）。仅由 OnPing 在收到 Pong 时更新</summary>
     protected Int64 _lastPongTime;
+
+    /// <summary>最后一次发送 Ping 的时间戳（TickCount64）。用于无 Pong 响应时的超时兜底</summary>
+    protected Int64 _lastPingTime;
 
     /// <summary>销毁资源</summary>
     /// <param name="disposing">是否释放托管资源</param>
@@ -37,6 +40,7 @@ class WsChannel(ClientBase client) : DisposeBase
     /// <remarks>
     /// 检查WebSocket连接状态，若已连接则发送心跳保活。
     /// 若未连接或已断开，则重新建立连接并启动消息接收循环。
+    /// 由 ClientBase.OnPing 周期性驱动调用。
     /// </remarks>
     /// <param name="http">Http客户端</param>
     /// <returns></returns>
@@ -60,6 +64,12 @@ class WsChannel(ClientBase client) : DisposeBase
             {
                 // 在websocket链路上定时发送心跳，避免长连接被断开
                 await _websocket.SendTextAsync("Ping").ConfigureAwait(false);
+
+                // 记录发送时间，用于超时兜底。_lastPongTime 只在收到 Pong 时更新，此处不碰它
+                _lastPingTime = Runtime.TickCount64;
+
+                // 首次发送 Ping 时初始化超时计时，确保即使服务端不回复也能在 3 周期后触发重连
+                if (_lastPongTime == 0) _lastPongTime = _lastPingTime;
             }
             catch (Exception ex)
             {
@@ -102,6 +112,9 @@ class WsChannel(ClientBase client) : DisposeBase
 
             _websocket = ws;
 
+            // 新连接重置Pong计时，避免旧连接的残留时间导致误判心跳超时
+            _lastPongTime = 0;
+
             // 释放旧的CancellationTokenSource
             _source?.Cancel();
             _source.TryDispose();
@@ -137,6 +150,11 @@ class WsChannel(ClientBase client) : DisposeBase
     private async Task DoPull(WebSocketClient socket, CancellationTokenSource source)
     {
         DefaultSpan.Current = null;
+
+        // 捕获 Close 帧的状态码，用于回显
+        Int32? closeStatus = null;
+        String? closeReason = null;
+
         while (!source.IsCancellationRequested && !socket.Disposed)
         {
             // try-catch 放在循环内，避免单次异常退出循环
@@ -145,11 +163,44 @@ class WsChannel(ClientBase client) : DisposeBase
                 using var rs = await socket.ReceiveMessageAsync(source.Token).ConfigureAwait(false);
                 if (rs == null) continue;
 
-                if (rs.Type == WebSocketMessageType.Close) break;
+                if (rs.Type == WebSocketMessageType.Ping)
+                {
+                    // RFC 6455 §5.5.3: Pong 必须回显 Ping 的负载
+                    var msg = new WebSocketMessage { Type = WebSocketMessageType.Pong, Payload = rs.Payload };
+                    await socket.SendMessageAsync(msg, source.Token).ConfigureAwait(false);
+                    continue;
+                }
+                if (rs.Type == WebSocketMessageType.Close)
+                {
+                    closeStatus = rs.CloseStatus > 0 ? rs.CloseStatus : 1000;
+                    closeReason = rs.StatusDescription ?? "finish";
+                    break;
+                }
                 if (rs.Type is WebSocketMessageType.Text or WebSocketMessageType.Binary)
                 {
                     if (rs.Payload != null)
+                    {
+                        // 检查是否为WebSocket文本心跳 Ping/Pong
+                        if (rs.Payload.Total == 4)
+                        {
+                            var msg = rs.Payload.ToStr();
+                            if (msg == "Ping")
+                            {
+                                // 自动回复 Pong，维持 WebSocket 心跳
+                                await SendTextAsync((ArrayPacket)"Pong".GetBytes(), source.Token).ConfigureAwait(false);
+
+                                await OnPing(rs.Payload, source.Token).ConfigureAwait(false);
+                                continue;
+                            }
+                            if (msg == "Pong")
+                            {
+                                await OnPing(rs.Payload, source.Token).ConfigureAwait(false);
+                                continue;
+                            }
+                        }
+
                         await OnReceive(rs.Payload, source.Token).ConfigureAwait(false);
+                    }
                 }
             }
             catch (ThreadAbortException) { break; }
@@ -178,7 +229,18 @@ class WsChannel(ClientBase client) : DisposeBase
         }
         catch (ObjectDisposedException) { }
 
-        if (!socket.Disposed) await socket.CloseAsync(1000, "finish", default).ConfigureAwait(false);
+        if (!socket.Disposed) await socket.CloseAsync(closeStatus ?? 1000, closeReason ?? "finish", default).ConfigureAwait(false);
+    }
+
+    /// <summary>收到WebSocket文本心跳时调用。收到"Ping"或"Pong"均触发，基类更新心跳计时</summary>
+    /// <param name="data">数据包，可通过 ToStr() 判断是 Ping 还是 Pong</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns></returns>
+    protected virtual Task OnPing(IPacket data, CancellationToken cancellationToken)
+    {
+        _lastPongTime = Runtime.TickCount64;
+
+        return Task.FromResult<Object>(null!);
     }
 
     /// <summary>收到服务端主动下发消息。默认转为CommandModel命令处理</summary>
@@ -187,22 +249,6 @@ class WsChannel(ClientBase client) : DisposeBase
     /// <returns></returns>
     protected virtual async Task OnReceive(IPacket data, CancellationToken cancellationToken)
     {
-        // 处理心跳消息
-        if (data.Total == 4)
-        {
-            var msg = data.ToStr();
-            if (msg == "Pong")
-            {
-                _lastPongTime = Runtime.TickCount64;
-                return;
-            }
-            if (msg == "Ping")
-            {
-                await SendTextAsync((ArrayPacket)"Pong".GetBytes(), cancellationToken).ConfigureAwait(false);
-                return;
-            }
-        }
-
         var ctx = new EventContext { ["Source"] = "WebSocket" };
         await _client.HandleAsync(data, ctx, cancellationToken).ConfigureAwait(false);
     }

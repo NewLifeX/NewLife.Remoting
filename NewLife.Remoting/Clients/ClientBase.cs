@@ -1193,7 +1193,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         {
             await ValidWebSocket(http).ConfigureAwait(false);
 
-            // WS 不可用时降级到 SSE
+            // WS 不可用时降级到 SSE，WS 恢复后关闭 SSE
             if (_ws == null || !_ws.Active)
             {
                 _sse ??= new SseChannel(this);
@@ -1201,7 +1201,6 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             }
             else
             {
-                // WS 恢复，关闭 SSE
                 _sse?.StopSse();
             }
 
@@ -1213,6 +1212,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
     }
 
+    /// <summary>维护WebSocket长连接。由 OnPing 周期性驱动，内部委托 WsChannel 完成连接维护和超时判死</summary>
+    /// <param name="http">Http客户端</param>
+    /// <returns></returns>
     private async Task ValidWebSocket(ApiHttpClient http)
     {
         // 非NetCore平台，使用自研轻量级WebSocket

@@ -14,6 +14,7 @@ namespace NewLife.Remoting.Clients;
 /// <remarks>
 /// 基于System.Net.WebSockets.ClientWebSocket实现的长连接通道。
 /// 仅用于NETCOREAPP平台，提供更好的性能和稳定性。
+/// 由 ClientBase.OnPing 周期性驱动 ValidWebSocket 以维持连接和检测超时。
 /// </remarks>
 /// <param name="client">客户端基类实例</param>
 class WsChannelCore(ClientBase client) : WsChannel(client)
@@ -63,6 +64,12 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
                 // 在websocket链路上定时发送心跳，避免长连接被断开
                 var str = "Ping";
                 await _websocket.SendAsync(new ArraySegment<Byte>(str.GetBytes()), WebSocketMessageType.Text, true, default).ConfigureAwait(false);
+
+                // 记录发送时间，用于超时兜底。_lastPongTime 只在收到 Pong 时更新，此处不碰它
+                _lastPingTime = Runtime.TickCount64;
+
+                // 首次发送 Ping 时初始化超时计时，确保即使服务端不回复也能在 3 周期后触发重连
+                if (_lastPongTime == 0) _lastPongTime = _lastPingTime;
             }
             catch (Exception ex)
             {
@@ -99,11 +106,15 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
 
             var ws = new ClientWebSocket();
             ws.Options.SetRequestHeader("Authorization", "Bearer " + token);
+            ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
             span?.AppendTag($"WebSocket.Connect {uri}");
             await ws.ConnectAsync(uri, default).ConfigureAwait(false);
 
             _websocket = ws;
+
+            // 新连接重置Pong计时，避免旧连接的残留时间导致误判心跳超时
+            _lastPongTime = 0;
 
             // 释放旧的CancellationTokenSource
             _source?.Cancel();
@@ -125,6 +136,11 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
     {
         DefaultSpan.Current = null;
         var buf = Pool.Shared.Rent(BufferSize);
+
+        // 捕获 Close 帧的状态码，用于回显
+        WebSocketCloseStatus? closeStatus = null;
+        String? closeReason = null;
+
         try
         {
             while (!source.IsCancellationRequested && socket.State == WebSocketState.Open)
@@ -133,10 +149,34 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
                 try
                 {
                     var data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), source.Token).ConfigureAwait(false);
-                    if (data.MessageType == WebSocketMessageType.Close) break;
+                    if (data.MessageType == WebSocketMessageType.Close)
+                    {
+                        closeStatus = data.CloseStatus ?? WebSocketCloseStatus.NormalClosure;
+                        closeReason = data.CloseStatusDescription ?? "finish";
+                        break;
+                    }
                     if (data.MessageType is WebSocketMessageType.Text or WebSocketMessageType.Binary)
                     {
                         var pk = new ArrayPacket(buf, 0, data.Count);
+                        // 检查是否为WebSocket文本心跳 Ping/Pong
+                        if (data.Count == 4)
+                        {
+                            var msg = pk.ToStr();
+                            if (msg == "Ping")
+                            {
+                                // 自动回复 Pong，维持 WebSocket 心跳
+                                await SendTextAsync((ArrayPacket)"Pong".GetBytes(), source.Token).ConfigureAwait(false);
+
+                                await OnPing(pk, source.Token).ConfigureAwait(false);
+                                continue;
+                            }
+                            if (msg == "Pong")
+                            {
+                                await OnPing(pk, source.Token).ConfigureAwait(false);
+                                continue;
+                            }
+                        }
+
                         await OnReceive(pk, source.Token).ConfigureAwait(false);
                     }
                 }
@@ -180,7 +220,7 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
         catch (ObjectDisposedException) { }
 
         if (socket.State == WebSocketState.Open)
-            await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "finish", default).ConfigureAwait(false);
+            await socket.CloseAsync(closeStatus ?? WebSocketCloseStatus.NormalClosure, closeReason ?? "finish", default).ConfigureAwait(false);
     }
 
     /// <summary>发送文本消息</summary>
