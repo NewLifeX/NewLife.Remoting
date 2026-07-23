@@ -1,4 +1,4 @@
-﻿using System.Runtime.Serialization;
+using System.Runtime.Serialization;
 using System.Web.Script.Serialization;
 using System.Xml.Serialization;
 using NewLife.Data;
@@ -17,9 +17,9 @@ public partial class DeviceOnline : Entity<DeviceOnline>, IOnlineModel2
         var df = Meta.Factory.AdditionalFields;
         df.Add(__.Pings);
 
-        // 过滤器 UserModule、TimeModule、IPModule
-        Meta.Modules.Add<TimeModule>();
-        Meta.Modules.Add<IPModule>();
+        // 过滤器 UserInterceptor、TimeInterceptor、IPInterceptor
+        Meta.Interceptors.Add<TimeInterceptor>();
+        Meta.Interceptors.Add<IPInterceptor>();
 
         var sc = Meta.SingleCache;
         sc.FindSlaveKeyMethod = k => Find(_.SessionId == k);
@@ -142,7 +142,7 @@ public partial class DeviceOnline : Entity<DeviceOnline>, IOnlineModel2
     /// <summary>根据编码查询或添加</summary>
     /// <param name="sessionid"></param>
     /// <returns></returns>
-    public static DeviceOnline GetOrAdd(String sessionid) => GetOrAdd(sessionid, FindBySessionId, k => new DeviceOnline { SessionId = k });
+    public static DeviceOnline GetOrAdd(String sessionid) => GetOrAdd(sessionid, k => FindBySessionId(k, false), k => new DeviceOnline { SessionId = k });
 
     /// <summary>删除过期，指定过期时间</summary>
     /// <param name="expire">超时时间，秒</param>
@@ -238,7 +238,15 @@ public partial class DeviceOnline : Entity<DeviceOnline>, IOnlineModel2
         Pings++;
 
         //SaveAsync();
-        return Update();
+        var rs = Update();
+        if (rs == 0)
+        {
+            // 记录已被过期清理线程删除，重新插入
+            Id = 0;
+            Insert();
+            rs = 1;
+        }
+        return rs;
     }
     #endregion
 }

@@ -20,9 +20,9 @@ public partial class NodeOnline : Entity<NodeOnline>, IOnlineModel2
         var df = Meta.Factory.AdditionalFields;
         df.Add(__.PingCount);
 
-        Meta.Modules.Add<TimeModule>();
-        Meta.Modules.Add<IPModule>();
-        Meta.Modules.Add<TraceModule>();
+        Meta.Interceptors.Add<TimeInterceptor>();
+        Meta.Interceptors.Add<IPInterceptor>();
+        Meta.Interceptors.Add<TraceInterceptor>();
 
         var sc = Meta.SingleCache;
         sc.FindSlaveKeyMethod = k => Find(_.SessionId == k);

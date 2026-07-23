@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Web.Script.Serialization;
 using System.Xml.Serialization;
 using NewLife;
@@ -23,9 +23,9 @@ public partial class Node : Entity<Node>, IDeviceModel2, ILogProvider
         //!!! OnlineTime是新加字段，允许空，导致累加操作失败，暂时关闭累加
         //df.Add(__.OnlineTime);
 
-        Meta.Modules.Add<UserModule>();
-        Meta.Modules.Add<TimeModule>();
-        Meta.Modules.Add<IPModule>();
+        Meta.Interceptors.Add<UserInterceptor>();
+        Meta.Interceptors.Add<TimeInterceptor>();
+        Meta.Interceptors.Add<IPInterceptor>();
 
         var sc = Meta.SingleCache;
         sc.Expire = 30 * 60;

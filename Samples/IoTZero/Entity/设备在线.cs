@@ -96,6 +96,14 @@ public partial class DeviceOnline
     [BindColumn("WebSocket", "长连接。WebSocket长连接", "")]
     public Boolean WebSocket { get => _WebSocket; set { if (OnPropertyChanging("WebSocket", value)) { _WebSocket = value; OnPropertyChanged("WebSocket"); } } }
 
+    private DateTime _LoginTime;
+    /// <summary>登录时间。本次会话的登录时间，结算后置为MinValue</summary>
+    [DisplayName("登录时间")]
+    [Description("登录时间。本次会话的登录时间，结算后置为MinValue")]
+    [DataObjectField(false, false, true, 0)]
+    [BindColumn("LoginTime", "登录时间。本次会话的登录时间，结算后置为MinValue", "")]
+    public DateTime LoginTime { get => _LoginTime; set { if (OnPropertyChanging("LoginTime", value)) { _LoginTime = value; OnPropertyChanged("LoginTime"); } } }
+
     private Int32 _Delay;
     /// <summary>延迟。网络延迟，单位ms</summary>
     [DisplayName("延迟")]
@@ -186,6 +194,7 @@ public partial class DeviceOnline
             "GroupPath" => _GroupPath,
             "Pings" => _Pings,
             "WebSocket" => _WebSocket,
+            "LoginTime" => _LoginTime,
             "Delay" => _Delay,
             "Offset" => _Offset,
             "LocalTime" => _LocalTime,
@@ -210,6 +219,7 @@ public partial class DeviceOnline
                 case "GroupPath": _GroupPath = Convert.ToString(value); break;
                 case "Pings": _Pings = value.ToInt(); break;
                 case "WebSocket": _WebSocket = value.ToBoolean(); break;
+                case "LoginTime": _LoginTime = value.ToDateTime(); break;
                 case "Delay": _Delay = value.ToInt(); break;
                 case "Offset": _Offset = value.ToInt(); break;
                 case "LocalTime": _LocalTime = value.ToDateTime(); break;
@@ -226,6 +236,45 @@ public partial class DeviceOnline
     #endregion
 
     #region 关联映射
+    #endregion
+
+    #region 扩展查询
+    /// <summary>根据会话查找</summary>
+    /// <param name="sessionId">会话</param>
+    /// <returns>实体对象</returns>
+    public static DeviceOnline FindBySessionId(String sessionId)
+    {
+        if (sessionId.IsNullOrEmpty()) return null;
+
+        // 实体缓存
+        if (Meta.Session.Count < 1000) return Meta.Cache.Find(e => e.SessionId.EqualIgnoreCase(sessionId));
+
+        return Find(_.SessionId == sessionId);
+    }
+    #endregion
+
+    #region 高级查询
+    /// <summary>高级查询</summary>
+    /// <param name="sessionId">会话</param>
+    /// <param name="productId">产品</param>
+    /// <param name="webSocket">长连接。WebSocket长连接</param>
+    /// <param name="start">更新时间开始</param>
+    /// <param name="end">更新时间结束</param>
+    /// <param name="key">关键字</param>
+    /// <param name="page">分页参数信息。可携带统计和数据权限扩展查询等信息</param>
+    /// <returns>实体列表</returns>
+    public static IList<DeviceOnline> Search(String sessionId, Int32 productId, Boolean? webSocket, DateTime start, DateTime end, String key, PageParameter page)
+    {
+        var exp = new WhereExpression();
+
+        if (!sessionId.IsNullOrEmpty()) exp &= _.SessionId == sessionId;
+        if (productId >= 0) exp &= _.ProductId == productId;
+        if (webSocket != null) exp &= _.WebSocket == webSocket;
+        exp &= _.UpdateTime.Between(start, end);
+        if (!key.IsNullOrEmpty()) exp &= SearchWhereByKeys(key);
+
+        return FindAll(exp, page);
+    }
     #endregion
 
     #region 字段名
@@ -258,6 +307,9 @@ public partial class DeviceOnline
 
         /// <summary>长连接。WebSocket长连接</summary>
         public static readonly Field WebSocket = FindByName("WebSocket");
+
+        /// <summary>登录时间。本次会话的登录时间，结算后置为MinValue</summary>
+        public static readonly Field LoginTime = FindByName("LoginTime");
 
         /// <summary>延迟。网络延迟，单位ms</summary>
         public static readonly Field Delay = FindByName("Delay");
@@ -318,6 +370,9 @@ public partial class DeviceOnline
 
         /// <summary>长连接。WebSocket长连接</summary>
         public const String WebSocket = "WebSocket";
+
+        /// <summary>登录时间。本次会话的登录时间，结算后置为MinValue</summary>
+        public const String LoginTime = "LoginTime";
 
         /// <summary>延迟。网络延迟，单位ms</summary>
         public const String Delay = "Delay";

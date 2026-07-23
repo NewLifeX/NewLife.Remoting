@@ -194,6 +194,41 @@ public partial class DeviceGroup
     #region 关联映射
     #endregion
 
+    #region 扩展查询
+    /// <summary>根据父级查找</summary>
+    /// <param name="parentId">父级</param>
+    /// <returns>实体列表</returns>
+    public static IList<DeviceGroup> FindAllByParentId(Int32 parentId)
+    {
+        if (parentId < 0) return [];
+
+        // 实体缓存
+        if (Meta.Session.Count < 1000) return Meta.Cache.FindAll(e => e.ParentId == parentId);
+
+        return FindAll(_.ParentId == parentId);
+    }
+    #endregion
+
+    #region 高级查询
+    /// <summary>高级查询</summary>
+    /// <param name="parentId">父级</param>
+    /// <param name="start">更新时间开始</param>
+    /// <param name="end">更新时间结束</param>
+    /// <param name="key">关键字</param>
+    /// <param name="page">分页参数信息。可携带统计和数据权限扩展查询等信息</param>
+    /// <returns>实体列表</returns>
+    public static IList<DeviceGroup> Search(Int32 parentId, DateTime start, DateTime end, String key, PageParameter page)
+    {
+        var exp = new WhereExpression();
+
+        if (parentId >= 0) exp &= _.ParentId == parentId;
+        exp &= _.UpdateTime.Between(start, end);
+        if (!key.IsNullOrEmpty()) exp &= SearchWhereByKeys(key);
+
+        return FindAll(exp, page);
+    }
+    #endregion
+
     #region 字段名
     /// <summary>取得设备分组字段信息的快捷方式</summary>
     public partial class _

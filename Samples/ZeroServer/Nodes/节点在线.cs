@@ -106,6 +106,14 @@ public partial class NodeOnline
     [BindColumn("WebSocket", "长连接。WebSocket长连接", "")]
     public Boolean WebSocket { get => _WebSocket; set { if (OnPropertyChanging("WebSocket", value)) { _WebSocket = value; OnPropertyChanged("WebSocket"); } } }
 
+    private DateTime _LoginTime;
+    /// <summary>登录时间。本次会话的登录时间，结算后置为MinValue</summary>
+    [DisplayName("登录时间")]
+    [Description("登录时间。本次会话的登录时间，结算后置为MinValue")]
+    [DataObjectField(false, false, true, 0)]
+    [BindColumn("LoginTime", "登录时间。本次会话的登录时间，结算后置为MinValue", "")]
+    public DateTime LoginTime { get => _LoginTime; set { if (OnPropertyChanging("LoginTime", value)) { _LoginTime = value; OnPropertyChanged("LoginTime"); } } }
+
     private String _Version;
     /// <summary>版本</summary>
     [DisplayName("版本")]
@@ -404,6 +412,7 @@ public partial class NodeOnline
             "CityID" => _CityID,
             "PingCount" => _PingCount,
             "WebSocket" => _WebSocket,
+            "LoginTime" => _LoginTime,
             "Version" => _Version,
             "CompileTime" => _CompileTime,
             "OSKind" => _OSKind,
@@ -454,6 +463,7 @@ public partial class NodeOnline
                 case "CityID": _CityID = value.ToInt(); break;
                 case "PingCount": _PingCount = value.ToInt(); break;
                 case "WebSocket": _WebSocket = value.ToBoolean(); break;
+                case "LoginTime": _LoginTime = value.ToDateTime(); break;
                 case "Version": _Version = Convert.ToString(value); break;
                 case "CompileTime": _CompileTime = value.ToDateTime(); break;
                 case "OSKind": _OSKind = (Stardust.Models.OSKinds)value.ToInt(); break;
@@ -577,6 +587,9 @@ public partial class NodeOnline
 
         /// <summary>长连接。WebSocket长连接</summary>
         public static readonly Field WebSocket = FindByName("WebSocket");
+
+        /// <summary>登录时间。本次会话的登录时间，结算后置为MinValue</summary>
+        public static readonly Field LoginTime = FindByName("LoginTime");
 
         /// <summary>版本</summary>
         public static readonly Field Version = FindByName("Version");
@@ -715,6 +728,9 @@ public partial class NodeOnline
 
         /// <summary>长连接。WebSocket长连接</summary>
         public const String WebSocket = "WebSocket";
+
+        /// <summary>登录时间。本次会话的登录时间，结算后置为MinValue</summary>
+        public const String LoginTime = "LoginTime";
 
         /// <summary>版本</summary>
         public const String Version = "Version";

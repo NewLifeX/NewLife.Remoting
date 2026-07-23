@@ -332,6 +332,39 @@ public partial class Device
 
     #endregion
 
+    #region 扩展查询
+    #endregion
+
+    #region 高级查询
+    /// <summary>高级查询</summary>
+    /// <param name="code">编码。设备唯一证书DeviceName，用于设备认证，在注册时由系统生成</param>
+    /// <param name="productId">产品</param>
+    /// <param name="uuid">唯一标识。硬件标识，或其它能够唯一区分设备的标记</param>
+    /// <param name="groupId">分组</param>
+    /// <param name="online">在线</param>
+    /// <param name="enable">启用</param>
+    /// <param name="start">更新时间开始</param>
+    /// <param name="end">更新时间结束</param>
+    /// <param name="key">关键字</param>
+    /// <param name="page">分页参数信息。可携带统计和数据权限扩展查询等信息</param>
+    /// <returns>实体列表</returns>
+    public static IList<Device> Search(String code, Int32 productId, String uuid, Int32 groupId, Boolean? online, Boolean? enable, DateTime start, DateTime end, String key, PageParameter page)
+    {
+        var exp = new WhereExpression();
+
+        if (!code.IsNullOrEmpty()) exp &= _.Code == code;
+        if (productId >= 0) exp &= _.ProductId == productId;
+        if (!uuid.IsNullOrEmpty()) exp &= _.Uuid == uuid;
+        if (groupId >= 0) exp &= _.GroupId == groupId;
+        if (online != null) exp &= _.Online == online;
+        if (enable != null) exp &= _.Enable == enable;
+        exp &= _.UpdateTime.Between(start, end);
+        if (!key.IsNullOrEmpty()) exp &= SearchWhereByKeys(key);
+
+        return FindAll(exp, page);
+    }
+    #endregion
+
     #region 字段名
     /// <summary>取得设备字段信息的快捷方式</summary>
     public partial class _
