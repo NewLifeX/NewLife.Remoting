@@ -105,60 +105,43 @@ sequenceDiagram
     autonumber
     participant D as 设备
     participant BC as BaseDeviceController
-    participant Svc as IDeviceService
-    participant DS as DefaultDeviceService
-    participant DS2 as IDeviceService2
+    participant Svc as DefaultDeviceService
     participant Token as TokenService
 
     D->>BC: POST /Device/Login (ILoginRequest)
     Note over BC: [AllowAnonymous] 跳过鉴权
 
     BC->>Svc: QueryDevice(request.Code)
-    Svc->>DDS: QueryDevice(code)
-    DDS->>DDS: _findDevice?.Invoke(code)  // 静态反射
-    DDS-->>Svc: device (可能为 null)
-    Svc-->>BC: device
+    Svc-->>BC: device (可能 null)
 
-    BC->>BC: Context.Device = device  // 即使失败也可写历史
+    BC->>Svc: Login(ctx, request, "Http")
+    Svc->>Svc: Authorize(ctx, request)
+    Note over Svc: 验证密钥(明文→passwordProvider)
 
-    BC->>Svc: Login(Context, request, "Http")
-    Svc->>DDS: Login(context, request, "Http")
-    DDS->>DDS: Authorize(context, request)
-
-    alt 设备不存在或鉴权失败
-        DDS->>DDS2: Register(context, request)
-        Note over DDS2: 自动注册流程（详见 4.2）
-        DDS2-->>DDS: new device (autoReg=true)
+    alt 鉴权失败或设备不存在
+        Svc->>Svc: Register(ctx, request)
+        Note over Svc: 查库/新建 → 设Enable → 生成Secret → Save
     end
 
-    DDS->>DDS2: OnLogin(context, request)
-    DDS2->>DDS2: GetOnline(context) ?? CreateOnline(context)
-    DDS2-->>DDS: online
-    DDS-->>Svc: LoginResponse
+    Svc->>Svc: OnLogin(ctx, request)
+    Svc->>Svc: GetOnline(ctx) ?? CreateOnline(ctx)
 
-    alt 动态注册 (autoReg)
-        Note over BC: 下发新 Code + Secret
-        BC->>BC: rs.Code = device2.Code
-        BC->>BC: rs.Secret = device2.Secret
+    BC->>Token: IssueToken(device.Code, clientId)
+    Token-->>BC: JWT { Subject=Code, Id=ClientId }
+
+    alt 动态注册
+        BC->>BC: 响应中带回新 Code+Secret
     end
 
-    BC->>TokenSvc: IssueToken(device.Code, request.ClientId)
-    TokenSvc-->>BC: TokenModel { AccessToken, ExpireIn }
-
-    BC-->>Device: ILoginResponse { Token, Expire, Code, Secret, ServerTime }
-    Note over BC,Device: Login 响应含 JWT 令牌，后续请求携带
+    BC-->>D: LoginResponse { Token, Expire, ServerTime, Code?, Secret? }
 ```
 
-**关键设计点**：
-
-| 设计 | 说明 |
-|------|------|
-| `[AllowAnonymous]` | 首次登录无令牌，必须跳过鉴权 |
-| **Authorize 双重验证** | 先明文对比 `device.Secret == request.Secret`，失败再用 `passwordProvider.Verify` 支持密码算法 |
-| **自动注册** | 鉴权失败或设备不存在时自动执行 `Register` 流程，生成新密钥并保存 |
-| **ClientId 生成** | `request.ClientId` 为空时自动生成 `Rand.NextString(8)`，作为 SessionId 的一部分 |
-| **令牌颁发** | `IssueToken` 将 `device.Code` 设为 JWT Subject，`ClientId` 设为 JWT Id |
-| **ServerTime** | 登录响应携带服务端 UTC 时间，客户端用于计算时差 |
+**串联要点**：
+- 登录是唯一 `[AllowAnonymous]` 的端点，先查设备做登录前准备
+- `Authorize` 先明文对比再 `passwordProvider.Verify`，全部失败→触发 `Register` 自动注册
+- `Register` 自动分配编码（UUID.Crc→随机8位），生成密钥，保存后返回
+- `OnLogin` 复用已有在线记录（刷新LoginTime）或新建
+- 登录成功颁发JWT，动态注册时额外下发Code+Secret
 
 ### 4.2 自动注册流程（Register）
 
@@ -167,24 +150,13 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     A[Authorize 失败 或 device==null] --> B{code 是否为空?}
-    B -->|是| C[UUID.Crc 生成 8 位编码]
+    B -->|是| C[UUID.Crc → 8 位编码 / 随机8位]
     B -->|否| D[使用 request.Code]
-    C --> E[新建/查询设备实体]
+    C --> E[查库 QueryDevice / 新建实体]
     D --> E
-    E --> F[device.Enable = true]
-    F --> G[生成新密钥 Rand.NextString(16)]
-    G --> H[OnRegister 填充数据并 Save]
-    H --> I[WriteHistory 动态注册成功]
-    I --> J[返回 device]
+    E --> F[Enable=true → 生成 Secret → OnRegister Save → 写历史]
+    F --> G[返回 device（含新 Code+Secret）]
 ```
-
-**代码流程**：
-1. 确定设备编码：优先 `request.Code`，为空则用 `request.UUID.GetBytes().Crc().ToString("X8")`，再为空则随机 `Rand.NextString(8)`
-2. 查库 `QueryDevice(code)` 或新建 `Entity<TDevice>.Meta.Factory.Create()`
-3. 设置 `device.Enable = true`
-4. 生成新密钥 `device.Secret = Rand.NextString(16)`
-5. 调用虚方法 `OnRegister(context, request)` — 默认执行 `(device as IEntity).Save()`
-6. 写历史记录 "动态注册"
 
 ### 4.3 注销 → 在线时长结算
 
@@ -213,48 +185,33 @@ sequenceDiagram
 
 **要点**：注销不清除数据库记录（供后续登录复用），只结算时长 + 标记 `LoginTime=MinValue`。最终删除由超时清理线程 `RemoveNotAlive` 负责。`LoginTime` 守卫防重复结算。
 
-### 4.4 心跳流程（Ping）
-
-**入口**：`GET/POST /Device/Ping` → `BaseDeviceController.Ping(IPingRequest)`
+### 4.4 心跳 + 在线重建 + 令牌续期
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Device as 设备客户端
+    participant D as 设备
     participant BC as BaseDeviceController
-    participant DDS as DefaultDeviceService
-    participant Online as IOnlineModel2
-    participant TokenSvc as ITokenService
+    participant Svc as DefaultDeviceService
+    participant Token as TokenService
 
-    Device->>BC: GET/POST /Device/Ping (IPingRequest)
-    Note over BC: 已鉴权，持有 JWT
+    D->>BC: GET/POST /Device/Ping (IPingRequest)
 
-    BC->>DDS: Ping(Context, request, null)
-    DDS->>DDS: response = new PingResponse()
-    DDS->>DDS: response.Time = request?.Time ?? 0
-    DDS->>DDS: response.ServerTime = UtcNow.ToLong()
+    BC->>Svc: Ping(ctx, request, null)
+    Svc->>Svc: OnPing(ctx, request)
+    Svc->>Svc: GetOnline(ctx) ?? CreateOnline(ctx)
+    Note over Svc: IOnlineModel2.Save 更新监控数据
 
-    DDS->>DDS: OnPing(context, request)
-    DDS->>DDS: GetOnline(context) ?? CreateOnline(context)
-    DDS->>Online: online2.Save(request, context)
-    Note over Online: 更新 CPU/内存/磁盘/信号等
-
-    alt Save 返回 0（记录已被 ClearExpire 清理）
-        DDS->>DDS: context.Online = null
-        DDS->>DDS: CreateOnline(context)  // 重建
-        DDS->>Online: online2.Save(request, context)
+    alt Save 返回 0（记录已被清理）
+        Svc->>Svc: CreateOnline(ctx) → Save
     end
 
-    DDS->>DDS: response.Period = device.Period
-    DDS->>DDS: response.NewServer = device.NewServer
-    DDS->>DDS: response.Commands = AcquireCommands(ctx)
-    DS-->>BC: PingResponse
+    Svc->>BC: PingResponse { Period, NewServer, Commands }
 
     BC->>BC: 检查令牌过期时间
     alt 令牌 10 分钟内到期
         BC->>Token: IssueToken(device.Code, jwt.Id)
         Token-->>BC: 新令牌
-        BC->>BC: response.Token = 新令牌
     end
 
     BC-->>D: IPingResponse { Token?, Period, Commands, NewServer }
