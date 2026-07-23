@@ -12,84 +12,24 @@ namespace NewLife.Remoting.Extensions;
 /// <remarks>
 /// 提供设备登录、注销、心跳、升级、命令下发等WebApi接口的默认实现。
 /// 继承自 <see cref="BaseController"/>，自动处理令牌验证和设备上下文管理。
+/// 
+/// 明确列出所需服务接口，便于子类感知依赖。
+/// 未显式传入的可选服务会尝试从 <paramref name="serviceProvider"/> 自动解析。
 /// </remarks>
+/// <param name="deviceService">设备服务</param>
+/// <param name="tokenService">令牌服务</param>
+/// <param name="sessionManager">会话管理器</param>
+/// <param name="serviceProvider">服务提供者</param>
 [ApiFilter]
 [ApiController]
 [Route("[controller]")]
-public abstract class BaseDeviceController : BaseController
+public abstract class BaseDeviceController(IDeviceService? deviceService, ITokenService? tokenService, ISessionManager? sessionManager, IServiceProvider serviceProvider) : BaseController(deviceService, tokenService, serviceProvider)
 {
     #region 属性
-    private readonly IDeviceService _deviceService;
-    private readonly ITokenService _tokenService;
-    private readonly ISessionManager _sessionManager;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly ITracer? _tracer;
-    #endregion
-
-    #region 构造
-    /// <summary>实例化设备控制器</summary>
-    /// <param name="serviceProvider">服务提供者</param>
-    public BaseDeviceController(IServiceProvider serviceProvider) : base(serviceProvider)
-    {
-        _deviceService = serviceProvider.GetRequiredService<IDeviceService>();
-        _tokenService = serviceProvider.GetRequiredService<ITokenService>();
-        _sessionManager = serviceProvider.GetRequiredService<ISessionManager>();
-        _tracer = serviceProvider.GetService<ITracer>();
-        _serviceProvider = serviceProvider;
-    }
-
-    /// <summary>实例化设备控制器</summary>
-    /// <param name="deviceService">设备服务</param>
-    /// <param name="tokenService">令牌服务</param>
-    /// <param name="sessionManager">会话管理器</param>
-    /// <param name="serviceProvider">服务提供者</param>
-    public BaseDeviceController(IDeviceService? deviceService, ITokenService? tokenService, ISessionManager? sessionManager, IServiceProvider serviceProvider) : base(deviceService, tokenService, serviceProvider)
-    {
-        _deviceService = deviceService ?? serviceProvider.GetRequiredService<IDeviceService>();
-        _tokenService = tokenService ?? serviceProvider.GetRequiredService<ITokenService>();
-        _sessionManager = sessionManager ?? serviceProvider.GetRequiredService<ISessionManager>();
-        _tracer = serviceProvider.GetService<ITracer>();
-        _serviceProvider = serviceProvider;
-    }
-
-    /// <summary>验证身份</summary>
-    /// <param name="token">访问令牌</param>
-    /// <param name="context">设备上下文</param>
-    /// <returns>验证是否通过</returns>
-    /// <exception cref="ApiException">设备无效时抛出</exception>
-    protected override Boolean OnAuthorize(String token, DeviceContext context)
-    {
-        // 先调用基类，获取Jwt。即使失败，也要继续往下走，获取设备信息。最后再决定是否抛出异常
-        Exception? error = null;
-        try
-        {
-            if (!base.OnAuthorize(token, context)) return false;
-        }
-        catch (Exception ex)
-        {
-            error = ex;
-        }
-
-        var ds2 = _deviceService as IDeviceService2;
-
-        if (context.Device == null)
-        {
-            var code = Jwt?.Subject;
-            if (code.IsNullOrEmpty()) return false;
-
-            var dv = ds2 != null ? ds2.GetDevice(code) : _deviceService.QueryDevice(code);
-            if (dv == null || !dv.Enable) error ??= new ApiException(ApiCode.Forbidden, "无效客户端！");
-
-            context.Device = dv!;
-        }
-
-        // 在线对象
-        context.Online ??= ds2?.GetOnline(context);
-
-        if (error != null) throw error;
-
-        return true;
-    }
+    private readonly IDeviceService _deviceService = deviceService ?? serviceProvider.GetRequiredService<IDeviceService>();
+    private readonly ITokenService _tokenService = tokenService ?? serviceProvider.GetRequiredService<ITokenService>();
+    private readonly ISessionManager _sessionManager = sessionManager ?? serviceProvider.GetRequiredService<ISessionManager>();
+    private readonly ITracer? _tracer = serviceProvider.GetService<ITracer>();
     #endregion
 
     #region 登录注销
@@ -235,11 +175,11 @@ public abstract class BaseDeviceController : BaseController
         span?.Detach(HttpContext.Request.Headers);
         try
         {
-            using var session = new Services.SseCommandSession(Response, device.Code, _serviceProvider)
+            using var session = new Services.SseCommandSession(Response, device.Code, serviceProvider)
             {
                 Log = this,
                 SetOnline = online => _deviceService.SetOnline(Context, online),
-                ServiceProvider = _serviceProvider,
+                ServiceProvider = serviceProvider,
                 Tracer = _tracer,
             };
 
@@ -283,7 +223,7 @@ public abstract class BaseDeviceController : BaseController
                 Code = device.Code,
                 Log = this,
                 SetOnline = online => _deviceService.SetOnline(Context, online),
-                ServiceProvider = _serviceProvider,
+                ServiceProvider = serviceProvider,
                 Tracer = _tracer,
             };
 

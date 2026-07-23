@@ -13,7 +13,7 @@ namespace IoTZero.Controllers;
 [ApiFilter]
 [ApiController]
 [Route("[controller]")]
-public class DeviceController(IServiceProvider serviceProvider) : BaseDeviceController(serviceProvider)
+public class DeviceController(IServiceProvider serviceProvider) : BaseDeviceController(null, null, null, serviceProvider)
 {
     #region 设备通道
     /// <summary>获取设备信息，包括主设备和子设备</summary>

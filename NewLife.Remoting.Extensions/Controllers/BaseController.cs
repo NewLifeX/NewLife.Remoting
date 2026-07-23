@@ -21,10 +21,16 @@ namespace NewLife.Remoting.Extensions;
 /// 鉴权成功后映射 ClaimsPrincipal（ApiToken），可配合 [Authorize] 与策略（例如 DeviceRequired）。
 /// 支持方法/控制器/Endpoint 的 AllowAnonymous 跳过鉴权；错误统一返回 code/message/traceId，并屏蔽 SQL细节。
 /// 可覆写 OnAuthorize/OnWriteError/WriteLog；控制器为每请求实例，结合对象池保证性能与线程安全。
+/// 
+/// 明确列出所需服务接口，便于子类感知依赖。
+/// 未显式传入的可选服务（如 <paramref name="deviceService"/>）会尝试从 <paramref name="serviceProvider"/> 自动解析。
 /// </remarks>
+/// <param name="deviceService">设备服务。非必需，为 null 时尝试从 serviceProvider 获取</param>
+/// <param name="tokenService">令牌服务</param>
+/// <param name="serviceProvider">服务提供者</param>
 [ApiFilter]
 [Route("[controller]")]
-public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
+public abstract class BaseController(IDeviceService? deviceService, ITokenService? tokenService, IServiceProvider serviceProvider) : ControllerBase, IWebFilter, ILogProvider
 {
     #region 属性
     /// <summary>令牌</summary>
@@ -39,26 +45,11 @@ public abstract class BaseController : ControllerBase, IWebFilter, ILogProvider
     /// <summary>设备上下文</summary>
     public DeviceContext Context { get; set; } = null!;
 
-    private readonly IDeviceService? _deviceService;
-    private readonly ITokenService _tokenService;
+    private readonly IDeviceService? _deviceService = deviceService ?? serviceProvider.GetService<IDeviceService>();
+    private readonly ITokenService _tokenService = tokenService ?? serviceProvider.GetRequiredService<ITokenService>();
+
     private IDictionary<String, Object?>? _args;
     private static readonly Pool<DeviceContext> _pool = new(256);
-    #endregion
-
-    #region 构造
-    /// <summary>实例化控制器基类</summary>
-    /// <param name="serviceProvider">服务提供者</param>
-    public BaseController(IServiceProvider serviceProvider) => _tokenService = serviceProvider.GetRequiredService<ITokenService>();
-
-    /// <summary>实例化控制器基类</summary>
-    /// <param name="deviceService">设备服务</param>
-    /// <param name="tokenService">令牌服务</param>
-    /// <param name="serviceProvider">服务提供者</param>
-    public BaseController(IDeviceService? deviceService, ITokenService? tokenService, IServiceProvider serviceProvider)
-    {
-        _deviceService = deviceService;
-        _tokenService = tokenService ?? serviceProvider.GetRequiredService<ITokenService>();
-    }
     #endregion
 
     #region 令牌验证

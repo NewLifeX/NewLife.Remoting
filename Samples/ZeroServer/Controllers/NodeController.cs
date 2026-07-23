@@ -8,6 +8,6 @@ namespace ZeroServer.Controllers;
 [ApiFilter]
 [ApiController]
 [Route("[controller]")]
-public class NodeController(IServiceProvider serviceProvider) : BaseDeviceController(serviceProvider)
+public class NodeController(IServiceProvider serviceProvider) : BaseDeviceController(null, null, null, serviceProvider)
 {
 }

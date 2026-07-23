@@ -17,7 +17,7 @@ namespace IoTZero.Controllers;
 [ApiFilter]
 [ApiController]
 [Route("[controller]")]
-public class AppController(IServiceProvider serviceProvider, ThingService thingService) : BaseController(serviceProvider)
+public class AppController(IServiceProvider serviceProvider, ThingService thingService) : BaseController(null, null, serviceProvider)
 {
     #region 物模型
     /// <summary>获取设备属性</summary>
