@@ -55,11 +55,13 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
         if (request is ILoginRequest2 req) rs.Time = req.Time;
         rs.ServerTime = DateTime.UtcNow.ToLong();
 
-        // 动态注册的设备不可用时，不要发令牌，只发证书
+        // 动态注册（自动注册）时，下游（如星尘）可能在 OnRegister 中将设备设为禁用（Enable=false），
+        // 表示"已注册但需人工审核"。此时仅返回设备证书（Code+Secret），不颁发访问令牌。
+        // 设备需待管理员在后台启用后方可正常通信。
         if (dv.Enable)
         {
-            if (request.ClientId.IsNullOrEmpty()) Context.ClientId = request.ClientId = Rand.NextString(8);
-            var tm = _tokenService.IssueToken(dv.Code, request.ClientId);
+            if (request.ClientId.IsNullOrEmpty()) Context.ClientId = Rand.NextString(8);
+            var tm = _tokenService.IssueToken(dv.Code, Context.ClientId);
 
             rs.Token = tm.AccessToken;
             rs.Expire = tm.ExpireIn;
@@ -98,7 +100,10 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
         var device = Context.Device;
         if (device != null && Context.Token != null)
         {
-            // 令牌有效期检查，10分钟内到期的令牌，颁发新令牌
+            // 令牌续期：利用心跳请求（典型间隔 60s）做无感续期，避免设备令牌过期后重新登录。
+            // 当令牌剩余有效期不足 10 分钟时，以原 Subject 和 Id 颁发新令牌，随心跳响应下发。
+            // 10 分钟窗口配合 60s 心跳周期提供约 10 次续期机会——即使单次响应丢失，
+            // 下次心跳仍会再次触发，实现自愈式的令牌刷新。
             var (jwt, ex) = _tokenService.DecodeToken(Context.Token);
             if (ex == null && jwt != null && jwt.Expire < DateTime.Now.AddMinutes(10))
             {

@@ -126,7 +126,9 @@ public abstract class BaseController(IDeviceService? deviceService, ITokenServic
         var span = DefaultSpan.Current;
         span?.AppendTag($"code={context.Code} clientId={context.ClientId}");
 
-        // 如果注入了设备服务，尝试获取设备。即使失败，也要继续往下走，最后再决定是否抛出异常
+        // 如果注入了设备服务，尝试获取设备/在线信息。
+        // 此处收集所有异常（设备不存在/已禁用/解码失败等），统一在下方抛出，
+        // 避免多次 try-catch 分散异常处理逻辑。
         if (_deviceService != null)
         {
             if (code.IsNullOrEmpty()) return false;

@@ -70,6 +70,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
 
         using var span = _tracer?.NewSpan($"{Name}Login", new { request.Code, request.ClientId, source });
 
+        // 先查找设备，为下文的鉴权和注册做准备
         var code = request.Code;
         var device = context.Device;
         if (device == null && !code.IsNullOrEmpty()) device = QueryDevice(code);
@@ -83,7 +84,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         if (!request.ClientId.IsNullOrEmpty()) context.ClientId = request.ClientId;
         if (!source.IsNullOrEmpty()) context["Source"] = source;
 
-        // 设备不存在或者验证失败，执行注册流程
+        // 设备存在但密钥验证失败（可能配置被重置或密钥被改），
+        // 将 device 置 null 以触发下方的自动注册流程，重新分配密钥。
         if (device != null && !Authorize(context, request))
         {
             device = null;
@@ -120,6 +122,14 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     }
 
     /// <summary>验证设备合法性。验证密钥</summary>
+    /// <remarks>
+    /// 验证策略（按优先级）：
+    /// 1. 设备无密钥（Secret 为空）→ 直接放行（首次注册场景）
+    /// 2. 明文匹配（Secret 相等）→ 放行
+    /// 3. passwordProvider.Verify 验证 → 放行
+    /// 4. 均不通过 → 记录鉴权失败历史，返回 false
+    /// 此外还会校验 UUID 一致性，防止客户端拷贝配置文件。
+    /// </remarks>
     /// <param name="context">设备上下文</param>
     /// <param name="request">登录请求</param>
     /// <returns>验证是否通过</returns>
@@ -178,7 +188,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
             }
             context.Device = device;
 
-            // 如果未打开动态注册，则把节点修改为禁用
+            // 框架默认启用设备。下游（如星尘）可在 OnRegister 中根据业务规则
+            // 将 Enable 改回 false（例如需人工审核），此时 Login 仅返回证书不下发令牌。
             device.Enable = true;
 
             // 注册就必然更新密钥
@@ -201,7 +212,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         return device;
     }
 
-    /// <summary>注册中，填充数据并保存</summary>
+    /// <summary>注册中，填充业务数据并持久化。下游（如星尘）通常重写此方法来校验产品、设置产品编号等</summary>
     /// <param name="context">设备上下文</param>
     /// <param name="request">登录请求</param>
     protected virtual void OnRegister(DeviceContext context, ILoginRequest request) => (context.Device as IEntity)!.Save();
@@ -221,6 +232,10 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     }
 
     /// <summary>设备注销</summary>
+    /// <remarks>
+    /// 注销时结算在线时长，但不删除数据库记录。
+    /// 记录保留供后续登录复用，最终由超时清理线程（<see cref="RemoveOnline"/>）删除。
+    /// </remarks>
     /// <param name="context">设备上下文</param>
     /// <param name="reason">注销原因</param>
     /// <param name="source">登录来源</param>
@@ -297,7 +312,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
 
     /// <summary>设备心跳。更新在线记录信息</summary>
     /// <remarks>
-    /// 内部流程：GetOnline/CreateOnline、File
+    /// 优先复用 context.Online，若无则 CreateOnline，然后 Save 心跳数据。
+    /// 当在线记录被超时清理（ClearExpire）删除后，Save() 返回 0，此时自动重建在线记录。
     /// </remarks>
     /// <param name="context">设备上下文</param>
     /// <param name="request">心跳请求</param>
