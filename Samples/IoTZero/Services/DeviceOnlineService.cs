@@ -73,15 +73,12 @@ public class DeviceOnlineService : IHostedService
                     var msg = $"[{device}/{olt?.SessionId}]登录于{olt.CreateTime.ToFullString()}，最后活跃于{olt.UpdateTime.ToFullString()}";
                     _deviceService.WriteHistory(device, "超时下线", true, msg, null, olt.CreateIP);
 
-                    if (_deviceService is MyDeviceService ds)
-                        ds.RemoveOnline(new DeviceContext { Device = device, UserHost = olt.CreateIP });
+                    // RemoveOnline 内部已包含：结算在线时长（LoginTime 守卫防重复）→ 删除数据库 → 清除缓存
+                    if (_deviceService is IDeviceService2 ds2)
+                        ds2.RemoveOnline(new DeviceContext { Device = device, Online = olt, UserHost = olt.CreateIP });
 
                     if (device != null)
                     {
-                        // 计算在线时长
-                        if (olt.CreateTime.Year > 2000 && olt.UpdateTime.Year > 2000)
-                            device.OnlineTime += (Int32)(olt.UpdateTime - olt.CreateTime).TotalSeconds;
-
                         device.Logout();
 
                         CheckOffline(device, "超时下线");

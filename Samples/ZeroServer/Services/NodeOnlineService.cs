@@ -73,20 +73,12 @@ public class NodeOnlineService : IHostedService
             var msg = $"[{node}/{olt?.SessionId}]登录于{olt.CreateTime.ToFullString()}，最后活跃于{olt.UpdateTime.ToFullString()}";
             _nodeService.WriteHistory(node, "超时下线", true, msg, null, olt.CreateIP);
 
-            if (_nodeService is NodeService ds)
-                ds.RemoveOnline(new DeviceContext { Device = node, UserHost = olt.CreateIP });
+            // RemoveOnline 内部已包含：结算在线时长（LoginTime 守卫防重复）→ 删除数据库 → 清除缓存
+            if (_nodeService is IDeviceService2 ds2)
+                ds2.RemoveOnline(new DeviceContext { Device = node, Online = olt, UserHost = olt.CreateIP });
 
             if (node != null)
-            {
-                // 计算在线时长
-                if (olt.CreateTime.Year > 2000 && olt.UpdateTime.Year > 2000)
-                {
-                    node.OnlineTime += (Int32)(olt.UpdateTime - olt.CreateTime).TotalSeconds;
-                    node.Update();
-                }
-
                 CheckOffline(node, "超时下线");
-            }
         }
     }
 

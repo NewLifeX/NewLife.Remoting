@@ -137,14 +137,10 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
         // 等待服务端写库
         await Task.Delay(500).ConfigureAwait(false);
 
-        // DeviceOnline 应已清除（直接查 DB，绕过实体缓存）
+        // DeviceOnline 应已结算但未被删除（LoginTime=MinValue）
         var onlines = DeviceOnline.FindAll(DeviceOnline._.DeviceId == deviceId, null, null, 0, 0);
-        if (onlines.Count > 0)
-        {
-            foreach (var o in onlines)
-                XTrace.WriteLine("残留 DeviceOnline: Id={0}, DeviceId={1}, SessionId={2}, UpdateTime={3}", o.Id, o.DeviceId, o.SessionId, o.UpdateTime);
-        }
-        Assert.True(onlines.Count == 0, $"DeviceOnline 应已清除，但有 {onlines.Count} 条记录，SessionIds=[{String.Join(",", onlines.Select(o => o.SessionId))}]");
+        Assert.NotEmpty(onlines);
+        Assert.All(onlines, o => Assert.True(o.LoginTime.Year <= 2000, $"LoginTime应为MinValue，实际={o.LoginTime}"));
 
         // DeviceHistory 应有下线记录（WriteHistory 使用 EntityQueue 异步写库，需轮询等待）
         var logouts = await WaitForDeviceHistory(deviceId, "Http设备下线").ConfigureAwait(false);
@@ -232,20 +228,20 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
         var deviceId = _factory.TestDeviceId;
 
         // HttpDevice 登录后会自动建立 WebSocket 通知连接（Features 包含 Notify）
-        // 轮询最长 5 秒等待 DeviceOnline.WebSocket = true
+        // 轮询最长 5 秒等待 DeviceOnline.LongLink = true
         var deadline = DateTime.Now.AddSeconds(5);
         DeviceOnline? online = null;
         while (DateTime.Now < deadline)
         {
             online = DeviceOnline.Find(DeviceOnline._.DeviceId == deviceId);
-            if (online?.WebSocket == true) break;
+            if (online?.LongLink == true) break;
             await Task.Delay(200).ConfigureAwait(false);
         }
 
         Assert.NotNull(online);
-        Assert.True(online.WebSocket, "DeviceOnline.WebSocket 应在 5 秒内变为 true");
+        Assert.True(online.LongLink, "DeviceOnline.LongLink 应在 5 秒内变为 true");
 
-        XTrace.WriteLine("WebSocket 已建立，SessionId={0}", online.SessionId);
+        XTrace.WriteLine("LongLink 已建立，SessionId={0}", online.SessionId);
     }
     #endregion
 

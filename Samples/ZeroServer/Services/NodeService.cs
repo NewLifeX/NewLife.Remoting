@@ -63,27 +63,6 @@ public class NodeService : DefaultDeviceService<Node, NodeOnline>
 
         base.OnLogin(context, request);
     }
-
-    /// <summary>注销</summary>
-    /// <param name="context">上下文</param>
-    /// <param name="reason">注销原因</param>
-    /// <param name="source">登录来源</param>
-    /// <returns></returns>
-    public override IOnlineModel Logout(DeviceContext context, String? reason, String source)
-    {
-        var online = base.Logout(context, reason, source);
-        if (online is NodeOnline online2 && context.Device is Node node)
-        {
-            // 计算在线时长
-            if (online2.CreateTime.Year > 2000)
-            {
-                node.OnlineTime += (Int32)(DateTime.Now - online2.CreateTime).TotalSeconds;
-                node.Update();
-            }
-        }
-
-        return online;
-    }
     #endregion
 
     #region 心跳保活
@@ -107,16 +86,19 @@ public class NodeService : DefaultDeviceService<Node, NodeOnline>
         return base.OnPing(context, request);
     }
 
-    /// <summary>设置设备的长连接上线/下线</summary>
-    /// <param name="context">上下文</param>
-    /// <param name="online"></param>
-    /// <returns></returns>
-    public override void SetOnline(DeviceContext context, Boolean online)
+    /// <summary>结算在线时长。累加本次会话在线时长到节点</summary>
+    /// <param name="online">在线实体</param>
+    /// <param name="device">设备信息</param>
+    protected override void OnSettleOnline(IOnlineModel online, IDeviceModel device)
     {
-        if (context.Online is NodeOnline olt)
+        if (online is NodeOnline olt && device is Node node)
         {
-            olt.WebSocket = online;
-            olt.Update();
+            var sec = (Int32)(olt.UpdateTime - olt.LoginTime).TotalSeconds;
+            if (sec > 0)
+            {
+                node.OnlineTime += sec;
+                node.Update();
+            }
         }
     }
     #endregion
@@ -127,10 +109,10 @@ public class NodeService : DefaultDeviceService<Node, NodeOnline>
     /// <returns></returns>
     public override IDeviceModel QueryDevice(String code) => Node.FindByCode(code);
 
-    /// <summary>查找在线</summary>
+    /// <summary>查找在线。直接查库，绕过所有缓存</summary>
     /// <param name="sessionId"></param>
     /// <returns></returns>
-    public override IOnlineModel QueryOnline(String sessionId) => NodeOnline.FindBySessionIdWithCache(sessionId);
+    public override IOnlineModel QueryOnline(String sessionId) => NodeOnline.FindBySessionIdWithCache(sessionId, false);
 
     /// <summary>写设备历史</summary>
     /// <param name="context">上下文</param>

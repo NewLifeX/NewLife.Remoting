@@ -88,13 +88,13 @@ public partial class DeviceOnline
     [BindColumn("Pings", "心跳", "")]
     public Int32 Pings { get => _Pings; set { if (OnPropertyChanging("Pings", value)) { _Pings = value; OnPropertyChanged("Pings"); } } }
 
-    private Boolean _WebSocket;
-    /// <summary>长连接。WebSocket长连接</summary>
+    private Boolean _LongLink;
+    /// <summary>长连接。是否保持长连接</summary>
     [DisplayName("长连接")]
-    [Description("长连接。WebSocket长连接")]
+    [Description("长连接。是否保持长连接")]
     [DataObjectField(false, false, false, 0)]
-    [BindColumn("WebSocket", "长连接。WebSocket长连接", "")]
-    public Boolean WebSocket { get => _WebSocket; set { if (OnPropertyChanging("WebSocket", value)) { _WebSocket = value; OnPropertyChanged("WebSocket"); } } }
+    [BindColumn("LongLink", "长连接。是否保持长连接", "")]
+    public Boolean LongLink { get => _LongLink; set { if (OnPropertyChanging("LongLink", value)) { _LongLink = value; OnPropertyChanged("LongLink"); } } }
 
     private DateTime _LoginTime;
     /// <summary>登录时间。本次会话的登录时间，结算后置为MinValue</summary>
@@ -193,7 +193,7 @@ public partial class DeviceOnline
             "IP" => _IP,
             "GroupPath" => _GroupPath,
             "Pings" => _Pings,
-            "WebSocket" => _WebSocket,
+            "LongLink" => _LongLink,
             "LoginTime" => _LoginTime,
             "Delay" => _Delay,
             "Offset" => _Offset,
@@ -218,7 +218,7 @@ public partial class DeviceOnline
                 case "IP": _IP = Convert.ToString(value); break;
                 case "GroupPath": _GroupPath = Convert.ToString(value); break;
                 case "Pings": _Pings = value.ToInt(); break;
-                case "WebSocket": _WebSocket = value.ToBoolean(); break;
+                case "LongLink": _LongLink = value.ToBoolean(); break;
                 case "LoginTime": _LoginTime = value.ToDateTime(); break;
                 case "Delay": _Delay = value.ToInt(); break;
                 case "Offset": _Offset = value.ToInt(); break;
@@ -257,19 +257,19 @@ public partial class DeviceOnline
     /// <summary>高级查询</summary>
     /// <param name="sessionId">会话</param>
     /// <param name="productId">产品</param>
-    /// <param name="webSocket">长连接。WebSocket长连接</param>
+    /// <param name="longLink">长连接。是否保持长连接</param>
     /// <param name="start">更新时间开始</param>
     /// <param name="end">更新时间结束</param>
     /// <param name="key">关键字</param>
     /// <param name="page">分页参数信息。可携带统计和数据权限扩展查询等信息</param>
     /// <returns>实体列表</returns>
-    public static IList<DeviceOnline> Search(String sessionId, Int32 productId, Boolean? webSocket, DateTime start, DateTime end, String key, PageParameter page)
+    public static IList<DeviceOnline> Search(String sessionId, Int32 productId, Boolean? longLink, DateTime start, DateTime end, String key, PageParameter page)
     {
         var exp = new WhereExpression();
 
         if (!sessionId.IsNullOrEmpty()) exp &= _.SessionId == sessionId;
         if (productId >= 0) exp &= _.ProductId == productId;
-        if (webSocket != null) exp &= _.WebSocket == webSocket;
+        if (longLink != null) exp &= _.LongLink == longLink;
         exp &= _.UpdateTime.Between(start, end);
         if (!key.IsNullOrEmpty()) exp &= SearchWhereByKeys(key);
 
@@ -305,8 +305,8 @@ public partial class DeviceOnline
         /// <summary>心跳</summary>
         public static readonly Field Pings = FindByName("Pings");
 
-        /// <summary>长连接。WebSocket长连接</summary>
-        public static readonly Field WebSocket = FindByName("WebSocket");
+        /// <summary>长连接。是否保持长连接</summary>
+        public static readonly Field LongLink = FindByName("LongLink");
 
         /// <summary>登录时间。本次会话的登录时间，结算后置为MinValue</summary>
         public static readonly Field LoginTime = FindByName("LoginTime");
@@ -368,8 +368,8 @@ public partial class DeviceOnline
         /// <summary>心跳</summary>
         public const String Pings = "Pings";
 
-        /// <summary>长连接。WebSocket长连接</summary>
-        public const String WebSocket = "WebSocket";
+        /// <summary>长连接。是否保持长连接</summary>
+        public const String LongLink = "LongLink";
 
         /// <summary>登录时间。本次会话的登录时间，结算后置为MinValue</summary>
         public const String LoginTime = "LoginTime";

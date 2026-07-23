@@ -130,7 +130,7 @@
         <Column Name="IP" DataType="String" Length="200" Description="本地IP" />
         <Column Name="GroupPath" DataType="String" Description="分组" />
         <Column Name="Pings" DataType="Int32" Description="心跳" />
-        <Column Name="WebSocket" DataType="Boolean" Description="长连接。WebSocket长连接" />
+        <Column Name="LongLink" DataType="Boolean" Description="长连接。是否保持长连接" />
         <Column Name="LoginTime" DataType="DateTime" Description="登录时间。本次会话的登录时间，结算后置为MinValue" />
         <Column Name="Delay" DataType="Int32" Description="延迟。网络延迟，单位ms" />
         <Column Name="Offset" DataType="Int32" Description="偏移。客户端时间减服务端时间，单位s" />

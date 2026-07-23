@@ -32,7 +32,12 @@ public class BaseDeviceControllerTests
     /// <summary>测试用控制器子类</summary>
     private class TestDeviceController : BaseDeviceController
     {
-        public TestDeviceController(IServiceProvider serviceProvider) : base(serviceProvider) { }
+        public TestDeviceController(IServiceProvider serviceProvider)
+            : base(
+                serviceProvider.GetService<IDeviceService>(),
+                serviceProvider.GetRequiredService<ITokenService>(),
+                serviceProvider.GetRequiredService<ISessionManager>(),
+                serviceProvider) { }
 
         public TestDeviceController(IDeviceService? deviceService, ITokenService? tokenService, ISessionManager? sessionManager, IServiceProvider serviceProvider)
             : base(deviceService, tokenService, sessionManager, serviceProvider) { }

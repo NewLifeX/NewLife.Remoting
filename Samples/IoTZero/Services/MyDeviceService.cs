@@ -66,14 +66,9 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
     public override IOnlineModel Logout(DeviceContext context, String? reason, String source)
     {
         var online = base.Logout(context, reason, source);
-        if (online is DeviceOnline online2 && context.Device is Device device)
-        {
-            // 计算在线时长
-            if (online2.CreateTime.Year > 2000)
-                device.OnlineTime += (Int32)(DateTime.Now - online2.CreateTime).TotalSeconds;
 
+        if (context.Device is Device device)
             device.Logout();
-        }
 
         return online;
     }
@@ -110,17 +105,25 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
         return base.OnPing(context, request);
     }
 
-    /// <summary>设置设备的长连接上线/下线</summary>
-    /// <param name="context">上下文</param>
-    /// <param name="online"></param>
-    /// <returns></returns>
-    public override void SetOnline(DeviceContext context, Boolean online)
+    /// <summary>结算在线时长。累加本次会话在线时长到设备</summary>
+    /// <param name="online">在线实体</param>
+    /// <param name="device">设备信息</param>
+    protected override void OnSettleOnline(IOnlineModel online, IDeviceModel device)
     {
-        if (context.Online is DeviceOnline olt)
+        if (online is DeviceOnline olt && device is Device dev)
         {
-            olt.WebSocket = online;
-            olt.Update();
+            var sec = (Int32)(olt.UpdateTime - olt.LoginTime).TotalSeconds;
+            if (sec > 0)
+            {
+                dev.OnlineTime += sec;
+                dev.Update();
+            }
         }
     }
+
+    /// <summary>查找在线。直接查库，绕过 XCode SingleCache</summary>
+    /// <param name="sessionId"></param>
+    /// <returns></returns>
+    public override IOnlineModel QueryOnline(String sessionId) => DeviceOnline.FindBySessionId(sessionId, false);
     #endregion
 }

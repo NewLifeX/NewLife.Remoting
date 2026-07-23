@@ -98,13 +98,13 @@ public partial class NodeOnline
     [BindColumn("PingCount", "心跳", "")]
     public Int32 PingCount { get => _PingCount; set { if (OnPropertyChanging("PingCount", value)) { _PingCount = value; OnPropertyChanged("PingCount"); } } }
 
-    private Boolean _WebSocket;
-    /// <summary>长连接。WebSocket长连接</summary>
+    private Boolean _LongLink;
+    /// <summary>长连接。是否保持长连接</summary>
     [DisplayName("长连接")]
-    [Description("长连接。WebSocket长连接")]
+    [Description("长连接。是否保持长连接")]
     [DataObjectField(false, false, false, 0)]
-    [BindColumn("WebSocket", "长连接。WebSocket长连接", "")]
-    public Boolean WebSocket { get => _WebSocket; set { if (OnPropertyChanging("WebSocket", value)) { _WebSocket = value; OnPropertyChanged("WebSocket"); } } }
+    [BindColumn("LongLink", "长连接。是否保持长连接", "")]
+    public Boolean LongLink { get => _LongLink; set { if (OnPropertyChanging("LongLink", value)) { _LongLink = value; OnPropertyChanged("LongLink"); } } }
 
     private DateTime _LoginTime;
     /// <summary>登录时间。本次会话的登录时间，结算后置为MinValue</summary>
@@ -411,7 +411,7 @@ public partial class NodeOnline
             "ProvinceID" => _ProvinceID,
             "CityID" => _CityID,
             "PingCount" => _PingCount,
-            "WebSocket" => _WebSocket,
+            "LongLink" => _LongLink,
             "LoginTime" => _LoginTime,
             "Version" => _Version,
             "CompileTime" => _CompileTime,
@@ -462,7 +462,7 @@ public partial class NodeOnline
                 case "ProvinceID": _ProvinceID = value.ToInt(); break;
                 case "CityID": _CityID = value.ToInt(); break;
                 case "PingCount": _PingCount = value.ToInt(); break;
-                case "WebSocket": _WebSocket = value.ToBoolean(); break;
+                case "LongLink": _LongLink = value.ToBoolean(); break;
                 case "LoginTime": _LoginTime = value.ToDateTime(); break;
                 case "Version": _Version = Convert.ToString(value); break;
                 case "CompileTime": _CompileTime = value.ToDateTime(); break;
@@ -529,14 +529,14 @@ public partial class NodeOnline
     /// <param name="provinceId">省份</param>
     /// <param name="cityId">城市</param>
     /// <param name="token">令牌</param>
-    /// <param name="webSocket">长连接。WebSocket长连接</param>
+    /// <param name="longLink">长连接。是否保持长连接</param>
     /// <param name="oSKind">系统种类。主流操作系统类型，不考虑子版本</param>
     /// <param name="start">更新时间开始</param>
     /// <param name="end">更新时间结束</param>
     /// <param name="key">关键字</param>
     /// <param name="page">分页参数信息。可携带统计和数据权限扩展查询等信息</param>
     /// <returns>实体列表</returns>
-    public static IList<NodeOnline> Search(String sessionId, Int32 nodeId, Int32 provinceId, Int32 cityId, String token, Boolean? webSocket, Stardust.Models.OSKinds oSKind, DateTime start, DateTime end, String key, PageParameter page)
+    public static IList<NodeOnline> Search(String sessionId, Int32 nodeId, Int32 provinceId, Int32 cityId, String token, Boolean? longLink, Stardust.Models.OSKinds oSKind, DateTime start, DateTime end, String key, PageParameter page)
     {
         var exp = new WhereExpression();
 
@@ -545,7 +545,7 @@ public partial class NodeOnline
         if (provinceId >= 0) exp &= _.ProvinceID == provinceId;
         if (cityId >= 0) exp &= _.CityID == cityId;
         if (!token.IsNullOrEmpty()) exp &= _.Token == token;
-        if (webSocket != null) exp &= _.WebSocket == webSocket;
+        if (longLink != null) exp &= _.LongLink == longLink;
         if (oSKind >= 0) exp &= _.OSKind == oSKind;
         exp &= _.UpdateTime.Between(start, end);
         if (!key.IsNullOrEmpty()) exp &= SearchWhereByKeys(key);
@@ -585,8 +585,8 @@ public partial class NodeOnline
         /// <summary>心跳</summary>
         public static readonly Field PingCount = FindByName("PingCount");
 
-        /// <summary>长连接。WebSocket长连接</summary>
-        public static readonly Field WebSocket = FindByName("WebSocket");
+        /// <summary>长连接。是否保持长连接</summary>
+        public static readonly Field LongLink = FindByName("LongLink");
 
         /// <summary>登录时间。本次会话的登录时间，结算后置为MinValue</summary>
         public static readonly Field LoginTime = FindByName("LoginTime");
@@ -726,8 +726,8 @@ public partial class NodeOnline
         /// <summary>心跳</summary>
         public const String PingCount = "PingCount";
 
-        /// <summary>长连接。WebSocket长连接</summary>
-        public const String WebSocket = "WebSocket";
+        /// <summary>长连接。是否保持长连接</summary>
+        public const String LongLink = "LongLink";
 
         /// <summary>登录时间。本次会话的登录时间，结算后置为MinValue</summary>
         public const String LoginTime = "LoginTime";

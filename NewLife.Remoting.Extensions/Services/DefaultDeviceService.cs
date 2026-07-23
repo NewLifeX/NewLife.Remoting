@@ -218,11 +218,26 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     protected virtual void OnRegister(DeviceContext context, ILoginRequest request) => (context.Device as IEntity)!.Save();
 
     /// <summary>鉴权后的登录处理。修改设备信息、创建在线记录和写日志</summary>
+    /// <remarks>
+    /// 复用已有在线记录时刷新 LoginTime，标记新会话开始；首次登录则创建新记录。
+    /// 无论注销还是超时，在线时长结算统一由 SettleOnline 负责。
+    /// </remarks>
     /// <param name="context">设备上下文</param>
     /// <param name="request">登录请求</param>
     public virtual void OnLogin(DeviceContext context, ILoginRequest request)
     {
-        context.Online = GetOnline(context) ?? CreateOnline(context);
+        var online = GetOnline(context);
+        if (online != null)
+        {
+            // 复用已有在线记录，刷新本次登录时间
+            if (online is IOnlineModel2 entity)
+                entity.LoginTime = DateTime.Now;
+        }
+        else
+        {
+            online = CreateOnline(context);
+        }
+        context.Online = online;
 
         var device = context.Device!;
         var source = context["Source"] as String;
@@ -253,7 +268,14 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
             WriteHistory(context, source + "设备下线", true, msg);
             //entity.Delete();
 
-            RemoveOnline(context);
+            // 结算本次会话在线时长，不清除数据库记录（留给超时清理）
+            SettleOnline(online, context.Device);
+
+            // 标记长连接断开
+            if (online is IOnlineModel2 online2)
+                online2.LongLink = false;
+
+            entity.Update();
         }
 
         return online;
@@ -313,7 +335,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <summary>设备心跳。更新在线记录信息</summary>
     /// <remarks>
     /// 优先复用 context.Online，若无则 CreateOnline，然后 Save 心跳数据。
-    /// 当在线记录被超时清理（ClearExpire）删除后，Save() 返回 0，此时自动重建在线记录。
+    /// Save 内部自行处理记录被过期清理等情况。
     /// </remarks>
     /// <param name="context">设备上下文</param>
     /// <param name="request">心跳请求</param>
@@ -325,6 +347,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
 
         if (online is IOnlineModel2 online2)
         {
+            // 保存心跳数据到在线记录
             online2.Save(request, context);
         }
 
@@ -337,7 +360,14 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     public virtual void SetOnline(DeviceContext context, Boolean online)
     {
         var olt = context.Online;
-        if (olt is IEntity entity)
+        if (olt is IOnlineModel2 online2)
+        {
+            online2.LongLink = online;
+            if (olt is IEntity entity)
+                entity.Update();
+        }
+        // 暂时为了兼容旧代码
+        else if (olt is IEntity entity)
         {
             entity.SetItem("WebSocket", online);
             entity.Update();
@@ -349,7 +379,13 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <returns>会话标识</returns>
     protected virtual String GetSessionId(DeviceContext context) => !context.ClientId.IsNullOrEmpty() ? context.ClientId : $"{context.Code ?? context.Device?.Code}@{context.UserHost}";
 
-    /// <summary>获取在线。先查缓存再查库</summary>
+    /// <summary>获取在线。直接查数据库，不用缓存</summary>
+    /// <remarks>
+    /// 不使用缓存，每次直接查询数据库获取最新状态。
+    /// 解决 LoginTime 多实例不一致导致的重复结算问题——缓存中可能存在同一记录的多个对象副本，
+    /// 一个被 ClearExpire 结算（LoginTime=MinValue），另一个仍保留旧值，导致二次累加。
+    /// 直接查库确保每次拿到的都是数据库中的权威状态，LoginTime 一致性由数据库保证。
+    /// </remarks>
     /// <param name="context">设备上下文</param>
     /// <returns>在线信息</returns>
     public virtual IOnlineModel? GetOnline(DeviceContext context)
@@ -357,19 +393,10 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         var sid = GetSessionId(context);
         if (sid.IsNullOrEmpty()) return null;
 
-        var cacheKey = $"{Name}Online:{sid}";
-        var online = _cache.Get<IOnlineModel>(cacheKey);
-        if (online != null) return online;
-
-        online = QueryOnline(sid);
-
-        // 使用较短缓存时间，减少长时间在线时的内存对象与数据库数据不一致的风险
-        if (online != null) _cache.Set(cacheKey, online, 60);
-
-        return online;
+        return QueryOnline(sid);
     }
 
-    /// <summary>创建在线。先写数据库再写缓存</summary>
+    /// <summary>创建在线。直接写数据库</summary>
     /// <param name="context">设备上下文</param>
     /// <returns>新创建的在线信息</returns>
     /// <exception cref="InvalidDataException">设备未实现IDeviceModel2时抛出</exception>
@@ -387,34 +414,68 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
             online = device.CreateOnline(sid);
             if (online is IEntity entity)
             {
+                var now = DateTime.Now;
+                if (entity is IOnlineModel2 online2) online2.LoginTime = now;
+
                 entity.SetItem("CreateUser", Environment.MachineName);
                 entity.SetItem("CreateIP", context.UserHost);
-                entity.SetItem("CreateTime", DateTime.Now);
+                entity.SetItem("CreateTime", now);
 
                 entity.Save();
             }
         }
 
-        // 初次创建也仅缓存较短时间，避免长时间持有旧对象
-        var cacheKey = $"{Name}Online:{sid}";
-        _cache.Set(cacheKey, online, 60);
-
         return online;
     }
 
-    /// <summary>删除在线。先删数据库再删缓存</summary>
+    /// <summary>删除在线。先结算在线时长再删数据库再删缓存</summary>
+    /// <remarks>
+    /// 由超时清理线程调用，统一完成：结算在线时长 → 删除数据库记录。
+    /// 注销路径不走此方法（仅结算，不删库）。
+    /// 在线记录不再使用缓存，故无需清缓存。
+    /// </remarks>
     /// <param name="context">设备上下文</param>
     /// <returns>删除的记录数</returns>
     public virtual Int32 RemoveOnline(DeviceContext context)
     {
-        var sid = context.Online?.SessionId;
-        if (sid.IsNullOrEmpty()) sid = GetSessionId(context);
+        var online = context.Online;
+        if (online is IEntity entity)
+        {
+            // 结算本会话在线时长（LoginTime 守卫防重复）
+            SettleOnline(online, context.Device);
 
-        if (context.Online is IEntity entity)
-            entity.Delete();
+            return entity.Delete();
+        }
 
-        return _cache.Remove($"{Name}Online:{sid}");
+        return 0;
     }
+
+    /// <summary>结算在线时长。依赖 <see cref="IOnlineModel2.LoginTime"/> 计算差值累加到设备，并重置 LoginTime 防止重复结算。非 IOnlineModel2 实现会静默跳过</summary>
+    /// <param name="online">在线实体。需实现 <see cref="IOnlineModel2"/> 才支持 LoginTime 防重复守卫</param>
+    /// <param name="device">设备信息</param>
+    protected virtual void SettleOnline(IOnlineModel online, IDeviceModel? device)
+    {
+        if (device == null) return;
+        if (online is not IEntity entity) return;
+        if (online is not IOnlineModel2 online2) return;
+
+        var loginTime = online2.LoginTime;
+        if (loginTime.Year <= 2000) return;
+
+        var sessionId = entity["SessionId"] as String;
+        using var span = _tracer?.NewSpan($"{Name}SettleOnline", new { sessionId, loginTime });
+
+        OnSettleOnline(online, device);
+
+        // 重置 LoginTime 为 MinValue 并持久化，标记已结算，永久防重复
+        online2.LoginTime = DateTime.MinValue;
+        //entity.Update();
+    }
+
+    /// <summary>结算在线时长的扩展点。子类重写以将本次会话时长累加到设备实体</summary>
+    /// <param name="online">在线实体</param>
+    /// <param name="device">设备信息</param>
+    protected virtual void OnSettleOnline(IOnlineModel online, IDeviceModel device) { }
 
     /// <summary>获取下行命令。默认返回空，子类可重写实现持久化命令查询</summary>
     /// <param name="context">设备上下文</param>

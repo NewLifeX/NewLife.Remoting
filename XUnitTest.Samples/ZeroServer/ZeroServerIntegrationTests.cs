@@ -125,9 +125,10 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
 
         Assert.False(client.Logined, "Logout 后 Logined 应为 false");
 
-        // 轮询等待 NodeOnline 被删除
-        var emptyOnlines = await WaitForNodeOnlineEmpty(nodeId);
-        Assert.Empty(emptyOnlines);
+        // 轮询等待 NodeOnline 被结算（LoginTime=MinValue，不删库）
+        var onlineRecords = await WaitForNodeOnlineSettled(nodeId);
+        Assert.NotEmpty(onlineRecords);
+        Assert.All(onlineRecords, o => Assert.True(o.LoginTime.Year <= 2000, $"LoginTime应为MinValue，实际={o.LoginTime}"));
 
         // NodeHistory 下线记录由 EntityQueue 异步写入，需轮询等待
         var logouts = await WaitForNodeHistory(nodeId, "Http设备下线");
@@ -212,20 +213,20 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
         var nodeId = _factory.TestNodeId;
 
         // NodeClient 登录后会自动建立 WebSocket 通知连接
-        // 轮询最长 5 秒等待 NodeOnline.WebSocket = true
+        // 轮询最长 5 秒等待 NodeOnline.LongLink = true
         var deadline = DateTime.Now.AddSeconds(5);
         NodeOnline? online = null;
         while (DateTime.Now < deadline)
         {
             online = NodeOnline.Find(NodeOnline._.NodeId == nodeId);
-            if (online?.WebSocket == true) break;
+            if (online?.LongLink == true) break;
             await Task.Delay(200);
         }
 
         Assert.NotNull(online);
-        Assert.True(online.WebSocket, "NodeOnline.WebSocket 应在 5 秒内变为 true");
+        Assert.True(online.LongLink, "NodeOnline.LongLink 应在 5 秒内变为 true");
 
-        XTrace.WriteLine("WebSocket 已建立，SessionId={0}", online.SessionId);
+        XTrace.WriteLine("LongLink 已建立，SessionId={0}", online.SessionId);
     }
     #endregion
 
@@ -334,16 +335,17 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
     /// <summary>轮询等待 NodeOnline 对应 nodeId 的记录全部消失</summary>
     /// <param name="nodeId">节点 ID</param>
     /// <returns>查到的剩余记录（超时后返回当时状态）</returns>
-    private static async Task<IList<NodeOnline>> WaitForNodeOnlineEmpty(Int32 nodeId)
+    private static async Task<IList<NodeOnline>> WaitForNodeOnlineSettled(Int32 nodeId)
     {
         var deadline = DateTime.Now.AddSeconds(5);
         while (DateTime.Now < deadline)
         {
-            var list = NodeOnline.FindAll(NodeOnline._.NodeId == nodeId);
-            if (list.Count == 0) return list;
+            // 绕过实体缓存直接查库，获取最新的 LoginTime 状态
+            var list = NodeOnline.FindAll(NodeOnline._.NodeId == nodeId, null, null, 0, 0);
+            if (list.Count > 0 && list.All(o => o.LoginTime.Year <= 2000)) return list;
             await Task.Delay(200);
         }
-        return NodeOnline.FindAll(NodeOnline._.NodeId == nodeId);
+        return NodeOnline.FindAll(NodeOnline._.NodeId == nodeId, null, null, 0, 0);
     }
     #endregion
 }
