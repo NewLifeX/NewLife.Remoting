@@ -113,7 +113,7 @@ public class NodeService : DefaultDeviceService<Node, NodeOnline>
     /// <returns></returns>
     public override void SetOnline(DeviceContext context, Boolean online)
     {
-        if ((context.Online ?? GetOnline(context)) is NodeOnline olt)
+        if (context.Online is NodeOnline olt)
         {
             olt.WebSocket = online;
             olt.Update();

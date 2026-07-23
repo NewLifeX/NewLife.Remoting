@@ -229,7 +229,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     {
         using var span = _tracer?.NewSpan($"{Name}Logout", new { context.Code, reason, source });
 
-        var online = context.Online ?? GetOnline(context);
+        var online = context.Online;
         if (online is IEntity entity)
         {
             context.Online = online;
@@ -304,7 +304,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <returns>在线信息</returns>
     public virtual IOnlineModel OnPing(DeviceContext context, IPingRequest? request)
     {
-        var online = context.Online ?? GetOnline(context) ?? CreateOnline(context);
+        var online = context.Online ?? CreateOnline(context);
         context.Online = online;
 
         if (online is IOnlineModel2 online2)
@@ -320,7 +320,7 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <param name="online">上线/下线状态</param>
     public virtual void SetOnline(DeviceContext context, Boolean online)
     {
-        var olt = GetOnline(context);
+        var olt = context.Online;
         if (olt is IEntity entity)
         {
             entity.SetItem("WebSocket", online);

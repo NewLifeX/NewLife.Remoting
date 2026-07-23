@@ -116,7 +116,7 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
     /// <returns></returns>
     public override void SetOnline(DeviceContext context, Boolean online)
     {
-        if ((context.Online ?? GetOnline(context)) is DeviceOnline olt)
+        if (context.Online is DeviceOnline olt)
         {
             olt.WebSocket = online;
             olt.Update();
