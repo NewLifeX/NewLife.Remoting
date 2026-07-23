@@ -168,22 +168,22 @@ sequenceDiagram
     participant Online as IOnlineModel
 
     D->>DS: Logout(ctx, reason, "Http")
-    DS->>DS: GetOnline(ctx)
+    Note over DS: context.Online（请求管线已预填充）
     DS->>DS: SettleOnline(online, device)
 
     Note over DS: 检查 LoginTime > 2000年
     alt 未结算
-        DS->>DS: OnAccumulateOnlineTime(online, device)
-        DS->>Online: SetItem("LoginTime", MinValue)
-        DS->>Online: entity.Update()
+        DS->>DS: OnSettleOnline(online, device)
+        DS->>Online: LoginTime = DateTime.MinValue
     else 已结算
         Note over DS: 跳过（防重复）
     end
 
+    DS->>Online: entity.Update()
     DS->>DS: WriteHistory("Http设备下线", reason)
 ```
 
-**要点**：注销不清除数据库记录（供后续登录复用），只结算时长 + 标记 `LoginTime=MinValue`。最终删除由超时清理线程 `RemoveNotAlive` 负责。`LoginTime` 守卫防重复结算。
+**要点**：注销不清除数据库记录（供后续登录复用），只结算时长 + 标记 `LoginTime=MinValue`。最终由超时清理机制通过 `Entity.ClearExpire()` 查找过期记录，调用 `IDeviceService2.RemoveOnline()` 删除。`LoginTime` 守卫防重复结算。
 
 ### 4.4 心跳 + 在线重建 + 令牌续期
 
@@ -199,12 +199,8 @@ sequenceDiagram
 
     BC->>Svc: Ping(ctx, request, null)
     Svc->>Svc: OnPing(ctx, request)
-    Svc->>Svc: GetOnline(ctx) ?? CreateOnline(ctx)
+    Svc->>Svc: context.Online ?? CreateOnline(ctx)
     Note over Svc: IOnlineModel2.Save 更新监控数据
-
-    alt Save 返回 0（记录已被清理）
-        Svc->>Svc: CreateOnline(ctx) → Save
-    end
 
     Svc->>BC: PingResponse { Period, NewServer, Commands }
 
@@ -219,7 +215,7 @@ sequenceDiagram
 
 **串联要点**：
 - 心跳不只是保活——它同时是**命令搭载通道**（`Commands` 搭载积压命令）和**服务器迁移信号**（`NewServer` 地址）
-- 在线记录可能被超时清理线程删除，心跳到达时检测 `Save()==0` 自动重建，保证心跳不断
+- 在线记录可能被超时清理线程删除，心跳到达时 `context.Online` 为空则自动走 `CreateOnline` 重建，保证心跳不断
 - 令牌 10 分钟内过期时自动颁发新令牌随心跳下发，客户端无感续期
 
 ### 4.5 升级检查
@@ -342,7 +338,7 @@ stateDiagram-v2
     LongLived --> Active: WS/SSE 断开
     Active --> Settled: Logout / 超时清理
     Settled --> [*]: Delete 删除记录
-    Settled --> Active: Save()==0 → 重建
+    Settled --> Active: context.Online 为空 → 重建
 
     state Settled {
         [*] --> 累加时长
@@ -351,8 +347,8 @@ stateDiagram-v2
     }
 
     note right of Active
-        Save() 返回 0 = 记录已被清理
-        心跳自动走 Created 路径重建
+        context.Online == null → 自动走
+        CreateOnline 重建
     end note
 ```
 
@@ -361,8 +357,8 @@ stateDiagram-v2
 - **心跳更新**：心跳时 `IOnlineModel2.Save` 刷新监控数据
 - **长连接保持**：WS/SSE 建立 `SetOnline(true)`，断开 `SetOnline(false)`
 - **结算**：注销/超时时 `SettleOnline` 累加时长 → `LoginTime=MinValue`（防重复结算守卫）
-- **销毁**：超时清理线程 `RemoveNotAlive` 删除过期记录
-- **重建**：记录被删后心跳到达 `Save()==0` → 自动 `CreateOnline` 重建
+- **销毁**：超时清理通过 `Entity.ClearExpire()` 查找过期记录，调用 `IDeviceService2.RemoveOnline()` 删除
+- **重建**：记录被删后心跳到达时 `context.Online` 为空 → 自动走 `CreateOnline` 重建
 
 **为何不用缓存**：`GetOnline` 直接查库，避免缓存中同一记录的多副本导致 `LoginTime` 不一致而重复结算。
 
