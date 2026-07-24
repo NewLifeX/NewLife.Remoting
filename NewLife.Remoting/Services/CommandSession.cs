@@ -35,14 +35,17 @@ public class CommandSession : DisposeBase, ICommandSession
     /// <summary>是否活动中。用于判断会话是否有效，派生类应重写此属性以反映实际连接状态</summary>
     public virtual Boolean Active { get; } = true;
 
-    /// <summary>日志提供者。用于记录会话相关日志</summary>
-    public ILogProvider? Log { get; set; }
-
     /// <summary>在线状态回调。会话上线或下线时触发，参数为 true 表示上线，false 表示下线</summary>
     public Action<Boolean>? SetOnline { get; set; }
 
+    /// <summary>服务提供者。用于获取 JSON 序列化器等服务</summary>
+    public IServiceProvider? ServiceProvider { get; set; }
+
     /// <summary>链路追踪器。用于记录分布式调用链</summary>
     public ITracer? Tracer { get; set; }
+
+    /// <summary>日志提供者。用于记录会话相关日志</summary>
+    public ILogProvider? Log { get; set; }
     #endregion
 
     /// <summary>处理服务端下发的命令。派生类应重写此方法实现具体的命令发送逻辑</summary>
@@ -51,4 +54,14 @@ public class CommandSession : DisposeBase, ICommandSession
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
     public virtual Task HandleAsync(CommandModel command, String? message, CancellationToken cancellationToken) => TaskEx.CompletedTask;
+
+    /// <summary>等待会话结束。派生类应重写此方法实现具体的等待逻辑</summary>
+    /// <remarks>
+    /// 基类默认空实现，不等待。WsCommandSession 和 SseCommandSession 分别覆盖实现 WebSocket 和 SSE 的等待逻辑。
+    /// HttpContext 和 Span 可从 <paramref name="context" /> 的 Items 中获取。
+    /// </remarks>
+    /// <param name="context">设备上下文。Items 中包含 HttpContext、Span 等自定义数据</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns></returns>
+    public virtual Task WaitAsync(DeviceContext context, CancellationToken cancellationToken) => TaskEx.CompletedTask;
 }

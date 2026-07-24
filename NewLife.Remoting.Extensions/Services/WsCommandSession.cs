@@ -55,9 +55,6 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
     /// <summary>数据包分发器。用于 EventHub 场景，将收到的数据包分发给订阅者</summary>
     public IEventHandler<IPacket>? Dispatcher { get; set; }
 
-    /// <summary>服务提供者。用于获取 JSON 序列化器等服务</summary>
-    public IServiceProvider? ServiceProvider { get; set; }
-
     /// <summary>WebSocket接收缓冲区大小。默认64k</summary>
     public Int32 BufferSize { get; set; } = 64 * 1024;
 
@@ -183,15 +180,18 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
     /// <remarks>
     /// 此方法会阻塞当前任务，直到 WebSocket 连接关闭或取消。
     /// 连接期间会处理客户端发送的消息，包括心跳和业务数据。
+    /// 覆盖基类 <see cref="CommandSession.WaitAsync(DeviceContext, CancellationToken)"/>。
+    /// 从 <paramref name="context"/> 的 Items["HttpContext"] 获取 <c>HttpContext</c>。
     /// </remarks>
-    /// <param name="context">HTTP 上下文</param>
-    /// <param name="span">链路追踪埋点，进入等待前会结束该埋点</param>
+    /// <param name="context">设备上下文。Items["HttpContext"] 需要包含当前 HttpContext，Items["Span"] 包含链路追踪埋点</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
-    public virtual async Task WaitAsync(HttpContext context, ISpan? span, CancellationToken cancellationToken)
+    public override async Task WaitAsync(DeviceContext context, CancellationToken cancellationToken)
     {
+        var ctx = context["HttpContext"] as HttpContext ?? throw new InvalidOperationException("缺少HttpContext");
+
         // 获取远程地址信息
-        var connection = context.Connection;
+        var connection = ctx.Connection;
         var address = connection.RemoteIpAddress ?? IPAddress.Loopback;
         if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
         var remote = new IPEndPoint(address, connection.RemotePort);
@@ -203,7 +203,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
         SetOnline?.Invoke(true);
 
         // 即将进入阻塞等待，结束埋点
-        span?.TryDispose();
+        (context["Span"] as ISpan)?.TryDispose();
 
         // 链接取消令牌。当客户端断开时，触发取消，结束长连接
         using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -307,6 +307,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
         if (data.Total == 4)
         {
             var msg = data.ToStr();
+            DefaultSpan.Current?.AppendTag(msg);
             if (msg == "Pong") return;
             if (msg == "Ping")
             {

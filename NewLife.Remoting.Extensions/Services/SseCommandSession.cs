@@ -31,9 +31,6 @@ public class SseCommandSession : CommandSession
     private readonly HttpResponse _response;
     private readonly Stream _body;
 
-    /// <summary>服务提供者。用于获取 JSON 序列化器</summary>
-    public IServiceProvider? ServiceProvider { get; set; }
-
     /// <summary>取消令牌源</summary>
     private CancellationTokenSource? _source;
 
@@ -109,10 +106,10 @@ public class SseCommandSession : CommandSession
 
     #region SSE 等待
     /// <summary>初始化 SSE 响应头并保持连接</summary>
-    /// <param name="span">链路追踪埋点</param>
+    /// <param name="context">设备上下文。Items["Span"] 可能包含链路追踪埋点</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
-    public virtual async Task WaitAsync(ISpan? span, CancellationToken cancellationToken)
+    public override async Task WaitAsync(DeviceContext context, CancellationToken cancellationToken)
     {
         // 设置 SSE 响应头
         _response.StatusCode = 200;
@@ -125,7 +122,7 @@ public class SseCommandSession : CommandSession
         SetOnline?.Invoke(true);
 
         // 结束创建埋点
-        span?.TryDispose();
+        (context["Span"] as ISpan)?.TryDispose();
 
         // 创建取消令牌
         using var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _response.HttpContext.RequestAborted);

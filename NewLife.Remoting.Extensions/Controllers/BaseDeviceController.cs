@@ -1,10 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NewLife.Log;
+using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
-using WebSocket = System.Net.WebSockets.WebSocket;
 
 namespace NewLife.Remoting.Extensions;
 
@@ -156,7 +156,8 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
         {
             using var socket = await HttpContext.WebSockets.AcceptWebSocketAsync().ConfigureAwait(false);
 
-            await HandleNotify(socket, HttpContext.RequestAborted).ConfigureAwait(false);
+            using var session = new WsCommandSession(socket);
+            await HandleNotify(Context, "cmd:Ws:Create", session, HttpContext.RequestAborted).ConfigureAwait(false);
 
             return new EmptyResult();
         }
@@ -174,70 +175,41 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     [HttpGet(nameof(NotifySSE))]
     public virtual async Task NotifySSE()
     {
-        var device = Context.Device ?? throw new ApiException(ApiCode.Unauthorized, "未登录");
+        using var session = new SseCommandSession(Response, "", serviceProvider);
+        await HandleNotify(Context, "cmd:SSE:Create", session, HttpContext.RequestAborted);
+    }
 
-        using var span = _tracer?.NewSpan("cmd:SSE:Create", device.Code);
+    /// <summary>处理通知会话。统一设备验证、Span创建、会话配置、积压命令下发和等待</summary>
+    /// <param name="context">设备上下文</param>
+    /// <param name="spanName">Span名称</param>
+    /// <param name="session">命令会话</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns></returns>
+    protected virtual async Task HandleNotify(DeviceContext context, String spanName, CommandSession session, CancellationToken cancellationToken)
+    {
+        var device = context.Device ?? throw new ApiException(ApiCode.Unauthorized, "未登录");
+
+        using var span = _tracer?.NewSpan(spanName, device.Code);
         span?.Detach(HttpContext.Request.Headers);
+
+        // 把 HttpContext 藏到 DeviceContext.Items 中，供 HandleNotify 和 CommandSession.WaitAsync 使用
+        context["HttpContext"] = HttpContext;
+        context["Span"] = span;
         try
         {
-            using var session = new Services.SseCommandSession(Response, device.Code, serviceProvider)
-            {
-                Log = this,
-                SetOnline = online => _deviceService.SetOnline(Context, online),
-                ServiceProvider = serviceProvider,
-                Tracer = _tracer,
-            };
+            // 统一配置会话公共属性
+            session.Code = device.Code;
+            session.SetOnline = online => _deviceService.SetOnline(context, online);
+            session.ServiceProvider = serviceProvider;
+            session.Tracer = _tracer;
+            session.Log = this;
 
             _sessionManager.Add(session);
 
             // 下发积压命令
             if (_deviceService is IDeviceService2 ds2)
             {
-                var commands = ds2.AcquireCommands(Context);
-                if (commands != null)
-                {
-                    foreach (var cmd in commands)
-                        await session.HandleAsync(cmd, null, HttpContext.RequestAborted).ConfigureAwait(false);
-                }
-            }
-
-            await session.WaitAsync(span, HttpContext.RequestAborted).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            span?.SetError(ex, null);
-            throw;
-        }
-    }
-
-    /// <summary>长连接处理</summary>
-    /// <param name="socket">WebSocket连接</param>
-    /// <param name="cancellationToken">取消令牌</param>
-    /// <returns></returns>
-    /// <exception cref="InvalidOperationException">未登录或服务未注入时抛出</exception>
-    protected virtual async Task HandleNotify(WebSocket socket, CancellationToken cancellationToken)
-    {
-        var device = Context.Device ?? throw new InvalidOperationException("未登录！");
-
-        using var span = _tracer?.NewSpan("cmd:Ws:Create", device.Code);
-        span?.Detach(HttpContext.Request.Headers);
-        try
-        {
-            using var session = new Services.WsCommandSession(socket)
-            {
-                Code = device.Code,
-                Log = this,
-                SetOnline = online => _deviceService.SetOnline(Context, online),
-                ServiceProvider = serviceProvider,
-                Tracer = _tracer,
-            };
-
-            _sessionManager.Add(session);
-
-            // WebSocket连接建立后，立即获取积压命令并推送
-            if (_deviceService is IDeviceService2 ds2)
-            {
-                var commands = ds2.AcquireCommands(Context);
+                var commands = ds2.AcquireCommands(context);
                 if (commands != null)
                 {
                     foreach (var cmd in commands)
@@ -245,7 +217,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
                 }
             }
 
-            await session.WaitAsync(HttpContext, span, cancellationToken).ConfigureAwait(false);
+            await session.WaitAsync(context, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
