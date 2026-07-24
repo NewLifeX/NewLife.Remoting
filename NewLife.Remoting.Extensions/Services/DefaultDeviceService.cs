@@ -462,7 +462,8 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
         var loginTime = online2.LoginTime;
         if (loginTime.Year <= 2000) return;
 
-        var sessionId = entity["SessionId"] as String;
+        // 优先使用 SessionID（大写 D），兼容各实体的不同命名
+        var sessionId = (entity["SessionID"] ?? entity["SessionId"]) as String;
         using var span = _tracer?.NewSpan($"{Name}SettleOnline", new { sessionId, loginTime });
 
         OnSettleOnline(online, device);
