@@ -106,6 +106,10 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
 
         OnLogin(context, request);
 
+        // 登录后统一更新设备和在线信息
+        (device as IEntity)?.Update();
+        (context.Online as IEntity)?.Update();
+
         var rs = new LoginResponse
         {
             Name = device.Name
@@ -221,6 +225,9 @@ public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager ses
     /// <remarks>
     /// 复用已有在线记录时刷新 LoginTime，标记新会话开始；首次登录则创建新记录。
     /// 无论注销还是超时，在线时长结算统一由 SettleOnline 负责。
+    /// 本方法仅设置属性不持久化——LoginTime、设备信息等修改由调用方 <see cref="Login"/> 方法
+    /// 在返回前统一执行 <c>(context.Online as IEntity)?.Update()</c> 写入数据库，
+    /// 子类重写时无需单独保存在线记录。
     /// </remarks>
     /// <param name="context">设备上下文</param>
     /// <param name="request">登录请求</param>
