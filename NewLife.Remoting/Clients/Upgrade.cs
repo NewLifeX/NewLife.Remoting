@@ -393,8 +393,23 @@ public class Upgrade
     /// <returns>是否成功拉起</returns>
     public Boolean Run(String name, String args, Int32 msWait)
     {
+        // 诊断埋点：记录传入的 name 和进程信息，用于排查 exeName 异常
+        var proc = Process.GetCurrentProcess();
+        WriteLog("Run: name={0} args={1} ProcessName={2} MainModule={3}", name, args, proc.ProcessName, proc.MainModule?.FileName);
+
+        // 防御性清理：移除可能混入的后缀名。部分场景下 name 可能包含 .exe/.dll
+        // 甚至被文件重命名带入的 .del 后缀（如 GetProcessName 在更新过程中返回
+        // StarAgent.exe.del），导致后续路径构造为 StarAgent.exe.del.exe 而启动失败。
+        name = name.TrimSuffix(".exe", ".dll", ".del");
+
+        // 优先使用 DestinationPath 解析路径，确保与 Update 方法的目标目录一致。
+        // 避免当前工作目录与更新目录不同时找不到文件。
+        var dest = DestinationPath;
+        String ResolvePath(String localPath) =>
+            !dest.IsNullOrEmpty() ? Path.GetFullPath(Path.Combine(dest, localPath)) : localPath.GetFullPath();
+
         // 通过 runtimeconfig.json 判定是否为 .NET Core 应用（muxer 优先）
-        var runtimeConfig = $"{name}.runtimeconfig.json".GetFullPath();
+        var runtimeConfig = ResolvePath($"{name}.runtimeconfig.json");
         var isNetCore = File.Exists(runtimeConfig);
 
         String fileName;
@@ -402,7 +417,7 @@ public class Upgrade
         if (isNetCore)
         {
             // .NET Core 应用：使用 dotnet <name>.dll <args>，跨平台标准写法
-            fileName = (name + ".dll").GetFullPath();
+            fileName = ResolvePath(name + ".dll");
             if (!File.Exists(fileName)) throw new FileNotFoundException($"未找到 .NET 应用入口：{fileName}");
 
             dotnetPath = ResolveDotNetPath();
@@ -411,16 +426,16 @@ public class Upgrade
         {
             // 非 .NET Core 应用：按平台选择可执行文件
             if (Runtime.Windows || Runtime.Mono)
-                fileName = (name + ".exe").GetFullPath();
+                fileName = ResolvePath(name + ".exe");
             else if (Runtime.Linux)
-                fileName = name.GetFullPath();
+                fileName = ResolvePath(name);
             else
-                fileName = (name + ".dll").GetFullPath();
+                fileName = ResolvePath(name + ".dll");
 
             // 如果入口文件不存在，则尝试 dll 启动（.NET Framework 也可能用 dotnet 启动）
             if (!File.Exists(fileName))
             {
-                var dllFile = (name + ".dll").GetFullPath();
+                var dllFile = ResolvePath(name + ".dll");
                 if (File.Exists(dllFile))
                 {
                     fileName = dllFile;
