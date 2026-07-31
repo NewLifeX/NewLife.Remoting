@@ -129,10 +129,14 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     {
         if (Context.Device == null) throw new ApiException(ApiCode.Unauthorized, "未登录");
 
-        // 基础路径
+        // 提取基础路径（scheme://host），兼容 http/https
         var uri = Request.GetRawUrl().ToString();
-        var p = uri.IndexOf('/', "https://".Length);
-        if (p > 0) uri = uri[..p];
+        var p = uri.IndexOf("://", StringComparison.Ordinal);
+        if (p > 0)
+        {
+            p = uri.IndexOf('/', p + 3);
+            if (p > 0) uri = uri[..p];
+        }
 
         var info = _deviceService.Upgrade(Context, channel);
 

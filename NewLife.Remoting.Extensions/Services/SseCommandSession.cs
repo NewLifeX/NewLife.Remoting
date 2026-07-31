@@ -130,8 +130,9 @@ public class SseCommandSession : CommandSession
 
         try
         {
-            // 发送初始连接事件
-            var connected = $"event: connected\ndata: {{\"code\":\"{Code}\"}}\n\n";
+            // 发送初始连接事件。设备编码做 JSON 转义，避免含引号时破坏 SSE 流
+            var code = Code?.Replace("\\", "\\\\").Replace("\"", "\\\"") ?? "";
+            var connected = $"event: connected\ndata: {{\"code\":\"{code}\"}}\n\n";
             await _body.WriteAsync(Encoding.UTF8.GetBytes(connected), source.Token).ConfigureAwait(false);
             await _body.FlushAsync(source.Token).ConfigureAwait(false);
 
