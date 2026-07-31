@@ -17,6 +17,9 @@ public class TokenService(ITokenSetting tokenSetting, ITracer tracer) : ITokenSe
     protected virtual JwtBuilder GetJwt()
     {
         var ss = tokenSetting.TokenSecret.Split(':');
+        if (ss.Length < 2 || ss[0].IsNullOrEmpty() || ss[1].IsNullOrEmpty())
+            throw new InvalidOperationException("令牌密钥格式错误，应为 算法:密钥，例如 HS256:xxxx");
+
         return new JwtBuilder
         {
             Algorithm = ss[0],

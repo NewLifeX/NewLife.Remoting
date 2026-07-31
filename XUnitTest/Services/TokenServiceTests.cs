@@ -141,4 +141,34 @@ public class TokenServiceTests
 
         Assert.NotNull(ex);
     }
+
+    [Fact]
+    [DisplayName("令牌密钥缺少冒号抛异常")]
+    public void IssueToken_MalformedSecret_Throws()
+    {
+        var setting = new TestTokenSetting
+        {
+            TokenSecret = "HS256secret_no_colon",
+            TokenExpire = 3600,
+            AutoRegister = false
+        };
+        var service = new TokenService(setting, null!);
+
+        Assert.Throws<InvalidOperationException>(() => service.IssueToken("testApp"));
+    }
+
+    [Fact]
+    [DisplayName("令牌密钥算法为空抛异常")]
+    public void IssueToken_EmptyAlgorithm_Throws()
+    {
+        var setting = new TestTokenSetting
+        {
+            TokenSecret = ":secret_only",
+            TokenExpire = 3600,
+            AutoRegister = false
+        };
+        var service = new TokenService(setting, null!);
+
+        Assert.Throws<InvalidOperationException>(() => service.IssueToken("testApp"));
+    }
 }

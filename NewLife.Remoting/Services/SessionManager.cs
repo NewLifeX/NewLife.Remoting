@@ -273,7 +273,13 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
                 Span = span,
             };
 
-            _callbacks.TryAdd(commandId, entry);
+            if (!_callbacks.TryAdd(commandId, entry))
+            {
+                // 已存在相同 CommandId 的等待回调（重复命令），复用已有回调，避免阻塞满超时
+                span?.AppendTag($"duplicate commandId={commandId}, reuse existing callback");
+                if (_callbacks.TryGetValue(commandId, out var old))
+                    return await old.Tcs.Task.ConfigureAwait(false);
+            }
 
             // 使用取消令牌注册清理
             using var ctr = cancellationToken.Register(() =>

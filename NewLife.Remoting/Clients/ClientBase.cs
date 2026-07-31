@@ -416,8 +416,16 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <returns>调用结果</returns>
     public virtual async Task<TResult?> InvokeAsync<TResult>(String action, Object? args = null, CancellationToken cancellationToken = default)
     {
+        // 首次调用前确保动作集合已初始化，避免 Actions 为 null 时 NRE
+        var actions = Actions;
+        if (actions == null || actions.Count == 0)
+        {
+            SetActions("Device/");
+            actions = Actions;
+        }
+
         // 验证登录。如果该接口需要登录，且未登录，则先登录
-        var needLogin = !Actions[Features.Login].EqualIgnoreCase(action);
+        var needLogin = !actions[Features.Login].EqualIgnoreCase(action);
         if (needLogin && !Logined && Features.HasFlag(Features.Login))
         {
             if (Disposed) throw new ObjectDisposedException(GetType().Name);
@@ -484,8 +492,16 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <exception cref="NotSupportedException">当前客户端不是 ApiClient（TCP RPC）时抛出</exception>
     public virtual async IAsyncEnumerable<TResult> InvokeStreamAsync<TResult>(String action, Object? args = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        // 首次调用前确保动作集合已初始化，避免 Actions 为 null 时 NRE
+        var actions = Actions;
+        if (actions == null || actions.Count == 0)
+        {
+            SetActions("Device/");
+            actions = Actions;
+        }
+
         // 验证登录
-        var needLogin = !Actions[Features.Login].EqualIgnoreCase(action);
+        var needLogin = !actions[Features.Login].EqualIgnoreCase(action);
         if (needLogin && !Logined && Features.HasFlag(Features.Login))
         {
             if (Disposed) throw new ObjectDisposedException(GetType().Name);
@@ -1236,7 +1252,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         {
             await ValidWebSocket(http).ConfigureAwait(false);
 
-            await _ws!.SendTextAsync(packet, cancellationToken).ConfigureAwait(false);
+            // 令牌为空或未启用 Notify 时，WebSocket 通道可能未建立
+            if (_ws == null || !_ws.Active) throw new InvalidOperationException("WebSocket通道不可用，无法发送上行消息");
+
+            await _ws.SendTextAsync(packet, cancellationToken).ConfigureAwait(false);
         }
         else if (_client is ApiClient client)
         {
@@ -1316,7 +1335,16 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     {
                         try
                         {
-                            await TaskEx.Delay((Int32)ts.TotalMilliseconds).ConfigureAwait(false);
+                            // 长延迟分段等待，避免 (Int32) 转换溢出（约24.8天）导致命令丢失
+                            var remain = ts;
+                            while (remain > TimeSpan.Zero)
+                            {
+                                var step = remain;
+                                if (step.TotalMilliseconds > Int32.MaxValue - 1)
+                                    step = TimeSpan.FromMilliseconds(Int32.MaxValue - 1);
+                                await TaskEx.Delay(step).ConfigureAwait(false);
+                                remain -= step;
+                            }
                             WriteLog("[{0}] 延迟执行: {1}", source, message);
                             await OnReceiveCommand(model, message, CancellationToken.None).ConfigureAwait(false);
                         }
@@ -1444,10 +1472,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             {
                 span?.SetError(ex, null);
 
-                // 失败后进入本地缓存
+                // 失败后进入本地缓存。限制队列长度，避免服务端长期不可用时内存无限增长
                 foreach (var item in list)
                 {
-                    _failEvents.Enqueue(item);
+                    if (_failEvents.Count < MaxFails) _failEvents.Enqueue(item);
                 }
             }
         }

@@ -265,7 +265,7 @@ class WsChannel(ClientBase client) : DisposeBase
     /// <param name="data">数据包</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
-    public virtual Task SendTextAsync(IPacket data, CancellationToken cancellationToken = default) => _websocket!.SendTextAsync(data, default);
+    public virtual Task SendTextAsync(IPacket data, CancellationToken cancellationToken = default) => _websocket!.SendTextAsync(data, cancellationToken);
 
     /// <summary>停止WebSocket连接</summary>
     private void StopWebSocket()

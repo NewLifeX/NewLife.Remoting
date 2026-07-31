@@ -79,7 +79,7 @@ public class Upgrade
 
         // 即使更新包存在，也要下载
         var file = UpdatePath.CombinePath(fileName).GetBasePath();
-        if (File.Exists(file)) File.Delete(file); ;
+        if (File.Exists(file)) File.Delete(file);
 
         WriteLog("准备下载 {0} 到 {1}", url, file);
 
@@ -680,8 +680,8 @@ public class Upgrade
     /// <param name="cancellationToken">取消令牌</param>
     public static async Task<String> DownloadFileAsync(HttpClient client, String address, String fileName, CancellationToken cancellationToken = default)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, address);
-        var rs = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var request = new HttpRequestMessage(HttpMethod.Get, address);
+        using var rs = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
         rs.EnsureSuccessStatusCode();
 
         // 从Http响应头中获取文件名

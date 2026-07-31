@@ -497,7 +497,18 @@ public class WsClient : ApiHost, IApiClient
         client.Options.SetRequestHeader("Authorization", "Bearer " + Token);
 
         DefaultSpan.Current?.AppendTag($"WebSocket.Connect {uri}");
-        client.ConnectAsync(uri, default);
+        try
+        {
+            // 同步等待连接完成，避免 fire-and-forget 导致连接未建立即发送、异常丢失
+            using var cts = new CancellationTokenSource(Timeout);
+            client.ConnectAsync(uri, cts.Token).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            span2?.SetError(ex, null);
+            client.Dispose();
+            throw;
+        }
 
         return client;
     }

@@ -109,7 +109,10 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
             ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
             span?.AppendTag($"WebSocket.Connect {uri}");
-            await ws.ConnectAsync(uri, default).ConfigureAwait(false);
+
+            // 限制建连超时，避免服务端无响应时无限挂起
+            using var cts = new CancellationTokenSource(_client.Timeout);
+            await ws.ConnectAsync(uri, cts.Token).ConfigureAwait(false);
 
             _websocket = ws;
 
@@ -227,7 +230,7 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
     /// <param name="data">数据包</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
-    public override Task SendTextAsync(IPacket data, CancellationToken cancellationToken = default) => _websocket!.SendAsync(data.ToSegment(), WebSocketMessageType.Text, true, default);
+    public override Task SendTextAsync(IPacket data, CancellationToken cancellationToken = default) => _websocket!.SendAsync(data.ToSegment(), WebSocketMessageType.Text, true, cancellationToken);
 
     /// <summary>停止WebSocket连接</summary>
     private void StopWebSocket()

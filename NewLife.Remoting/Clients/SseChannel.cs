@@ -28,6 +28,7 @@ class SseChannel(ClientBase client) : DisposeBase
     private readonly ClientBase _client = client;
     private CancellationTokenSource? _source;
     private HttpClient? _httpClient;
+    private HttpResponseMessage? _response;
 
     /// <summary>是否已连接</summary>
     public Boolean Active => _source != null && !_source.IsCancellationRequested;
@@ -41,6 +42,10 @@ class SseChannel(ClientBase client) : DisposeBase
         base.Dispose(disposing);
 
         StopSse();
+
+        // 复用型 HttpClient 在通道销毁时释放
+        _httpClient.TryDispose();
+        _httpClient = null;
     }
     #endregion
 
@@ -74,15 +79,18 @@ class SseChannel(ClientBase client) : DisposeBase
         try
         {
             _source = new CancellationTokenSource();
-            _httpClient = new HttpClient();
-            // SSE 为长连接，设置足够长的超时（约 24.8 天）
-            _httpClient.Timeout = TimeSpan.FromMilliseconds(Int32.MaxValue);
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-            _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+            // 复用 HttpClient，避免每次重连新建导致连接句柄抖动
+            _httpClient ??= CreateClient();
 
             var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+
             var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, _source.Token).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
+
+            // 记录响应，连接断开时释放以归还连接池
+            _response = response;
 
             // ReadAsStreamAsync() 不带 CancellationToken 以确保 netstandard2.0 兼容
             var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
@@ -94,6 +102,10 @@ class SseChannel(ClientBase client) : DisposeBase
         {
             span?.SetError(ex, null);
             _client.WriteLog("SSE连接失败: {0}", ex.Message);
+
+            // 失败时释放未纳入管理的响应对象
+            _response.TryDispose();
+            _response = null;
             StopSse();
         }
     }
@@ -104,8 +116,21 @@ class SseChannel(ClientBase client) : DisposeBase
         _source?.Cancel();
         _source.TryDispose();
         _source = null;
-        _httpClient.TryDispose();
-        _httpClient = null;
+        _response.TryDispose();
+        _response = null;
+    }
+
+    /// <summary>创建 HttpClient。SSE 为长连接，不设总超时；通过 ConnectTimeout 控制建连超时</summary>
+    /// <returns></returns>
+    private static HttpClient CreateClient()
+    {
+#if NETCOREAPP
+        var handler = new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(15) };
+        return new HttpClient(handler) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+#else
+        // net45/net461/netstandard2.0/netstandard2.1 无 SocketsHttpHandler，退回无限总超时
+        return new HttpClient { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+#endif
     }
     #endregion
 

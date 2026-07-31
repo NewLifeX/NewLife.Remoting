@@ -162,6 +162,33 @@ public class SessionManagerTests
     }
     #endregion
 
+    #region 响应等待测试
+    [Fact(DisplayName = "重复CommandId复用回调")]
+    public async Task WaitResponse_DuplicateId_ReuseCallback()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ICacheProvider>(new MemoryCacheProvider());
+        var sp = services.BuildServiceProvider();
+
+        using var manager = new TestSessionManager(sp);
+
+        // 两个并发等待同一 commandId，第二个应复用第一个的回调而非阻塞满超时
+        var t1 = manager.WaitResponseAsync(100, 10, CancellationToken.None);
+        var t2 = manager.WaitResponseAsync(100, 10, CancellationToken.None);
+
+        // 发布响应完成两个等待
+        await manager.PublishResponseAsync(new CommandReplyModel { Id = 100, Status = CommandStatus.已完成, Data = "ok" }, CancellationToken.None);
+
+        var r1 = await t1;
+        var r2 = await t2;
+
+        Assert.NotNull(r1);
+        Assert.NotNull(r2);
+        Assert.Equal("ok", r1?.Data);
+        Assert.Equal("ok", r2?.Data);
+    }
+    #endregion
+
     #region 辅助类
     /// <summary>测试命令会话</summary>
     private class TestCommandSession : CommandSession
@@ -175,6 +202,15 @@ public class SessionManagerTests
             LastCommand = command;
             return Task.CompletedTask;
         }
+    }
+
+    /// <summary>测试会话管理器。暴露受保护的 WaitResponseAsync 以便测试</summary>
+    private class TestSessionManager : SessionManager
+    {
+        public TestSessionManager(IServiceProvider sp) : base(sp) { }
+
+        public new Task<CommandReplyModel?> WaitResponseAsync(Int64 commandId, Int32 timeout, CancellationToken cancellationToken)
+            => base.WaitResponseAsync(commandId, timeout, cancellationToken);
     }
 
     /// <summary>内存缓存提供者（简化实现用于测试）</summary>
