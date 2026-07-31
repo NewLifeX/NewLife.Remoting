@@ -20,6 +20,9 @@ public class ApiAction : IExtend
     /// <summary>方法</summary>
     public MethodInfo Method { get; set; } = null!;
 
+    /// <summary>方法参数集合。构造时缓存，避免每次调用反射获取</summary>
+    public ParameterInfo[] Parameters { get; private set; } = null!;
+
     /// <summary>控制器对象</summary>
     /// <remarks>如果指定控制器对象，则每次调用前不再实例化对象</remarks>
     public Object? Controller { get; set; }
@@ -71,6 +74,7 @@ public class ApiAction : IExtend
         Method = method;
 
         var ps = method.GetParameters();
+        Parameters = ps;
         if (ps != null && ps.Length == 1)
         {
             if (ps[0].ParameterType.As<IPacket>()) IsPacketParameter = true;

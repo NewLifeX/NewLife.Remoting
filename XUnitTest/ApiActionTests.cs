@@ -85,6 +85,22 @@ public class ApiActionTests
     }
 
     [Fact]
+    [DisplayName("方法参数集合缓存")]
+    public void Constructor_ParametersCache()
+    {
+        var method = typeof(TestController).GetMethod(nameof(TestController.Add))!;
+        var action = new ApiAction(method, typeof(TestController));
+
+        Assert.NotNull(action.Parameters);
+        Assert.Equal(2, action.Parameters.Length);
+        Assert.Equal("a", action.Parameters[0].Name);
+        Assert.Equal("b", action.Parameters[1].Name);
+
+        // 构造时缓存，多次访问返回同一实例，避免每次调用反射获取
+        Assert.Same(action.Parameters, action.Parameters);
+    }
+
+    [Fact]
     [DisplayName("Void返回")]
     public void Constructor_VoidReturn()
     {

@@ -118,7 +118,8 @@ public class ApiHandler : IApiHandler
                     }
                     else
                     {
-                        var pis = api.Method.GetParameters();
+                        // 使用构造时缓存的参数集合，避免每次调用反射获取
+                        var pis = api.Parameters;
                         var pv = new Object?[pis.Length];
                         for (var i = 0; i < pis.Length; i++)
                         {

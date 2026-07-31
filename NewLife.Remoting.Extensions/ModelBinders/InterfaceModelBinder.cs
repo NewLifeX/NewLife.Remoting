@@ -1,10 +1,14 @@
-﻿using Microsoft.AspNetCore.Mvc.ModelBinding;
+﻿using System.Collections.Concurrent;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace NewLife.Remoting.Extensions.ModelBinders;
 
 /// <summary>接口模型绑定器</summary>
 public class InterfaceModelBinder : IModelBinder
 {
+    /// <summary>接口到实现类型的缓存。避免每次请求都创建服务实例只为获取实现类型</summary>
+    private static readonly ConcurrentDictionary<Type, Type> _typeCache = new();
+
     /// <summary>对于Json请求，从body中读取参数</summary>
     /// <param name="bindingContext"></param>
     /// <returns></returns>
@@ -13,13 +17,13 @@ public class InterfaceModelBinder : IModelBinder
         var provider = bindingContext.HttpContext.RequestServices;
         var modelType = bindingContext.ModelType;
 
-        // 从容器中获取接口类型对应实例
-        var model = provider.GetRequiredService(modelType);
+        // 缓存接口到实现类型的映射。首次解析后复用，避免每次请求都创建服务实例
+        var implType = _typeCache.GetOrAdd(modelType, t => provider.GetRequiredService(t)?.GetType() ?? t);
 
         try
         {
             var req = bindingContext.HttpContext.Request;
-            var entityBody = await req.ReadFromJsonAsync(model!.GetType()).ConfigureAwait(false);
+            var entityBody = await req.ReadFromJsonAsync(implType).ConfigureAwait(false);
 
             bindingContext.Result = ModelBindingResult.Success(entityBody);
         }
