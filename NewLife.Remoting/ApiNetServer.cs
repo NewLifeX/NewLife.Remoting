@@ -94,6 +94,12 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
             // 不要捕获上下文，避免多次请求串到一起
             ThreadPool.UnsafeQueueUserWorkItem(m =>
             {
+                _ = ProcessMessageAsync(m);
+            }, msg);
+
+            // 本地异步函数：异步处理请求并发送响应，不阻塞线程池线程
+            async Task ProcessMessageAsync(Object m)
+            {
                 try
                 {
                     // 防御性检查：m 必然是 IMessage 且 Payload 非 null，理论上不会执行到此处，
@@ -104,9 +110,9 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
                         return;
                     }
 
-                    // Process 返回的 IMessage 持有 IOwnerPacket 所有权（通过 Payload 链），
+                    // ProcessAsync 返回的 IMessage 持有 IOwnerPacket 所有权（通过 Payload 链），
                     // using 确保发送完毕后释放，级联归还 ArrayPool 缓冲区
-                    using var rs = _Host.Process(this, msg2, this);
+                    using var rs = await _Host.ProcessAsync(this, msg2, this).ConfigureAwait(false);
                     if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
 
                     // 归还消息对象到池
@@ -117,7 +123,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
                     //XTrace.WriteException(ex);
                     OnError(this, new ExceptionEventArgs("", ex));
                 }
-            }, msg);
+            }
         }
         else
         {

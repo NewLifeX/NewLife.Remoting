@@ -259,6 +259,26 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// <param name="serviceProvider">当前作用域的服务提供者</param>
     /// <returns>要应答对方的消息，为空表示不应答</returns>
     public virtual IMessage? Process(IApiSession session, IMessage msg, IServiceProvider serviceProvider)
+        => ProcessAsync(session, msg, serviceProvider).ConfigureAwait(false).GetAwaiter().GetResult();
+
+    /// <summary>异步处理会话收到的消息，并返回结果消息。不阻塞调用线程</summary>
+    /// <remarks>
+    /// 与 <see cref="Process"/> 逻辑一致，但异步等待处理器结果，避免 async 动作阻塞线程池线程。
+    /// - 忽略 <c>Reply=true</c> 的消息；
+    /// - 使用会话级或服务器级 <see cref="IEncoder"/> 解码 <see cref="IMessage"/> 为 <see cref="ApiMessage"/>；
+    /// - 捕获执行异常并转换为错误码/消息（数据库异常脱敏）；
+    /// - 单向请求（<c>OneWay=true</c>）不返回响应；
+    /// - 流式返回（IAsyncEnumerable&lt;T&gt;）逐条推送后返回 null；
+    /// - 在 finally 记录超过 <see cref="ApiHost.SlowTrace"/> 的慢处理日志（Action/Code/耗时ms）；
+    /// - 若 <see cref="UseHttpStatus"/> 为 true，则使用 HTTP 状态码表达结果。
+    /// 
+    /// 注意：result 的缓冲区所有权会转移给返回的 response，由上层 using IMessage 级联释放。
+    /// </remarks>
+    /// <param name="session">网络会话</param>
+    /// <param name="msg">消息</param>
+    /// <param name="serviceProvider">当前作用域的服务提供者</param>
+    /// <returns>要应答对方的消息，为空表示不应答</returns>
+    public virtual async Task<IMessage?> ProcessAsync(IApiSession session, IMessage msg, IServiceProvider serviceProvider)
     {
         if (msg.Reply) return null;
 
@@ -288,7 +308,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
             {
                 Received?.Invoke(this, new ApiReceivedEventArgs { Session = session, Message = msg, ApiMessage = request });
 
-                result = OnProcess(session, request.Action, request.Data, msg, serviceProvider);
+                result = await OnProcessAsync(session, request.Action, request.Data, msg, serviceProvider).ConfigureAwait(false);
 
                 // 流式返回：IAsyncEnumerable<T> 逐条推送
                 // 注意：result.GetType() 返回编译器生成的具体类型（如 <Range>d__0），
@@ -299,7 +319,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
                     if (resultType.IsGenericType && resultType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>)
                         || resultType.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>)))
                     {
-                        ProcessStream(session, msg, request.Action, result, enc);
+                        await ProcessStreamWithCancelAsync(session, msg, request.Action, result, enc).ConfigureAwait(false);
                         return null;
                     }
                 }
@@ -366,6 +386,26 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// <param name="serviceProvider">当前作用域的服务提供者</param>
     /// <returns>处理结果；异常将由 <see cref="Process"/> 捕获并转换为错误码</returns>
     protected virtual Object? OnProcess(IApiSession session, String action, IPacket? args, IMessage msg, IServiceProvider serviceProvider) => Handler?.Execute(session, action, args, msg, serviceProvider);
+
+    /// <summary>异步执行消息处理，交给Handler。默认处理器走异步路径，自定义旧处理器回退同步 Execute</summary>
+    /// <param name="session">会话</param>
+    /// <param name="action">动作</param>
+    /// <param name="args">参数</param>
+    /// <param name="msg">消息</param>
+    /// <param name="serviceProvider">当前作用域的服务提供者</param>
+    /// <returns>处理结果；异常将由 <see cref="ProcessAsync"/> 捕获并转换为错误码</returns>
+    protected virtual async Task<Object?> OnProcessAsync(IApiSession session, String action, IPacket? args, IMessage msg, IServiceProvider serviceProvider)
+    {
+        // 默认处理器走异步路径，避免 async 动作阻塞线程
+        if (Handler is ApiHandler ah)
+        {
+            // 若子类重写了同步 Execute，则回退同步路径以保留其行为
+            if (ah.GetType().GetMethod(nameof(ApiHandler.Execute), BindingFlags.Public | BindingFlags.Instance)?.DeclaringType == typeof(ApiHandler))
+                return await ah.ExecuteAsync(session, action, args, msg, serviceProvider).ConfigureAwait(false);
+        }
+
+        return Handler?.Execute(session, action, args, msg, serviceProvider);
+    }
     #endregion
 
     #region 广播
@@ -413,22 +453,14 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     #endregion
 
     #region 流式处理
-    /// <summary>处理流式调用。逐条迭代 IAsyncEnumerable，编码并发送每个数据块，最后发送结束标记</summary>
+    /// <summary>异步处理流式调用。逐条迭代 IAsyncEnumerable，编码并发送每个数据块，最后发送结束标记</summary>
     /// <param name="session">会话</param>
     /// <param name="msg">原始请求消息</param>
     /// <param name="action">动作名</param>
     /// <param name="streamResult">IAsyncEnumerable 实例</param>
     /// <param name="enc">编码器</param>
-    private void ProcessStream(IApiSession session, IMessage msg, String action, Object streamResult, IEncoder enc)
+    private async Task ProcessStreamWithCancelAsync(IApiSession session, IMessage msg, String action, Object streamResult, IEncoder enc)
     {
-        // 在线程池线程中同步等待异步流完成
-        // Process 在以下两种上下文中被调用，均不会阻塞 UI 或造成死锁：
-        //   1. OnReceive 投递到 ThreadPool.UnsafeQueueUserWorkItem（默认 Multiplex=true）
-        //   2. OnReceive 直接调用（Multiplex=false，网络 IO 线程）
-        // 网络 IO 线程虽非线程池线程，但 IAsyncEnumerable 流式迭代不含同步上下文捕获，
-        // 因此 GetAwaiter().GetResult() 不会死锁。
-        // 若将来 Process 改为 async 方法，应移除该同步包装，直接 await ProcessStreamAsync。
-
         // 创建取消令牌链接到会话生命周期。当客户端断开时，底层 Session 被释放，
         // ApiNetSession.Session.Disposed 变为 true，轮询检测到后取消令牌，
         // ProcessStreamAsync 的 await foreach 通过 WithCancellation 感知并停止枚举
@@ -444,12 +476,12 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
                     cts.Cancel();
                 }
                 catch (OperationCanceledException) { }
-            });
+            }, CancellationToken.None);
         }
 
         try
         {
-            ProcessStreamAsync(session, msg, action, streamResult, enc, cts.Token).GetAwaiter().GetResult();
+            await ProcessStreamAsync(session, msg, action, streamResult, enc, cts.Token).ConfigureAwait(false);
         }
         finally
         {

@@ -45,6 +45,16 @@ public class ApiHandler : IApiHandler
     /// <param name="serviceProvider">当前作用域的服务提供者</param>
     /// <returns></returns>
     public virtual Object? Execute(IApiSession session, String action, Object? args, IMessage msg, IServiceProvider serviceProvider)
+        => ExecuteAsync(session, action, args, msg, serviceProvider).ConfigureAwait(false).GetAwaiter().GetResult();
+
+    /// <summary>异步执行。与 <see cref="Execute"/> 逻辑一致，但异步等待 Task 结果，避免阻塞线程</summary>
+    /// <param name="session">会话</param>
+    /// <param name="action">动作</param>
+    /// <param name="args">参数</param>
+    /// <param name="msg">消息</param>
+    /// <param name="serviceProvider">当前作用域的服务提供者</param>
+    /// <returns></returns>
+    public virtual async Task<Object?> ExecuteAsync(IApiSession session, String action, Object? args, IMessage msg, IServiceProvider serviceProvider)
     {
         if (action.IsNullOrEmpty()) action = "Api/Info";
 
@@ -143,7 +153,8 @@ public class ApiHandler : IApiHandler
                     rs = controller.InvokeWithParams(api.Method, ctx.ActionParameters as IDictionary);
                 }
 
-                if (rs is Task task) rs = GetTaskResult(task);
+                // 异步等待任务结果，避免阻塞线程
+                if (rs is Task task) rs = await GetTaskResultAsync(task).ConfigureAwait(false);
 
                 // 流式返回：IAsyncEnumerable<T> 不拆解，原样返回给 Process 处理
                 if (api.IsStreaming)
@@ -198,9 +209,9 @@ public class ApiHandler : IApiHandler
 
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, PropertyInfo?> _taskResultCache = new();
 
-    private static Object? GetTaskResult(Task task)
+    private static async Task<Object?> GetTaskResultAsync(Task task)
     {
-        task.GetAwaiter().GetResult();
+        await task.ConfigureAwait(false);
 
         var taskType = task.GetType();
         if (!taskType.IsGenericType) return null;
