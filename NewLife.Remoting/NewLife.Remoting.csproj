@@ -5,7 +5,7 @@
     <Description>提供RPC、HTTP、WebSocket与SRMP统一通信能力</Description>
     <Company>新生命开发团队</Company>
     <Copyright>©2002-2026 新生命开发团队</Copyright>
-    <VersionPrefix>3.8</VersionPrefix>
+    <VersionPrefix>3.9</VersionPrefix>
     <VersionSuffix>$([System.DateTime]::Now.ToString(`yyyy.MMdd`))</VersionSuffix>
     <Version>$(VersionPrefix).$(VersionSuffix)</Version>
     <FileVersion>$(Version)</FileVersion>
@@ -30,7 +30,7 @@
     <RepositoryUrl>https://github.com/NewLifeX/NewLife.Remoting</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>新生命团队;X组件;NewLife;$(AssemblyName)</PackageTags>
-    <PackageReleaseNotes>新增 Server-Streaming 流式调用与元数据透传，提升大规模数据推送效率；重构指令下发架构，支持响应总线与同步等待机制；支持 SSE 通道自动降级推送与 WebSocket 积压命令推送，增强推送兼容性；增强自动更新机制，支持冒烟测试、回滚与 Linux 兼容性；精简命令模型，移除持久化与重试实现，降低复杂度；修复设备控制器异常处理，优化客户端健壮性</PackageReleaseNotes>
+    <PackageReleaseNotes>服务端请求处理全链路异步化，消除线程阻塞，提升高并发吞吐；新增 IAsyncApiHandler 标记接口，消除处理器路由反射；响应消息注入 TraceId，支持调用链追踪；节点在线与设备在线表新增登录时间字段；增强 WebSocket 心跳判死与会话管理机制；重构设备服务登录与在线持久化流程，统一长连接通知处理；优化 Headers 注入逻辑，避免数组/列表参数转换为字典导致数据丢失；修复客户端与通道代码缺陷，增强健壮性</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -54,7 +54,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Core" Version="11.17.2026.726-beta0124" />
+    <PackageReference Include="NewLife.Core" Version="11.18.2026.801" />
   </ItemGroup>
 
   <ItemGroup>
