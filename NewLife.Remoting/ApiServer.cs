@@ -7,6 +7,7 @@ using NewLife.Net;
 using NewLife.Remoting.Http;
 using NewLife.Serialization;
 using NewLife.Threading;
+using System.Collections.Concurrent;
 using System.Reflection;
 
 namespace NewLife.Remoting;
@@ -387,7 +388,10 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// <returns>处理结果；异常将由 <see cref="Process"/> 捕获并转换为错误码</returns>
     protected virtual Object? OnProcess(IApiSession session, String action, IPacket? args, IMessage msg, IServiceProvider serviceProvider) => Handler?.Execute(session, action, args, msg, serviceProvider);
 
-    /// <summary>异步执行消息处理，交给Handler。默认处理器走异步路径，自定义旧处理器回退同步 Execute</summary>
+    /// <summary>处理器类型是否走异步路径的缓存。避免每请求反射检测</summary>
+    private static readonly ConcurrentDictionary<Type, Boolean> _asyncHandlerCache = new();
+
+    /// <summary>异步执行消息处理，交给Handler。实现 IAsyncApiHandler 的处理器走异步路径，旧处理器回退同步 Execute</summary>
     /// <param name="session">会话</param>
     /// <param name="action">动作</param>
     /// <param name="args">参数</param>
@@ -396,11 +400,17 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// <returns>处理结果；异常将由 <see cref="ProcessAsync"/> 捕获并转换为错误码</returns>
     protected virtual async Task<Object?> OnProcessAsync(IApiSession session, String action, IPacket? args, IMessage msg, IServiceProvider serviceProvider)
     {
-        // 默认处理器走异步路径，避免 async 动作阻塞线程
-        if (Handler is ApiHandler ah)
+        // 实现异步接口的处理器走异步路径，避免 async 动作阻塞线程
+        if (Handler is IAsyncApiHandler ah)
         {
-            // 若子类重写了同步 Execute，则回退同步路径以保留其行为
-            if (ah.GetType().GetMethod(nameof(ApiHandler.Execute), BindingFlags.Public | BindingFlags.Instance)?.DeclaringType == typeof(ApiHandler))
+            // 缓存类型级决策（反射仅首次）：仅重写同步 Execute 而未重写 ExecuteAsync 的旧子类回退同步路径
+            var useAsync = _asyncHandlerCache.GetOrAdd(ah.GetType(), t =>
+            {
+                var mExecute = t.GetMethod(nameof(ApiHandler.Execute), BindingFlags.Public | BindingFlags.Instance);
+                var mExecuteAsync = t.GetMethod(nameof(ApiHandler.ExecuteAsync), BindingFlags.Public | BindingFlags.Instance);
+                return mExecute?.DeclaringType == typeof(ApiHandler) || mExecuteAsync?.DeclaringType != typeof(ApiHandler);
+            });
+            if (useAsync)
                 return await ah.ExecuteAsync(session, action, args, msg, serviceProvider).ConfigureAwait(false);
         }
 

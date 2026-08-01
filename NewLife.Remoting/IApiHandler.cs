@@ -25,11 +25,30 @@ public interface IApiHandler
     Object? Execute(IApiSession session, String action, Object? args, IMessage msg, IServiceProvider serviceProvider);
 }
 
+/// <summary>异步处理器。实现该接口的处理器在服务端请求处理中走异步路径，避免 async 动作阻塞线程</summary>
+/// <remarks>
+/// 继承 <see cref="IApiHandler"/>，确保异步处理器同时具备同步执行能力（同步 Process 路径与 Multiplex=false 场景需要）。
+/// 默认处理器 <see cref="ApiHandler"/> 已实现本接口。
+/// 自定义处理器可通过实现本接口接入异步处理管线；未实现本接口的旧处理器将继续使用同步 <see cref="IApiHandler.Execute"/>。
+/// </remarks>
+public interface IAsyncApiHandler : IApiHandler
+{
+    /// <summary>异步执行</summary>
+    /// <param name="session">会话</param>
+    /// <param name="action">动作</param>
+    /// <param name="args">参数</param>
+    /// <param name="msg">消息</param>
+    /// <param name="serviceProvider">当前作用域的服务提供者</param>
+    /// <returns></returns>
+    Task<Object?> ExecuteAsync(IApiSession session, String action, Object? args, IMessage msg, IServiceProvider serviceProvider);
+}
+
 /// <summary>默认处理器</summary>
 /// <remarks>
 /// 在基于令牌Token的无状态验证模式中，可以借助Token重写IApiHandler.Prepare，来达到同一个Token共用相同的IApiSession.Items
+/// 实现了 <see cref="IAsyncApiHandler"/>，服务端请求处理走异步路径；子类需自定义执行逻辑时应重写 <see cref="ExecuteAsync"/>。
 /// </remarks>
-public class ApiHandler : IApiHandler
+public class ApiHandler : IApiHandler, IAsyncApiHandler
 {
     #region 属性
     /// <summary>Api接口主机</summary>
