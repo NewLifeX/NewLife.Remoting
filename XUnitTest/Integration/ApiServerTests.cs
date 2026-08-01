@@ -24,6 +24,7 @@ public class ApiServerTests
         using var server = new ApiServer(0)
         {
             Log = XTrace.Log,
+            ReuseAddress = true,
         };
 
         // 启动前端口为0
@@ -45,7 +46,7 @@ public class ApiServerTests
     public void SpecifiedPortTest()
     {
         // 先用动态端口获取一个可用端口，避免 CI 环境端口冲突
-        using var tempServer = new ApiServer(0);
+        using var tempServer = new ApiServer(0) { ReuseAddress = true };
         tempServer.Start();
         var port = tempServer.Port;
         tempServer.Stop("获取端口");
@@ -54,6 +55,7 @@ public class ApiServerTests
         using var server = new ApiServer(port)
         {
             Log = XTrace.Log,
+            ReuseAddress = true,
         };
 
         Assert.Equal(port, server.Port);
@@ -71,8 +73,8 @@ public class ApiServerTests
     public void MultipleDynamicPortTest()
     {
         // 创建两个动态端口服务器，验证端口不冲突
-        using var server1 = new ApiServer(0) { Log = XTrace.Log };
-        using var server2 = new ApiServer(0) { Log = XTrace.Log };
+        using var server1 = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
+        using var server2 = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
 
         server1.Start();
         server2.Start();
@@ -90,7 +92,7 @@ public class ApiServerTests
     [Fact(DisplayName = "重复启动停止测试")]
     public void RepeatStartStopTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
 
         // 首次启动
         server.Start();
@@ -116,7 +118,7 @@ public class ApiServerTests
     [Fact(DisplayName = "注册控制器类型")]
     public void RegisterControllerTypeTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
         server.Register<TestController>();
         server.Start();
 
@@ -129,7 +131,7 @@ public class ApiServerTests
     [Fact(DisplayName = "注册控制器实例")]
     public void RegisterControllerInstanceTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
         var controller = new TestController();
         server.Register(controller, null);
         server.Start();
@@ -142,7 +144,7 @@ public class ApiServerTests
     [Fact(DisplayName = "注册单个方法")]
     public void RegisterSingleMethodTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
         var controller = new TestController();
         server.Register(controller, "Hello");
         server.Start();
@@ -156,7 +158,7 @@ public class ApiServerTests
     [Fact(DisplayName = "默认Api控制器")]
     public async Task DefaultApiControllerTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
         server.Start();
 
         using var client = new ApiClient($"tcp://127.0.0.1:{server.Port}");
@@ -176,6 +178,7 @@ public class ApiServerTests
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
 
         Assert.True(server.ShowError);
@@ -187,7 +190,7 @@ public class ApiServerTests
     [Fact(DisplayName = "Multiplex配置测试")]
     public void MultiplexConfigTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
 
         // 默认启用连接复用
         Assert.True(server.Multiplex);
@@ -211,7 +214,7 @@ public class ApiServerTests
     [Fact(DisplayName = "StatPeriod配置测试")]
     public void StatPeriodConfigTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
 
         // 默认600秒
         Assert.Equal(600, server.StatPeriod);
@@ -226,7 +229,7 @@ public class ApiServerTests
     [Fact(DisplayName = "UseHttpStatus配置测试")]
     public void UseHttpStatusConfigTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
 
         // 默认false
         Assert.False(server.UseHttpStatus);
@@ -240,7 +243,7 @@ public class ApiServerTests
     [Fact(DisplayName = "会话连接测试")]
     public async Task SessionConnectionTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
         server.Start();
 
         // 连接前无会话
@@ -256,7 +259,7 @@ public class ApiServerTests
     [Fact(DisplayName = "多客户端会话测试")]
     public async Task MultiClientSessionTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
         server.Start();
 
         var clients = new List<ApiClient>();
@@ -287,7 +290,7 @@ public class ApiServerTests
     [Fact(DisplayName = "InvokeAll广播测试")]
     public async Task InvokeAllTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
         server.Start();
 
         var broadcastReceived = 0;
@@ -340,6 +343,7 @@ public class ApiServerTests
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         server.ServiceProvider = ioc.BuildServiceProvider();
         server.Register<DIController>();
@@ -378,7 +382,7 @@ public class ApiServerTests
     [Fact(DisplayName = "服务不存在异常")]
     public async Task ServiceNotFoundTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
         server.Start();
 
         using var client = new ApiClient($"tcp://127.0.0.1:{server.Port}");
@@ -396,6 +400,7 @@ public class ApiServerTests
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         server.Register<ErrorController>();
         server.Start();
@@ -411,7 +416,7 @@ public class ApiServerTests
     [Fact(DisplayName = "自定义ApiException")]
     public async Task CustomApiExceptionTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
         server.Register<ErrorController>();
         server.Start();
 
@@ -429,7 +434,7 @@ public class ApiServerTests
     [Fact(DisplayName = "Received事件触发测试")]
     public async Task ReceivedEventTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
 
         var receivedActions = new List<String>();
         server.Received += (s, e) =>

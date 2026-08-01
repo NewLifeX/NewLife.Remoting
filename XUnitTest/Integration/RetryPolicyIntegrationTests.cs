@@ -24,6 +24,7 @@ public class RetryPolicyIntegrationTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _Server.Register<RetryTestController>();
         _Server.Start();

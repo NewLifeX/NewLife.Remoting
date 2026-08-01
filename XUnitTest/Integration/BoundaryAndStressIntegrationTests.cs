@@ -28,6 +28,7 @@ public class BoundaryAndStressIntegrationTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _Server.Register<BoundaryController>();
         _Server.Start();

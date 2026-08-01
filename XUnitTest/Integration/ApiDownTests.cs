@@ -26,6 +26,7 @@ public class ApiDownTests : DisposeBase
             Log = XTrace.Log,
             EncoderLog = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _Server.Start();
 

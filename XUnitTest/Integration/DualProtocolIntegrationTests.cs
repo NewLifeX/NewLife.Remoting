@@ -31,6 +31,7 @@ public class DualProtocolIntegrationTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _TcpServer.Register<DualController>();
         _TcpServer.Start();
@@ -41,6 +42,7 @@ public class DualProtocolIntegrationTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _HttpServer.Register<DualController>();
         _HttpServer.Start();
@@ -190,6 +192,7 @@ public class DualProtocolIntegrationTests : DisposeBase
             Log = XTrace.Log,
             ShowError = true,
             UseHttpStatus = true,
+            ReuseAddress = true,
         };
         server.Register<DualController>();
         server.Start();

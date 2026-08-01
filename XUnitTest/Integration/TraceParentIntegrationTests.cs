@@ -20,6 +20,7 @@ public class TraceParentIntegrationTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _Server.Register<TraceTestController>();
         _Server.Start();

@@ -30,6 +30,7 @@ public class ApiHelperTest : DisposeBase
         _Server = new ApiServer(port)
         {
             //Log = XTrace.Log,
+            ReuseAddress = true,
         };
         _Server.Start();
 

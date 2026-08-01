@@ -28,6 +28,7 @@ public class ApiTest : DisposeBase
             Log = XTrace.Log,
             //EncoderLog = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _Server.Handler = new TokenApiHandler { Host = _Server };
         _Server.Start();
@@ -132,7 +133,7 @@ public class ApiTest : DisposeBase
     [Fact]
     public async Task BigMessage()
     {
-        using var server = new ApiServer(0);
+        using var server = new ApiServer(0) { ReuseAddress = true };
         server.Log = XTrace.Log;
         //server.EncoderLog = XTrace.Log;
         server.Register<BigController>();
@@ -156,7 +157,7 @@ public class ApiTest : DisposeBase
     [Fact]
     public async Task BigMessage64k()
     {
-        using var server = new ApiServer(0);
+        using var server = new ApiServer(0) { ReuseAddress = true };
         server.Log = XTrace.Log;
         //server.EncoderLog = XTrace.Log;
         server.Register<BigController>();
@@ -203,7 +204,7 @@ public class ApiTest : DisposeBase
         ioc.AddSingleton<ICache>(cache);
         ioc.AddTransient<SPService>();
 
-        using var server = new ApiServer(0);
+        using var server = new ApiServer(0) { ReuseAddress = true };
         server.ServiceProvider = ioc.BuildServiceProvider();
         server.Log = XTrace.Log;
 
@@ -241,7 +242,7 @@ public class ApiTest : DisposeBase
     [Fact]
     public async Task SimpleType()
     {
-        using var server = new ApiServer(0);
+        using var server = new ApiServer(0) { ReuseAddress = true };
         server.Log = XTrace.Log;
         server.EncoderLog = XTrace.Log;
         server.Register<SimpleController>();

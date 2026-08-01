@@ -27,6 +27,7 @@ public class TokenLoginIntegrationTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _Server.Handler = new TokenApiHandler { Host = _Server };
         _Server.Start();
@@ -172,6 +173,7 @@ public class TokenLoginIntegrationTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         httpServer.Handler = new TokenApiHandler { Host = httpServer };
         httpServer.Start();

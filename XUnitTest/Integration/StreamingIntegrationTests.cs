@@ -24,6 +24,7 @@ public class StreamingIntegrationTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _Server.Register<StreamingController>();
         _Server.Start();
@@ -135,6 +136,7 @@ public class StreamingIntegrationTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         server.Register<StreamingController>();
         server.Start();

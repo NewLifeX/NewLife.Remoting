@@ -26,6 +26,7 @@ public class ApiClientTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _Server.Register<ClientTestController>();
         _Server.Start();
@@ -315,7 +316,7 @@ public class ApiClientTests : DisposeBase
     [Fact(DisplayName = "多服务器配置")]
     public void MultipleServersTest()
     {
-        using var server2 = new ApiServer(0) { Log = XTrace.Log };
+        using var server2 = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
         server2.Register<ClientTestController>();
         server2.Start();
 

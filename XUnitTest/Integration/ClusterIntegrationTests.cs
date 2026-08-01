@@ -26,6 +26,7 @@ public class ClusterIntegrationTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _Server.Register<ClusterTestController>();
         _Server.Start();
@@ -131,7 +132,7 @@ public class ClusterIntegrationTests : DisposeBase
     public async Task MultiServerAddressListTest()
     {
         // 创建第二个服务器
-        using var server2 = new ApiServer(0) { Log = XTrace.Log, ShowError = true };
+        using var server2 = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
         server2.Register<ClusterTestController>();
         server2.Start();
 
@@ -181,7 +182,7 @@ public class ClusterIntegrationTests : DisposeBase
         Assert.Equal("Echo:First", result);
 
         // 创建新服务器
-        using var server2 = new ApiServer(0) { Log = XTrace.Log, ShowError = true };
+        using var server2 = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
         server2.Register<ClusterTestController>();
         server2.Start();
 

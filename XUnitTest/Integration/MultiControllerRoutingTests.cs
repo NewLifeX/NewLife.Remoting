@@ -25,6 +25,7 @@ public class MultiControllerRoutingTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _Server.Register<UserController>();
         _Server.Register<OrderController>();
@@ -138,7 +139,7 @@ public class MultiControllerRoutingTests : DisposeBase
     [Fact(DisplayName = "注册实例_共享控制器状态")]
     public async Task RegisterInstanceSharedStateTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
 
         var counter = new CounterController();
         server.Register(counter, null);
@@ -161,7 +162,7 @@ public class MultiControllerRoutingTests : DisposeBase
     [Fact(DisplayName = "IPacket_二进制参数和返回")]
     public async Task PacketParameterAndReturnTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
         server.Register<PacketController>();
         server.Start();
 
@@ -179,7 +180,7 @@ public class MultiControllerRoutingTests : DisposeBase
     [Fact(DisplayName = "IPacket_XOR变换")]
     public async Task PacketTransformTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
         server.Register<PacketController>();
         server.Start();
 

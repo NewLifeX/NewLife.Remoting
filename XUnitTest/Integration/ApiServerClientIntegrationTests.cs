@@ -26,6 +26,7 @@ public class ApiServerClientIntegrationTests : DisposeBase
             //Multiplex = false,
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _Server.Register<IntegrationController>();
         _Server.Start();

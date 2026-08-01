@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using Microsoft.Extensions.DependencyInjection;
-using NewLife.Log;
 using NewLife.Remoting.Services;
 using Xunit;
+
+namespace XUnitTest.Services;
 
 /// <summary>SessionManager 集群路由测试</summary>
 [TestCaseOrderer("NewLife.UnitTest.DefaultOrderer", "NewLife.UnitTest")]

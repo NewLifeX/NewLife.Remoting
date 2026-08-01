@@ -23,6 +23,7 @@ public class ApiHttpClientTests : DisposeBase
         {
             //Log = XTrace.Log,
             //EncoderLog = XTrace.Log,
+            ReuseAddress = true,
         };
         _Server.Handler = new TokenApiHandler { Host = _Server };
         _Server.Start();

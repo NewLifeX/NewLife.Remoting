@@ -27,6 +27,7 @@ public class TimeoutOneWayIntegrationTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _Server.Register<TimeoutTestController>();
         _Server.Start();
@@ -119,6 +120,7 @@ public class TimeoutOneWayIntegrationTests : DisposeBase
             Log = XTrace.Log,
             ShowError = true,
             Multiplex = false,
+            ReuseAddress = true,
         };
         server.Register<TimeoutTestController>();
         server.Start();
@@ -140,6 +142,7 @@ public class TimeoutOneWayIntegrationTests : DisposeBase
             Log = XTrace.Log,
             ShowError = true,
             Multiplex = false,
+            ReuseAddress = true,
         };
         server.Start();
 
@@ -174,6 +177,7 @@ public class TimeoutOneWayIntegrationTests : DisposeBase
             Log = XTrace.Log,
             ShowError = true,
             SlowTrace = 100, // 100ms视为慢处理
+            ReuseAddress = true,
         };
         server.Register<TimeoutTestController>();
         server.Start();
@@ -194,7 +198,7 @@ public class TimeoutOneWayIntegrationTests : DisposeBase
     [Fact(DisplayName = "ApiServer_Received事件可拦截请求")]
     public async Task ReceivedEventInterceptTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
         server.Register<TimeoutTestController>();
 
         var interceptedActions = new List<String>();

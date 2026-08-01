@@ -24,6 +24,7 @@ public class ApiAttributeRoutingIntegrationTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _Server.Register<RenamedController>();
         _Server.Register<SelectiveApiController>();
@@ -169,7 +170,7 @@ public class ApiAttributeRoutingIntegrationTests : DisposeBase
     [Fact(DisplayName = "通配路由_匹配未注册的方法")]
     public async Task WildcardRoutingTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
         server.Register<WildcardController>();
         server.Start();
 
@@ -184,7 +185,7 @@ public class ApiAttributeRoutingIntegrationTests : DisposeBase
     [Fact(DisplayName = "通配路由_具名路由优先于通配")]
     public async Task NamedRouteOverWildcardTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
         server.Register<WildcardController>();
         server.Start();
 
@@ -200,7 +201,7 @@ public class ApiAttributeRoutingIntegrationTests : DisposeBase
     [Fact(DisplayName = "注册单个方法_仅暴露指定方法")]
     public async Task RegisterSingleMethodTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
 
         var ctrl = new MultiMethodController();
         server.Register(ctrl, "MethodA");
@@ -223,7 +224,7 @@ public class ApiAttributeRoutingIntegrationTests : DisposeBase
     [Fact(DisplayName = "注册类型_每次请求新建实例")]
     public async Task RegisterTypeNewInstanceTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
         server.Register<StatefulController>();
         server.Start();
 
@@ -240,7 +241,7 @@ public class ApiAttributeRoutingIntegrationTests : DisposeBase
     [Fact(DisplayName = "注册实例_共享状态累加")]
     public async Task RegisterInstanceSharedStateTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true };
+        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
 
         var ctrl = new StatefulController();
         server.Register(ctrl, null);

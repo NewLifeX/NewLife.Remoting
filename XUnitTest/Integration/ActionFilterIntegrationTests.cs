@@ -25,6 +25,7 @@ public class ActionFilterIntegrationTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _Server.Register<FilterTestController>();
         _Server.Start();

@@ -62,6 +62,7 @@ public sealed class ZeroRpcServerFixture : IAsyncLifetime
             Name = "ZeroRpcTestServer",
             Encoder = new JsonEncoder(),
             Log = XTrace.Log,
+            ReuseAddress = true,
 #if DEBUG
             EncoderLog = XTrace.Log,
 #endif

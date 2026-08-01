@@ -29,6 +29,7 @@ public class HttpIntegrationTests : DisposeBase
         {
             Log = XTrace.Log,
             ShowError = true,
+            ReuseAddress = true,
         };
         _Server.Register<HttpTestController>();
         _Server.Start();
