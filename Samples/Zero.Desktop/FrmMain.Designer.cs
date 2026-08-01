@@ -34,6 +34,7 @@
             btnOpen = new Button();
             label1 = new Label();
             groupBox2 = new GroupBox();
+            btnCallAsync = new Button();
             textBox2 = new TextBox();
             label3 = new Label();
             btnCall = new Button();
@@ -41,7 +42,6 @@
             label2 = new Label();
             groupBox3 = new GroupBox();
             richTextBox1 = new RichTextBox();
-            btnCallAsync = new Button();
             groupBox1.SuspendLayout();
             groupBox2.SuspendLayout();
             groupBox3.SuspendLayout();
@@ -80,7 +80,7 @@
             txtServer.Name = "txtServer";
             txtServer.Size = new Size(346, 26);
             txtServer.TabIndex = 3;
-            txtServer.Text = "tcp://127.0.0.1:5500";
+            txtServer.Text = "udp://127.0.0.1:5500";
             // 
             // btnOpen
             // 
@@ -120,6 +120,16 @@
             groupBox2.TabIndex = 1;
             groupBox2.TabStop = false;
             groupBox2.Text = "内容区";
+            // 
+            // btnCallAsync
+            // 
+            btnCallAsync.Location = new Point(630, 67);
+            btnCallAsync.Name = "btnCallAsync";
+            btnCallAsync.Size = new Size(106, 45);
+            btnCallAsync.TabIndex = 5;
+            btnCallAsync.Text = "异步调用";
+            btnCallAsync.UseVisualStyleBackColor = true;
+            btnCallAsync.Click += btnCallAsync_Click;
             // 
             // textBox2
             // 
@@ -186,16 +196,6 @@
             richTextBox1.Size = new Size(1122, 377);
             richTextBox1.TabIndex = 0;
             richTextBox1.Text = "";
-            // 
-            // btnCallAsync
-            // 
-            btnCallAsync.Location = new Point(630, 67);
-            btnCallAsync.Name = "btnCallAsync";
-            btnCallAsync.Size = new Size(106, 45);
-            btnCallAsync.TabIndex = 5;
-            btnCallAsync.Text = "异步调用";
-            btnCallAsync.UseVisualStyleBackColor = true;
-            btnCallAsync.Click += btnCallAsync_Click;
             // 
             // FrmMain
             // 

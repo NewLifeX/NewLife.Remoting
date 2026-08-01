@@ -1,14 +1,10 @@
-﻿using System.Collections.Concurrent;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
+﻿using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace NewLife.Remoting.Extensions.ModelBinders;
 
 /// <summary>接口模型绑定器</summary>
 public class InterfaceModelBinder : IModelBinder
 {
-    /// <summary>接口到实现类型的缓存。避免每次请求都创建服务实例只为获取实现类型</summary>
-    private static readonly ConcurrentDictionary<Type, Type> _typeCache = new();
-
     /// <summary>对于Json请求，从body中读取参数</summary>
     /// <param name="bindingContext"></param>
     /// <returns></returns>
@@ -17,8 +13,11 @@ public class InterfaceModelBinder : IModelBinder
         var provider = bindingContext.HttpContext.RequestServices;
         var modelType = bindingContext.ModelType;
 
-        // 缓存接口到实现类型的映射。首次解析后复用，避免每次请求都创建服务实例
-        var implType = _typeCache.GetOrAdd(modelType, t => provider.GetRequiredService(t)?.GetType() ?? t);
+        // 从当前请求的 DI 容器解析接口的实现类型。
+        // 不能使用进程级静态缓存：同一进程内可能运行多个 Web 应用（如测试中 IoTZero 与 ZeroServer），
+        // 各自对同一接口注册不同的实现类型，静态缓存会被先请求的应用污染，导致后请求者反序列化成错误类型。
+        // 代价是每次请求创建一个临时 DTO 实例来获取类型，相比 JSON 反序列化开销可忽略。
+        var implType = provider.GetService(modelType)?.GetType() ?? modelType;
 
         try
         {
