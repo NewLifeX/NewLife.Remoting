@@ -19,7 +19,10 @@ namespace IoTZero.Controllers;
 [ApiController]
 //[Authorize(Policy = "DeviceRequired")]
 [Route("[controller]")]
+// CS9107：主构造函数参数同时传给基类又被本类捕获使用（方法内 GetRequiredService），属有意设计
+#pragma warning disable CS9107
 public class ThingController(IDeviceService deviceService, ThingService thingService, IServiceProvider serviceProvider) : BaseController(deviceService, null, serviceProvider)
+#pragma warning restore CS9107
 {
     #region 设备属性
     /// <summary>上报设备属性</summary>

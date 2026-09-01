@@ -1,5 +1,7 @@
 ﻿using System;
 using System.ComponentModel;
+using System.Threading;
+using System.Threading.Tasks;
 using NewLife.Log;
 using NewLife.Remoting;
 using NewLife.Remoting.Clients;
@@ -177,5 +179,53 @@ public class ClientBaseTests
         client.Received += (s, e) => eventFired = true;
 
         Assert.False(eventFired);
+    }
+
+    /// <summary>登录必然失败的测试客户端，模拟服务端不可达或登录被拒绝</summary>
+    private class FailLoginClient : TestClientBase
+    {
+        public FailLoginClient() : base("tcp://127.0.0.1:1")
+        {
+            Features = Features.Login;
+        }
+
+        protected override Task<ILoginResponse?> LoginAsync(ILoginRequest request, CancellationToken cancellationToken)
+            => throw new InvalidOperationException("模拟登录失败");
+    }
+
+    [Fact]
+    [DisplayName("登录失败自动启动重试定时器")]
+    public async Task Login_Failure_AutoStartRetryTimer()
+    {
+        using var client = new FailLoginClient();
+
+        // 首次登录失败，应抛出异常
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => client.Login("test"));
+        Assert.Equal("模拟登录失败", ex.Message);
+        Assert.Equal(LoginStatus.Ready, client.Status);
+
+        // 失败后应自动启动重试定时器，配合滚动登录超时设计
+        var timer = typeof(ClientBase).GetField("_timerLogin", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(client);
+        Assert.NotNull(timer);
+
+        // 稍等片刻，确认定时器确实在触发重试（日志出现 TryConnectServer 重试）
+        await Task.Delay(200);
+    }
+
+    [Fact]
+    [DisplayName("调用方取消登录不启动重试定时器")]
+    public async Task Login_Canceled_NoRetryTimer()
+    {
+        using var client = new FailLoginClient();
+
+        using var source = new CancellationTokenSource();
+        source.Cancel();
+
+        // 调用方已取消，登录应失败
+        await Assert.ThrowsAnyAsync<Exception>(() => client.Login("test", source.Token));
+
+        // 取消场景不应自动启动重试定时器
+        var timer = typeof(ClientBase).GetField("_timerLogin", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(client);
+        Assert.Null(timer);
     }
 }

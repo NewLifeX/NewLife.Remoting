@@ -31,15 +31,29 @@ public static class ClientTest
             Log = XTrace.Log,
         };
 
-        await client.Login();
-
         _device = client;
+
+        // 打开连接并自动登录。首次登录失败（如服务端冷启动响应慢）时，内部定时器自动重试
+        client.Open();
 
         // 进程退出时注销
         NewLife.Model.Host.RegisterExit(() => client.TryDispose());
 
         var life = serviceProvider.GetService<IHostApplicationLifetime>();
         life.ApplicationStopping.Register(() => client.TryDispose());
+
+        // 等待登录成功，避免服务端冷启动导致首次登录失败后自测提前执行
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (!client.Logined && sw.ElapsedMilliseconds < 20_000)
+            await Task.Delay(100);
+
+        if (!client.Logined)
+        {
+            XTrace.WriteLine("等待Node客户端登录超时，跳过响应总线自测！");
+            return;
+        }
+
+        XTrace.WriteLine("Node客户端登录成功，等待SSE通道建立后自测");
 
         // 启动自测：延迟等待SSE通道建立后，验证响应总线端到端流程
         _ = Task.Run(async () =>

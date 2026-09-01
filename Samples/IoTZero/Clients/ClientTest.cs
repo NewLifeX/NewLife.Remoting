@@ -26,9 +26,10 @@ public static class ClientTest
             Log = XTrace.Log,
         };
 
-        await client.Login();
-
         _device = client;
+
+        // 打开连接并自动登录。首次登录失败（如服务端冷启动响应慢）时，内部定时器自动重试
+        client.Open();
 
         // 进程退出时注销
         NewLife.Model.Host.RegisterExit(() => client.TryDispose());

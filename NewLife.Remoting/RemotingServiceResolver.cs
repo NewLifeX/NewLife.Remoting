@@ -13,7 +13,10 @@ namespace NewLife.Remoting;
 /// </remarks>
 /// <remarks>实例化，指定配置提供者</remarks>
 /// <param name="serviceProvider">服务提供者</param>
+// CS9107：主构造函数参数同时传给基类又被本类捕获使用（BuildClient 内 GetService），属有意设计
+#pragma warning disable CS9107
 public class RemotingServiceResolver(IServiceProvider serviceProvider) : ConfigServiceResolver(serviceProvider)
+#pragma warning restore CS9107
 {
     /// <summary>根据地址字符串构建客户端，支持 http/https/tcp/udp/ws/wss 协议</summary>
     /// <param name="name">服务名，用作节点标识</param>

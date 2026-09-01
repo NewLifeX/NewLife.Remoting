@@ -650,6 +650,18 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
             Status = LoginStatus.Ready;
             span?.SetError(ex, null);
+
+            // 滚动登录超时设计的配套机制：首次登录失败（如服务端冷启动响应慢）后，
+            // 若调用方未显式调用Open()，则自动启动重试定时器，避免登录失败后不再重试。
+            // 调用方主动取消时不启动，避免应用退出后仍有后台重试。
+            if (_timerLogin == null && !cancellationToken.IsCancellationRequested)
+            {
+                lock (this)
+                {
+                    _timerLogin ??= new TimerX(TryConnectServer, null, 0, 5_000) { Async = true };
+                }
+            }
+
             throw;
         }
 

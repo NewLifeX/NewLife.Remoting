@@ -98,7 +98,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
             }, msg);
 
             // 本地异步函数：异步处理请求并发送响应，不阻塞线程池线程
-            async Task ProcessMessageAsync(Object m)
+            async Task ProcessMessageAsync(Object? m)
             {
                 try
                 {

@@ -23,7 +23,10 @@ namespace NewLife.Remoting.Extensions;
 [ApiFilter]
 [ApiController]
 [Route("[controller]")]
+// CS9107：主构造函数参数同时传给基类又被本类捕获使用（字段初始化 GetRequiredService），属有意设计
+#pragma warning disable CS9107
 public abstract class BaseDeviceController(IDeviceService? deviceService, ITokenService? tokenService, ISessionManager? sessionManager, IServiceProvider serviceProvider) : BaseController(deviceService, tokenService, serviceProvider)
+#pragma warning restore CS9107
 {
     #region 属性
     private readonly IDeviceService _deviceService = deviceService ?? serviceProvider.GetRequiredService<IDeviceService>();

@@ -10,7 +10,7 @@ namespace ZeroServer.Areas.Nodes;
 [DisplayName("节点管理")]
 public class NodesArea : AreaBase
 {
-    public NodesArea() : base(nameof(NodesArea).TrimEnd("Area")) { }
+    public NodesArea() : base(nameof(NodesArea).TrimSuffix("Area")) { }
 }
 
 /// <summary>节点管理控制器基类。抽象共性能力</summary>
