@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using NewLife;
 using NewLife.Data;
+using NewLife.Messaging;
 using NewLife.Remoting.Http;
 using Xunit;
 
@@ -198,7 +199,7 @@ public class HttpEncoderTests
 
         Assert.NotNull(msg);
         var http = (HttpMessage)msg;
-        Assert.True(http.Error);
+        Assert.Equal(MessageKinds.Error, http.Kind);
     }
 
     [Fact]

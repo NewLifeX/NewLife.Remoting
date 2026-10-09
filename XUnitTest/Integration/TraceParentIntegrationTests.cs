@@ -16,7 +16,7 @@ public class TraceParentIntegrationTests : DisposeBase
 
     public TraceParentIntegrationTests()
     {
-        _Server = new ApiServer(0)
+        _Server = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             ShowError = true,

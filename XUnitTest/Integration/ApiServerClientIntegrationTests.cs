@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using NewLife;
@@ -21,12 +23,15 @@ public class ApiServerClientIntegrationTests : DisposeBase
 
     public ApiServerClientIntegrationTests()
     {
-        _Server = new ApiServer(0)
+        _Server = new ApiServer(TestPort.PickDual())
         {
             //Multiplex = false,
             Log = XTrace.Log,
             ShowError = true,
             ReuseAddress = true,
+
+            // HTTP 入口需显式开启（默认关闭），0 表示自动取 SRMP 端口+1
+            HttpPort = 0,
         };
         _Server.Register<IntegrationController>();
         _Server.Start();
@@ -200,6 +205,38 @@ public class ApiServerClientIntegrationTests : DisposeBase
             Assert.NotNull(result);
             Assert.Equal(data.Length, result.Total);
         }
+    }
+
+    [Theory(DisplayName = "双协议大帧传输")]
+    [InlineData("tcp", 1024)]
+    [InlineData("tcp", 8193)]       // 越过 Socket 接收缓冲区默认值（8192），走流式体物化路径
+    [InlineData("udp", 1024)]
+    [InlineData("udp", 4096)]       // UDP 单数据报受 Core Setting.BufferSize（默认8k）限制，超过即被截断丢弃
+    public async Task LargeFrameAcrossProtocolsTest(String protocol, Int32 size)
+    {
+        // 拆端口设计：SRMP 走主端口（tcp/udp），HTTP 走 HttpPort
+        using var client = new ApiClient($"{protocol}://127.0.0.1:{_Port}");
+
+        var data = Rand.NextBytes(size);
+        var result = await client.InvokeAsync<IPacket>("Integration/Echo", data);
+
+        Assert.NotNull(result);
+        Assert.Equal(size, result.Total);
+        Assert.True(data.SequenceEqual(result.ToArray()));
+    }
+
+    [Theory(DisplayName = "Http大帧传输")]
+    [InlineData(1024)]
+    [InlineData(8193)]              // 请求体越过 Socket 接收缓冲区默认值（8192）
+    public async Task LargeFrameHttpTest(Int32 size)
+    {
+        // Http 走 Http 端口；ApiHttpClient 以 JSON 请求体承载大参数
+        using var client = new ApiHttpClient($"http://127.0.0.1:{_Server.HttpPort}");
+
+        var name = Rand.NextString(size);
+        var result = await client.InvokeAsync<String>("Integration/Greet", new { name });
+
+        Assert.Equal($"Hello, {name}!", result);
     }
     #endregion
 
@@ -377,6 +414,60 @@ public class ApiServerClientIntegrationTests : DisposeBase
         // 统计应有记录
         Assert.NotNull(_Server.StatProcess);
         Assert.True(_Server.StatProcess.Value >= 10);
+    }
+    #endregion
+
+    #region Http入口治理测试
+    [Fact(DisplayName = "Http入口默认不启用")]
+    public void HttpDisabledByDefaultTest()
+    {
+        using var server = new ApiServer(TestPort.PickDual()) { Log = XTrace.Log, ReuseAddress = true };
+        server.Start();
+
+        // 拆端口设计：HTTP 需显式开启，默认只提供 SRMP
+        Assert.Equal(-1, server.HttpPort);
+        Assert.Null(server.HttpServer);
+    }
+
+    [Fact(DisplayName = "WebSocket握手被明确拒绝")]
+    public async Task WebSocketHandshakeRejectedTest()
+    {
+        // SRMP-over-WS 已取消：Core 的 HttpServer 会先完成握手，ApiHttpHandler 必须明确回绝，不能让客户端拿到 101 空等
+        using var tcp = new TcpClient();
+        await tcp.ConnectAsync(IPAddress.Loopback, _Server.HttpPort);
+
+        using var ns = tcp.GetStream();
+        var request = "GET /Api/Info HTTP/1.1\r\n" +
+            "Host: 127.0.0.1\r\n" +
+            "Upgrade: websocket\r\n" +
+            "Connection: Upgrade\r\n" +
+            "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n" +
+            "Sec-WebSocket-Version: 13\r\n\r\n";
+        await ns.WriteAsync(request.GetBytes());
+
+        var buf = new Byte[1024];
+        var n = await ns.ReadAsync(buf.AsMemory());
+
+        var statusLine = buf[..n].ToStr().Split('\r')[0];
+        Assert.Contains("501", statusLine);    }
+
+    [Fact(DisplayName = "Stop后重新Start_Http端口仍可用")]
+    public async Task HttpServerRestartTest()
+    {
+        using (var client = new ApiHttpClient($"http://127.0.0.1:{_Server.HttpPort}"))
+        {
+            var greeting = await client.InvokeAsync<String>("Integration/Greet", new { name = "Restart" });
+            Assert.Equal("Hello, Restart!", greeting);
+        }
+
+        _Server.Stop("测试重启");
+        _Server.Start();
+
+        using (var client = new ApiHttpClient($"http://127.0.0.1:{_Server.HttpPort}"))
+        {
+            var greeting = await client.InvokeAsync<String>("Integration/Greet", new { name = "Restart" });
+            Assert.Equal("Hello, Restart!", greeting);
+        }
     }
     #endregion
 

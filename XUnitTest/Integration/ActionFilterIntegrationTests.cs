@@ -21,7 +21,7 @@ public class ActionFilterIntegrationTests : DisposeBase
 
     public ActionFilterIntegrationTests()
     {
-        _Server = new ApiServer(0)
+        _Server = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             ShowError = true,

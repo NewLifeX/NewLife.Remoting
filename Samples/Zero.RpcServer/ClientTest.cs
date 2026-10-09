@@ -44,23 +44,6 @@ static class ClientTest
         client.Close("测试完成");
     }
 
-    /// <summary>Tcp连接ApiServer</summary>
-    public static async void WebSocketTest(Int32 port)
-    {
-        await Task.Delay(3_000);
-        XTrace.WriteLine("");
-        XTrace.WriteLine("WebSocket开始连接！");
-
-        // 连接服务端
-        var client = new ApiClient($"ws://127.0.0.4:{port}");
-        client.Name = "小Ws";
-
-        await Process(client);
-
-        // 关闭连接
-        client.Close("测试完成");
-    }
-
     static async Task Process(ApiClient client)
     {
         try
@@ -95,7 +78,7 @@ static class ClientTest
         }
     }
 
-    /// <summary>Http连接ApiServer</summary>
+    /// <summary>Http连接Http端口（拆端口设计：HTTP 独立于 RPC 端口，需显式开启 HttpPort）</summary>
     public static async void HttpTest(Int32 port)
     {
         await Task.Delay(4_000);
@@ -106,7 +89,7 @@ static class ClientTest
         var client = new ApiHttpClient($"http://127.0.0.2:{port}");
         client.Log = XTrace.Log;
 
-         var apis = await client.GetAsync<String[]>("api/all");
+        var apis = await client.GetAsync<String[]>("api/all");
         client.WriteLog("共有接口数：{0}", apis.Length);
 
         var state = Rand.NextString(8);

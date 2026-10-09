@@ -23,7 +23,7 @@ public class TimeoutOneWayIntegrationTests : DisposeBase
 
     public TimeoutOneWayIntegrationTests()
     {
-        _Server = new ApiServer(0)
+        _Server = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             ShowError = true,
@@ -115,7 +115,7 @@ public class TimeoutOneWayIntegrationTests : DisposeBase
     [Fact(DisplayName = "非复用模式_基本调用能正常工作")]
     public async Task NonMultiplexBasicCallTest()
     {
-        using var server = new ApiServer(0)
+        using var server = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             ShowError = true,
@@ -137,7 +137,7 @@ public class TimeoutOneWayIntegrationTests : DisposeBase
         var messageReceived = new TaskCompletionSource<Boolean>();
         String? receivedAction = null;
 
-        using var server = new ApiServer(0)
+        using var server = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             ShowError = true,
@@ -172,7 +172,7 @@ public class TimeoutOneWayIntegrationTests : DisposeBase
     [Fact(DisplayName = "SlowTrace_慢调用日志")]
     public async Task SlowTraceTest()
     {
-        using var server = new ApiServer(0)
+        using var server = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             ShowError = true,
@@ -198,7 +198,7 @@ public class TimeoutOneWayIntegrationTests : DisposeBase
     [Fact(DisplayName = "ApiServer_Received事件可拦截请求")]
     public async Task ReceivedEventInterceptTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
+        using var server = new ApiServer(TestPort.PickDual()) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
         server.Register<TimeoutTestController>();
 
         var interceptedActions = new List<String>();

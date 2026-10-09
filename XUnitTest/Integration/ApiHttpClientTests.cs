@@ -19,16 +19,20 @@ public class ApiHttpClientTests : DisposeBase
     public ApiHttpClientTests()
     {
         // 使用动态端口避免 CI 环境端口冲突
-        _Server = new ApiServer(0)
+        _Server = new ApiServer(TestPort.PickDual())
         {
             //Log = XTrace.Log,
             //EncoderLog = XTrace.Log,
             ReuseAddress = true,
+
+            // HTTP 入口需显式开启（默认关闭），0 表示自动取 SRMP 端口+1
+            HttpPort = 0,
         };
         _Server.Handler = new TokenApiHandler { Host = _Server };
         _Server.Start();
 
-        _Address = $"http://127.0.0.1:{_Server.Port}";
+        // 拆端口后 Http 使用独立端口
+        _Address = $"http://127.0.0.1:{_Server.HttpPort}";
 
         //_Client = new ApiHttpClient();
         //_Client.Add("addr1", new Uri("http://127.0.0.1:12347"));

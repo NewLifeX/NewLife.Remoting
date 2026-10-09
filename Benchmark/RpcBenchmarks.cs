@@ -3,7 +3,6 @@ using BenchmarkDotNet.Jobs;
 using NewLife.Data;
 using NewLife.Remoting;
 
-#pragma warning disable CS0618 // Packet obsolete
 
 namespace NewLife.Remoting.Benchmarks;
 
@@ -133,9 +132,9 @@ public class RpcBenchmarks
     [Benchmark(Description = "IPacket出入参(16字节)")]
     public async Task EchoPacket_Small()
     {
-        var tasks = new Task<Packet>[Concurrency];
+        var tasks = new Task<IPacket>[Concurrency];
         for (var i = 0; i < Concurrency; i++)
-            tasks[i] = _clients[i].InvokeAsync<Packet>("Bench/EchoPacket", _smallPacketData);
+            tasks[i] = _clients[i].InvokeAsync<IPacket>("Bench/EchoPacket", _smallPacketData);
         await Task.WhenAll(tasks);
     }
 
@@ -143,9 +142,9 @@ public class RpcBenchmarks
     [Benchmark(Description = "IPacket出入参(2000字节)")]
     public async Task EchoPacket_Large()
     {
-        var tasks = new Task<Packet>[Concurrency];
+        var tasks = new Task<IPacket>[Concurrency];
         for (var i = 0; i < Concurrency; i++)
-            tasks[i] = _clients[i].InvokeAsync<Packet>("Bench/EchoPacket", _largePacketData);
+            tasks[i] = _clients[i].InvokeAsync<IPacket>("Bench/EchoPacket", _largePacketData);
         await Task.WhenAll(tasks);
     }
     #endregion

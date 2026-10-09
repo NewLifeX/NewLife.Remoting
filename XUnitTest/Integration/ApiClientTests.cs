@@ -22,7 +22,7 @@ public class ApiClientTests : DisposeBase
 
     public ApiClientTests()
     {
-        _Server = new ApiServer(0)
+        _Server = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             ShowError = true,
@@ -316,7 +316,7 @@ public class ApiClientTests : DisposeBase
     [Fact(DisplayName = "多服务器配置")]
     public void MultipleServersTest()
     {
-        using var server2 = new ApiServer(0) { Log = XTrace.Log, ReuseAddress = true };
+        using var server2 = new ApiServer(TestPort.PickDual()) { Log = XTrace.Log, ReuseAddress = true };
         server2.Register<ClientTestController>();
         server2.Start();
 

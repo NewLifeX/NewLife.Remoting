@@ -23,7 +23,7 @@ public class TokenLoginIntegrationTests : DisposeBase
 
     public TokenLoginIntegrationTests()
     {
-        _Server = new ApiServer(0)
+        _Server = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             ShowError = true,

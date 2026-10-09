@@ -18,6 +18,9 @@ public sealed class ZeroRpcServerFixture : IAsyncLifetime
     /// <summary>服务端监听端口（系统自动分配）</summary>
     public Int32 Port { get; private set; }
 
+    /// <summary>服务端Http监听端口。拆端口设计下独立于 <see cref="Port"/></summary>
+    public Int32 HttpPort { get; private set; }
+
     /// <summary>测试用户 ID</summary>
     public Int32 UserId { get; private set; }
 
@@ -56,13 +59,16 @@ public sealed class ZeroRpcServerFixture : IAsyncLifetime
         user.Save();
         UserId = user.ID;
 
-        // 启动 ApiServer（端口0自动分配，同时监听 TCP/UDP/WS/HTTP）
-        _server = new ApiServer(0)
+        // 启动 ApiServer（端口0自动分配，SRMP 主端口 + 独立 HTTP 端口）
+        _server = new ApiServer(TestPort.PickDual())
         {
             Name = "ZeroRpcTestServer",
             Encoder = new JsonEncoder(),
             Log = XTrace.Log,
             ReuseAddress = true,
+
+            // HTTP 入口需显式开启（默认关闭），0 表示自动取 SRMP 端口+1
+            HttpPort = 0,
 #if DEBUG
             EncoderLog = XTrace.Log,
 #endif
@@ -73,8 +79,9 @@ public sealed class ZeroRpcServerFixture : IAsyncLifetime
         _server.Start();
 
         Port = _server.Port;
+        HttpPort = _server.HttpPort;
 
-        XTrace.WriteLine("ZeroRpcServerFixture 启动，端口：{0}", Port);
+        XTrace.WriteLine("ZeroRpcServerFixture 启动，端口：{0}，Http端口：{1}", Port, HttpPort);
 
         await Task.CompletedTask;
     }

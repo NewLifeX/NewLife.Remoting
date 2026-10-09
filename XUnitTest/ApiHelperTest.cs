@@ -24,19 +24,23 @@ public class ApiHelperTest : DisposeBase
     public ApiHelperTest()
     {
         //var port = Rand.Next(10000, 50000);
-        var port = 28080;
+        // 取一个 TCP/UDP 均可绑定的显式端口，避免固定端口被本机其他程序占用
+        var port = TestPort.PickDual();
 
         // 使用ApiServer作为测试服务端
         _Server = new ApiServer(port)
         {
             //Log = XTrace.Log,
             ReuseAddress = true,
+
+            // HTTP 入口需显式开启（默认关闭），0 表示自动取 SRMP 端口+1
+            HttpPort = 0,
         };
         _Server.Start();
 
         _Client = new HttpClient
         {
-            BaseAddress = new Uri($"http://127.0.0.1:{port}")
+            BaseAddress = new Uri($"http://127.0.0.1:{_Server.HttpPort}")
         };
     }
 

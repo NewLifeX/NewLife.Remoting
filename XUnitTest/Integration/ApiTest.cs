@@ -23,7 +23,7 @@ public class ApiTest : DisposeBase
     public ApiTest()
     {
         // 使用动态端口避免 CI 环境端口冲突
-        _Server = new ApiServer(0)
+        _Server = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             //EncoderLog = XTrace.Log,
@@ -133,7 +133,7 @@ public class ApiTest : DisposeBase
     [Fact]
     public async Task BigMessage()
     {
-        using var server = new ApiServer(0) { ReuseAddress = true };
+        using var server = new ApiServer(TestPort.PickDual()) { ReuseAddress = true };
         server.Log = XTrace.Log;
         //server.EncoderLog = XTrace.Log;
         server.Register<BigController>();
@@ -157,7 +157,7 @@ public class ApiTest : DisposeBase
     [Fact]
     public async Task BigMessage64k()
     {
-        using var server = new ApiServer(0) { ReuseAddress = true };
+        using var server = new ApiServer(TestPort.PickDual()) { ReuseAddress = true };
         server.Log = XTrace.Log;
         //server.EncoderLog = XTrace.Log;
         server.Register<BigController>();
@@ -204,7 +204,7 @@ public class ApiTest : DisposeBase
         ioc.AddSingleton<ICache>(cache);
         ioc.AddTransient<SPService>();
 
-        using var server = new ApiServer(0) { ReuseAddress = true };
+        using var server = new ApiServer(TestPort.PickDual()) { ReuseAddress = true };
         server.ServiceProvider = ioc.BuildServiceProvider();
         server.Log = XTrace.Log;
 
@@ -242,7 +242,7 @@ public class ApiTest : DisposeBase
     [Fact]
     public async Task SimpleType()
     {
-        using var server = new ApiServer(0) { ReuseAddress = true };
+        using var server = new ApiServer(TestPort.PickDual()) { ReuseAddress = true };
         server.Log = XTrace.Log;
         server.EncoderLog = XTrace.Log;
         server.Register<SimpleController>();

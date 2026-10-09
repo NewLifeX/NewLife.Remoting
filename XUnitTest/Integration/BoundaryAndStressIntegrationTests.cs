@@ -24,7 +24,7 @@ public class BoundaryAndStressIntegrationTests : DisposeBase
 
     public BoundaryAndStressIntegrationTests()
     {
-        _Server = new ApiServer(0)
+        _Server = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             ShowError = true,

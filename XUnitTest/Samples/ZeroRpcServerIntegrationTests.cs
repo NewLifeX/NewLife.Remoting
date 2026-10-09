@@ -109,24 +109,11 @@ public class ZeroRpcServerIntegrationTests : IClassFixture<ZeroRpcServerFixture>
     }
     #endregion
 
-    #region WebSocket 协议测试
-    [Fact(DisplayName = "WebSocket协议_完整RPC调用链")]
-    public async Task WebSocketProtocolTest()
-    {
-        using var client = new ApiClient($"ws://127.0.0.1:{_fixture.Port}")
-        {
-            Log = XTrace.Log,
-        };
-
-        await AssertRpcCallsAsync(client, _fixture.UserId);
-    }
-    #endregion
-
     #region HTTP 协议测试
     [Fact(DisplayName = "HTTP协议_完整RPC调用链")]
     public async Task HttpProtocolTest()
     {
-        var client = new ApiHttpClient($"http://127.0.0.1:{_fixture.Port}")
+        var client = new ApiHttpClient($"http://127.0.0.1:{_fixture.HttpPort}")
         {
             Log = XTrace.Log,
         };

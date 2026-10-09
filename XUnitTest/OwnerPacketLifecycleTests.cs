@@ -105,11 +105,8 @@ public class OwnerPacketLifecycleTests
         var header = new OwnerPacket(32);
         var payload = new OwnerPacket(64);
 
-        var msg = new HttpMessage
-        {
-            Header = header,
-            Payload = payload,
-        };
+        var msg = new HttpMessage { Header = header };
+        msg.SetBody(payload);
 
         // Dispose 前缓冲区可用
         Assert.NotNull(header.Buffer);
@@ -133,7 +130,8 @@ public class OwnerPacketLifecycleTests
         var next = new OwnerPacket(16);
         payload.Next = next;
 
-        var msg = new HttpMessage { Payload = payload };
+        var msg = new HttpMessage();
+        msg.SetBody(payload);
         msg.Dispose();
 
         // 链上所有 OwnerPacket 均被释放
@@ -144,11 +142,8 @@ public class OwnerPacketLifecycleTests
     [Fact(DisplayName = "HttpMessage重复Dispose不抛异常")]
     public void HttpMessageDoubleDisposeIsSafe()
     {
-        var msg = new HttpMessage
-        {
-            Header = new OwnerPacket(16),
-            Payload = new OwnerPacket(16),
-        };
+        var msg = new HttpMessage { Header = new OwnerPacket(16) };
+        msg.SetBody(new OwnerPacket(16));
 
         msg.Dispose();
         // 第二次 Dispose 不应抛异常
@@ -164,7 +159,8 @@ public class OwnerPacketLifecycleTests
         var ownerPk = new OwnerPacket(48);
         Assert.NotNull(ownerPk.Buffer);
 
-        var msg = new DefaultMessage { Payload = ownerPk };
+        var msg = new DefaultMessage();
+        msg.SetBody(ownerPk);
         msg.Dispose();
 
         Assert.Null(msg.Payload);
@@ -178,7 +174,8 @@ public class OwnerPacketLifecycleTests
         var pk2 = new OwnerPacket(32);
         pk1.Next = pk2;
 
-        var msg = new DefaultMessage { Payload = pk1 };
+        var msg = new DefaultMessage();
+        msg.SetBody(pk1);
         msg.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => _ = pk1.Buffer);
@@ -194,7 +191,7 @@ public class OwnerPacketLifecycleTests
 
         // 1. 模拟请求
         var req = new DefaultMessage { Sequence = 42 };
-        req.Payload = encoder.Encode("api/binary", null, null);
+        req.SetBody(encoder.Encode("api/binary", null, null));
 
         // 2. 模拟 Controller 返回 OwnerPacket
         var resultPk = new OwnerPacket(128);
@@ -204,20 +201,19 @@ public class OwnerPacketLifecycleTests
         // 3. 编码响应（所有权转移给 IMessage.Payload 链）
         var response = encoder.CreateResponse(req, "api/binary", 0, resultPk);
 
-        // 4. 模拟网络发送：ToPacket() 序列化消息，所有权从 Payload 转移到线缆包
-        //    真实流程：Session.SendMessage(rs) 内部调用 ToPacket()，发送后由网络层释放
-        var wirePacket = response.ToPacket();
+        // 4. 模拟网络发送：SrmpCodec.Build 构建线缆帧。v12 下帧与消息负载共享缓冲（借位/挂链），
+        //    构建后消息负载依然可用，负载所有权仍归消息
+        var wirePacket = new SrmpCodec().Build(response);
         Assert.NotNull(wirePacket);
         Assert.True(wirePacket.Total > 0);
 
-        // 5. 发送完毕后释放线缆包（模拟网络层行为），级联释放整个链包括 resultPk
+        // 5. 发送完毕后释放线缆帧，只归还帧头句柄，负载缓冲不受影响
         wirePacket.TryDispose();
+        Assert.NotNull(resultPk.Buffer);
 
-        // 6. 验证 OwnerPacket 缓冲区已归还 ArrayPool
-        Assert.Throws<ObjectDisposedException>(() => _ = resultPk.Buffer);
-
-        // 7. Dispose IMessage 本身（清理对象引用，此时 Payload 已无所有权不会重复释放）
+        // 6. Dispose 消息才级联释放负载链，OwnerPacket 缓冲区归还 ArrayPool
         response.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => _ = resultPk.Buffer);
     }
 
     [Fact(DisplayName = "JsonEncoder响应未经ToPacket直接Dispose也能释放OwnerPacket")]

@@ -22,7 +22,7 @@ public class SessionLifecycleIntegrationTests : DisposeBase
 
     public SessionLifecycleIntegrationTests()
     {
-        _Server = new ApiServer(0)
+        _Server = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             ShowError = true,
@@ -139,7 +139,7 @@ public class SessionLifecycleIntegrationTests : DisposeBase
     [Fact(DisplayName = "Session_Token在会话中持久")]
     public async Task SessionTokenPersistenceTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
+        using var server = new ApiServer(TestPort.PickDual()) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
         server.Handler = new TokenApiHandler { Host = server };
         server.Start();
 
@@ -192,7 +192,7 @@ public class SessionLifecycleIntegrationTests : DisposeBase
     [Fact(DisplayName = "Session_服务器Stop后会话全部清理")]
     public async Task ServerStopCleansAllSessionsTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
+        using var server = new ApiServer(TestPort.PickDual()) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
         server.Register<SessionTestController>();
         server.Start();
 

@@ -20,7 +20,7 @@ public class StreamingIntegrationTests : DisposeBase
 
     public StreamingIntegrationTests()
     {
-        _Server = new ApiServer(0)
+        _Server = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             ShowError = true,
@@ -132,7 +132,7 @@ public class StreamingIntegrationTests : DisposeBase
     public async Task StreamDisconnectServerStopTest()
     {
         // 使用单独的端口避免与端口冲突测试干扰
-        using var server = new ApiServer(0)
+        using var server = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             ShowError = true,

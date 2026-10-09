@@ -10,7 +10,7 @@ using NewLife.Security;
 using NewLife.Serialization;
 using Xunit;
 
-#pragma warning disable CS0618 // 测试中用到的 Packet 类型虽已过时但仍支持
+
 
 namespace XUnitTest;
 
@@ -22,7 +22,7 @@ public class JsonEncoderTests
         var encoder = new JsonEncoder();
 
         var name = "api/test";
-        Packet? value = null;
+        IPacket? value = null;
 
         // 简洁请求
         {
@@ -39,7 +39,7 @@ public class JsonEncoderTests
         }
         // 简洁请求，带空数据
         {
-            value = new Byte[0];
+            value = new ArrayPacket(new Byte[0]);
             var pk = (OwnerPacket)encoder.Encode(name, null, value);
             Assert.Equal(1 + name.Length + 4, pk.Total);
             Assert.NotNull(pk.Next);
@@ -53,9 +53,9 @@ public class JsonEncoderTests
         }
         // 标准请求，带数据体
         {
-            value = Rand.NextBytes(64);
+            value = new ArrayPacket(Rand.NextBytes(64));
             var pk = (OwnerPacket)encoder.Encode(name, null, value);
-            Assert.Equal(1 + name.Length + 4 + value.Count, pk.Total);
+            Assert.Equal(1 + name.Length + 4 + value.Total, pk.Total);
             Assert.NotNull(pk.Next);
             Assert.Equal(value, pk.Next);
             Assert.Equal(8, pk.Offset);
@@ -79,7 +79,7 @@ public class JsonEncoderTests
         var encoder = new JsonEncoder();
 
         var name = "api/test";
-        Packet? value = null;
+        IPacket? value = null;
 
         // 简洁响应
         {
@@ -93,13 +93,13 @@ public class JsonEncoderTests
             var reader = new SpanReader(pk.GetSpan());
 
             Assert.Equal(name, reader.ReadString());
-            if (reader.FreeCapacity > 0) Assert.Equal(0u, reader.ReadUInt32());
+            if (reader.Capacity > reader.Position) Assert.Equal(0u, reader.ReadUInt32());
         }
         // 简洁响应，带异常
         {
-            value = new Byte[0];
+            value = new ArrayPacket(new Byte[0]);
             var pk = (OwnerPacket)encoder.Encode(name, 500, value);
-            Assert.Equal(1 + name.Length + 4 + 4 + value.Count, pk.Total);
+            Assert.Equal(1 + name.Length + 4 + 4 + value.Total, pk.Total);
             Assert.NotNull(pk.Next);
             Assert.Equal(value, pk.Next);
             Assert.Equal(8, pk.Offset);
@@ -112,9 +112,9 @@ public class JsonEncoderTests
         }
         // 标准响应，带数据体
         {
-            value = Rand.NextBytes(64);
+            value = new ArrayPacket(Rand.NextBytes(64));
             var pk = (OwnerPacket)encoder.Encode(name, 0, value);
-            Assert.Equal(1 + name.Length + 4 + value.Count, pk.Total);
+            Assert.Equal(1 + name.Length + 4 + value.Total, pk.Total);
             Assert.NotNull(pk.Next);
             Assert.Equal(value, pk.Next);
             Assert.Equal(8, pk.Offset);
@@ -125,9 +125,9 @@ public class JsonEncoderTests
 
             Assert.Equal(name, reader.ReadString());
             // 正常响应不需要错误码，直接写数据体长度
-            Assert.Equal(value.Count, reader.ReadInt32());
+            Assert.Equal(value.Total, reader.ReadInt32());
 
-            var span = reader.ReadBytes(value.Count);
+            var span = reader.ReadBytes(value.Total);
             Assert.Equal(value.ToArray(), span);
 
             var hex1 = value.ToHex(64);
@@ -156,7 +156,7 @@ public class JsonEncoderTests
             var reader = new SpanReader(pk.GetSpan());
 
             Assert.Equal(name, reader.ReadString());
-            if (reader.FreeCapacity > 0) Assert.Equal(0u, reader.ReadUInt32());
+            if (reader.Capacity > reader.Position) Assert.Equal(0u, reader.ReadUInt32());
 
             var am = encoder.Decode(req);
             Assert.Equal(name, am.Action);
@@ -272,14 +272,13 @@ public class JsonEncoderTests
 
             var dm = res as DefaultMessage;
             Assert.True(dm.Reply);
-            Assert.False(dm.Error);
+            Assert.Equal(MessageKinds.Response, dm.Kind);
             Assert.Equal(req.Sequence, dm.Sequence);
 
             var am = encoder.Decode(res);
             Assert.Equal(name, am.Action);
             Assert.Equal(0, am.Code);
             Assert.Null(am.Data);
-
             // 解压参数
             var ps = encoder.DecodeResult(name, am.Data, req, null);
             Assert.Null(ps);
@@ -316,7 +315,7 @@ public class JsonEncoderTests
 
             var dm = res as DefaultMessage;
             Assert.True(dm.Reply);
-            Assert.True(dm.Error);
+            Assert.Equal(MessageKinds.Error, dm.Kind);
             Assert.Equal(req.Sequence, dm.Sequence);
 
             var am = encoder.Decode(res);
@@ -359,7 +358,7 @@ public class JsonEncoderTests
 
             var dm = res as DefaultMessage;
             Assert.True(dm.Reply);
-            Assert.False(dm.Error);
+            Assert.Equal(MessageKinds.Response, dm.Kind);
             Assert.Equal(req.Sequence, dm.Sequence);
 
             var am = encoder.Decode(res);

@@ -4,7 +4,6 @@ using NewLife.Log;
 using NewLife.Messaging;
 using NewLife.Remoting;
 
-#pragma warning disable CS0618 // Packet obsolete
 #nullable enable
 
 namespace NewLife.Remoting.Benchmarks;
@@ -55,7 +54,7 @@ public class ServerThroughputTest
             (client) => client.InvokeAsync<Int32>("Bench/NoArg"));
 
         RunScenario("EchoPacket_16B", clients, clientCount, durationSeconds, warmupSeconds,
-            (client) => client.InvokeAsync<Packet>("Bench/EchoPacket", new Byte[16]));
+            (client) => client.InvokeAsync<IPacket>("Bench/EchoPacket", new Byte[16]));
 
         foreach (var client in clients) client?.TryDispose();
         server.TryDispose();
@@ -227,7 +226,9 @@ public class ServerThroughputTest
     private static DefaultMessage CreateMessage(Byte[] template)
     {
         var payload = new ArrayPacket(template);
-        return new DefaultMessage { Payload = payload };
+        var msg = new DefaultMessage();
+        msg.SetBody(payload);
+        return msg;
     }
 
     private static void RunScenario(String name, ApiClient[] clients, Int32 clientCount, Int32 durationSeconds, Int32 warmupSeconds, Func<ApiClient, Task> action)

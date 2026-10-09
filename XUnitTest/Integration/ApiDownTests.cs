@@ -20,7 +20,7 @@ public class ApiDownTests : DisposeBase
 
     public ApiDownTests()
     {
-        _Server = new ApiServer(0)
+        _Server = new ApiServer(TestPort.PickDual())
         {
             Multiplex = false,
             Log = XTrace.Log,

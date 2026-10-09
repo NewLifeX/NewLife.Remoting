@@ -37,6 +37,9 @@ using var server = new ApiServer(port)
     //EncoderLog = XTrace.Log,
     Log = XTrace.Log,
     Tracer = star.Tracer,
+
+    // HTTP 入口需显式开启（默认关闭），0 表示自动取 SRMP 端口+1
+    HttpPort = 0,
 };
 
 // 注册服务控制器，其中提供各种接口服务
@@ -51,16 +54,16 @@ server.EncoderLog = XTrace.Log;
 
 // 启动网络服务，监听端口，所有逻辑将在 xxxController 中处理
 server.Start();
-XTrace.WriteLine("服务端启动完成！");
+XTrace.WriteLine("服务端启动完成！SRMP端口：{0}，Http端口：{1}", server.Port, server.HttpPort);
 
 // 注册到星尘，非必须
 star?.Service?.Register(star.AppId, () => $"tcp://*:{server.Port},udp://*:{server.Port}");
 
 // 客户端测试，非服务端代码，正式使用时请注释掉
-_ = Task.Run(() => ClientTest.TcpTest(port));
-_ = Task.Run(() => ClientTest.UdpTest(port));
-_ = Task.Run(() => ClientTest.WebSocketTest(port));
-_ = Task.Run(() => ClientTest.HttpTest(port));
+// 拆端口设计：tcp/udp 使用 SRMP 端口，http 使用 Http 端口
+_ = Task.Run(() => ClientTest.TcpTest(server.Port));
+_ = Task.Run(() => ClientTest.UdpTest(server.Port));
+_ = Task.Run(() => ClientTest.HttpTest(server.HttpPort));
 
 // 阻塞，等待友好退出
 var host = services.BuildHost();

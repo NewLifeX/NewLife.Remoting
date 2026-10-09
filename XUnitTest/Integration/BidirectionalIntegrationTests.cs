@@ -24,7 +24,7 @@ public class BidirectionalIntegrationTests : DisposeBase
 
     public BidirectionalIntegrationTests()
     {
-        _Server = new ApiServer(0)
+        _Server = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             ShowError = true,
@@ -184,7 +184,7 @@ public class BidirectionalIntegrationTests : DisposeBase
     public async Task ClientReceivedEventFromPushTest()
     {
         // 使用独立 server 避免跨测试干扰
-        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
+        using var server = new ApiServer(TestPort.PickDual()) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
         server.Register<BidiController>();
         server.Start();
 
@@ -222,7 +222,7 @@ public class BidirectionalIntegrationTests : DisposeBase
     [Fact(DisplayName = "Received事件_服务端侧触发")]
     public async Task ServerReceivedEventTest()
     {
-        using var server = new ApiServer(0) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
+        using var server = new ApiServer(TestPort.PickDual()) { Log = XTrace.Log, ShowError = true, ReuseAddress = true };
         server.Register<BidiController>();
 
         var interceptedActions = new List<String>();

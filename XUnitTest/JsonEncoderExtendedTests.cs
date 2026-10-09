@@ -202,6 +202,6 @@ public class JsonEncoderExtendedTests
         var resMsg = encoder.CreateResponse(reqMsg, "Api/Test", 500, "Error");
 
         Assert.NotNull(resMsg);
-        Assert.True(resMsg.Error);
+        Assert.Equal(NewLife.Messaging.MessageKinds.Error, resMsg.Kind);
     }
 }

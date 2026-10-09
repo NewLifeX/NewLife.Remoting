@@ -27,7 +27,7 @@ public class DualProtocolIntegrationTests : DisposeBase
     public DualProtocolIntegrationTests()
     {
         // TCP 服务器
-        _TcpServer = new ApiServer(0)
+        _TcpServer = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             ShowError = true,
@@ -187,7 +187,7 @@ public class DualProtocolIntegrationTests : DisposeBase
     [Fact(DisplayName = "UseHttpStatus_TCP正常工作")]
     public async Task UseHttpStatusTcpModeTest()
     {
-        using var server = new ApiServer(0)
+        using var server = new ApiServer(TestPort.PickDual())
         {
             Log = XTrace.Log,
             ShowError = true,
