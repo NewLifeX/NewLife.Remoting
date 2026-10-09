@@ -135,7 +135,7 @@
         <Column Name="Delay" DataType="Int32" Description="延迟。网络延迟，单位ms" />
         <Column Name="Offset" DataType="Int32" Description="偏移。客户端时间减服务端时间，单位s" />
         <Column Name="LocalTime" DataType="DateTime" Description="本地时间" />
-        <Column Name="Token" DataType="String" Length="200" Description="令牌" />
+        <Column Name="Token" DataType="String" Length="500" Description="令牌" />
         <Column Name="Creator" DataType="String" Description="创建者。服务端设备" />
         <Column Name="CreateTime" DataType="DateTime" Description="创建时间" Model="False" />
         <Column Name="CreateIP" DataType="String" Description="创建地址" Model="False" />
