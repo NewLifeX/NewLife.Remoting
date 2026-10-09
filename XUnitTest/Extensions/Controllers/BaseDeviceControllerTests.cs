@@ -232,6 +232,88 @@ public class BaseDeviceControllerTests
 
         Assert.NotNull(result);
     }
+
+    [Fact]
+    [DisplayName("Logout_注销后吊销当前令牌")]
+    public void Logout_RevokesToken()
+    {
+        var (sp, mockDevice, mockToken, _) = CreateMockServices();
+        mockDevice.Setup(e => e.Logout(It.IsAny<DeviceContext>(), It.IsAny<String?>(), "Http"))
+            .Returns((DeviceContext ctx, String? reason, String src) => null);
+
+        var controller = new TestDeviceController(sp);
+        SetupControllerContext(controller, new DeviceContext
+        {
+            Code = "dev-001",
+            Token = "token-123",
+            Device = CreateMockDevice("dev-001").Object,
+        });
+
+        var result = controller.Logout("手动注销");
+
+        Assert.NotNull(result);
+        mockToken.Verify(e => e.RevokeToken("token-123"), Times.Once);
+    }
+    #endregion
+
+    #region 令牌鉴权
+    [Fact]
+    [DisplayName("OnAuthorize_刷新令牌_拒绝访问")]
+    public void OnAuthorize_RefreshToken_Rejected()
+    {
+        var (sp, _, mockToken, _) = CreateMockServices();
+
+        // 模拟携带 kind=refresh 声明的刷新令牌
+        var builder = new JwtBuilder
+        {
+            Subject = "dev-001",
+            Id = "client-001",
+            Secret = "test-secret",
+            Algorithm = "HS256",
+            Expire = DateTime.Now.AddHours(1),
+        };
+        var token = builder.Encode(new { kind = "refresh" });
+
+        var decoded = new JwtBuilder { Secret = "test-secret" };
+        decoded.TryDecode(token, out _);
+        mockToken.Setup(e => e.DecodeToken(token)).Returns((decoded, (Exception?)null!));
+
+        var controller = new TestDeviceController(sp);
+        SetupControllerContext(controller, new DeviceContext { Code = "dev-001", Token = token });
+
+        var ex = Assert.Throws<ApiException>(() => controller.OnAuthorize(token, controller.Context));
+        Assert.Equal(ApiCode.Unauthorized, ex.Code);
+    }
+
+    [Fact]
+    [DisplayName("OnAuthorize_访问令牌_通过")]
+    public void OnAuthorize_AccessToken_Passed()
+    {
+        var (sp, mockDevice, mockToken, _) = CreateMockServices();
+        var device = CreateMockDevice("dev-001");
+        mockDevice.Setup(e => e.QueryDevice("dev-001")).Returns(device.Object);
+
+        var builder = new JwtBuilder
+        {
+            Subject = "dev-001",
+            Id = "client-001",
+            Secret = "test-secret",
+            Algorithm = "HS256",
+            Expire = DateTime.Now.AddHours(1),
+        };
+        var token = builder.Encode(new { kind = "access" });
+
+        var decoded = new JwtBuilder { Secret = "test-secret" };
+        decoded.TryDecode(token, out _);
+        mockToken.Setup(e => e.DecodeToken(token)).Returns((decoded, (Exception?)null!));
+
+        var controller = new TestDeviceController(sp);
+        SetupControllerContext(controller, new DeviceContext { Code = "dev-001", Token = token });
+
+        var ok = controller.OnAuthorize(token, controller.Context);
+
+        Assert.True(ok);
+    }
     #endregion
 
     #region Ping

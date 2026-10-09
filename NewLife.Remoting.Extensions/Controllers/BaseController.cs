@@ -119,6 +119,11 @@ public abstract class BaseController(IDeviceService? deviceService, ITokenServic
 
         var (jwt, ex) = _tokenService.DecodeToken(token);
         Jwt = jwt;
+
+        // 刷新令牌只能用于刷新，禁止作为访问令牌调用业务接口（V-14 令牌分离）
+        if (ex == null && jwt != null && jwt["kind"] + "" == "refresh")
+            ex = new ApiException(ApiCode.Unauthorized, "刷新令牌不能作为访问令牌使用！");
+
         var code = context.Code = jwt?.Subject;
         context.ClientId = jwt?.Id!;
         context["__Jwt"] = jwt;

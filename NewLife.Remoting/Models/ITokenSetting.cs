@@ -15,3 +15,10 @@ public interface ITokenSetting
     /// <summary>自动注册。允许客户端自动注册，默认true</summary>
     Boolean AutoRegister { get; set; }
 }
+
+/// <summary>令牌设置（扩展）。增加刷新令牌有效期</summary>
+public interface ITokenSetting2 : ITokenSetting
+{
+    /// <summary>刷新令牌有效期（秒）。0 表示采用访问令牌有效期的12倍</summary>
+    Int32 RefreshExpire { get; set; }
+}

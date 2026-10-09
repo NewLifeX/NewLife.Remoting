@@ -17,4 +17,9 @@ internal sealed class NullTokenService : ITokenService
     /// <param name="token">令牌字符串</param>
     /// <returns>解析结果，始终无错误</returns>
     public (JwtBuilder, Exception?) DecodeToken(String token) => (new JwtBuilder(), null);
+
+    /// <summary>吊销令牌（测试用，不执行）</summary>
+    /// <param name="token">令牌字符串</param>
+    /// <returns>吊销秒数，测试恒为0</returns>
+    public Int32 RevokeToken(String token) => 0;
 }

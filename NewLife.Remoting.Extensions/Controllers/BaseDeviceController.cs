@@ -82,6 +82,10 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     {
         _deviceService.Logout(Context, reason, "Http");
 
+        // 注销后吊销当前访问令牌，防止令牌在有效期内被继续复用（V-14 吊销）
+        if (!Context.Token.IsNullOrEmpty())
+            _tokenService.RevokeToken(Context.Token);
+
         return new LogoutResponse
         {
             Name = Context.Device?.Name,

@@ -49,6 +49,10 @@ public abstract class BaseOAuthController(ITokenService tokenService, ITokenSett
 
                 var (jwt, ex) = tokenService.DecodeToken(model.refresh_token);
 
+                // 访问令牌只能调用业务接口，禁止作为刷新令牌使用（V-14 令牌分离）
+                if (ex == null && jwt != null && jwt["kind"] + "" == "access")
+                    ex = new ApiException(ApiCode.Unauthorized, "访问令牌不能作为刷新令牌使用！");
+
                 // 验证应用
                 var name = jwt?.Subject;
                 var app = name.IsNullOrEmpty() ? null : FindByName(name);
