@@ -289,4 +289,25 @@ public class HttpEncoderTests
 
         Assert.Equal(42, result);
     }
+
+    [Fact]
+    [DisplayName("DecodeResult基础类型裸值按文本返回")]
+    public void DecodeResult_ScalarText()
+    {
+        var encoder = new HttpEncoder();
+        using var msg = new DefaultMessage();
+
+        // Boolean 编码为 True，不是合法 JSON，按文本返回
+        var rs = encoder.DecodeResult("test", (ArrayPacket)"True".GetBytes(), msg, typeof(Object));
+        Assert.Equal("True", rs);
+
+        // JSON 数值仍照常解析
+        var rs2 = encoder.DecodeResult("test", (ArrayPacket)"300".GetBytes(), msg, typeof(Int32));
+        Assert.Equal(300, rs2);
+
+        // 结构化 JSON 仍解析为字典
+        var rs3 = encoder.DecodeResult("test", (ArrayPacket)"{\"a\":1}".GetBytes(), msg, typeof(Object));
+        var dic = Assert.IsAssignableFrom<IDictionary<String, Object>>(rs3);
+        Assert.Equal(1, dic["a"].ToInt());
+    }
 }

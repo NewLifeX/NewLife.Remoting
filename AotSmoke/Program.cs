@@ -9,6 +9,7 @@ using NewLife.Net;
 using NewLife.Remoting;
 using NewLife.Remoting.Clients;
 using NewLife.Remoting.Models;
+using NewLife.Remoting.Services;
 using NewLife.Serialization;
 
 namespace AotSmoke;
@@ -51,6 +52,9 @@ internal static class Program
         await Run("15 AOT 参数承载形态", ArgumentForms);
         await Run("16 客户端基类登录/心跳/事件/注销往返", ClientBaseRoundTrip);
         await Run("17 单方法注册的静态委托与裁剪保留", SingleMethodRegister);
+        await Run("18 客户端命令分发与回执上报", ClientCommandDispatch);
+        await Run("19 服务端主动下发命令与设备回执", ServerPushCommand);
+        await Run("20 会话管理器命令下发与路由", SessionManagerPublish);
 
         Console.WriteLine(_failed == 0
             ? $"=== 全部通过 {_total}/{_total} ==="
@@ -319,6 +323,91 @@ internal static class Program
         var rs = await client.InvokeAsync<String>("Single/Alpha");
         if (rs != "Alpha!") throw new Exception($"结果错误 {rs}");
     }
+
+    // 客户端命令分发：本地触发已注册命令，验证命令匹配、参数传递与回执上报全链路
+    private static async Task ClientCommandDispatch()
+    {
+        using var server = CreateTcpServer();
+        server.Register<DeviceController>();
+        server.Start();
+
+        using var client = new SmokeNodeClient($"tcp://127.0.0.1:{server.Port}")
+        {
+            Code = "dev01",
+            Secret = "s3cret",
+            Features = Features.Login | Features.Logout | Features.Ping | Features.CommandReply,
+        };
+
+        var received = new List<String>();
+        client.Received += (s, e) =>
+        {
+            if (e.Model != null) received.Add(e.Model.Command);
+        };
+
+        client.RegisterCommand("Echo", (String? arg) => $"Echo:{arg}");
+        client.RegisterCommand("Model", (CommandModel m) => new CommandReplyModel { Id = m.Id, Status = CommandStatus.已完成, Data = "model:" + m.Argument });
+
+        var login = await client.Login("AOT");
+        if (login == null) throw new Exception("登录失败");
+
+        var rs1 = await client.SendCommand("Echo", "aot");
+        if (rs1?.Data != "Echo:aot") throw new Exception($"字符串命令结果异常 {rs1?.Data}");
+
+        var rs2 = await client.SendCommand("Model", "m1");
+        if (rs2?.Data != "model:m1") throw new Exception($"模型命令结果异常 {rs2?.Data}");
+
+        if (!received.Contains("Echo") || !received.Contains("Model")) throw new Exception($"命令事件不全 [{String.Join(",", received)}]");
+    }
+
+    // 服务端主动下发：动作固定为 Notify 时客户端才识别；回执经 Device/CommandReply 回到服务端
+    private static async Task ServerPushCommand()
+    {
+        using var server = CreateTcpServer();
+        server.Register<DeviceController>();
+        server.Start();
+
+        using var client = new SmokeNodeClient($"tcp://127.0.0.1:{server.Port}")
+        {
+            Code = "dev02",
+            Secret = "s3cret",
+            Features = Features.Login | Features.Logout | Features.Ping | Features.CommandReply,
+        };
+        client.RegisterCommand("Echo", (String? arg) => $"Echo:{arg}");
+
+        var login = await client.Login("AOT");
+        if (login == null) throw new Exception("登录失败");
+
+        DeviceController.LastReply = null;
+
+        // 命令模型出站 JSON 在 AOT 下不得退化为空对象，否则客户端解析不到命令
+        var count = server.InvokeAll("Notify", new CommandModel { Id = 1001, Command = "Echo", Argument = "push" });
+        if (count <= 0) throw new Exception("没有可用会话，服务端下发失败");
+
+        for (var i = 0; i < 100 && DeviceController.LastReply == null; i++) await Task.Delay(100);
+
+        var reply = DeviceController.LastReply;
+        if (reply == null) throw new Exception("服务端未收到命令回执");
+        if (reply.Id != 1001 || reply.Data != "Echo:push") throw new Exception($"回执内容异常 {reply.Id}/{reply.Data}");
+        if (reply.Status != CommandStatus.已完成) throw new Exception($"回执状态异常 {reply.Status}");
+    }
+
+    // 会话管理器进程内下发：命令模型序列化 → code#json → 事件总线 → 按编码路由到会话
+    private static async Task SessionManagerPublish()
+    {
+        var ioc = new ObjectContainer();
+        var sp = ioc.BuildServiceProvider();
+
+        using var manager = new SessionManager(sp);
+        var session = new CaptureCommandSession { Code = "dev-a", ServiceProvider = sp };
+        manager.Add(session);
+
+        await manager.PublishAsync("dev-a", new CommandModel { Id = 2001, Command = "Log", Argument = "hi" }, null, 0);
+
+        for (var i = 0; i < 100 && session.Command == null; i++) await Task.Delay(100);
+
+        if (session.Command?.Command != "Log") throw new Exception("会话未收到命令");
+        if (session.Message.IsNullOrEmpty() || !session.Message.Contains("Log")) throw new Exception($"命令消息为空[{session.Message}]");
+    }
     #endregion
 
     #region 辅助
@@ -499,6 +588,40 @@ public class DeviceController
 
     /// <summary>注销</summary>
     public LogoutResponse Logout(String reason) => new() { Token = reason };
+
+    /// <summary>最近一次收到的命令回执。服务端侧验证回执内容</summary>
+    public static CommandReplyModel? LastReply { get; set; }
+
+    /// <summary>命令回执。设备执行完服务端下发的命令后上报</summary>
+    public Boolean CommandReply(CommandReplyModel model)
+    {
+        LastReply = model;
+
+        return true;
+    }
+}
+
+/// <summary>捕获命令的会话实现。验证会话管理器的命令下发路由与命令模型解码</summary>
+public class CaptureCommandSession : CommandSession
+{
+    /// <summary>收到的命令</summary>
+    public CommandModel? Command { get; private set; }
+
+    /// <summary>收到的原始命令消息</summary>
+    public String? Message { get; private set; }
+
+    /// <summary>处理服务端下发的命令</summary>
+    /// <param name="command">命令模型</param>
+    /// <param name="message">原始命令消息</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns></returns>
+    public override Task HandleAsync(CommandModel command, String? message, CancellationToken cancellationToken)
+    {
+        Command = command;
+        Message = message;
+
+        return Task.CompletedTask;
+    }
 }
 
 /// <summary>冒烟客户端。ClientBase 的最小实现</summary>

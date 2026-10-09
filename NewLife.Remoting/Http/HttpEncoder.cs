@@ -143,12 +143,44 @@ public class HttpEncoder : EncoderBase, IEncoder
         if (json.IsNullOrEmpty()) return null;
         if (returnType == null || returnType == typeof(String)) return json;
 
+        // 基础类型裸值（Boolean 的 True、DateTime 的完整时间、裸字符串）不是合法 JSON，直接解析会抛异常，按文本返回
+        if (!IsParseableJson(json)) return json;
+
         // 返回类型可能是列表而不是字典
         var rs = JsonHost.Parse(json);
         if (rs == null) return null;
         if (returnType == typeof(Object)) return rs;
 
         return Convert(rs, returnType);
+    }
+
+    /// <summary>判断文本能否交给 JSON 解析器。仅接受结构化 JSON、带引号字符串与 JSON 数值</summary>
+    /// <param name="json">待判断文本</param>
+    /// <returns>能否交由解析器处理</returns>
+    /// <remarks>
+    /// 基础类型裸值不是合法 JSON：Boolean 编码为 True/False，DateTime 编码为完整时间文本，字符串编码为裸文本，
+    /// 交给解析器会抛“Non standard Json string”。这些内容须按原样返回
+    /// </remarks>
+    private static Boolean IsParseableJson(String json)
+    {
+        var text = json.Trim();
+        if (text.Length == 0) return false;
+
+        var c = text[0];
+        if (c is '{' or '[' or '"') return true;
+        if (text is "true" or "false" or "null") return true;
+
+        // JSON 数值：数字、正负号、小数点与指数符号，排除日期时间等以数字开头但含其它字符的文本
+        if (c != '-' && (c < '0' || c > '9')) return false;
+        for (var i = 1; i < text.Length; i++)
+        {
+            var ch = text[i];
+            if (ch is >= '0' and <= '9' || ch is '.' or 'e' or 'E' or '+' or '-') continue;
+
+            return false;
+        }
+
+        return true;
     }
 
     /// <summary>转换为目标类型</summary>

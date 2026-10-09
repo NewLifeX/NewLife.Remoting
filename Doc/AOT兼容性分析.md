@@ -16,7 +16,7 @@
 
 ## 2. 实测数据
 
-### 2.1 运行期：17 场景冒烟（JIT/AOT 双通）
+### 2.1 运行期：20 场景冒烟（JIT/AOT 双通）
 
 | # | 场景 | # | 场景 |
 |---|------|---|------|
@@ -28,8 +28,10 @@
 | 6 | 异步动作 Task/Task<T> | 14 | 内置 DTO 运行时类型往返 |
 | 7 | 流式 `IAsyncEnumerable<string>` | 15 | AOT 参数承载形态（字典 / 标记 DTO） |
 | 8 | 流式 `IAsyncEnumerable<int>`（闭集泵） | 16 | 客户端基类登录/心跳/事件/注销往返 |
-| | | 17 | 单方法注册的静态委托与裁剪保留 |
+| 17 | 单方法注册的静态委托与裁剪保留 | 18 | 客户端命令分发与回执上报 |
+| 19 | 服务端主动下发命令与设备回执 | 20 | 会话管理器命令下发与路由 |
 
+> 场景 18/19/20 覆盖设备平台最典型的「指令下发」链路：客户端命令委托分发与回执（`CommandModel` 解码 → 命令匹配 → `CommandReplyModel` 上报）、服务端 `InvokeAll("Notify", …)` 主动下发（出站命令模型 JSON 不得退化为空对象）、`SessionManager.PublishAsync → code#json → 事件总线 → 会话路由`。
 > AOT 判真：原生发布件入口 `Assembly.Location` 为空，而 JIT 基线为磁盘路径。冒烟工程固定「严格 AOT 姿态」（`PublishAot=true` 使 SDK 把 `RuntimeFeature.IsDynamicCodeSupported` 置为 false），两种运行的该值均为 False，**不作判别依据**。
 
 ### 2.2 编译期：分析器与 ILC 告警
@@ -56,6 +58,7 @@
 | 4 | `ApiAction.CompileInvoker` 的 `Expression.Compile()` | NativeAOT 下抛异常（原靠 catch 静默回退） | 前置 `DynamicCode.IsSupported` 判断，直接跳过 |
 | 5 | `ApiServer.ProcessStreamAsync` 的 `MakeGenericMethod` | 值类型流式返回直接崩溃 | 生成器静态泵优先，闭集元素类型兜底，最后才回退并在 AOT 下抛明确异常 |
 | 6 | `ApiHandler` 的 `Activator.CreateInstance` 造值类型默认值、`Task` 结果属性反射、控制器动作发现反射 | 告警面与裁剪风险 | 表达式树以条件表达式替换 `default(T)`、`Task` 结果改 `DynamicDependency`、动作发现改泛型入口传导保留 |
+| 7 | `JsonEncoder`/`HttpEncoder` 的 `DecodeResult` 用 JSON 解析器解析基础类型裸值 | **JIT 下同样复现**：声明 `Object` 返回值时，服务端返回 `Boolean`（写包为 `True`）或 `DateTime`（写包为完整时间文本）会抛 `Non standard Json string`。触发路径如 `ClientBase.CommandReply` 的 `InvokeAsync<Object>`，即「命令回执动作返回布尔值」这一最自然写法 | 解码前判断文本是否为可解析 JSON（结构化 JSON / 带引号字符串 / JSON 数值 / `true`/`false`/`null`），其余按文本原样返回；见「待修复项 FIX-1」关于写包侧的登记 |
 
 ---
 
@@ -123,6 +126,9 @@
 | `NewLife.Remoting.Extensions`（ASP.NET Core MVC + NewLife.XCode） | 独立包 | MVC 与 XCode 均为反射重度依赖，不在 NativeAOT 支持范围。如需，应改为最小 API + Core 的 `HttpDispatchTable` 静态分发，属独立任务。 |
 | `Samples/*`（IoTZero / ZeroServer / Zero.RpcServer / Demo） | 样例工程 | 依赖 XCode / Redis / Stardust，不纳入 AOT 范围。 |
 | 追踪 `NewSpan(..., new { ... })` 的标签对象 | `ClientBase` 等 | 标签仅用于 APM 展示，AOT 下匿名标签对象退化为空对象，不影响业务数据；暂不改造。 |
+| HTTP 通道的服务端流式推送与 WebSocket 握手 | `ApiHttpSession.SendMessage`、`ApiHttpHandler` | 非 AOT 差异，而是设计边界：HTTP 为请求-响应模型，流式推送抛 `NotSupportedException`，WS 握手直接回 501。故流式冒烟只覆盖 TCP，属预期。 |
+| WS/SSE 客户端通道（`WsChannel`/`SseChannel`/`WsChannelCore`） | `NewLife.Remoting.Clients` | 面向旧平台（非 NETCOREAPP）的接收通道，服务端侧 SRMP-over-WS 已取消，无内建服务端可对测，故不纳入冒烟；通道内无动态代码与运行期反射，风险面为既有逻辑本身。 |
+| 基础类型裸值写包不是合法 JSON | `JsonEncoder.EncodeValue` | 服务端把 `Boolean` 写成 `True`、`DateTime` 写成裸时间文本，严格 JSON 客户端（JS/Python/Go）无法解析。库内 .NET 客户端已由解码侧加固覆盖；写包侧改动涉及线协议，登记为「待修复项 FIX-1」由用户决策。 |
 
 ---
 
@@ -135,7 +141,7 @@ dotnet build NewLife.Remoting\NewLife.Remoting.csproj -c Release
 # 2) 源生成器单测
 dotnet test XUnitTest.SourceGenerator -c Release
 
-# 3) 冒烟实测（17 场景工程；PublishAot 写在工程文件内）
+# 3) 冒烟实测（20 场景工程；PublishAot 写在工程文件内）
 dotnet run -c Release --project AotSmoke\AotSmoke.csproj                    # JIT 姿态基线
 dotnet publish AotSmoke\AotSmoke.csproj -c Release -r win-x64 -o out        # NativeAOT 真编译（期望 0 条 ILC 告警）
 .\out\AotSmoke.exe                                                          # AOT 运行，逐场景 PASS/FAIL（非 0 退出码即失败）

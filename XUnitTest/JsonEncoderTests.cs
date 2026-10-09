@@ -452,6 +452,53 @@ public class JsonEncoderTests
         }
     }
 
+    [Fact(DisplayName = "解码基础类型返回值不因非标准JSON而失败")]
+    public void DecodeScalarResult()
+    {
+        var encoder = new JsonEncoder();
+        using var msg = new DefaultMessage();
+
+        // Boolean 编码为 True，不是合法 JSON，按文本返回
+        {
+            var pk = encoder.EncodeValue(true, out _);
+            var rs = encoder.DecodeResult("test", pk!, msg, typeof(Object));
+            Assert.Equal("True", rs);
+        }
+
+        // DateTime 编码为完整时间文本，不是合法 JSON，按文本返回
+        {
+            var now = DateTime.Now;
+            var pk = encoder.EncodeValue(now, out _);
+            var rs = encoder.DecodeResult("test", pk!, msg, typeof(Object));
+            Assert.Equal(now.ToFullString(), rs);
+        }
+
+        // 裸字符串文本不是合法 JSON，按文本返回
+        {
+            var pk = encoder.EncodeValue("hello", out _);
+            var rs = encoder.DecodeResult("test", pk!, msg, typeof(Object));
+            Assert.Equal("hello", rs);
+        }
+
+        // JSON 数值与结构化 JSON 仍照常解析
+        {
+            var pk = encoder.EncodeValue(300, out _);
+            var rs = encoder.DecodeResult("test", pk!, msg, typeof(Int32));
+            Assert.Equal(300, rs);
+        }
+        {
+            var pk = encoder.EncodeValue(new Dictionary<String, Object> { ["a"] = 1 }, out _);
+            var rs = encoder.DecodeResult("test", pk!, msg, typeof(Object));
+            var dic = Assert.IsAssignableFrom<IDictionary<String, Object>>(rs);
+            Assert.Equal(1, dic["a"].ToInt());
+        }
+        {
+            var pk = encoder.EncodeValue(new UserInfo { Name = "Stone", Age = 18 }, out _);
+            var rs = encoder.DecodeResult("test", pk!, msg, typeof(UserInfo));
+            Assert.Equal("Stone", (rs as UserInfo)?.Name);
+        }
+    }
+
     class UserInfo2 : IAccessor
     {
         public String Name { get; set; }
