@@ -1,14 +1,11 @@
 ﻿using NewLife.Data;
 using NewLife.Log;
 using NewLife.Messaging;
-using NewLife.Model;
 using NewLife.Net;
-using NewLife.Remoting.Http;
-using NewLife.Serialization;
-using HttpCodec = NewLife.Remoting.Http.HttpCodec;
 
 namespace NewLife.Remoting;
 
+/// <summary>SRMP协议服务端。承载 <see cref="ApiHost.GetMessageCodec"/> 默认封包协议的长连接 RPC</summary>
 class ApiNetServer : NetServer<ApiNetSession>, IApiServer
 {
     /// <summary>主机</summary>
@@ -33,13 +30,8 @@ class ApiNetServer : NetServer<ApiNetSession>, IApiServer
 
         if (config is NetUri uri) Local = uri;
 
-        var json = ServiceProvider?.GetService<IJsonHost>() ?? JsonHelper.Default;
-
-        Add(new WebSocketServerCodec { Server = "ApiServer", Protocol = "SRMP" });
-        Add(new HttpCodec { AllowParseHeader = true, JsonHost = json });
-
-        // 新生命标准网络封包协议
-        Add(Host.GetMessageCodec());
+        // 新生命标准网络封包协议。拆端口后 ApiServer 只跑 SRMP，HTTP 由 ApiHttpServer 承担
+        Protocol = Host.GetMessageCodec();
 
         return true;
     }
@@ -72,9 +64,22 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
     {
         LastActive = DateTime.Now;
 
+        // 大帧未到齐时消息泵在头部到齐即交付，体为流式（数据随管道到达）。后续克隆负载、解码都要求完整内存包，
+        // 按 Core 的官方指引在同步事件处理器内先物化（ReadAllAsync 等待数据到齐；串行语义下一次只有一帧在途，等待不会与下一帧冲突）。
+        // 服务端会话未发过等待请求（无匹配队列），Core 不会替我们物化流式体
+        if (e.Message is IMessage m && m.Body is { IsStreaming: true } body)
+            m.SetBody(body.ReadAllAsync().AsTask().GetAwaiter().GetResult());
+
         // 解码得到请求消息，忽略响应消息
         if (e.Message is not IMessage msg || msg.Reply) return;
 
+        Process(msg);
+    }
+
+    /// <summary>处理请求消息。连接复用（Multiplex）时投递线程池，否则同步处理</summary>
+    /// <param name="msg">请求消息</param>
+    private void Process(IMessage msg)
+    {
         // 连接复用
         if (_Host is ApiServer svr && svr.Multiplex)
         {
@@ -86,16 +91,14 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
                 return;
             }
 
-            // 投递线程池前确保 Payload 独立持有内存，避免 SAEA buffer 或 ArrayPool 内存被提前回收
-            // 如果消息使用了原来SEAE的数据包，需要拷贝，避免多线程冲突
-            // 也可能在粘包处理时，已经拷贝了一次
-            EnsureOwnedPayload(msg, e.Packet);
+            // 帧泵缓冲随本轮处理结束即回收，投递线程池前克隆独立负载（连同 HTTP 头部等元数据）
+            var clone = CloneMessage(msg);
 
             // 不要捕获上下文，避免多次请求串到一起
             ThreadPool.UnsafeQueueUserWorkItem(m =>
             {
                 _ = ProcessMessageAsync(m);
-            }, msg);
+            }, clone);
 
             // 本地异步函数：异步处理请求并发送响应，不阻塞线程池线程
             async Task ProcessMessageAsync(Object? m)
@@ -114,14 +117,16 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
                     // using 确保发送完毕后释放，级联归还 ArrayPool 缓冲区
                     using var rs = await _Host.ProcessAsync(this, msg2, this).ConfigureAwait(false);
                     if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
-
-                    // 归还消息对象到池
-                    if (m is DefaultMessage dm) DefaultMessage.Return(dm);
                 }
                 catch (Exception ex)
                 {
                     //XTrace.WriteException(ex);
                     OnError(this, new ExceptionEventArgs("", ex));
+                }
+                finally
+                {
+                    // 归还克隆消息持有的负载
+                    (m as IMessage).TryDispose();
                 }
             }
         }
@@ -130,25 +135,22 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
             // 同步路径：using 释放响应消息，级联归还 Payload 链中的 IOwnerPacket 缓冲区
             using var rs = _Host.Process(this, msg, this);
             if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
-
-            // 归还消息对象到池
-            if (msg is DefaultMessage dm) DefaultMessage.Return(dm);
         }
     }
 
-    /// <summary>确保消息 Payload 独立持有内存，避免与 SAEA 缓冲区或 ArrayPool 租用内存共享导致多线程冲突</summary>
-    /// <param name="msg">待处理的请求消息</param>
-    /// <param name="saeaPacket">本次 SAEA 接收的原始数据包</param>
-    private static void EnsureOwnedPayload(IMessage msg, IPacket? saeaPacket)
+    /// <summary>克隆消息。复制负载使消息独立持有内存，可安全跨线程处理</summary>
+    /// <param name="msg">源消息</param>
+    /// <returns>独立的消息副本，调用方负责释放</returns>
+    private static IMessage CloneMessage(IMessage msg)
     {
-        if (msg.Payload == null || saeaPacket is not ArrayPacket ap) return;
+        IMessage clone = msg switch
+        {
+            DefaultMessage dm => new DefaultMessage { Flag = dm.Flag, Sequence = dm.Sequence, Kind = dm.Kind },
+            _ => new Message { Kind = msg.Kind },
+        };
+        clone.SetBody(msg.Payload!.Clone());
 
-        if (msg.Payload is ArrayPacket ap2 && ap.Buffer == ap2.Buffer)
-            // 小数据：Payload 直接切片自 SAEA buffer，异步路径下 buffer 可能被下一次接收复用
-            msg.Payload = ap2.Clone();
-        else if (msg.Payload is IOwnerPacket)
-            // 大数据：OwnerPacket 持有 ArrayPool 租用内存，OnReceive 同步返回后管道会归还
-            msg.Payload = msg.Payload.Clone();
+        return clone;
     }
 
     /// <summary>单向远程调用，无需等待返回</summary>

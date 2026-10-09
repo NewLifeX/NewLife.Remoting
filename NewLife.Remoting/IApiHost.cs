@@ -1,4 +1,4 @@
-﻿using NewLife.Model;
+﻿using NewLife.Messaging;
 
 namespace NewLife.Remoting;
 
@@ -8,9 +8,9 @@ public interface IApiHost
     /// <summary>编码器</summary>
     IEncoder Encoder { get; set; }
 
-    /// <summary>获取消息编码器。重载以指定不同的封包协议</summary>
+    /// <summary>获取消息编解码器。重载以指定不同的封包协议</summary>
     /// <returns></returns>
-    IPipelineHandler GetMessageCodec();
+    IMessageCodec GetMessageCodec();
 
     ///// <summary>日志</summary>
     //ILog Log { get; set; }

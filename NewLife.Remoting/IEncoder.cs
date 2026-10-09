@@ -14,7 +14,7 @@ public interface IEncoder
     ///// <param name="code"></param>
     ///// <param name="value"></param>
     ///// <returns></returns>
-    //Packet Encode(String action, Int32 code, Packet value);
+    //IPacket Encode(String action, Int32 code, IPacket value);
 
     /// <summary>创建请求</summary>
     /// <param name="action"></param>
@@ -40,7 +40,7 @@ public interface IEncoder
     ///// <param name="code">错误码</param>
     ///// <param name="value">参数或结果</param>
     ///// <returns></returns>
-    //Packet Encode(String action, Int32 code, Object value);
+    //IPacket Encode(String action, Int32 code, Object value);
 
     /// <summary>解码参数</summary>
     /// <param name="action">动作</param>
@@ -111,8 +111,10 @@ public abstract class EncoderBase
         // 参数或结果。长度部分定长4字节
         if (value != null) writer.Write(value.Total);
 
-        // Slice(transferOwner:true) 将缓冲区所有权从 pk 转移到 pk2
-        var pk2 = pk.Slice(8, writer.Position - 8, true);
+        // v12 切片为引用计数共享语义：切片得到报文句柄后释放预留区句柄，缓冲区随报文句柄释放归还内存池
+        var pk2 = pk.Slice(8, writer.Position - 8);
+        pk.TryDispose();
+
         // value（可能是 IOwnerPacket）挂载到 Next 链，所有权随链传递
         if (value != null) pk2.Next = value;
 
@@ -136,7 +138,7 @@ public abstract class EncoderBase
         if (message.Action.IsNullOrEmpty()) return null;
 
         // 异常响应才有code
-        if (msg.Reply && msg.Error) message.Code = reader.ReadInt32();
+        if (msg.Reply && msg.Kind == MessageKinds.Error) message.Code = reader.ReadInt32();
 
         // 参数或结果
         if (reader.Available > 0)
@@ -165,7 +167,11 @@ public abstract class EncoderBase
             var endWriter = new SpanWriter(endPk.GetSpan());
             endWriter.Advance(8);
             endWriter.Write(action);
-            return endPk.Slice(8, endWriter.Position - 8, true);
+
+            var endBody = endPk.Slice(8, endWriter.Position - 8);
+            endPk.TryDispose();
+
+            return endBody;
         }
 
         var len = 8 + 1 + Encoding.UTF8.GetByteCount(action);
@@ -180,7 +186,9 @@ public abstract class EncoderBase
         if (code != null && code.Value is not ApiCode.Ok and not 200) writer.Write(code.Value);
         if (value != null) writer.Write(value.Total);
 
-        var pk2 = pk.Slice(8, writer.Position - 8, true);
+        var pk2 = pk.Slice(8, writer.Position - 8);
+        pk.TryDispose();
+
         if (value != null) pk2.Next = value;
 
         return pk2;

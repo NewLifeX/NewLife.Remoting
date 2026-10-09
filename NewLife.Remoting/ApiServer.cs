@@ -22,6 +22,16 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// <summary>端口</summary>
     public Int32 Port { get; set; }
 
+    /// <summary>Http服务端口。默认-1表示不启用Http服务；0表示自动选择（RPC 端口+1，被占用时回退系统随机端口）；大于0表示指定端口</summary>
+    /// <remarks>
+    /// 拆端口设计：SRMP 独占 <see cref="Port"/>，HTTP 使用独立端口，由 NewLife.Core 的 HttpServer 承载。
+    /// 启用后通过 <see cref="HttpPort"/> 可读取实际端口（0 与自动端口场景）。
+    /// </remarks>
+    public Int32 HttpPort { get; set; } = -1;
+
+    /// <summary>Http服务器。承载 HTTP 的独立端口，仅当 <see cref="HttpPort"/> 不小于0时创建</summary>
+    public IApiServer? HttpServer { get; private set; }
+
     /// <summary>处理器</summary>
     public IApiHandler? Handler { get; set; }
 
@@ -85,6 +95,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         Stop(GetType().Name + (disposing ? "Dispose" : "GC"));
 
         Server.TryDispose();
+        HttpServer.TryDispose();
 
         // ApiController可能注册在容器里面，这里需要解耦，避免当前ApiServer对象无法回收
         var controller = Manager?.Services.Values.FirstOrDefault(e => e.Type == typeof(ApiController))?.Controller as ApiController;
@@ -127,17 +138,38 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// <returns>创建的服务器实例，若初始化失败返回 null</returns>
     public IApiServer? Use(NetUri uri)
     {
-        var svr = uri.Type == NetType.Http ? new ApiHttpServer() : new ApiNetServer();
+        IApiServer? svr = null;
+        if (uri.Type == NetType.Http)
+        {
+            // Http专用模式：主服务器即 HTTP 入口，基于 Core 的 HttpServer 承载
+            var http = new ApiHttpServer
+            {
+                // 此时设置用处不大，因为可能是构造函数里调用Use，还没有指定Name等属性
+                Name = Name,
+                Log = Log,
+                Tracer = Tracer,
+                ReuseAddress = ReuseAddress,
+                ServiceProvider = this,
+            };
 
-        // 此时设置用处不大，因为可能是构造函数里调用Use，还没有指定Name等属性
-        svr.Name = Name;
-        svr.Log = Log;
-        svr.SessionLog = Log;
-        svr.Tracer = Tracer;
-        svr.ReuseAddress = ReuseAddress;
-        svr.ServiceProvider = this;
+            if (http.Init(uri, this)) svr = http;
+        }
+        else
+        {
+            var net = new ApiNetServer
+            {
+                Name = Name,
+                Log = Log,
+                SessionLog = Log,
+                Tracer = Tracer,
+                ReuseAddress = ReuseAddress,
+                ServiceProvider = this,
+            };
 
-        if (!svr.Init(uri, this)) return null;
+            if (net.Init(uri, this)) svr = net;
+        }
+
+        if (svr == null) return null;
 
         Server = svr;
 
@@ -212,7 +244,16 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         svr.Start();
 
         // 如果是动态端口(Port=0)，从底层服务器回写实际端口
-        if (Port == 0 && svr is NetServer netServer && netServer.Port > 0) Port = netServer.Port;
+        if (Port == 0)
+        {
+            if (svr is NetServer netServer && netServer.Port > 0)
+                Port = netServer.Port;
+            else if (svr is ApiHttpServer httpServer && httpServer.Port > 0)
+                Port = httpServer.Port;
+        }
+
+        // 拆端口设计：主服务器提供 SRMP，HTTP 在独立端口由 Core 的 HttpServer 提供
+        EnsureHttpServer();
 
         ShowService();
 
@@ -227,9 +268,78 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         Active = true;
     }
 
+    /// <summary>创建并启动Http服务器</summary>
+    /// <remarks>
+    /// 拆端口设计下，主服务器只提供 SRMP，HTTP 使用独立端口（默认关闭，需显式设置 <see cref="HttpPort"/>）。
+    /// HTTP 入口基于 NewLife.Core 的 HttpServer，不再自研帧栈，也不再承载 WebSocket。
+    /// </remarks>
+    /// <returns>Http服务器实例；未启用时返回 null</returns>
+    protected virtual IApiServer? EnsureHttpServer()
+    {
+        // 已创建过：Stop 后重新 Start 时把实例重新拉起来，否则 HTTP 端口会静默失效
+        if (HttpServer is ApiHttpServer hs)
+        {
+            if (!hs.Active) hs.Start();
+
+            return hs;
+        }
+        if (HttpServer != null) return HttpServer;
+        if (HttpPort < 0) return null;
+
+        // 主服务器就是 Http 服务器（Http 专用模式）时无需第二个端口
+        if (Server is ApiHttpServer) return null;
+
+        var port = HttpPort;
+        if (port == 0) port = Port > 0 ? Port + 1 : 0;
+
+        var svr = CreateHttpServer(port);
+        if (svr == null) return null;
+
+        try
+        {
+            svr.Start();
+        }
+        catch (Exception ex) when (port > 0 && HttpPort == 0)
+        {
+            // 自动端口被占用时退回系统随机端口
+            Log.Warn("Http端口[{0}]启动失败，改用随机端口：{1}", port, ex.Message);
+
+            svr.TryDispose();
+
+            svr = CreateHttpServer(0) ?? throw new InvalidOperationException($"无法创建Http服务器，端口[{port}]");
+            svr.Start();
+        }
+
+        HttpServer = svr;
+        HttpPort = svr.Port;
+
+        Log.Info("Http服务端口：{0}", HttpPort);
+
+        return svr;
+    }
+
+    private ApiHttpServer? CreateHttpServer(Int32 port)
+    {
+        var svr = new ApiHttpServer
+        {
+            Name = Name,
+            Host = this,
+            ServiceProvider = this,
+
+            Log = Log,
+            Tracer = Tracer,
+            ReuseAddress = ReuseAddress,
+        };
+
+        return svr.Init(new NetUri(NetType.Http, "*", port), this) ? svr : null;
+    }
+
     /// <summary>停止服务</summary>
     /// <param name="reason">关闭原因。便于日志分析</param>
-    /// <remarks>停止底层 <see cref="IApiServer"/> 并关闭统计定时器，将 <see cref="Active"/> 置为 false。</remarks>
+    /// <remarks>
+    /// 停止底层 <see cref="IApiServer"/> 与 <see cref="HttpServer"/>，关闭统计定时器，将 <see cref="Active"/> 置为 false。
+    /// 服务器对象本身保留，重新 <see cref="Start"/> 时会重新拉起监听。
+    /// </remarks>
     public virtual void Stop(String? reason)
     {
         if (!Active) return;
@@ -238,6 +348,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
 
         Log.Info("停止{0} {1}", GetType().Name, reason);
         Server.Stop(reason ?? (GetType().Name + "Stop"));
+        HttpServer?.Stop(reason ?? (GetType().Name + "Stop"));
 
         Active = false;
     }
@@ -350,7 +461,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
             }
 
             // 单向请求无需响应，释放可能的 IOwnerPacket 归还 ArrayPool
-            if (msg.OneWay)
+            if (msg.Kind == MessageKinds.OneWay)
             {
                 result.TryDispose();
                 result = null;

@@ -135,7 +135,7 @@ class WsChannel(ClientBase client) : DisposeBase
         {
             try
             {
-                old.CloseAsync(1000, "reconnect", default).Wait(1000);
+                _ = old.CloseAsync(1000, "reconnect");
             }
             catch { }
             old.TryDispose();
@@ -165,9 +165,7 @@ class WsChannel(ClientBase client) : DisposeBase
 
                 if (rs.Type == WebSocketMessageType.Ping)
                 {
-                    // RFC 6455 §5.5.3: Pong 必须回显 Ping 的负载
-                    var msg = new WebSocketMessage { Type = WebSocketMessageType.Pong, Payload = rs.Payload };
-                    await socket.SendMessageAsync(msg, source.Token).ConfigureAwait(false);
+                    // 控制帧 Ping 由 Core 的 WebSocketClient 自动回 Pong（RFC 6455 §5.5.3，回显同一负载），这里跳过业务处理即可
                     continue;
                 }
                 if (rs.Type == WebSocketMessageType.Close)
@@ -229,7 +227,7 @@ class WsChannel(ClientBase client) : DisposeBase
         }
         catch (ObjectDisposedException) { }
 
-        if (!socket.Disposed) await socket.CloseAsync(closeStatus ?? 1000, closeReason ?? "finish", default).ConfigureAwait(false);
+        if (!socket.Disposed) await socket.CloseAsync(closeStatus ?? 1000, closeReason ?? "finish").ConfigureAwait(false);
     }
 
     /// <summary>收到WebSocket文本心跳时调用。收到"Ping"或"Pong"均触发，基类更新心跳计时</summary>
@@ -261,11 +259,14 @@ class WsChannel(ClientBase client) : DisposeBase
             or SocketError.ConnectionAborted             // 10053 - 连接被中止
             or SocketError.OperationAborted;             // 995   - 操作被中止（本地socket关闭时）
 
-    /// <summary>发送文本消息</summary>
+    /// <summary>发送文本消息。自研 WebSocketClient 为同步发送，本方法保持 Task 形态供上层统一 await</summary>
     /// <param name="data">数据包</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
-    public virtual Task SendTextAsync(IPacket data, CancellationToken cancellationToken = default) => _websocket!.SendTextAsync(data, cancellationToken);
+    public virtual Task SendTextAsync(IPacket data, CancellationToken cancellationToken = default)
+    {
+        return _websocket!.SendTextAsync(data, cancellationToken);
+    }
 
     /// <summary>停止WebSocket连接</summary>
     private void StopWebSocket()
@@ -275,7 +276,7 @@ class WsChannel(ClientBase client) : DisposeBase
         try
         {
             if (_websocket != null && !_websocket.Disposed)
-                _websocket.CloseAsync(1000, "finish", default).Wait(1000);
+                _ = _websocket.CloseAsync(1000, "finish");
         }
         catch { }
 

@@ -9,6 +9,7 @@ using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Security;
 using NewLife.Serialization;
+using WebSocketMessageType = System.Net.WebSockets.WebSocketMessageType;
 
 namespace NewLife.Remoting.Extensions.Services;
 

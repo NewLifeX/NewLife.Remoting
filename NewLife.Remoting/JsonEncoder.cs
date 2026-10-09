@@ -78,7 +78,10 @@ public class JsonEncoder : EncoderBase, IEncoder
 
         var payload = Encode(action, null, pk);
 
-        return new DefaultMessage { Payload = payload, };
+        var msg = new DefaultMessage();
+        msg.SetBody(payload);
+
+        return msg;
     }
 
     /// <summary>创建响应消息</summary>
@@ -104,8 +107,8 @@ public class JsonEncoder : EncoderBase, IEncoder
 
         // 构造响应消息
         var rs = msg.CreateReply()!;
-        rs.Payload = payload;
-        if (code is not ApiCode.Ok and not 200) rs.Error = true;
+        rs.SetBody(payload);
+        if (code is not ApiCode.Ok and not 200) rs.Kind = MessageKinds.Error;
 
         return rs;
     }
@@ -132,8 +135,8 @@ public class JsonEncoder : EncoderBase, IEncoder
 
         // 流式帧也使用 CreateReply 保持一致性，客户端通过临时 Received 处理器接收
         var rs = msg.CreateReply()!;
-        rs.Payload = payload;
-        if (code is not ApiCode.Ok and not 200) rs.Error = true;
+        rs.SetBody(payload);
+        if (code is not ApiCode.Ok and not 200) rs.Kind = MessageKinds.Error;
 
         return rs;
     }

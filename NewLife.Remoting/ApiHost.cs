@@ -1,8 +1,8 @@
 ﻿using System.Collections.Concurrent;
 using NewLife.Data;
 using NewLife.Log;
+using NewLife.Messaging;
 using NewLife.Model;
-using NewLife.Net.Handlers;
 
 namespace NewLife.Remoting;
 
@@ -36,9 +36,9 @@ public abstract class ApiHost : DisposeBase, IApiHost, IExtend, ILogFeature, ITr
     #endregion
 
     #region 方法
-    /// <summary>获取消息编码器。重载以指定不同的封包协议</summary>
+    /// <summary>获取消息编解码器。重载以指定不同的封包协议</summary>
     /// <returns></returns>
-    public virtual IPipelineHandler GetMessageCodec() => new StandardCodec { Timeout = Timeout, UserPacket = false };
+    public virtual IMessageCodec GetMessageCodec() => new SrmpCodec();
     #endregion
 
     #region 日志

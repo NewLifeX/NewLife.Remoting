@@ -10,6 +10,7 @@ using NewLife.Serialization;
 using NewLife.Threading;
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Net;
 using System.Runtime.CompilerServices;
 #if !NET40
 using TaskEx = System.Threading.Tasks.Task;
@@ -342,13 +343,18 @@ public class ApiClient : ApiHost, IApiClient
         // 编码请求，构造消息
         var enc = Encoder;
         using var msg = enc.CreateRequest(action, args);
-        if (flag > 0 && msg is DefaultMessage dm) dm.Flag = flag;
+        if (msg is DefaultMessage dm)
+        {
+            if (flag > 0) dm.Flag = flag;
+
+            dm.Sequence = NextSequence();
+        }
 
         var invoker = client.Remote + "";
         IMessage? rs = null;
         try
         {
-            // 发起异步请求，等待返回
+            // 发起请求，等待返回。流式与数据报会话统一由 Core 的响应匹配交付（UdpServer/UdpSession 与 TcpSession 共用同一套匹配机制）
             rs = (await client.SendMessageAsync(msg, cancellationToken).ConfigureAwait(false)) as IMessage;
             if (rs == null || rs.Payload == null) return default;
         }
@@ -393,7 +399,6 @@ public class ApiClient : ApiHost, IApiClient
         // 特殊返回类型
         var resultType = typeof(TResult);
         if (resultType == typeof(IMessage)) return (TResult)rs;
-        //if (resultType == typeof(Packet)) return rs.Payload;
         if (rs.Payload == null) return default;
 
         try
@@ -407,15 +412,6 @@ public class ApiClient : ApiHost, IApiClient
 
             if (message.Data == null) return default;
             if (resultType == typeof(IPacket)) return (TResult)(Object)message.Data;
-#pragma warning disable CS0618 // 类型或成员已过时
-            if (resultType == typeof(Packet))
-            {
-                if (message.Data is Packet) return (TResult)(Object)message.Data;
-                if (message.Data.TryGetArray(out var segment)) return (TResult)(Object)new Packet(segment);
-
-                return (TResult)(Object)new Packet(message.Data.ToArray());
-            }
-#pragma warning restore CS0618 // 类型或成员已过时
 
             // 二进制序列化
             if (resultType.As<IAccessor>())
@@ -533,10 +529,15 @@ public class ApiClient : ApiHost, IApiClient
         // Api解码消息得到Action和参数
         if (e.Message is not IMessage msg) return;
 
-        // 响应消息由 SendMessageAsync 匹配机制处理，InvokeWithClientAsync 会在异步 continuation 中解码 Payload。
-        // 若在此重复解码并 Dispose，会将 cloned payload buffer 提前归还 ArrayPool，导致并发 Decode 读到脏数据（buffer 被复用覆盖）。
-        if (msg.Reply) return;
+        // 响应帧未到齐时为流式体（头部先到），后续解码与克隆都要求完整内存包，这里同步读满。
+        // 发过等待请求的会话有匹配队列，Core 在交付事件前就已物化流式体；本分支只兜底无匹配队列的帧（如首次响应前的服务端推送）
+        if (msg.Body is { IsStreaming: true } body)
+            msg.SetBody(body.ReadAllAsync().AsTask().GetAwaiter().GetResult());
 
+        // Received 事件面向数据监视（外挂形式）：请求与响应、匹配与未匹配一律上抛。
+        // 新架构下事件先于“响应匹配/所有权赠送”触发，此时 msg.Payload 是无所有权的借阅视图
+        // （ArrayPacket 或切片），仅回调内有效；ApiMessage.Data 是该视图的切片，Dispose 不触碰
+        // 池化缓冲——池化缓冲的归还是被匹配响应等待方/流式循环的唯一职责。
         using var apiMessage = Encoder.Decode(msg);
         if (apiMessage == null) return;
 
@@ -598,22 +599,31 @@ public class ApiClient : ApiHost, IApiClient
     /// <summary>创建客户端之后，打开连接之前</summary>
     /// <param name="svr">目标服务端地址</param>
     /// <remarks>
-    /// - WebSocket：清空默认管线并注入 `WebSocketClientCodec`。
-    /// - 超时：网络层采用消息层的 <see cref="ApiHost.Timeout"/>。
+    /// - 会话协议：本机消息编解码器（<see cref="ApiHost.GetMessageCodec"/>），承载 SRMP 请求-响应。
+    /// - ws:// 通道已随 SRMP-over-WS 一并取消，传入即抛 <see cref="NotSupportedException"/>。
+    /// - 超时：网络层采用消息层的 <see cref="ApiHost.Timeout"/>，请求-响应匹配等待同步使用同一超时（不大于0 时视为不限时）。
     /// - Trace：按日志级别为 Debug 时开启底层 Socket Trace（详见下方注释）。
     /// </remarks>
     /// <returns>新建并已打开的 <see cref="ISocketClient"/></returns>
     protected virtual ISocketClient OnCreate(String svr)
     {
         var uri = new NetUri(svr);
-        var client = uri.Type == NetType.WebSocket ?
-            new Uri(svr).CreateRemote() :
-            uri.CreateRemote();
 
-        if (uri.Type == NetType.WebSocket)
+        // ws/wss 通道已取消：SRMP 走 tcp/udp，HTTP 调用请使用 ApiHttpClient
+        if (uri.Type == NetType.WebSocket) throw new NotSupportedException($"地址[{svr}]的WebSocket通道已不受支持，SRMP请改用tcp://或udp://，HTTP调用请使用ApiHttpClient");
+
+        // UDP 使用本项目子类：Core 只把协议与并发度下发给按端点创建的会话，匹配超时需另行补齐（见 ApiUdpServer）
+        var client = uri.Type == NetType.Udp
+            ? new ApiUdpServer { Remote = uri }
+            : uri.CreateRemote();
+
+        if (client is SessionBase sb)
         {
-            client.Pipeline?.Clear();
-            client.Add(new WebSocketClientCodec { UserPacket = true });
+            sb.Protocol = GetMessageCodec();
+
+            // 匹配等待超时与消息超时保持一致。Core 默认30秒会把更长的配置截断；未配置超时（不大于0）视为不限时，
+            // 用 Int32.MaxValue 兜底，避免默认值把“永久等待”变成30秒截断
+            sb.MatchTimeout = Timeout > 0 ? Timeout : Int32.MaxValue;
         }
 
         // 网络层采用消息层超时
@@ -625,8 +635,6 @@ public class ApiClient : ApiHost, IApiClient
 
         if (Local != null) client.Local = Local;
 
-        client.Add(GetMessageCodec());
-
         client.Opened += (s, e) => OnNewSession((s as ISocketClient)!);
         client.Received += Client_Received;
 
@@ -634,6 +642,14 @@ public class ApiClient : ApiHost, IApiClient
 
         return client;
     }
+    #endregion
+
+    #region 请求配对
+    /// <summary>请求序列号。每个请求唯一，低8位参与响应配对</summary>
+    private Int32 _sequence;
+
+    /// <summary>取下一个请求序列号。SRMP 响应按序列号低8位配对，同一连接上的并发请求必须各有序列号</summary>
+    private Int32 NextSequence() => Interlocked.Increment(ref _sequence);
     #endregion
 
     #region 统计
@@ -718,6 +734,7 @@ public class ApiClient : ApiHost, IApiClient
         if (args != null && span != null) args = span.Attach(args);
 
         using var msg = enc.CreateRequest(action, args);
+        if (msg is DefaultMessage streamDm) streamDm.Sequence = NextSequence();
 
         // 提前注册 Received 处理器，确保首帧不会因竞态丢失
         var signal = new SemaphoreSlim(0);
@@ -727,36 +744,31 @@ public class ApiClient : ApiHost, IApiClient
         {
             if (cancellationToken.IsCancellationRequested) return;
 
-            if (e.Message is IMessage chunkMsg)
-            {
-                queue.Enqueue(chunkMsg);
-                signal.Release();
-            }
+            // 流式帧需要跨回调异步消费，属于“逃逸”。统一克隆为独立负载入队：负载与原消息、接收缓冲完全解耦，
+            // 跨回调安全；Kind 一并复制，错误帧的方向位（Error）得以保留。
+            if (e.Message is not IMessage chunkMsg || !chunkMsg.Reply || chunkMsg.Payload == null) return;
+
+            var dm = new DefaultMessage { Kind = chunkMsg.Kind };
+            dm.SetBody(chunkMsg.Payload.Clone());
+
+            queue.Enqueue(dm);
+            signal.Release();
         }
 
         client.Received += onReceived;
         try
         {
-            // 发送请求并等待首个响应（仅验证流已建立/检查错误，不消费数据）
+            // 发送请求并等待首个响应（仅确认流已建立）。新架构下首帧同样先经 Received 事件：
+            // onReceived 已把各帧负载统一克隆为池化包入队，数据一律从队列消费（不偷令牌，不触发停链）；
+            // 编解码器对已匹配响应仍会正常赠送/克隆兜底，因此这里只需释放返回值负载。
             var firstRs = await client.SendMessageAsync(msg, cancellationToken).ConfigureAwait(false) as IMessage;
             if (firstRs == null || firstRs.Payload == null) yield break;
 
-            var firstMessage = enc.Decode(firstRs);
-            if (firstMessage != null && firstMessage.Code is not ApiCode.Ok and not ApiCode.Ok200)
-                throw new ApiException(firstMessage.Code, firstMessage.Data?.ToStr().Trim('\"') ?? "") { Source = client.Remote + "/" + action };
-
-            // 首帧无数据即为结束标记（空流）
-            if (firstMessage == null || firstMessage.Data == null || firstMessage.Data.Total == 0)
-            {
-                firstMessage.TryDispose();
-                firstRs.Payload.TryDispose();
-                yield break;
-            }
-
-            firstMessage.TryDispose();
+            // 首帧数据已由 onReceived 克隆并入队；此处仅归还 SendMessageAsync 返回值可能持有的负载
+            // （匹配赠送或克隆兜底时均可能拥有池化缓冲，TryDispose 均为安全操作）
             firstRs.Payload.TryDispose();
 
-            // 统一从队列收集所有数据帧（含首帧的副本，由 onReceived 捕获）
+            // 统一从队列收集所有数据帧（含首帧，由 onReceived 克隆后入队）
             while (!cancellationToken.IsCancellationRequested)
             {
                 await signal.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -773,7 +785,11 @@ public class ApiClient : ApiHost, IApiClient
                     }
 
                     if (chunkMessage.Code is not ApiCode.Ok and not ApiCode.Ok200)
+                    {
+                        chunkMessage.TryDispose();
+                        chunkMsg.Payload.TryDispose();
                         throw new ApiException(chunkMessage.Code, chunkMessage.Data?.ToStr().Trim('\"') ?? "");
+                    }
 
                     if (chunkMessage.Data.Total > 0)
                     {
@@ -781,6 +797,7 @@ public class ApiClient : ApiHost, IApiClient
                         if (chunkResult is TResult ctr) yield return ctr;
                     }
 
+                    // 归还克隆消息的负载（消息外壳无池可还，随 GC 回收）
                     chunkMessage.TryDispose();
                     chunkMsg.Payload.TryDispose();
                 }
@@ -797,4 +814,26 @@ public class ApiClient : ApiHost, IApiClient
         }
     }
     #endregion
+}
+
+/// <summary>UDP客户端。在 Core 的 <see cref="UdpServer"/> 之上，把匹配等待超时下发给按端点创建的会话</summary>
+/// <remarks>
+/// <para>Core 的 UdpServer 只把协议与并发度下发给 <see cref="UdpSession"/>，而请求-响应配对的匹配队列挂在会话上：
+/// 不补齐则统一使用会话默认的30秒，既无法表达 <see cref="ApiHost.Timeout"/> 的更长配置，也无法表达“不限时”。</para>
+/// <para>已有会话走快路径直接复用（每个数据报都会调用本方法），仅新建会话时写入一次。</para>
+/// </remarks>
+class ApiUdpServer : UdpServer
+{
+    /// <summary>创建会话。新建会话时下发匹配等待超时，已有会话直接复用</summary>
+    /// <param name="local">接收数据的本地地址</param>
+    /// <param name="remoteEP">远程地址</param>
+    /// <returns></returns>
+    public override ISocketSession CreateSession(IPAddress? local, IPEndPoint remoteEP)
+    {
+        var session = base.CreateSession(local, remoteEP);
+
+        if (session is UdpSession us && us.MatchTimeout != MatchTimeout) us.MatchTimeout = MatchTimeout;
+
+        return session;
+    }
 }

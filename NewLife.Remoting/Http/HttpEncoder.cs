@@ -107,7 +107,7 @@ public class HttpEncoder : EncoderBase, IEncoder
         {
             // SSE 结束：发送空 data
             var endResponse = msg.CreateReply()!;
-            endResponse.Payload = (ArrayPacket)"data: \n\n".GetBytes();
+            endResponse.SetBody((ArrayPacket)"data: \n\n".GetBytes());
             return endResponse;
         }
 
@@ -120,7 +120,7 @@ public class HttpEncoder : EncoderBase, IEncoder
 
         var sseData = $"data: {json}\n\n";
         var response = msg.CreateReply()!;
-        response.Payload = (ArrayPacket)sseData.GetBytes();
+        response.SetBody((ArrayPacket)sseData.GetBytes());
 
         return response;
     }
@@ -222,11 +222,9 @@ public class HttpEncoder : EncoderBase, IEncoder
         var pk = Encode(action, code, value);
 
         // 构造响应消息
-        var rs = new HttpMessage
-        {
-            Payload = pk
-        };
-        if (code >= 500) rs.Error = true;
+        var rs = new HttpMessage();
+        rs.SetBody(pk);
+        if (code >= 500) rs.Kind = MessageKinds.Error;
 
         // HTTP/1.1 502 Bad Gateway
         var sb = Pool.StringBuilder.Get();
