@@ -47,10 +47,11 @@ public static class ApiActionTable
 
     #region 动作调用
     /// <summary>注册动作调用委托</summary>
-    /// <param name="controllerType">控制器类型</param>
+    /// <param name="controllerType">控制器类型。AOT 与裁剪下，该类型的公开/非公开方法与公开构造按需保留，
+    /// 使宽面入口 <c>Register(controller, method)</c> 的按名查找同样可用</param>
     /// <param name="methodName">方法名</param>
     /// <param name="invoker">强类型调用委托，参数为(控制器实例, 参数数组)，返回Object</param>
-    public static void RegisterInvoker(Type controllerType, String methodName, Func<Object, Object?[], Object?> invoker)
+    public static void RegisterInvoker([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods | DynamicallyAccessedMemberTypes.PublicConstructors)] Type controllerType, String methodName, Func<Object, Object?[], Object?> invoker)
     {
         if (controllerType == null) throw new ArgumentNullException(nameof(controllerType));
         if (methodName.IsNullOrEmpty()) throw new ArgumentNullException(nameof(methodName));

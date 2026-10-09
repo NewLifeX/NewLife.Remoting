@@ -1,4 +1,5 @@
-﻿using System.Net;
+using System.Diagnostics.CodeAnalysis;
+using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using NewLife;
@@ -49,6 +50,7 @@ internal static class Program
         await Run("14 内置 DTO 运行时类型往返", DtoRoundTrip);
         await Run("15 AOT 参数承载形态", ArgumentForms);
         await Run("16 客户端基类登录/心跳/事件/注销往返", ClientBaseRoundTrip);
+        await Run("17 单方法注册的静态委托与裁剪保留", SingleMethodRegister);
 
         Console.WriteLine(_failed == 0
             ? $"=== 全部通过 {_total}/{_total} ==="
@@ -300,6 +302,23 @@ internal static class Program
         var logout = await client.Logout("AOT");
         if (logout == null) throw new Exception("注销响应为空");
     }
+
+    // 实例入口 Register(instance, "Method") 只注册单个方法（宽面入口，AOT 下方法可能被裁剪）。
+    // 生成器对该调用点可见，为其生成强类型委托并静态引用目标方法，使其在裁剪与 AOT 下仍可调用
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "调用点对源生成器可见：生成委托并静态引用目标方法，裁剪与 AOT 下均可调用")]
+    private static async Task SingleMethodRegister()
+    {
+        using var server = CreateTcpServer();
+        server.Register(new SingleController(), "Alpha");
+        server.Start();
+
+        if (!ApiActionTable.TryGetInvoker(typeof(SingleController), "Alpha", out var invoker) || invoker == null)
+            throw new Exception("单方法注册未命中源生成器");
+
+        using var client = new ApiClient($"tcp://127.0.0.1:{server.Port}");
+        var rs = await client.InvokeAsync<String>("Single/Alpha");
+        if (rs != "Alpha!") throw new Exception($"结果错误 {rs}");
+    }
     #endregion
 
     #region 辅助
@@ -488,5 +507,15 @@ public class SmokeNodeClient : ClientBase
     /// <summary>实例化</summary>
     /// <param name="server">服务端地址</param>
     public SmokeNodeClient(String server) => Server = server;
+}
+
+/// <summary>单方法注册控制器。仅 Alpha 被注册，验证生成器为其生成委托并静态保留</summary>
+public class SingleController
+{
+    /// <summary>被注册的方法</summary>
+    public String Alpha() => "Alpha!";
+
+    /// <summary>未注册的方法</summary>
+    public String Beta() => "Beta!";
 }
 #endregion

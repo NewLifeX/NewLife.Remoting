@@ -33,7 +33,7 @@ NewLife.Remoting 是 NewLife 技术栈的统一远程通信基础设施，由两
 | [Doc/RPC内存管理设计.md](Doc/RPC内存管理设计.md) | 零拷贝内存管理 |
 | [Doc/自动更新机制.md](Doc/自动更新机制.md) | 自动更新全链路设计 |
 | [Doc/重试策略.md](Doc/重试策略.md) | 重试策略：IRetryPolicy 接口与指数退避示例 |
-| [Doc/AOT兼容性分析.md](Doc/AOT兼容性分析.md) | NativeAOT 支持范围、16 场景实测结论、下游使用指引与已知边界 |
+| [Doc/AOT兼容性分析.md](Doc/AOT兼容性分析.md) | NativeAOT 支持范围、17 场景实测结论、下游使用指引与已知边界 |
 
 ---
 
@@ -47,7 +47,7 @@ NewLife.Remoting 是 NewLife 技术栈的统一远程通信基础设施，由两
 | **UPGD 自动更新** | 检测→下载→校验→解压→覆盖→重启全链路 |
 | **SRV 服务端基础** | ApiController/BaseController/BaseDeviceController、TokenService、IDeviceService |
 | **CMD 指令下发** | SessionManager + 事件总线广播 + WS/SSE/Ping 多通道 |
-| **AOT 支持** | net8.0+ 常驻 AOT 兼容分析（0 告警）+ 自有源生成器（动作分发表/流式泵/签名类型保留），16 场景 NativeAOT 实测通过 |
+| **AOT 支持** | net8.0+ 常驻 AOT 兼容分析（0 告警）+ 自有源生成器（动作分发表/流式泵/签名类型保留），17 场景 NativeAOT 实测通过 |
 
 ## 快速开始
 

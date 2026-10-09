@@ -50,33 +50,66 @@ public sealed class ApiActionTableGenerator : IIncrementalGenerator
     #endregion
 
     #region 提取
-    // 廉价语法谓词：只放行名为 Register 且带单个类型实参的调用
+    // 廉价语法谓词：只放行名为 Register 的调用——泛型入口（单个类型实参）或实例入口（两个实参）
     private static Boolean IsCandidate(SyntaxNode node, CancellationToken token)
-        => node is InvocationExpressionSyntax inv && GetGenericName(inv) != null;
-
-    private static GenericNameSyntax? GetGenericName(InvocationExpressionSyntax inv)
     {
+        if (node is not InvocationExpressionSyntax inv) return false;
+
         SimpleNameSyntax? name = inv.Expression switch
         {
             MemberAccessExpressionSyntax member => member.Name,
             SimpleNameSyntax simple => simple,
             _ => null,
         };
+        if (name is null || name.Identifier.Text != RegisterMethodName) return false;
 
-        return name is GenericNameSyntax g && g.Identifier.Text == RegisterMethodName && g.TypeArgumentList.Arguments.Count == 1 ? g : null;
+        if (name is GenericNameSyntax g && g.TypeArgumentList.Arguments.Count == 1) return true;
+
+        return inv.ArgumentList.Arguments.Count == 2;
     }
 
-    // 语义提取：确认是 NewLife.Remoting 的控制器注册入口，取控制器类型并生成注册行
+    // 语义提取：确认是 NewLife.Remoting 的控制器注册入口，取控制器/方法并生成注册行
     private static ImmutableArray<String> Extract(GeneratorSyntaxContext context, CancellationToken token)
     {
         var inv = (InvocationExpressionSyntax)context.Node;
         var model = context.SemanticModel;
         if (model.GetSymbolInfo(inv, token).Symbol is not IMethodSymbol method) return default;
-        if (method.Name != RegisterMethodName || method.TypeArguments.Length != 1) return default;
+        if (method.Name != RegisterMethodName) return default;
         if (!IsRegisterEntry(method.ContainingType)) return default;
-        if (method.TypeArguments[0] is not INamedTypeSymbol controller) return default;
 
-        return BuildFragment(controller, model.Compilation);
+        // 泛型入口 Register<TService>()：注册控制器全部动作
+        if (method.TypeArguments.Length == 1)
+        {
+            if (method.TypeArguments[0] is not INamedTypeSymbol controller) return default;
+
+            return BuildFragment(controller, model.Compilation);
+        }
+
+        // 实例入口 Register(controller, "Method")：只注册指定方法。
+        // 该方法签名通常无法静态保留（宽面入口），生成器在此静态引用目标方法，使其在裁剪与 AOT 下不被移除
+        if (method.Parameters.Length != 2 || inv.ArgumentList.Arguments.Count != 2) return default;
+
+        var nameValue = model.GetConstantValue(inv.ArgumentList.Arguments[1].Expression);
+        if (!nameValue.HasValue || nameValue.Value is not String methodName || methodName.Length == 0) return default;
+
+        var controllerType = ResolveControllerType(inv.ArgumentList.Arguments[0].Expression, model);
+        if (controllerType == null) return default;
+
+        return BuildSingleMethod(controllerType, methodName, model.Compilation);
+    }
+
+    // 解析注册目标类型：支持直接传实例与 typeof(X)；传 Type 变量时无法静态确定，返回 null
+    private static INamedTypeSymbol? ResolveControllerType(ExpressionSyntax expression, SemanticModel model)
+    {
+        if (expression is TypeOfExpressionSyntax typeOf) return model.GetTypeInfo(typeOf.Type).Type as INamedTypeSymbol;
+
+        var type = model.GetTypeInfo(expression).Type;
+        if (type == null || type.SpecialType == SpecialType.System_Object) return null;
+
+        // System.Type 变量：运行期才知目标类型
+        if (type is INamedTypeSymbol named && named.Name == "Type" && named.ContainingNamespace?.ToDisplayString() == "System") return null;
+
+        return type as INamedTypeSymbol;
     }
 
     // 注册入口：ApiServer.Register<T>() 或 IApiManager/ApiManager.Register<T>()
@@ -140,23 +173,71 @@ public sealed class ApiActionTableGenerator : IIncrementalGenerator
 
             builder.Add($"global::NewLife.Remoting.ApiActionTable.RegisterInvoker(typeof({typeName}), \"{name}\", {call});");
 
-            // 入参与返回类型的成员保留：运行时类型 JSON 绑定在裁剪与 AOT 下需要公开无参构造与公开成员
-            foreach (var t in GetSignatureTypes(m))
-            {
-                var tn = t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                builder.Add($"global::NewLife.Remoting.ApiActionTable.Preserve(typeof({tn}));");
-            }
-
-            // 流式泵：值类型元素在 AOT 下无法运行期泛型实例化，这里编译期静态扎根
-            var element = GetStreamElementType(m.ReturnType);
-            if (element != null && element.IsValueType && element.TypeKind != TypeKind.TypeParameter)
-            {
-                var elementName = element.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                builder.Add($"global::NewLife.Remoting.ApiActionTable.RegisterStreamPump(typeof({elementName}), global::NewLife.Remoting.ApiStreamPump.PumpAsync<{elementName}>);");
-            }
+            AppendSignatureLines(builder, m);
         }
 
         return builder.ToImmutable();
+    }
+
+    // 为实例入口 Register(controller, "Method") 生成注册行：只注册指定方法
+    private static ImmutableArray<String> BuildSingleMethod(INamedTypeSymbol controller, String methodName, Compilation compilation)
+    {
+        var builder = ImmutableArray.CreateBuilder<String>();
+
+        if (controller.TypeKind != TypeKind.Class || controller.IsStatic || controller.IsAbstract) return builder.ToImmutable();
+        if (controller.IsUnboundGenericType) return builder.ToImmutable();
+        if (controller.TypeArguments.Any(e => e is ITypeParameterSymbol)) return builder.ToImmutable();
+        if (!compilation.IsSymbolAccessibleWithin(controller, compilation.Assembly)) return builder.ToImmutable();
+
+        // 按名称查找方法（派生类优先，重写只取最派生的一个）；重载或缺失时跳过，交由原反射路径
+        IMethodSymbol? found = null;
+        for (var current = controller; current != null && current.SpecialType != SpecialType.System_Object; current = current.BaseType)
+        {
+            foreach (var member in current.GetMembers(methodName))
+            {
+                if (member is not IMethodSymbol m) continue;
+                if (m.MethodKind != MethodKind.Ordinary || m.IsImplicitlyDeclared || m.IsGenericMethod) continue;
+
+                if (found != null)
+                {
+                    if (IsOverriddenBy([found], m)) continue;
+
+                    return builder.ToImmutable();
+                }
+
+                found = m;
+            }
+        }
+        if (found == null) return builder.ToImmutable();
+
+        var typeName = controller.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var call = BuildCall(found, typeName, compilation);
+        if (call == null) return builder.ToImmutable();
+
+        builder.Add($"global::NewLife.Remoting.ApiActionTable.RegisterInvoker(typeof({typeName}), \"{found.Name}\", {call});");
+
+        AppendSignatureLines(builder, found);
+
+        return builder.ToImmutable();
+    }
+
+    // 追加签名相关的登记：入参/返回类型的成员保留与值类型流式泵
+    private static void AppendSignatureLines(ImmutableArray<String>.Builder builder, IMethodSymbol m)
+    {
+        // 入参与返回类型的成员保留：运行时类型 JSON 绑定在裁剪与 AOT 下需要公开无参构造与公开成员
+        foreach (var t in GetSignatureTypes(m))
+        {
+            var tn = t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            builder.Add($"global::NewLife.Remoting.ApiActionTable.Preserve(typeof({tn}));");
+        }
+
+        // 流式泵：值类型元素在 AOT 下无法运行期泛型实例化，这里编译期静态扎根
+        var element = GetStreamElementType(m.ReturnType);
+        if (element != null && element.IsValueType && element.TypeKind != TypeKind.TypeParameter)
+        {
+            var elementName = element.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            builder.Add($"global::NewLife.Remoting.ApiActionTable.RegisterStreamPump(typeof({elementName}), global::NewLife.Remoting.ApiStreamPump.PumpAsync<{elementName}>);");
+        }
     }
 
     // 暴露规则与 ApiManager.RegisterAll 的绑定标志一致：

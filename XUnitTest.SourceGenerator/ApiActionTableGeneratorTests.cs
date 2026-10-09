@@ -194,6 +194,34 @@ public static class Entry
     public static void Setup(ApiServer server) => server.Register<DtoController>();
 }
 """;
+
+    private const String SingleMethodSource = """
+using NewLife.Remoting;
+
+/// <summary>单方法注册控制器</summary>
+public class SingleController
+{
+    /// <summary>方法一</summary>
+    public String Alpha() => "A";
+
+    /// <summary>方法二</summary>
+    public String Beta(String tag) => tag;
+
+    /// <summary>方法三</summary>
+    public Int32 Gamma(Int32 a, Int32 b) => a + b;
+}
+
+/// <summary>注册入口</summary>
+public static class Entry
+{
+    /// <summary>注册单个方法</summary>
+    public static void Setup(ApiServer server)
+    {
+        var ctrl = new SingleController();
+        server.Register(ctrl, "Beta");
+    }
+}
+""";
     #endregion
 
     #region 测试
@@ -261,6 +289,20 @@ public static class Entry
 
         Assert.True(code.Contains("ApiActionTable.Preserve(typeof(global::SendArgs))"), code);
         Assert.True(code.Contains("ApiActionTable.Preserve(typeof(global::SendResult))"), code);
+        Assert.Empty(compilation.GetDiagnostics().Where(e => e.Severity == DiagnosticSeverity.Error));
+    }
+
+    /// <summary>实例入口只注册指定方法：为其生成强类型委托（同时静态保留该方法），其余方法不生成</summary>
+    [Fact]
+    [DisplayName("单方法注册只生成指定方法")]
+    public void GenerateSingleMethod()
+    {
+        var (compilation, result) = GeneratorTestHost.RunWithSymbols(new ApiActionTableGenerator(), SingleMethodSource, _symbols, _refs);
+        var code = Assert.Single(GeneratorTestHost.GetGeneratedSources(result)).Value;
+
+        Assert.True(code.Contains("RegisterInvoker(typeof(global::SingleController), \"Beta\""), code);
+        Assert.DoesNotContain("\"Alpha\"", code);
+        Assert.DoesNotContain("\"Gamma\"", code);
         Assert.Empty(compilation.GetDiagnostics().Where(e => e.Severity == DiagnosticSeverity.Error));
     }
 
