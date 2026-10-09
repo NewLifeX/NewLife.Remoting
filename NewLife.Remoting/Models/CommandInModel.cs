@@ -1,6 +1,7 @@
 ﻿namespace NewLife.Remoting.Models;
 
 /// <summary>平台级发送命令参数模型</summary>
+[System.Text.Json.Serialization.JsonSerializable(typeof(CommandInModel))]
 public class CommandInModel
 {
     /// <summary>编码。节点编码或应用编码</summary>

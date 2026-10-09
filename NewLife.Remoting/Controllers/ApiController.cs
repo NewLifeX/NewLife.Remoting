@@ -18,6 +18,9 @@ public class ApiController : IApi
     /// <summary>会话</summary>
     public IApiSession Session { get; set; } = null!;
 
+    /// <summary>静态构造</summary>
+    /// <remarks>内置诊断控制器的动作方法只经反射调用，这里显式声明动态依赖，避免被裁剪</remarks>
+    [System.Diagnostics.CodeAnalysis.DynamicDependency(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicMethods, typeof(ApiController))]
     static ApiController()
     {
         NetworkChange.NetworkAddressChanged += (s, e) => _ips = null;

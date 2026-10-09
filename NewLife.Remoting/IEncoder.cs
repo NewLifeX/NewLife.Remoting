@@ -1,4 +1,5 @@
-﻿using System.Text;
+using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using NewLife.Buffers;
 using NewLife.Data;
 using NewLife.Log;
@@ -55,13 +56,13 @@ public interface IEncoder
     /// <param name="msg">消息</param>
     /// <param name="returnType">返回类型</param>
     /// <returns></returns>
-    Object? DecodeResult(String action, IPacket data, IMessage msg, Type returnType);
+    Object? DecodeResult(String action, IPacket data, IMessage msg, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] Type returnType);
 
     /// <summary>转换为目标类型</summary>
     /// <param name="obj"></param>
     /// <param name="targetType"></param>
     /// <returns></returns>
-    Object? Convert(Object obj, Type targetType);
+    Object? Convert(Object obj, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] Type targetType);
 
     /// <summary>日志提供者</summary>
     ILog Log { get; set; }

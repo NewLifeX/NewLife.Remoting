@@ -23,6 +23,7 @@ public interface ILoginResponse
 }
 
 /// <summary>登录响应</summary>
+[System.Text.Json.Serialization.JsonSerializable(typeof(LoginResponse))]
 public class LoginResponse : ILoginResponse
 {
     #region 属性

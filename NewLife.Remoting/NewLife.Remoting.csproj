@@ -17,7 +17,9 @@
     <LangVersion>latest</LangVersion>
     <SignAssembly>True</SignAssembly>
     <AssemblyOriginatorKeyFile>..\Doc\newlife.snk</AssemblyOriginatorKeyFile>
-    <NoWarn>1701;1702;NU5104;NETSDK1138;CS7035</NoWarn>
+    <!-- SYSLIB1224：JsonSerializableAttribute 仅作为 NewLife.Core 源生成器的成员访问器标记使用，
+         不参与 System.Text.Json 的上下文生成，故关闭其「非 JsonSerializerContext 派生类型」告警 -->
+    <NoWarn>1701;1702;NU5104;NETSDK1138;CS7035;SYSLIB1224</NoWarn>
     <AnalysisLevel>latest</AnalysisLevel>
     <WarningsAsErrors>CA2007</WarningsAsErrors>
   </PropertyGroup>
@@ -38,6 +40,18 @@
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     <PackageReadmeFile>Readme.MD</PackageReadmeFile>
   </PropertyGroup>
+
+  <!-- net8.0+ 常驻启用 AOT 兼容性分析（对齐 NewLife.Core v12），net7.0 及以下不适用 -->
+  <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <!-- 源生成器：作为构建依赖（ReferenceOutputAssembly=false 不引用输出），
+       SetTargetFramework 避免跨 TFM 协商；分析器程序集在主包打包时嵌入 analyzers/dotnet/cs，下游引用主包即自动获得 -->
+  <ItemGroup>
+    <ProjectReference Include="..\NewLife.Remoting.SourceGenerator\NewLife.Remoting.SourceGenerator.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" SetTargetFramework="TargetFramework=netstandard2.0" Private="false" />
+    <None Include="..\NewLife.Remoting.SourceGenerator\bin\$(Configuration)\netstandard2.0\NewLife.Remoting.SourceGenerator.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
 
   <ItemGroup>
     <Compile Remove="Clients\HttpClientBase.cs" />

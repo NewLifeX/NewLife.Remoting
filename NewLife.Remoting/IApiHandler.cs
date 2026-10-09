@@ -1,4 +1,5 @@
-﻿using System.Collections;
+using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using NewLife.Collections;
 using NewLife.Data;
@@ -155,14 +156,9 @@ public class ApiHandler : IApiHandler, IAsyncApiHandler
                             var pn = pis[i].Name;
                             if (pn != null) ps.TryGetValue(pn, out pv[i]);
                             // 值类型参数不能为null，否则表达式树Unbox会抛NullReferenceException
-                            // 优先使用参数自身的默认值，其次才使用类型默认值
-                            if (pv[i] == null)
-                            {
-                                if (pis[i].HasDefaultValue)
-                                    pv[i] = pis[i].DefaultValue;
-                                else if (pis[i].ParameterType.IsValueType)
-                                    pv[i] = Activator.CreateInstance(pis[i].ParameterType);
-                            }
+                            // 优先使用参数自身的默认值；仍为null时由 FastInvoker 内部替换为 default(T)
+                            if (pv[i] == null && pis[i].HasDefaultValue)
+                                pv[i] = pis[i].DefaultValue;
                         }
                         rs = api.FastInvoker(controller, pv);
                     }
@@ -226,8 +222,12 @@ public class ApiHandler : IApiHandler, IAsyncApiHandler
         return rs;
     }
 
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, PropertyInfo?> _taskResultCache = new();
-
+    /// <summary>等待任务完成并取回结果值</summary>
+    /// <param name="task">已完成的Task</param>
+    /// <returns>Task&lt;T&gt; 的 Result 值；无返回值时返回null</returns>
+    /// <remarks>Task&lt;T&gt; 的泛型实参运行期才确定，用 DynamicDependency 保留全部 Result 属性，配合分析器抑制</remarks>
+    [DynamicDependency(DynamicallyAccessedMemberTypes.PublicProperties, typeof(Task<>))]
+    [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Task<> 的公开属性已由 DynamicDependency 保留，此处反射读取安全")]
     private static async Task<Object?> GetTaskResultAsync(Task task)
     {
         await task.ConfigureAwait(false);
@@ -235,8 +235,7 @@ public class ApiHandler : IApiHandler, IAsyncApiHandler
         var taskType = task.GetType();
         if (!taskType.IsGenericType) return null;
 
-        var resultProperty = _taskResultCache.GetOrAdd(taskType,
-            t => t.GetProperty("Result", BindingFlags.Public | BindingFlags.Instance));
+        var resultProperty = taskType.GetProperty("Result", BindingFlags.Public | BindingFlags.Instance);
         return resultProperty?.GetValue(task);
     }
 
@@ -337,6 +336,8 @@ public class ApiHandler : IApiHandler, IAsyncApiHandler
     /// <param name="args">原始参数</param>
     /// <param name="encoder">编解码器</param>
     /// <returns></returns>
+    /// <remarks>参数类型来自 <see cref="ApiAction.Parameters"/>，由 <c>Register&lt;TService&gt;()</c> 的泛型保留注解传导，其成员在裁剪与 AOT 下按需保留</remarks>
+    [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "参数类型来自动作签名，已由 Register<TService>() 的 DynamicallyAccessedMembers 注解传导保留")]
     protected virtual IDictionary<String, Object?> GetParameterValues(MethodInfo method, IDictionary<String, Object?> dic, Object? raw, Object? args, IEncoder encoder)
     {
         // 该方法没有参数，无视外部传入参数

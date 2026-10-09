@@ -3,6 +3,7 @@
 namespace NewLife.Remoting.Models;
 
 /// <summary>访问令牌模型</summary>
+[System.Text.Json.Serialization.JsonSerializable(typeof(TokenModel))]
 public class TokenModel
 {
     /// <summary>访问令牌</summary>

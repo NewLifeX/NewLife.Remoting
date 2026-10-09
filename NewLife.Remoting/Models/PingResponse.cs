@@ -30,6 +30,7 @@ public interface IPingResponse2 : IPingResponse
 }
 
 /// <summary>心跳响应</summary>
+[System.Text.Json.Serialization.JsonSerializable(typeof(PingResponse))]
 public class PingResponse : IPingResponse2
 {
     /// <summary>本地时间。客户端用于计算延迟，Unix毫秒（UTC）</summary>

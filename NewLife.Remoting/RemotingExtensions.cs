@@ -6,11 +6,12 @@ namespace NewLife.Remoting;
 public static class RemotingExtensions
 {
     /// <summary>生成设备代码</summary>
-    /// <param name="machineInfo"></param>
-    /// <param name="formula"></param>
+    /// <param name="machineInfo">机器信息</param>
+    /// <param name="formula">编码公式，占位符取 MachineInfo 的公开属性名</param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
     /// <exception cref="ArgumentOutOfRangeException"></exception>
+    /// <remarks>按 MachineInfo 的公开属性遍历占位符，避免使用运行时类型反射（裁剪与 AOT 下不可静态保留）</remarks>
     public static String? BuildCode(this MachineInfo machineInfo, String formula = "MD5({UUID}@{Guid}@{Serial}@{DiskID}@{Macs})")
     {
         if (formula.IsNullOrEmpty()) throw new ArgumentNullException(nameof(formula));
@@ -19,7 +20,7 @@ public static class RemotingExtensions
         if (ss.Length < 2) throw new ArgumentOutOfRangeException(nameof(formula));
 
         var uid = ss[1];
-        foreach (var pi in machineInfo.GetType().GetProperties())
+        foreach (var pi in typeof(MachineInfo).GetProperties())
         {
             var name = $"{{{pi.Name}}}";
             if (uid.Contains(name))

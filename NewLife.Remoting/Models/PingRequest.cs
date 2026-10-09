@@ -54,6 +54,7 @@ public interface IPingRequest2 : IPingRequest
 }
 
 /// <summary>心跳请求</summary>
+[System.Text.Json.Serialization.JsonSerializable(typeof(PingRequest))]
 public class PingRequest : IPingRequest, IPingRequest2
 {
     #region 属性

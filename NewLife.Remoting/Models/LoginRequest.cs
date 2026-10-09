@@ -42,6 +42,7 @@ public interface ILoginRequest2 : ILoginRequest
 }
 
 /// <summary>登录请求</summary>
+[System.Text.Json.Serialization.JsonSerializable(typeof(LoginRequest))]
 public class LoginRequest : ILoginRequest, ILoginRequest2
 {
     #region 属性

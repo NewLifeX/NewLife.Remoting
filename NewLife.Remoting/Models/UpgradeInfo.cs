@@ -33,6 +33,7 @@ public interface IUpgradeInfo2 : IUpgradeInfo
 }
 
 /// <summary>更新响应</summary>
+[System.Text.Json.Serialization.JsonSerializable(typeof(UpgradeInfo))]
 public class UpgradeInfo : IUpgradeInfo, IUpgradeInfo2
 {
     /// <summary>版本号</summary>

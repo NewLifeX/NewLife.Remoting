@@ -26,7 +26,9 @@ jobs:
       run: |
         dotnet build NewLife.Remoting -c Release
         dotnet build NewLife.Remoting.Extensions -c Release
+        dotnet build NewLife.Remoting.SourceGenerator -c Release
         dotnet build XUnitTest -c Release
     - name: Test
       run: |
         dotnet test XUnitTest
+        dotnet test XUnitTest.SourceGenerator

@@ -1,6 +1,7 @@
 ﻿namespace NewLife.Remoting.Models;
 
 /// <summary>事件模型</summary>
+[System.Text.Json.Serialization.JsonSerializable(typeof(EventModel))]
 public class EventModel
 {
     /// <summary>发生时间。Unix毫秒（UTC）</summary>

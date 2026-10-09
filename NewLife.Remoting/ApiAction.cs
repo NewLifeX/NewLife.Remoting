@@ -94,15 +94,18 @@ public class ApiAction : IExtend
         if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
             IsStreaming = true;
 
-        // 预编译快速调用委托
-        FastInvoker = CompileInvoker(method);
+        // 调用委托：源生成器预生成的强类型委托优先（NativeAOT 友好），其次表达式树编译（仅动态代码可用时）
+        FastInvoker = ApiActionTable.TryGetInvoker(type, method.Name, out var invoker) ? invoker : CompileInvoker(method);
     }
 
     /// <summary>使用表达式树编译快速调用委托，避免每次调用走反射</summary>
     /// <param name="method">方法信息</param>
-    /// <returns>编译后的委托，参数为(instance, args[])，返回Object</returns>
+    /// <returns>编译后的委托，参数为(instance, args[])，返回Object；不支持动态代码时返回 null</returns>
     private static Func<Object, Object?[], Object?>? CompileInvoker(MethodInfo method)
     {
+        // 不支持运行时动态代码生成的环境（如 NativeAOT）直接跳过，由源生成器预生成的强类型委托承接，无需依赖异常兜底
+        if (!DynamicCode.IsSupported) return null;
+
         try
         {
             var instanceParam = Expression.Parameter(typeof(Object), "instance");
@@ -111,13 +114,18 @@ public class ApiAction : IExtend
             // 转换实例对象类型
             var instance = method.IsStatic ? null : Expression.Convert(instanceParam, method.DeclaringType!);
 
-            // 构造参数列表
+            // 构造参数列表。值类型参数允许传 null，由条件表达式替换为 default(T)，
+            // 避免表达式树 Unbox 遇到 null 抛 NullReferenceException，调用方无需用反射构造默认值
             var parameters = method.GetParameters();
             var argExpressions = new Expression[parameters.Length];
+            var nullConst = Expression.Constant(null, typeof(Object));
             for (var i = 0; i < parameters.Length; i++)
             {
                 var index = Expression.ArrayIndex(argsParam, Expression.Constant(i));
-                argExpressions[i] = Expression.Convert(index, parameters[i].ParameterType);
+                var pt = parameters[i].ParameterType;
+                argExpressions[i] = pt.IsValueType
+                    ? Expression.Condition(Expression.Equal(index, nullConst), Expression.Default(pt), Expression.Convert(index, pt))
+                    : Expression.Convert(index, pt);
             }
 
             // 调用方法

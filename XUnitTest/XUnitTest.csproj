@@ -30,6 +30,8 @@
   <ItemGroup>
     <ProjectReference Include="..\NewLife.Remoting\NewLife.Remoting.csproj" />
     <ProjectReference Include="..\NewLife.Remoting.Extensions\NewLife.Remoting.Extensions.csproj" />
+    <!-- 以分析器方式引入源生成器，让全部用例覆盖「生成命中」路径；未命中场景自动回退反射 -->
+    <ProjectReference Include="..\NewLife.Remoting.SourceGenerator\NewLife.Remoting.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" SetTargetFramework="TargetFramework=netstandard2.0" />
   </ItemGroup>
 
 </Project>

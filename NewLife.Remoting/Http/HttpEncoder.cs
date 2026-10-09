@@ -1,4 +1,5 @@
-﻿using System.Web;
+using System.Diagnostics.CodeAnalysis;
+using System.Web;
 using NewLife;
 using NewLife.Collections;
 using NewLife.Data;
@@ -41,7 +42,7 @@ public class HttpEncoder : EncoderBase, IEncoder
 
         var json = UseHttpStatus ?
             JsonHost.Write(value, false, false, false) :
-            JsonHost.Write(new { action, code, data = value }, false, true, false);
+            JsonHost.Write(CreateEnvelope(action, code, value), false, true, false);
         WriteLog("{0}=>{1}", action, json);
 
         return (ArrayPacket)json.GetBytes();
@@ -114,7 +115,7 @@ public class HttpEncoder : EncoderBase, IEncoder
         // 编码为 JSON
         var json = UseHttpStatus
             ? JsonHost.Write(value!, false, false, false)
-            : JsonHost.Write(new { action, code, data = value }, false, true, false);
+            : JsonHost.Write(CreateEnvelope(action, code, value), false, true, false);
 
         WriteLog("{0}=>{1}", action, json);
 
@@ -131,7 +132,7 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <param name="msg">消息</param>
     /// <param name="returnType">返回类型</param>
     /// <returns></returns>
-    public virtual Object? DecodeResult(String action, IPacket data, IMessage msg, Type returnType)
+    public virtual Object? DecodeResult(String action, IPacket data, IMessage msg, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] Type returnType)
     {
         var json = data?.ToStr();
         WriteLog("{0}<={1}", action, json);
@@ -154,7 +155,20 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <param name="obj"></param>
     /// <param name="targetType"></param>
     /// <returns></returns>
-    public virtual Object? Convert(Object obj, Type targetType) => JsonHost.Convert(obj, targetType);
+    public virtual Object? Convert(Object obj, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] Type targetType) => JsonHost.Convert(obj, targetType);
+
+    /// <summary>构造 HTTP 三段式响应封套</summary>
+    /// <param name="action">动作名称</param>
+    /// <param name="code">错误码</param>
+    /// <param name="value">响应值</param>
+    /// <returns>响应封套。键名即报文键名</returns>
+    /// <remarks>使用字典而非匿名类型：NativeAOT 下匿名类型的公开成员会被裁剪，序列化将得到空对象</remarks>
+    private static Dictionary<String, Object?> CreateEnvelope(String action, Int32 code, Object? value) => new()
+    {
+        ["action"] = action,
+        ["code"] = code,
+        ["data"] = value,
+    };
 
     #region 编码/解码
     /// <summary>创建请求</summary>

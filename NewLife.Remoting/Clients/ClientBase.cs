@@ -314,7 +314,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="args">参数</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>调用结果</returns>
-    protected virtual async Task<TResult> OnInvokeAsync<TResult>(String action, Object? args, CancellationToken cancellationToken)
+    protected virtual async Task<TResult> OnInvokeAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] TResult>(String action, Object? args, CancellationToken cancellationToken)
     {
         if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]=>{1}", action, args is IPacket or Byte[]? "" : args?.ToJson());
 
@@ -345,7 +345,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>调用结果</returns>
     /// <exception cref="NotSupportedException"></exception>
-    protected virtual async Task<TResult> GetAsync<TResult>(String action, Object? args, CancellationToken cancellationToken = default)
+    protected virtual async Task<TResult> GetAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] TResult>(String action, Object? args, CancellationToken cancellationToken = default)
     {
         if (Log != null && Log.Level <= LogLevel.Debug) WriteLog("[{0}]=>{1}", action, args is IPacket or Byte[]? "" : args?.ToJson());
 
@@ -414,7 +414,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="args">请求参数</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>调用结果</returns>
-    public virtual async Task<TResult?> InvokeAsync<TResult>(String action, Object? args = null, CancellationToken cancellationToken = default)
+    public virtual async Task<TResult?> InvokeAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] TResult>(String action, Object? args = null, CancellationToken cancellationToken = default)
     {
         // 首次调用前确保动作集合已初始化，避免 Actions 为 null 时 NRE
         var actions = Actions;
@@ -473,7 +473,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="args">请求参数</param>
     /// <returns>调用结果</returns>
     [return: MaybeNull]
-    public virtual TResult Invoke<TResult>(String action, Object? args = null)
+    public virtual TResult Invoke<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] TResult>(String action, Object? args = null)
     {
         using var source = new CancellationTokenSource(Timeout);
         return InvokeAsync<TResult>(action, args, source.Token).ConfigureAwait(false).GetAwaiter().GetResult();
@@ -490,7 +490,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="cancellationToken">取消通知</param>
     /// <returns>流式数据序列</returns>
     /// <exception cref="NotSupportedException">当前客户端不是 ApiClient（TCP RPC）时抛出</exception>
-    public virtual async IAsyncEnumerable<TResult> InvokeStreamAsync<TResult>(String action, Object? args = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public virtual async IAsyncEnumerable<TResult> InvokeStreamAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] TResult>(String action, Object? args = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         // 首次调用前确保动作集合已初始化，避免 Actions 为 null 时 NRE
         var actions = Actions;
@@ -809,10 +809,13 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <returns>注销响应</returns>
     protected virtual async Task<ILogoutResponse?> LogoutAsync(String? reason, CancellationToken cancellationToken)
     {
-        if (_client is ApiHttpClient)
-            return await GetAsync<ILogoutResponse>(Actions[Features.Logout], new { reason }, cancellationToken).ConfigureAwait(false);
+        // 参数用字典而非匿名类型：NativeAOT 下匿名类型成员会被裁剪，服务端将收到空参数
+        var args = new Dictionary<String, Object?> { ["reason"] = reason };
 
-        return await InvokeAsync<ILogoutResponse>(Actions[Features.Logout], new { reason }, cancellationToken).ConfigureAwait(false);
+        if (_client is ApiHttpClient)
+            return await GetAsync<ILogoutResponse>(Actions[Features.Logout], args, cancellationToken).ConfigureAwait(false);
+
+        return await InvokeAsync<ILogoutResponse>(Actions[Features.Logout], args, cancellationToken).ConfigureAwait(false);
     }
     #endregion
 
@@ -1143,10 +1146,13 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <returns>更新信息</returns>
     protected virtual async Task<IUpgradeInfo?> UpgradeAsync(String? channel, CancellationToken cancellationToken)
     {
-        if (_client is ApiHttpClient)
-            return await GetAsync<IUpgradeInfo>(Actions[Features.Upgrade], new { channel }, cancellationToken).ConfigureAwait(false);
+        // 参数用字典而非匿名类型：NativeAOT 下匿名类型成员会被裁剪，服务端将收到空参数
+        var args = new Dictionary<String, Object?> { ["channel"] = channel };
 
-        return await InvokeAsync<IUpgradeInfo>(Actions[Features.Upgrade], new { channel }, cancellationToken).ConfigureAwait(false);
+        if (_client is ApiHttpClient)
+            return await GetAsync<IUpgradeInfo>(Actions[Features.Upgrade], args, cancellationToken).ConfigureAwait(false);
+
+        return await InvokeAsync<IUpgradeInfo>(Actions[Features.Upgrade], args, cancellationToken).ConfigureAwait(false);
     }
     #endregion
 

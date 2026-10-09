@@ -10,6 +10,7 @@ using NewLife.Serialization;
 using NewLife.Threading;
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Runtime.CompilerServices;
 #if !NET40
@@ -187,7 +188,7 @@ public class ApiClient : ApiHost, IApiClient
     /// - 超时会将 <see cref="TaskCanceledException"/> 截断为短消息："[action]超时[Timeout]取消"。
     /// </remarks>
     /// <returns>解码后的返回值，或默认值</returns>
-    public virtual async Task<TResult?> InvokeAsync<TResult>(String action, Object? args = null, CancellationToken cancellationToken = default)
+    public virtual async Task<TResult?> InvokeAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] TResult>(String action, Object? args = null, CancellationToken cancellationToken = default)
     {
         // 让上层异步到这直接返回，后续代码在另一个线程执行
         //!!! Task.Yield会导致强制捕获上下文，虽然会在另一个线程执行，但在UI线程中可能无法抢占上下文导致死锁
@@ -274,7 +275,7 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="action">服务操作</param>
     /// <param name="args">参数</param>
     /// <returns>解码后的返回值，或默认值</returns>
-    public virtual TResult? Invoke<TResult>(String action, Object? args = null) => InvokeAsync<TResult>(action, args).ConfigureAwait(false).GetAwaiter().GetResult();
+    public virtual TResult? Invoke<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] TResult>(String action, Object? args = null) => InvokeAsync<TResult>(action, args).ConfigureAwait(false).GetAwaiter().GetResult();
 
     /// <summary>单向发送。同步调用，不等待返回</summary>
     /// <param name="action">服务操作</param>
@@ -302,7 +303,7 @@ public class ApiClient : ApiHost, IApiClient
     /// <param name="flag">标识</param>
     /// <param name="cancellationToken">取消通知</param>
     /// <returns>解码后的返回值，或默认值</returns>
-    public virtual async Task<TResult?> InvokeWithClientAsync<TResult>(ISocketClient client, String action, Object? args = null, Byte flag = 0, CancellationToken cancellationToken = default)
+    public virtual async Task<TResult?> InvokeWithClientAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] TResult>(ISocketClient client, String action, Object? args = null, Byte flag = 0, CancellationToken cancellationToken = default)
     {
         // 性能计数器，次数、TPS、平均耗时
         var st = StatInvoke;
@@ -694,7 +695,7 @@ public class ApiClient : ApiHost, IApiClient
     /// SendMessageAsync 仅用于确认流已建立并在出错时抛异常。
     /// 结束标记（空 data）自动停止迭代。
     /// </remarks>
-    public virtual async IAsyncEnumerable<TResult> InvokeStreamAsync<TResult>(String action, Object? args = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public virtual async IAsyncEnumerable<TResult> InvokeStreamAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] TResult>(String action, Object? args = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         Open();
 

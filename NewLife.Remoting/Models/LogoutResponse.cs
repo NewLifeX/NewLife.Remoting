@@ -8,6 +8,7 @@ public interface ILogoutResponse
 }
 
 /// <summary>注销响应</summary>
+[System.Text.Json.Serialization.JsonSerializable(typeof(LogoutResponse))]
 public class LogoutResponse : ILogoutResponse
 {
     #region 属性

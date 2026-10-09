@@ -8,6 +8,7 @@ using NewLife.Remoting.Http;
 using NewLife.Serialization;
 using NewLife.Threading;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace NewLife.Remoting;
@@ -108,13 +109,19 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     public IApiManager Manager { get; }
 
     /// <summary>注册服务提供类。该类的所有公开方法将直接暴露</summary>
-    /// <typeparam name="TService">服务控制器类型</typeparam>
-    public void Register<TService>() => Manager.Register<TService>();
+    /// <typeparam name="TService">服务控制器类型。AOT 与裁剪下，该类型的公开/非公开方法与公开构造将按需保留</typeparam>
+    public void Register<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods | DynamicallyAccessedMemberTypes.PublicConstructors)] TService>() => Manager.Register<TService>();
 
     /// <summary>注册服务</summary>
     /// <param name="controller">控制器对象</param>
     /// <param name="method">动作名称。为空时遍历控制器所有公有成员方法</param>
+    /// <remarks>运行时类型入口，裁剪与 AOT 下无法静态保证动作方法被保留，请优先使用泛型入口 <see cref="Register{TService}()"/></remarks>
+    [RequiresUnreferencedCode("控制器类型在运行时确定，裁剪与 AOT 下无法静态保留其动作方法，请改用泛型入口 Register<TService>()")]
     public void Register(Object controller, String? method) => Manager.Register(controller, method);
+
+    /// <summary>注册内置诊断控制器。类型在编译期已知，其公开方法由 <see cref="ApiController"/> 的类型级动态依赖保留</summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "ApiController 为本程序集内置类型，其公开方法已由类型级 DynamicDependency 保留")]
+    private void RegisterDefaultController() => Register(new ApiController { Host = this }, null);
 
     /// <summary>显示可用服务</summary>
     protected virtual void ShowService()
@@ -217,7 +224,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
 
         // 注册默认服务控制器
         if (Manager.Find("Api/Info") == null)
-            Register(new ApiController { Host = this }, null);
+            RegisterDefaultController();
 
         var json = ServiceProvider?.GetService<IJsonHost>() ?? JsonHelper.Default;
         Encoder ??= new JsonEncoder { JsonHost = json };
@@ -423,17 +430,13 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
                 result = await OnProcessAsync(session, request.Action, request.Data, msg, serviceProvider).ConfigureAwait(false);
 
                 // 流式返回：IAsyncEnumerable<T> 逐条推送
-                // 注意：result.GetType() 返回编译器生成的具体类型（如 <Range>d__0），
-                // 需通过接口检测而非具体类型
-                if (result != null)
+                // 判定依据取注册期缓存的 ApiAction.IsStreaming（由动作返回类型静态判定），
+                // 避免运行时枚举 result 类型的接口列表——编译器生成的具体类型（如 <Range>d__0）
+                // 在裁剪与 AOT 下无法静态保证其接口元数据完整
+                if (result != null && Manager.Find(request.Action)?.IsStreaming == true)
                 {
-                    var resultType = result.GetType();
-                    if (resultType.IsGenericType && resultType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>)
-                        || resultType.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>)))
-                    {
-                        await ProcessStreamWithCancelAsync(session, msg, request.Action, result, enc).ConfigureAwait(false);
-                        return null;
-                    }
+                    await ProcessStreamWithCancelAsync(session, msg, request.Action, result, enc).ConfigureAwait(false);
+                    return null;
                 }
             }
             catch (Exception ex)
@@ -502,6 +505,18 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// <summary>处理器类型是否走异步路径的缓存。避免每请求反射检测</summary>
     private static readonly ConcurrentDictionary<Type, Boolean> _asyncHandlerCache = new();
 
+    /// <summary>判断处理器类型是否走异步路径。仅重写同步 Execute 而未重写 ExecuteAsync 的旧子类回退同步路径</summary>
+    /// <param name="handlerType">处理器运行时类型</param>
+    /// <returns>是否走异步路径</returns>
+    /// <remarks>只查询 Execute/ExecuteAsync 两个虚方法的声明类型；二者均在本程序集被静态调用，元数据必然保留</remarks>
+    [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = "Execute/ExecuteAsync 为本类型静态引用到的虚方法，其元数据必然保留；此处只查询声明类型")]
+    private static Boolean IsAsyncHandler(Type handlerType)
+    {
+        var mExecute = handlerType.GetMethod(nameof(ApiHandler.Execute), BindingFlags.Public | BindingFlags.Instance);
+        var mExecuteAsync = handlerType.GetMethod(nameof(ApiHandler.ExecuteAsync), BindingFlags.Public | BindingFlags.Instance);
+        return mExecute?.DeclaringType == typeof(ApiHandler) || mExecuteAsync?.DeclaringType != typeof(ApiHandler);
+    }
+
     /// <summary>异步执行消息处理，交给Handler。实现 IAsyncApiHandler 的处理器走异步路径，旧处理器回退同步 Execute</summary>
     /// <param name="session">会话</param>
     /// <param name="action">动作</param>
@@ -514,13 +529,8 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         // 实现异步接口的处理器走异步路径，避免 async 动作阻塞线程
         if (Handler is IAsyncApiHandler ah)
         {
-            // 缓存类型级决策（反射仅首次）：仅重写同步 Execute 而未重写 ExecuteAsync 的旧子类回退同步路径
-            var useAsync = _asyncHandlerCache.GetOrAdd(ah.GetType(), t =>
-            {
-                var mExecute = t.GetMethod(nameof(ApiHandler.Execute), BindingFlags.Public | BindingFlags.Instance);
-                var mExecuteAsync = t.GetMethod(nameof(ApiHandler.ExecuteAsync), BindingFlags.Public | BindingFlags.Instance);
-                return mExecute?.DeclaringType == typeof(ApiHandler) || mExecuteAsync?.DeclaringType != typeof(ApiHandler);
-            });
+            // 缓存类型级决策（反射仅首次）
+            var useAsync = _asyncHandlerCache.GetOrAdd(ah.GetType(), IsAsyncHandler);
             if (useAsync)
                 return await ah.ExecuteAsync(session, action, args, msg, serviceProvider).ConfigureAwait(false);
         }
@@ -628,18 +638,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
             else
             {
                 // 值类型 IAsyncEnumerable（如 IAsyncEnumerable<Int32>），通过泛型 Helper 迭代
-                var resultType = streamResult.GetType();
-                var iface = resultType.GetInterfaces().FirstOrDefault(i =>
-                    i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>));
-                if (iface == null)
-                    throw new InvalidOperationException($"流式返回类型 {resultType.FullName} 未实现 IAsyncEnumerable<T>");
-
-                var elementType = iface.GetGenericArguments()[0];
-                var helperMethod = typeof(ApiServer).GetMethod(nameof(SendStreamItems), BindingFlags.NonPublic | BindingFlags.Static)
-                    ?? throw new InvalidOperationException("找不到 SendStreamItems 方法");
-                var genericHelper = helperMethod.MakeGenericMethod(elementType);
-                var invokeTask = (Task)genericHelper.Invoke(null, [streamResult, session, msg, action, enc, cancellationToken])!;
-                await invokeTask.ConfigureAwait(false);
+                await SendValueTypeStreamAsync(streamResult, session, msg, action, enc, cancellationToken).ConfigureAwait(false);
             }
 
             // 发送结束标记
@@ -659,24 +658,47 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         }
     }
 
-    /// <summary>泛型 Helper：逐条迭代 IAsyncEnumerable&lt;T&gt; 并发送流式帧</summary>
-    /// <typeparam name="T">元素类型（值类型或引用类型）</typeparam>
-    /// <param name="streamObj">IAsyncEnumerable&lt;T&gt; 实例</param>
+    /// <summary>发送值类型元素流。IAsyncEnumerable&lt;T&gt; 的泛型实参运行期才确定</summary>
+    /// <param name="streamResult">IAsyncEnumerable&lt;T&gt; 实例</param>
     /// <param name="session">会话</param>
     /// <param name="msg">原始请求消息</param>
     /// <param name="action">动作名</param>
     /// <param name="enc">编码器</param>
     /// <param name="cancellationToken">取消令牌</param>
-    private static async Task SendStreamItems<T>(Object streamObj, IApiSession session, IMessage msg, String action, IEncoder enc, CancellationToken cancellationToken = default)
+    /// <returns>异步任务</returns>
+    /// <remarks>
+    /// 引用类型元素已由 <see cref="IAsyncEnumerable{T}"/> 的协变转为 IAsyncEnumerable&lt;Object?&gt; 处理，
+    /// 此处只剩值类型元素。运行期泛型实例化（MakeGenericMethod）在 AOT 下不可用，
+    /// 故由源生成器为动作预生成的流式泵优先承接，未命中时回退运行期泛型实例化。
+    /// </remarks>
+    [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "流式返回实例已实例化，其 IAsyncEnumerable<T> 接口实现随实例可达而保留；此处只读取泛型实参")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "回退路径由 DynamicCodeHelper.IsSupported 守卫，AOT 下优先走源生成器预生成的流式泵")]
+    [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = "ApiStreamPump.PumpAsync 为本程序集公开静态方法，元数据必然保留")]
+    private static async Task SendValueTypeStreamAsync(Object streamResult, IApiSession session, IMessage msg, String action, IEncoder enc, CancellationToken cancellationToken)
     {
-        var stream = (IAsyncEnumerable<T>)streamObj;
-#pragma warning disable CA2007
-        await foreach (var item in stream.WithCancellation(cancellationToken))
+        var resultType = streamResult.GetType();
+        var iface = resultType.GetInterfaces().FirstOrDefault(i =>
+            i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>));
+        if (iface == null)
+            throw new InvalidOperationException($"流式返回类型 {resultType.FullName} 未实现 IAsyncEnumerable<T>");
+
+        var elementType = iface.GetGenericArguments()[0];
+
+        // 优先使用源生成器为动作预生成的流式泵（编译期已静态扎根，AOT 下零泛型实例化）
+        if (ApiActionTable.TryGetStreamPump(elementType, out var pump) && pump != null)
         {
-            using var rs = enc.CreateStreamResponse(msg, action, 0, item, false);
-            session.SendMessage(rs);
+            await pump(streamResult, session, msg, action, enc, cancellationToken).ConfigureAwait(false);
+            return;
         }
-#pragma warning restore CA2007
+
+        // 回退：运行期泛型实例化，仅动态代码可用时成立
+        DynamicCode.ThrowIfNotSupported($"值类型流式返回 IAsyncEnumerable<{elementType.Name}>");
+
+        var helperMethod = typeof(ApiStreamPump).GetMethod(nameof(ApiStreamPump.PumpAsync), BindingFlags.Public | BindingFlags.Static)
+            ?? throw new InvalidOperationException("找不到 PumpAsync 方法");
+        var genericHelper = helperMethod.MakeGenericMethod(elementType);
+        var invokeTask = (Task)genericHelper.Invoke(null, [streamResult, session, msg, action, enc, cancellationToken])!;
+        await invokeTask.ConfigureAwait(false);
     }
     #endregion
 

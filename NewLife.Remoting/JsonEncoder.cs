@@ -1,4 +1,5 @@
-﻿using NewLife.Data;
+using System.Diagnostics.CodeAnalysis;
+using NewLife.Data;
 using NewLife.Messaging;
 using NewLife.Reflection;
 using NewLife.Serialization;
@@ -36,7 +37,7 @@ public class JsonEncoder : EncoderBase, IEncoder
     /// <param name="msg">消息</param>
     /// <param name="returnType">返回类型</param>
     /// <returns></returns>
-    public Object? DecodeResult(String action, IPacket data, IMessage msg, Type returnType)
+    public Object? DecodeResult(String action, IPacket data, IMessage msg, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] Type returnType)
     {
         var json = data?.ToStr();
         if (LogEnable) WriteLog("{0}[{2:X2}]<={1}", action, json, msg is DefaultMessage dm ? dm.Sequence : 0);
@@ -59,7 +60,7 @@ public class JsonEncoder : EncoderBase, IEncoder
     /// <param name="obj"></param>
     /// <param name="targetType"></param>
     /// <returns></returns>
-    public Object? Convert(Object obj, Type targetType) => JsonHost.Convert(obj, targetType);
+    public Object? Convert(Object obj, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.PublicProperties)] Type targetType) => JsonHost.Convert(obj, targetType);
 
     /// <summary>创建请求消息</summary>
     /// <param name="action">动作名称</param>

@@ -1,0 +1,58 @@
+name: aot
+
+on:
+  push:
+    branches: [ '*' ]
+  pull_request:
+    branches: [ '*' ]
+  workflow_dispatch:
+
+jobs:
+  # win-x64：分析器 0 告警与 NativeAOT 冒烟均为硬约束，失败即阻断
+  aot-windows:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup dotNET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: |
+          8.x
+          9.x
+          10.x
+
+    # net8.0+ 常驻 IsAotCompatible，构建告警即 AOT 兼容性回归
+    - name: 分析器零告警构建
+      run: dotnet build NewLife.Remoting/NewLife.Remoting.csproj -c Release --nologo
+
+    - name: 源生成器单元测试
+      run: dotnet test XUnitTest.SourceGenerator -c Release --nologo
+
+    # PublishAot 写在冒烟工程文件内，勿用命令行 -p: 传入
+    - name: NativeAOT 发布
+      run: dotnet publish AotSmoke/AotSmoke.csproj -c Release -r win-x64 -o out --nologo
+
+    - name: AOT 冒烟
+      run: ./out/AotSmoke.exe
+
+  # linux-x64：观察期，暂不阻断
+  aot-linux:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup dotNET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: |
+          8.x
+          9.x
+          10.x
+
+    - name: NativeAOT 发布
+      run: dotnet publish AotSmoke/AotSmoke.csproj -c Release -r linux-x64 -o out --nologo
+
+    - name: AOT 冒烟
+      run: ./out/AotSmoke

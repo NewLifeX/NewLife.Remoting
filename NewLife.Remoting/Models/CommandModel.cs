@@ -1,6 +1,7 @@
 ﻿namespace NewLife.Remoting.Models;
 
 /// <summary>命令模型</summary>
+[System.Text.Json.Serialization.JsonSerializable(typeof(CommandModel))]
 public class CommandModel
 {
     /// <summary>序号</summary>
