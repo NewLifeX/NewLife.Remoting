@@ -96,6 +96,64 @@ public class WebHelperTests
     }
 
     [Fact]
+    [DisplayName("GetUserHost多值折叠为单一IP")]
+    public void GetUserHost_MultiValue_Folds()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Headers["X-Forwarded-For"] = "1.2.3.4, 10.0.0.1";
+
+        var host = context.GetUserHost();
+
+        Assert.Equal("1.2.3.4", host);
+    }
+
+    [Fact]
+    [DisplayName("GetUserHost可信代理：直连可信时链解析")]
+    public void GetUserHost_TrustedProxy_ParseChain()
+    {
+        var old = WebHelper.TrustedProxies;
+        try
+        {
+            WebHelper.TrustedProxies = ["10.0.0.0/8"];
+
+            var context = new DefaultHttpContext();
+            context.Connection.RemoteIpAddress = IPAddress.Parse("10.0.0.5");
+            context.Request.Headers["X-Forwarded-For"] = "1.2.3.4, 10.0.0.6";
+
+            var host = context.GetUserHost();
+
+            Assert.Equal("1.2.3.4", host);
+        }
+        finally
+        {
+            WebHelper.TrustedProxies = old;
+        }
+    }
+
+    [Fact]
+    [DisplayName("GetUserHost可信代理：直连不可信忽略转发头")]
+    public void GetUserHost_UntrustedDirect_IgnoreForwarded()
+    {
+        var old = WebHelper.TrustedProxies;
+        try
+        {
+            WebHelper.TrustedProxies = ["10.0.0.0/8"];
+
+            var context = new DefaultHttpContext();
+            context.Connection.RemoteIpAddress = IPAddress.Parse("8.8.8.8");
+            context.Request.Headers["X-Forwarded-For"] = "1.2.3.4";
+
+            var host = context.GetUserHost();
+
+            Assert.Equal("8.8.8.8", host);
+        }
+        finally
+        {
+            WebHelper.TrustedProxies = old;
+        }
+    }
+
+    [Fact]
     [DisplayName("GetRawUrl基础请求")]
     public void GetRawUrl_BasicRequest()
     {
