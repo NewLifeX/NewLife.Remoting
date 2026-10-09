@@ -6,6 +6,7 @@ using NewLife.Data;
 using NewLife.Model;
 using NewLife.Net;
 using NewLife.Remoting;
+using NewLife.Remoting.Clients;
 using NewLife.Remoting.Models;
 using NewLife.Serialization;
 
@@ -15,6 +16,8 @@ namespace AotSmoke;
 /// <remarks>
 /// <para>参数一律使用 <see cref="Dictionary{TKey,TValue}"/> 或带 <c>[JsonSerializable]</c> 标记的 DTO 承载：
 /// NativeAOT 下匿名类型与未标记类型的公开成员会被裁剪，运行时类型 JSON 序列化将得到空对象。</para>
+/// <para>受限环境下 NewLife.Core 的 <c>MachineInfo</c> 首次探测可能向 stderr 打印系统错误后按空值降级，
+/// 属环境行为，不影响场景结果。</para>
 /// <para>复现方法见 Doc/AOT兼容性分析.md</para>
 /// </remarks>
 internal static class Program
@@ -45,6 +48,7 @@ internal static class Program
         await Run("13 源生成命中与回退双场景", GeneratorHitAndMiss);
         await Run("14 内置 DTO 运行时类型往返", DtoRoundTrip);
         await Run("15 AOT 参数承载形态", ArgumentForms);
+        await Run("16 客户端基类登录/心跳/事件/注销往返", ClientBaseRoundTrip);
 
         Console.WriteLine(_failed == 0
             ? $"=== 全部通过 {_total}/{_total} ==="
@@ -270,6 +274,32 @@ internal static class Program
         var rs2 = await client.InvokeAsync<Int32>("Smoke/SumByArgs", new SumArgs { a = 5, b = 6 });
         if (rs2 != 11) throw new Exception($"标记 DTO 形态结果错误 {rs2}");
     }
+
+    // ClientBase 全链路：登录（DTO + 接口返回类型）→ 心跳 → 事件上报（数组参数）→ 注销（字典参数）
+    private static async Task ClientBaseRoundTrip()
+    {
+        using var server = CreateTcpServer();
+        server.Register<DeviceController>();
+        server.Start();
+
+        using var client = new SmokeNodeClient($"tcp://127.0.0.1:{server.Port}")
+        {
+            Code = "dev01",
+            Secret = "s3cret",
+        };
+
+        var login = await client.Login("AOT");
+        if (login == null || login.Token != "tok-dev01") throw new Exception($"登录响应异常 {login?.Token}");
+
+        var ping = await client.Ping();
+        if (ping == null) throw new Exception("心跳响应为空");
+
+        var count = await client.PostEvents(new EventModel { Type = "info", Name = "boot", Remark = "ok" });
+        if (count != 1) throw new Exception($"事件上报返回 {count}");
+
+        var logout = await client.Logout("AOT");
+        if (logout == null) throw new Exception("注销响应为空");
+    }
     #endregion
 
     #region 辅助
@@ -427,5 +457,36 @@ public class WildcardController
     /// <summary>通配方法</summary>
     [Api("Wildcard/*")]
     public String CatchAll() => "Wildcard";
+}
+
+/// <summary>设备接入控制器。配合 ClientBase 走完整的登录/心跳/事件/注销链路</summary>
+public class DeviceController
+{
+    /// <summary>登录</summary>
+    public LoginResponse Login(LoginRequest request) => new()
+    {
+        Name = request.Code,
+        Token = $"tok-{request.Code}",
+    };
+
+    /// <summary>心跳</summary>
+    public PingResponse Ping(PingRequest request) => new()
+    {
+        ServerTime = DateTime.UtcNow.ToLong(),
+    };
+
+    /// <summary>事件上报</summary>
+    public Int32 PostEvents(EventModel[] events) => events.Length;
+
+    /// <summary>注销</summary>
+    public LogoutResponse Logout(String reason) => new() { Token = reason };
+}
+
+/// <summary>冒烟客户端。ClientBase 的最小实现</summary>
+public class SmokeNodeClient : ClientBase
+{
+    /// <summary>实例化</summary>
+    /// <param name="server">服务端地址</param>
+    public SmokeNodeClient(String server) => Server = server;
 }
 #endregion

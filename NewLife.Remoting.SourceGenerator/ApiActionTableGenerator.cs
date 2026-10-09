@@ -230,21 +230,26 @@ public sealed class ApiActionTableGenerator : IIncrementalGenerator
         return null;
     }
 
-    // 取动作签名中需要保留成员的具名类型：各入参类型与解包后的返回类型
+    // 取动作签名中需要保留成员的具名类型：各入参类型（含数组元素）与解包后的返回类型
     private static IEnumerable<ITypeSymbol> GetSignatureTypes(IMethodSymbol m)
     {
         var seen = new HashSet<String>(StringComparer.Ordinal);
 
         foreach (var p in m.Parameters)
         {
-            if (IsPreservable(p.Type) && seen.Add(p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
-                yield return p.Type;
+            var t = UnwrapArray(p.Type);
+            if (IsPreservable(t) && seen.Add(t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+                yield return t;
         }
 
-        var rt = GetStreamElementType(m.ReturnType) ?? UnwrapTask(m.ReturnType);
+        var rt = UnwrapArray(GetStreamElementType(m.ReturnType) ?? UnwrapTask(m.ReturnType));
         if (IsPreservable(rt) && seen.Add(rt.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
             yield return rt;
     }
+
+    // 数组类型本身无需保留，其元素类型才是运行时类型 JSON 绑定的目标
+    private static ITypeSymbol UnwrapArray(ITypeSymbol type)
+        => type is IArrayTypeSymbol array ? UnwrapArray(array.ElementType) : type;
 
     // 只需为具名非 BCL 类型保留成员；基元类型、字符串、数组等无需处理
     private static Boolean IsPreservable(ITypeSymbol type)

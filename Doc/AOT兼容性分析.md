@@ -7,7 +7,7 @@
 
 ## 1. 现状摘要
 
-- **核心链路实测全通**：15 场景冒烟 JIT/AOT 双通（§2.1），覆盖 RPC 注册与调用、JSON 编解码、二进制直通、参数默认值、异步动作、流式（引用类型与值类型）、HTTP 入口、依赖注入、每请求实例化、通配路由、源生成命中与回退、内置 DTO 往返。
+- **核心链路实测全通**：16 场景冒烟 JIT/AOT 双通（§2.1），覆盖 RPC 注册与调用、JSON 编解码、二进制直通、参数默认值、异步动作、流式（引用类型与值类型）、HTTP 入口、依赖注入、每请求实例化、通配路由、源生成命中与回退、内置 DTO 往返、客户端基类登录/心跳/事件/注销全链路。
 - **支持方式**：沿用 NewLife.Core 的「泛型/Type 入口保留注解 + 源生成器静态表 + 动态能力守卫」三件套，并为 Remoting 增补第五条生成器通道（动作分发表 + 流式泵 + 签名类型保留），见 §3。
 - **告警面已收敛**：`IsAotCompatible` 已对 net8.0/net9.0/net10.0 常驻启用，库自身分析器告警由改造前 **19 条唯一告警** 收敛到 **0 条**；AOT 发布的 ILC 告警 **0 条**（§2.2）。
 - **改造中发现并修复 3 处库侧 AOT 缺陷**：HTTP 响应封套与客户端注销/升级参数使用匿名类型被裁剪、动作签名模型类型成员被裁剪。这些缺陷在 JIT 下不可见，只有真机 AOT 才会暴露（§2.3）。
@@ -16,7 +16,7 @@
 
 ## 2. 实测数据
 
-### 2.1 运行期：15 场景冒烟（JIT/AOT 双通）
+### 2.1 运行期：16 场景冒烟（JIT/AOT 双通）
 
 | # | 场景 | # | 场景 |
 |---|------|---|------|
@@ -27,7 +27,7 @@
 | 5 | 值类型参数默认值与缺参 | 13 | 源生成命中与回退双场景 |
 | 6 | 异步动作 Task/Task<T> | 14 | 内置 DTO 运行时类型往返 |
 | 7 | 流式 `IAsyncEnumerable<string>` | 15 | AOT 参数承载形态（字典 / 标记 DTO） |
-| 8 | 流式 `IAsyncEnumerable<int>`（闭集泵） | | |
+| 8 | 流式 `IAsyncEnumerable<int>`（闭集泵） | 16 | 客户端基类登录/心跳/事件/注销往返 |
 
 > AOT 判真：原生发布件入口 `Assembly.Location` 为空，而 JIT 基线为磁盘路径。冒烟工程固定「严格 AOT 姿态」（`PublishAot=true` 使 SDK 把 `RuntimeFeature.IsDynamicCodeSupported` 置为 false），两种运行的该值均为 False，**不作判别依据**。
 
@@ -133,7 +133,7 @@ dotnet build NewLife.Remoting\NewLife.Remoting.csproj -c Release
 # 2) 源生成器单测
 dotnet test XUnitTest.SourceGenerator -c Release
 
-# 3) 冒烟实测（15 场景工程；PublishAot 写在工程文件内）
+# 3) 冒烟实测（16 场景工程；PublishAot 写在工程文件内）
 dotnet run -c Release --project AotSmoke\AotSmoke.csproj                    # JIT 姿态基线
 dotnet publish AotSmoke\AotSmoke.csproj -c Release -r win-x64 -o out        # NativeAOT 真编译（期望 0 条 ILC 告警）
 .\out\AotSmoke.exe                                                          # AOT 运行，逐场景 PASS/FAIL（非 0 退出码即失败）
@@ -143,3 +143,5 @@ dotnet test XUnitTest -c Release
 ```
 
 > CI 防回归：`.github/workflows/aot.yml`（win-x64 冒烟与分析器零告警硬约束阻断；linux-x64 冒烟为观察期）。
+>
+> 说明：受限环境下 NewLife.Core 的 `MachineInfo` 首次探测会向 stderr 打印系统错误后按空值降级，属环境行为（正常 Windows 运行环境不出现），不影响场景结果与退出码。

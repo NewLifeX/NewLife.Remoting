@@ -179,6 +179,12 @@ public class DtoController
 {
     /// <summary>发送</summary>
     public SendResult Send(SendArgs args) => new SendResult { Value = args.Value };
+
+    /// <summary>批量发送。数组元素类型同样需要保留成员</summary>
+    public Int32 SendAll(SendArgs[] args) => args.Length;
+
+    /// <summary>数组返回</summary>
+    public SendResult[] List() => [];
 }
 
 /// <summary>注册入口</summary>
