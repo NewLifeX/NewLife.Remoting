@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using NewLife.Caching;
 using NewLife.Log;
 using NewLife.Remoting.Models;
@@ -20,7 +21,11 @@ namespace NewLife.Remoting.Extensions.Services;
 /// <param name="passwordProvider">密码提供者</param>
 /// <param name="cacheProvider">缓存提供者</param>
 /// <param name="serviceProvider">服务提供者</param>
-public abstract class DefaultDeviceService<TDevice, TOnline>(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, IServiceProvider serviceProvider) : IDeviceService2
+/// <remarks>
+/// 设备与在线实体类型需要保留公开方法：静态构造按名称查找 <c>FindByCode</c>/<c>FindByName</c>/<c>FindBySessionId</c>，
+/// 并编译为强类型委托。NativeAOT 与裁剪下若成员被移除，将退化为空实现（找不到设备）
+/// </remarks>
+public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] TDevice, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] TOnline>(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, IServiceProvider serviceProvider) : IDeviceService2
     where TDevice : Entity<TDevice>, IDeviceModel, new()
     where TOnline : Entity<TOnline>, IOnlineModel, new()
 {

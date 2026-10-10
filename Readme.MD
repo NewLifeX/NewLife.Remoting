@@ -47,7 +47,7 @@ NewLife.Remoting 是 NewLife 技术栈的统一远程通信基础设施，由两
 | **UPGD 自动更新** | 检测→下载→校验→解压→覆盖→重启全链路 |
 | **SRV 服务端基础** | ApiController/BaseController/BaseDeviceController、TokenService、IDeviceService |
 | **CMD 指令下发** | SessionManager + 事件总线广播 + WS/SSE/Ping 多通道 |
-| **AOT 支持** | net8.0+ 常驻 AOT 兼容分析（0 告警）+ 自有源生成器（动作分发表/流式泵/签名类型保留），22 场景 NativeAOT 实测通过 |
+| **AOT 支持** | net8.0+ 常驻 AOT 兼容分析（核心库 0 告警 / Extensions 21→0 告警）+ 自有源生成器（动作分发表/流式泵/签名类型保留），22 场景 NativeAOT 实测通过 |
 
 ## 快速开始
 

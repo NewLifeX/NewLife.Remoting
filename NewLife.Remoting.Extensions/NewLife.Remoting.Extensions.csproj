@@ -24,6 +24,11 @@
     <!--<WarningsAsErrors>CA2007</WarningsAsErrors>-->
   </PropertyGroup>
 
+  <!-- net8.0+ 常驻启用 AOT 兼容性分析（对齐 NewLife.Core v12 与核心库），net7.0 及以下不适用 -->
+  <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>$(AssemblyName)</PackageId>

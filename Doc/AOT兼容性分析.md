@@ -12,6 +12,7 @@
 - **告警面已收敛**：`IsAotCompatible` 已对 net8.0/net9.0/net10.0 常驻启用，库自身分析器告警由改造前 **19 条唯一告警** 收敛到 **0 条**；AOT 发布的 ILC 告警 **0 条**（§2.2）。
 - **改造中发现并修复 6 处库侧 AOT 缺陷**：HTTP 响应封套与客户端注销/升级参数使用匿名类型被裁剪、动作签名模型类型成员被裁剪等。这些缺陷在 JIT 下不可见，只有真机 AOT 才会暴露（§2.3 前 6 项）。
 - **另由新增业务闭环场景暴露 2 处解码缺陷**：①声明 `Object` 返回值时，服务端返回简单类型（`Boolean` 的 `True`、`DateTime` 的完整时间文本）会抛 `Non standard Json string`，`ClientBase.CommandReply` 最易触发；②`Guid`/`TimeSpan` 等以带引号字符串字面量写包的返回值无法解码（默认 JSON 宿主不支持顶层字符串字面量）。两者 JIT 下同样复现，已在解码侧统一加固（§2.3 第 7~8 项）。
+- **Extensions（ASP.NET Core）已纳入 AOT 范围**（2026-10-10 决策：不拆新包，在本包内同时提供 MVC 与最小 API 双宿主，详见 §7）。当前已完成编译期基线：`IsAotCompatible` 对 net8.0+ 常驻启用，自身告警由 **21 条收敛到 0 条**（DAM 注解 + MVC 边界抑制声明）。
 
 ---
 
@@ -130,7 +131,7 @@
 | 运行期才确定注册目标（`Register(Type` 变量`, "Method")`、`Register(instance, methodVariable)`） | 应用侧调用点 | 生成器无法静态确定 `(控制器类型, 方法名)`，不走静态表；宽面入口已用 `RequiresUnreferencedCode` 声明裁剪语义。请改用泛型入口或常量方法名。 |
 | 跨程序集非公开动作、`ref`/`out`/`params`、指针与 `ref struct` 签名 | 源生成器 | 无法用委托安全表达，生成器主动跳过并回退反射。 |
 | `AssemblyX` 程序集信息探测 | `ApiController.Info`、`ClientBase` | AOT 下按空值降级，不参与业务主链。 |
-| `NewLife.Remoting.Extensions`（ASP.NET Core MVC + NewLife.XCode） | 独立包 | MVC 与 XCode 均为反射重度依赖，不在 NativeAOT 支持范围。如需，应改为最小 API + Core 的 `HttpDispatchTable` 静态分发，属独立任务。 |
+| `NewLife.Remoting.Extensions`（ASP.NET Core MVC + NewLife.XCode） | 独立包 | **已纳入 AOT 范围（2026-10-10）**：不拆新包，本包内同时提供 MVC 与最小 API 双宿主。MVC 侧为设计边界（官方支持矩阵：MVC ❌），已用抑制声明标注并以 `InterfaceModelBinder` 为边界；XCode 依赖等待其自身 AOT 进展。详见 §7。 |
 | `Samples/*`（IoTZero / ZeroServer / Zero.RpcServer / Demo） | 样例工程 | 依赖 XCode / Redis / Stardust，不纳入 AOT 范围。 |
 | 追踪 `NewSpan(..., new { ... })` 的标签对象 | `ClientBase` 等 | 标签仅用于 APM 展示，AOT 下匿名标签对象退化为空对象，不影响业务数据；暂不改造。 |
 | HTTP 通道的服务端流式推送与 WebSocket 握手 | `ApiHttpSession.SendMessage`、`ApiHttpHandler` | 非 AOT 差异，而是设计边界：HTTP 为请求-响应模型，流式推送抛 `NotSupportedException`，WS 握手直接回 501。故流式冒烟只覆盖 TCP，属预期。 |
@@ -178,6 +179,41 @@ dotnet build -c Release -p:EmitCompilerGeneratedFiles=true -p:CompilerGeneratedF
 dotnet publish -c Release -r win-x64 -o out
 .\out\<应用>.exe        # 期望：FastInvoker 命中 -> True，RPC 往返通过，退出码 0
 ```
+
+---
+
+## 7. Extensions（ASP.NET Core）纳入 AOT 范围
+
+### 7.1 决策（2026-10-10）
+
+**不拆分新项目**，在 `NewLife.Remoting.Extensions` 包内同时提供两套宿主入口，按发布方式二选一：
+
+| 宿主 | 接入方式 | AOT |
+|------|---------|-----|
+| ASP.NET Core MVC（现状） | `AddRemoting()` + `AddControllers()`，继承 `BaseController`/`BaseDeviceController` | ❌ 官方支持矩阵中 MVC 不支持 AOT |
+| 最小 API（新增） | 端点映射（`IEndpointRouteBuilder`）复用同一套服务 | ✅ 目标路径 |
+
+依据：最小 API 本身就是 ASP.NET Core 的一部分，与 MVC 控制器在同一路由管道内共存，因此「改最小 API」不损失给 ASP.NET 项目引用的能力；真正的硬约束是 **AOT 与 MVC 互斥**。
+
+### 7.2 包内依赖边界（决定可复用范围）
+
+| 组成 | 依赖 | AOT |
+|------|------|-----|
+| `WsCommandSession` / `SseCommandSession` | `System.Net.WebSockets` + 文本协议（非 ASP.NET 中间件） | ✅ 可复用 |
+| `TokenService` | `NewLife.Web`(JWT)、`Security`、少量 `System.Reflection` | ⚠️ 可复用，需清反射点 |
+| `WebHelper` | ASP.NET Http 抽象 | ✅ |
+| `Controllers/*`、`ModelBinders/*`、`ApiFilterAttribute`、`RemotingExtensions` | **MVC** | ❌ MVC 宿主专属，已声明边界 |
+| `DefaultDeviceService` | **XCode** | ❌ 待 XCode 自身 AOT 进展 |
+
+### 7.3 已完成的编译期基线
+
+`IsAotCompatible` 已对 net8.0+ 常驻启用，自身告警 **21 条 → 0 条**（net6.0~net10.0 实测）：
+
+| 告警 | 条数 | 位置 | 处置 |
+|------|:----:|------|------|
+| IL2090 | 16 | `DefaultDeviceService` 静态构造按名称查找 `FindByCode`/`FindBySessionId` | 为泛型参数 `TDevice`/`TOnline` 加 `DynamicallyAccessedMembers(PublicMethods)`，保留设备实体公开方法 |
+| IL2026 | 3 | `InterfaceModelBinder` 按运行时类型反序列化 | 抑制声明 + 文档登记 MVC 边界（MVC 宿主不支持 AOT） |
+| IL3050 | 2 | `InterfaceModelBinderProvider.GetBinder` 实例化绑定器 | 同上 |
 
 > 实测结论：分析器随主包 `analyzers/dotnet/cs` 正常分发，消费者工程**无需任何额外配置**即自动生成动作委托；JIT 与 NativeAOT 两种姿态下 `FastInvoker` 均命中且 RPC 往返正常（ILC 0 告警）。
 
