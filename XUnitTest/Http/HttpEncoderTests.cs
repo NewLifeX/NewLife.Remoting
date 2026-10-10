@@ -297,9 +297,13 @@ public class HttpEncoderTests
         var encoder = new HttpEncoder();
         using var msg = new DefaultMessage();
 
-        // Boolean 编码为 True，不是合法 JSON，按文本返回
+        // Boolean 编码为 True，声明 Object 时按原样文本返回
         var rs = encoder.DecodeResult("test", (ArrayPacket)"True".GetBytes(), msg, typeof(Object));
         Assert.Equal("True", rs);
+
+        // 声明 Boolean 时按目标类型转换
+        var rs1 = encoder.DecodeResult("test", (ArrayPacket)"True".GetBytes(), msg, typeof(Boolean));
+        Assert.Equal(true, rs1);
 
         // JSON 数值仍照常解析
         var rs2 = encoder.DecodeResult("test", (ArrayPacket)"300".GetBytes(), msg, typeof(Int32));

@@ -143,8 +143,8 @@ public class HttpEncoder : EncoderBase, IEncoder
         if (json.IsNullOrEmpty()) return null;
         if (returnType == null || returnType == typeof(String)) return json;
 
-        // 基础类型裸值（Boolean 的 True、DateTime 的完整时间、裸字符串）不是合法 JSON，直接解析会抛异常，按文本返回
-        if (!IsParseableJson(json)) return json;
+        // 复杂对象走 JSON 包装；简单类型直接传输文本，不做 JSON 包装
+        if (!IsParseableJson(json)) return ConvertScalar(json, returnType);
 
         // 返回类型可能是列表而不是字典
         var rs = JsonHost.Parse(json);
@@ -154,12 +154,13 @@ public class HttpEncoder : EncoderBase, IEncoder
         return Convert(rs, returnType);
     }
 
-    /// <summary>判断文本能否交给 JSON 解析器。仅接受结构化 JSON、带引号字符串与 JSON 数值</summary>
-    /// <param name="json">待判断文本</param>
+    /// <summary>判断正文能否交给 JSON 解析器。仅接受结构化 JSON 与 JSON 数值</summary>
+    /// <param name="json">待判断正文</param>
     /// <returns>能否交由解析器处理</returns>
     /// <remarks>
-    /// 基础类型裸值不是合法 JSON：Boolean 编码为 True/False，DateTime 编码为完整时间文本，字符串编码为裸文本，
-    /// 交给解析器会抛“Non standard Json string”。这些内容须按原样返回
+    /// 非结构化正文含简单类型的直接文本：Boolean 为 True/False，DateTime 为完整时间文本，
+    /// 字符串为裸文本，Guid/TimeSpan 等为带引号的字符串字面量。默认 JSON 宿主（FastJson）
+    /// 不支持顶层标量，交给解析器会抛“Non standard Json string”，须由 <see cref="ConvertScalar"/> 处理
     /// </remarks>
     private static Boolean IsParseableJson(String json)
     {
@@ -167,7 +168,7 @@ public class HttpEncoder : EncoderBase, IEncoder
         if (text.Length == 0) return false;
 
         var c = text[0];
-        if (c is '{' or '[' or '"') return true;
+        if (c is '{' or '[') return true;
         if (text is "true" or "false" or "null") return true;
 
         // JSON 数值：数字、正负号、小数点与指数符号，排除日期时间等以数字开头但含其它字符的文本
@@ -181,6 +182,22 @@ public class HttpEncoder : EncoderBase, IEncoder
         }
 
         return true;
+    }
+
+    /// <summary>转换简单类型文本。字符串字面量取其中内容，其余按目标类型直接转换</summary>
+    /// <param name="json">响应正文</param>
+    /// <param name="returnType">返回类型</param>
+    /// <returns>转换结果</returns>
+    private static Object? ConvertScalar(String json, Type returnType)
+    {
+        var text = json.Trim();
+
+        // JSON 字符串字面量取其中内容。默认 JSON 宿主不支持顶层字符串字面量，如 Guid/TimeSpan 的响应正文
+        if (text.Length > 1 && text[0] == '"' && text[^1] == '"')
+            text = text[1..^1].Replace("\\\\", "\\").Replace("\\\"", "\"");
+
+        // 声明 Object 时按原样文本返回，由调用方按需调用 ToInt/ToDateTime 等转换
+        return returnType == typeof(Object) ? text : text.ChangeType(returnType);
     }
 
     /// <summary>转换为目标类型</summary>

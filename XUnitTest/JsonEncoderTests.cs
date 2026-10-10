@@ -458,33 +458,51 @@ public class JsonEncoderTests
         var encoder = new JsonEncoder();
         using var msg = new DefaultMessage();
 
-        // Boolean 编码为 True，不是合法 JSON，按文本返回
+        // 简单类型直接传输文本，不做 JSON 包装：声明 Object 时按原样文本返回
         {
-            var pk = encoder.EncodeValue(true, out _);
-            var rs = encoder.DecodeResult("test", pk!, msg, typeof(Object));
-            Assert.Equal("True", rs);
+            var pk = encoder.EncodeValue(true, out var text);
+            Assert.Equal("True", text);
+            Assert.Equal("True", encoder.DecodeResult("test", pk!, msg, typeof(Object)));
+            Assert.True(encoder.DecodeResult("test", pk!, msg, typeof(Boolean)).ToBoolean());
         }
 
-        // DateTime 编码为完整时间文本，不是合法 JSON，按文本返回
+        // DateTime 编码为完整时间文本
         {
             var now = DateTime.Now;
-            var pk = encoder.EncodeValue(now, out _);
-            var rs = encoder.DecodeResult("test", pk!, msg, typeof(Object));
-            Assert.Equal(now.ToFullString(), rs);
+            var pk = encoder.EncodeValue(now, out var text);
+            Assert.Equal(now.ToFullString(), text);
+            Assert.Equal(text, encoder.DecodeResult("test", pk!, msg, typeof(Object)));
+            Assert.Equal(now.ToFullString(), encoder.DecodeResult("test", pk!, msg, typeof(DateTime)).ToDateTime().ToFullString());
         }
 
-        // 裸字符串文本不是合法 JSON，按文本返回
+        // 裸字符串文本
         {
             var pk = encoder.EncodeValue("hello", out _);
-            var rs = encoder.DecodeResult("test", pk!, msg, typeof(Object));
-            Assert.Equal("hello", rs);
+            Assert.Equal("hello", encoder.DecodeResult("test", pk!, msg, typeof(Object)));
+            Assert.Equal("hello", encoder.DecodeResult("test", pk!, msg, typeof(String)));
+        }
+
+        // Guid/TimeSpan 等自定义类型走 JSON 序列化，读写一致
+        {
+            var guid = Guid.NewGuid();
+            var pk = encoder.EncodeValue(guid, out _);
+            Assert.Equal(guid, encoder.DecodeResult("test", pk!, msg, typeof(Guid)));
+
+            // 其它编码器可能直接写裸文本，此时按目标类型直接转换
+            var bare = (ArrayPacket)guid.ToString().GetBytes();
+            Assert.Equal(guid, encoder.DecodeResult("test", bare, msg, typeof(Guid)));
+            Assert.Equal(guid.ToString(), encoder.DecodeResult("test", bare, msg, typeof(Object)));
+        }
+        {
+            var span = TimeSpan.FromSeconds(90);
+            var pk = encoder.EncodeValue(span, out _);
+            Assert.Equal(span, encoder.DecodeResult("test", pk!, msg, typeof(TimeSpan)));
         }
 
         // JSON 数值与结构化 JSON 仍照常解析
         {
             var pk = encoder.EncodeValue(300, out _);
-            var rs = encoder.DecodeResult("test", pk!, msg, typeof(Int32));
-            Assert.Equal(300, rs);
+            Assert.Equal(300, encoder.DecodeResult("test", pk!, msg, typeof(Int32)));
         }
         {
             var pk = encoder.EncodeValue(new Dictionary<String, Object> { ["a"] = 1 }, out _);

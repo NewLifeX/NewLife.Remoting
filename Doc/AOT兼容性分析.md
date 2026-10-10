@@ -7,17 +7,17 @@
 
 ## 1. 现状摘要
 
-- **核心链路实测全通**：20 场景冒烟 JIT/AOT 双通（§2.1），覆盖 RPC 注册与调用、JSON 编解码、二进制直通、参数默认值、异步动作、流式（引用类型与值类型）、HTTP 入口、依赖注入、每请求实例化、通配路由、源生成命中与回退、内置 DTO 往返、客户端基类登录/心跳/事件/注销全链路、单方法注册，以及指令下发闭环（客户端命令分发与回执、服务端主动下发、会话管理器路由）。
+- **核心链路实测全通**：22 场景冒烟 JIT/AOT 双通（§2.1），覆盖 RPC 注册与调用、JSON 编解码、二进制直通、参数默认值、异步动作、流式（引用类型与值类型）、HTTP 入口、依赖注入、每请求实例化、通配路由、源生成命中与回退、内置 DTO 往返、客户端基类登录/心跳/事件/注销全链路、单方法注册、指令下发闭环（客户端命令分发与回执、服务端主动下发、会话管理器路由），以及简单类型直传与升级更新链路。
 - **支持方式**：沿用 NewLife.Core 的「泛型/Type 入口保留注解 + 源生成器静态表 + 动态能力守卫」三件套，并为 Remoting 增补第五条生成器通道（动作分发表 + 流式泵 + 签名类型保留），见 §3。
 - **告警面已收敛**：`IsAotCompatible` 已对 net8.0/net9.0/net10.0 常驻启用，库自身分析器告警由改造前 **19 条唯一告警** 收敛到 **0 条**；AOT 发布的 ILC 告警 **0 条**（§2.2）。
 - **改造中发现并修复 6 处库侧 AOT 缺陷**：HTTP 响应封套与客户端注销/升级参数使用匿名类型被裁剪、动作签名模型类型成员被裁剪等。这些缺陷在 JIT 下不可见，只有真机 AOT 才会暴露（§2.3 前 6 项）。
-- **另由新增业务闭环场景暴露 1 处解码缺陷**：声明 `Object` 返回值时，基础类型响应体（`Boolean` 的 `True`、`DateTime` 的完整时间文本）交给 JSON 解析器会抛异常，`ClientBase.CommandReply` 最易触发。该缺陷 JIT 下同样复现，已在解码侧加固（§2.3 第 7 项）；写包侧线协议问题登记为待修复项（《功能清单》FIX-1）。
+- **另由新增业务闭环场景暴露 2 处解码缺陷**：①声明 `Object` 返回值时，服务端返回简单类型（`Boolean` 的 `True`、`DateTime` 的完整时间文本）会抛 `Non standard Json string`，`ClientBase.CommandReply` 最易触发；②`Guid`/`TimeSpan` 等以带引号字符串字面量写包的返回值无法解码（默认 JSON 宿主不支持顶层字符串字面量）。两者 JIT 下同样复现，已在解码侧统一加固（§2.3 第 7~8 项）。
 
 ---
 
 ## 2. 实测数据
 
-### 2.1 运行期：20 场景冒烟（JIT/AOT 双通）
+### 2.1 运行期：22 场景冒烟（JIT/AOT 双通）
 
 | # | 场景 | # | 场景 |
 |---|------|---|------|
@@ -31,8 +31,10 @@
 | 8 | 流式 `IAsyncEnumerable<int>`（闭集泵） | 16 | 客户端基类登录/心跳/事件/注销往返 |
 | 17 | 单方法注册的静态委托与裁剪保留 | 18 | 客户端命令分发与回执上报 |
 | 19 | 服务端主动下发命令与设备回执 | 20 | 会话管理器命令下发与路由 |
+| 21 | 简单类型参数与返回值直传 | 22 | 升级信息与更新包处理链路 |
 
 > 场景 18/19/20 覆盖设备平台最典型的「指令下发」链路：客户端命令委托分发与回执（`CommandModel` 解码 → 命令匹配 → `CommandReplyModel` 上报）、服务端 `InvokeAll("Notify", …)` 主动下发（出站命令模型 JSON 不得退化为空对象）、`SessionManager.PublishAsync → code#json → 事件总线 → 会话路由`。
+> 场景 21 双向验证「简单类型不做 JSON 包装」这一设计约定（`Boolean`/`DateTime`/`Guid`/`TimeSpan`/枚举作参数与返回值）；场景 22 覆盖升级链路（`IUpgradeInfo` 接口返回类型往返、更新包哈希校验/解压/覆盖在临时目录内沙箱执行）。
 > AOT 判真：原生发布件入口 `Assembly.Location` 为空，而 JIT 基线为磁盘路径。冒烟工程固定「严格 AOT 姿态」（`PublishAot=true` 使 SDK 把 `RuntimeFeature.IsDynamicCodeSupported` 置为 false），两种运行的该值均为 False，**不作判别依据**。
 
 ### 2.2 编译期：分析器与 ILC 告警
@@ -59,7 +61,8 @@
 | 4 | `ApiAction.CompileInvoker` 的 `Expression.Compile()` | NativeAOT 下抛异常（原靠 catch 静默回退） | 前置 `DynamicCode.IsSupported` 判断，直接跳过 |
 | 5 | `ApiServer.ProcessStreamAsync` 的 `MakeGenericMethod` | 值类型流式返回直接崩溃 | 生成器静态泵优先，闭集元素类型兜底，最后才回退并在 AOT 下抛明确异常 |
 | 6 | `ApiHandler` 的 `Activator.CreateInstance` 造值类型默认值、`Task` 结果属性反射、控制器动作发现反射 | 告警面与裁剪风险 | 表达式树以条件表达式替换 `default(T)`、`Task` 结果改 `DynamicDependency`、动作发现改泛型入口传导保留 |
-| 7 | `JsonEncoder`/`HttpEncoder` 的 `DecodeResult` 用 JSON 解析器解析基础类型裸值 | **JIT 下同样复现**：声明 `Object` 返回值时，服务端返回 `Boolean`（写包为 `True`）或 `DateTime`（写包为完整时间文本）会抛 `Non standard Json string`。触发路径如 `ClientBase.CommandReply` 的 `InvokeAsync<Object>`，即「命令回执动作返回布尔值」这一最自然写法 | 解码前判断文本是否为可解析 JSON（结构化 JSON / 带引号字符串 / JSON 数值 / `true`/`false`/`null`），其余按文本原样返回；见「待修复项 FIX-1」关于写包侧的登记 |
+| 7 | `JsonEncoder`/`HttpEncoder` 的 `DecodeResult` 用 JSON 解析器解析简单类型裸值 | **JIT 下同样复现**：声明 `Object` 返回值时，服务端返回 `Boolean`（写包为 `True`）或 `DateTime`（写包为完整时间文本）会抛 `Non standard Json string`。触发路径如 `ClientBase.CommandReply` 的 `InvokeAsync<Object>`，即「命令回执动作返回布尔值」这一最自然写法 | 解码前判断正文是否可解析，简单类型按目标类型直接转换（声明 `Object` 时返回原样文本）；见 §4「简单类型」约定 |
+| 8 | `DecodeResult` 把带引号的字符串字面量交给 JSON 解析器 | **JIT 下同样复现**：`Guid`/`TimeSpan` 等自定义类型由 `JsonHost` 写为 `"…"`，默认 JSON 宿主（FastJson）不支持顶层标量，解析抛 `Non standard Json string`，即「动作返回 `Guid`」在声明同类型时也无法解码 | 字符串字面量取其中内容（含 `\\`/`\"` 反转义），再按目标类型转换 |
 
 ---
 
@@ -109,6 +112,9 @@
   2. **带标记的 DTO**：类型打 `[System.Text.Json.Serialization.JsonSerializable(typeof(T))]`，由 NewLife.Core 源生成器落成员访问器表；
   3. **二进制**：`IPacket` / `IAccessor` 直通。
   > 该约束同时适用于请求参数与响应模型；作为动作签名出现的类型额外由 `Preserve` 保留。
+- **简单类型（设计约定）**：**动作返回简单类型时直接传文本，不做 JSON 包装**，只有复杂对象才走 JSON 包装。实际报文形态：`Boolean`→`True`/`False`、`DateTime`→完整时间文本、枚举→名称、字符串→裸文本、`Guid`/`TimeSpan` 等→带引号字符串字面量、数值→数字文本。
+  客户端解码时按**声明的返回类型**转换：声明同类型即可直接用（如 `InvokeAsync<Guid>`）；**声明 `Object` 时拿到原样文本**，由调用方按需 `ToInt()`/`ToDateTime()`/`ToBoolean()` 转换。
+  > 该约定意味着跨语言客户端（JS/Python/Go）需按文本解析而非严格 JSON 解析标量；复杂对象仍为规范 JSON。
 - **JSON 宿主**：默认 `JsonHelper.Default`。如需 `System.Text.Json`，可注入 `NewLife.Serialization.SystemJson`（构造时传入应用的 `JsonSerializerContext`），或通过 `ServiceProvider` 注册 `IJsonHost`。
 - **遇到 "不支持 AOT/裁剪" 警告**：1) 确认该 API 是否在主链路；2) 需要就用泛型入口/保留注解处理；3) 动态能力 API（表达式编译、运行期泛型实例化）在 AOT 下必须关闭或规避（`DynamicCode.IsSupported`）。
 - **排障提示**：`IsDynamicCodeSupported=False` 表示动态代码不可用（严格 AOT 姿态下 JIT 运行同样为 False）；`Assembly.Location` 为空是 AOT 正常表现，不要用它判断目录。
@@ -129,7 +135,7 @@
 | 追踪 `NewSpan(..., new { ... })` 的标签对象 | `ClientBase` 等 | 标签仅用于 APM 展示，AOT 下匿名标签对象退化为空对象，不影响业务数据；暂不改造。 |
 | HTTP 通道的服务端流式推送与 WebSocket 握手 | `ApiHttpSession.SendMessage`、`ApiHttpHandler` | 非 AOT 差异，而是设计边界：HTTP 为请求-响应模型，流式推送抛 `NotSupportedException`，WS 握手直接回 501。故流式冒烟只覆盖 TCP，属预期。 |
 | WS/SSE 客户端通道（`WsChannel`/`SseChannel`/`WsChannelCore`） | `NewLife.Remoting.Clients` | 面向旧平台（非 NETCOREAPP）的接收通道，服务端侧 SRMP-over-WS 已取消，无内建服务端可对测，故不纳入冒烟；通道内无动态代码与运行期反射，风险面为既有逻辑本身。 |
-| 基础类型裸值写包不是合法 JSON | `JsonEncoder.EncodeValue` | 服务端把 `Boolean` 写成 `True`、`DateTime` 写成裸时间文本，严格 JSON 客户端（JS/Python/Go）无法解析。库内 .NET 客户端已由解码侧加固覆盖；写包侧改动涉及线协议，登记为「待修复项 FIX-1」由用户决策。 |
+| 基础类型裸值写包不是合法 JSON | `JsonEncoder.EncodeValue` | **设计约定，非缺陷**：简单类型以文本直传（`True`、完整时间、枚举名、裸字符串），只有复杂对象走 JSON 包装。客户端解码侧已按声明类型/原样文本统一加固（§2.3 第 7~8 项）；跨语言客户端需按文本解析标量。详见《架构设计》收口记录第 9 项。 |
 
 ---
 
@@ -142,7 +148,7 @@ dotnet build NewLife.Remoting\NewLife.Remoting.csproj -c Release
 # 2) 源生成器单测
 dotnet test XUnitTest.SourceGenerator -c Release
 
-# 3) 冒烟实测（20 场景工程；PublishAot 写在工程文件内）
+# 3) 冒烟实测（22 场景工程；PublishAot 写在工程文件内）
 dotnet run -c Release --project AotSmoke\AotSmoke.csproj                    # JIT 姿态基线
 dotnet publish AotSmoke\AotSmoke.csproj -c Release -r win-x64 -o out        # NativeAOT 真编译（期望 0 条 ILC 告警）
 .\out\AotSmoke.exe                                                          # AOT 运行，逐场景 PASS/FAIL（非 0 退出码即失败）

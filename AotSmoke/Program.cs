@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
@@ -10,6 +11,7 @@ using NewLife.Remoting;
 using NewLife.Remoting.Clients;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
+using Upgrade = NewLife.Remoting.Clients.Upgrade;
 using NewLife.Serialization;
 
 namespace AotSmoke;
@@ -55,6 +57,8 @@ internal static class Program
         await Run("18 客户端命令分发与回执上报", ClientCommandDispatch);
         await Run("19 服务端主动下发命令与设备回执", ServerPushCommand);
         await Run("20 会话管理器命令下发与路由", SessionManagerPublish);
+        await Run("21 简单类型参数与返回值直传", SimpleTypeRoundTrip);
+        await Run("22 升级信息与更新包处理链路", UpgradeFlow);
 
         Console.WriteLine(_failed == 0
             ? $"=== 全部通过 {_total}/{_total} ==="
@@ -408,6 +412,104 @@ internal static class Program
         if (session.Command?.Command != "Log") throw new Exception("会话未收到命令");
         if (session.Message.IsNullOrEmpty() || !session.Message.Contains("Log")) throw new Exception($"命令消息为空[{session.Message}]");
     }
+
+    // 简单类型不做 JSON 包装，直接以文本传输：双向验证参数与返回值
+    private static async Task SimpleTypeRoundTrip()
+    {
+        using var server = CreateTcpServer();
+        server.Register<SimpleController>();
+        server.Start();
+
+        using var client = new ApiClient($"tcp://127.0.0.1:{server.Port}");
+
+        var flag = await client.InvokeAsync<Boolean>("Simple/Negate", Args(("value", true)));
+        if (flag) throw new Exception("Boolean 参数或返回值异常");
+
+        var time = new DateTime(2026, 10, 10, 8, 30, 0);
+        var next = await client.InvokeAsync<DateTime>("Simple/AddDay", Args(("time", time)));
+        if (next != time.AddDays(1)) throw new Exception($"DateTime 往返异常 {next.ToFullString()}");
+
+        var guid = Guid.NewGuid();
+        var guid2 = await client.InvokeAsync<Guid>("Simple/EchoGuid", Args(("id", guid)));
+        if (guid2 != guid) throw new Exception($"Guid 往返异常 {guid2}");
+
+        var span = TimeSpan.FromSeconds(90);
+        var span2 = await client.InvokeAsync<TimeSpan>("Simple/EchoSpan", Args(("span", span)));
+        if (span2 != span) throw new Exception($"TimeSpan 往返异常 {span2}");
+
+        var level = await client.InvokeAsync<SmokeLevel>("Simple/EchoLevel", Args(("level", SmokeLevel.High)));
+        if (level != SmokeLevel.High) throw new Exception($"枚举往返异常 {level}");
+
+        var text = await client.InvokeAsync<String>("Simple/Describe", Args(("time", time), ("id", guid), ("flag", true)));
+        if (text != $"{time.ToFullString()}|{guid}|True") throw new Exception($"多简单类型参数异常 {text}");
+    }
+
+    // 升级链路：更新信息（接口返回类型）往返 + 更新包哈希校验/解压/覆盖（全部在临时目录内沙箱执行，不触碰运行目录）
+    private static async Task UpgradeFlow()
+    {
+        using var server = CreateTcpServer();
+        server.Register<DeviceController>();
+        server.Start();
+
+        using var client = new SmokeNodeClient($"tcp://127.0.0.1:{server.Port}")
+        {
+            Code = "dev03",
+            Secret = "s3cret",
+        };
+
+        var login = await client.Login("AOT");
+        if (login == null) throw new Exception("登录失败");
+
+        // 更新信息声明为接口 IUpgradeInfo，AOT 下需要接口到实现类的解析与成员保留
+        DeviceController.NextUpgradeInfo = new UpgradeInfo
+        {
+            Version = "9.9.9",
+            Source = "",
+            FileHash = "",
+            FileSize = 1024,
+            Force = false,
+        };
+
+        var info = await client.Upgrade("stable");
+        if (info == null || info.Version != "9.9.9") throw new Exception($"更新信息异常 {info?.Version}");
+        if (info is not UpgradeInfo impl || impl.FileSize != 1024) throw new Exception("更新信息具体类型或扩展成员丢失");
+
+        // 更新包处理链路（沙箱）：哈希校验 → 解压 → 覆盖到目标目录
+        var root = Path.Combine(Path.GetTempPath(), "aotsmoke-upg-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var src = Path.Combine(root, "src");
+            var dest = Path.Combine(root, "dest");
+            var zip = Path.Combine(root, "pkg.zip");
+            Directory.CreateDirectory(src);
+            Directory.CreateDirectory(dest);
+            File.WriteAllText(Path.Combine(src, "version.txt"), "2.0");
+            File.WriteAllText(Path.Combine(dest, "version.txt"), "1.0");
+            ZipFile.CreateFromDirectory(src, zip);
+
+            var ug = new Upgrade
+            {
+                UpdatePath = root,
+                DestinationPath = dest,
+                TempPath = Path.Combine(root, "tmp"),
+                SourceFile = zip,
+                Mode = UpdateModes.Partial,
+            };
+
+            var hash = zip.AsFile().MD5().ToHex();
+            if (!ug.CheckFileHash(hash)) throw new Exception("更新包哈希校验未通过");
+            if (ug.CheckFileHash(hash + "00")) throw new Exception("错误哈希不应通过校验");
+            if (!ug.Extract()) throw new Exception("更新包解压失败");
+            if (!ug.Update()) throw new Exception("更新包覆盖失败");
+
+            var text = File.ReadAllText(Path.Combine(dest, "version.txt"));
+            if (text != "2.0") throw new Exception($"覆盖结果异常 {text}");
+        }
+        finally
+        {
+            try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch { }
+        }
+    }
     #endregion
 
     #region 辅助
@@ -599,6 +701,54 @@ public class DeviceController
 
         return true;
     }
+
+    /// <summary>下一次查询返回的更新信息</summary>
+    public static UpgradeInfo? NextUpgradeInfo { get; set; }
+
+    /// <summary>查询更新。返回接口实现类型，配合客户端接口返回类型解析</summary>
+    /// <param name="channel">更新通道</param>
+    /// <returns>更新信息</returns>
+    public UpgradeInfo? Upgrade(String? channel) => NextUpgradeInfo;
+}
+
+/// <summary>简单类型控制器。验证简单类型以文本直传、复杂对象走 JSON 包装</summary>
+public class SimpleController
+{
+    /// <summary>逻辑取反</summary>
+    /// <param name="value">布尔值</param>
+    public Boolean Negate(Boolean value) => !value;
+
+    /// <summary>加一天</summary>
+    /// <param name="time">时间</param>
+    public DateTime AddDay(DateTime time) => time.AddDays(1);
+
+    /// <summary>回显唯一标识</summary>
+    /// <param name="id">唯一标识</param>
+    public Guid EchoGuid(Guid id) => id;
+
+    /// <summary>回显时间跨度</summary>
+    /// <param name="span">时间跨度</param>
+    public TimeSpan EchoSpan(TimeSpan span) => span;
+
+    /// <summary>回显枚举</summary>
+    /// <param name="level">级别</param>
+    public SmokeLevel EchoLevel(SmokeLevel level) => level;
+
+    /// <summary>多个简单类型参数拼接</summary>
+    /// <param name="time">时间</param>
+    /// <param name="id">唯一标识</param>
+    /// <param name="flag">布尔值</param>
+    public String Describe(DateTime time, Guid id, Boolean flag) => $"{time.ToFullString()}|{id}|{flag}";
+}
+
+/// <summary>冒烟枚举。验证枚举以名称文本直传</summary>
+public enum SmokeLevel
+{
+    /// <summary>低</summary>
+    Low = 0,
+
+    /// <summary>高</summary>
+    High = 1,
 }
 
 /// <summary>捕获命令的会话实现。验证会话管理器的命令下发路由与命令模型解码</summary>
