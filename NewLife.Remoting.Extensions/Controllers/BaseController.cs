@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
-using NewLife.Collections;
 using NewLife.Log;
+using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
 using NewLife.Remoting.Services;
 using NewLife.Serialization;
@@ -49,7 +49,6 @@ public abstract class BaseController(IDeviceService? deviceService, ITokenServic
     private readonly ITokenService _tokenService = tokenService ?? serviceProvider.GetRequiredService<ITokenService>();
 
     private IDictionary<String, Object?>? _args;
-    private static readonly Pool<DeviceContext> _pool = new(256);
     #endregion
 
     #region 令牌验证
@@ -64,7 +63,7 @@ public abstract class BaseController(IDeviceService? deviceService, ITokenServic
         ManageProvider.UserHost = ip;
 
         // 从池中获取上下文
-        var ctx = Context = _pool.Get();
+        var ctx = Context = DeviceContextPool.Rent();
         ctx.UserHost = ip;
         ctx["__ActionContext"] = context;
 
@@ -115,6 +114,7 @@ public abstract class BaseController(IDeviceService? deviceService, ITokenServic
     /// <returns>验证是否通过</returns>
     protected virtual Boolean OnAuthorize(String token, DeviceContext context)
     {
+        // 与 Endpoints/RemotingEndpoints 的鉴权段互为镜像，修改须同步
         if (token.IsNullOrEmpty()) return false;
 
         var (jwt, ex) = _tokenService.DecodeToken(token);
@@ -188,8 +188,7 @@ public abstract class BaseController(IDeviceService? deviceService, ITokenServic
             // 从 HttpContext.Items 移除暴露的 DeviceContext
             HttpContext.Items.Remove(nameof(DeviceContext));
 
-            ctx.Clear();
-            _pool.Return(ctx);
+            DeviceContextPool.Return(ctx);
             Context = null!;
         }
     }

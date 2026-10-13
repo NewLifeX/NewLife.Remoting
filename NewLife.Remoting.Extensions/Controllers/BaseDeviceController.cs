@@ -39,6 +39,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     /// <summary>设备登录</summary>
     /// <param name="request">登录请求</param>
     /// <returns>登录响应</returns>
+    // 与 Endpoints/RemotingEndpoints.LoginAsync 互为镜像，修改须同步
     [AllowAnonymous]
     [HttpPost(nameof(Login))]
     public virtual ILoginResponse Login([FromBody] ILoginRequest request)
@@ -76,6 +77,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     /// <summary>设备注销</summary>
     /// <param name="reason">注销原因</param>
     /// <returns>注销响应</returns>
+    // 与 Endpoints/RemotingEndpoints.LogoutAsync 互为镜像，修改须同步
     [HttpGet(nameof(Logout))]
     [HttpPost(nameof(Logout))]
     public virtual ILogoutResponse Logout(String? reason)
@@ -98,6 +100,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     /// <summary>设备心跳</summary>
     /// <param name="request">心跳请求</param>
     /// <returns>心跳响应</returns>
+    // 与 Endpoints/RemotingEndpoints.PingAsync 互为镜像，修改须同步
     [HttpGet(nameof(Ping))]
     [HttpPost(nameof(Ping))]
     public virtual IPingResponse Ping([FromBody] IPingRequest request)
@@ -130,6 +133,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     /// <param name="channel">更新通道</param>
     /// <returns>升级信息</returns>
     /// <exception cref="ApiException">未登录时抛出</exception>
+    // 与 Endpoints/RemotingEndpoints.UpgradeAsync 互为镜像，修改须同步
     [HttpGet(nameof(Upgrade))]
     [HttpPost(nameof(Upgrade))]
     public virtual IUpgradeInfo? Upgrade(String? channel)
@@ -160,6 +164,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     #region 下行通知
     /// <summary>下行通知。建立WebSocket长连接</summary>
     /// <returns></returns>
+    // 与 Endpoints/RemotingEndpoints.NotifyAsync 互为镜像，修改须同步
     [HttpGet(nameof(Notify))]
     public virtual async Task<IActionResult> Notify()
     {
@@ -183,6 +188,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     /// 与 WebSocket 不同，SSE 仅支持服务端→客户端单向推送，客户端响应需通过 CommandReply HTTP 接口。
     /// </remarks>
     /// <returns></returns>
+    // 与 Endpoints/RemotingEndpoints.NotifySSEAsync 互为镜像，修改须同步
     [HttpGet(nameof(NotifySSE))]
     public virtual async Task NotifySSE()
     {
@@ -196,6 +202,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     /// <param name="session">命令会话</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns></returns>
+    // 与 Endpoints/RemotingEndpoints 的长连接装配段互为镜像，修改须同步
     protected virtual async Task HandleNotify(DeviceContext context, String spanName, CommandSession session, CancellationToken cancellationToken)
     {
         var device = context.Device ?? throw new ApiException(ApiCode.Unauthorized, "未登录");
@@ -241,6 +248,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     /// <summary>设备端响应服务调用</summary>
     /// <param name="model">命令响应模型</param>
     /// <returns>处理结果</returns>
+    // 与 Endpoints/RemotingEndpoints.CommandReplyAsync 互为镜像，修改须同步
     [HttpPost(nameof(CommandReply))]
     public virtual Int32 CommandReply(CommandReplyModel model)
     {
@@ -252,6 +260,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     /// <param name="model">命令模型</param>
     /// <returns>命令响应</returns>
     /// <exception cref="ArgumentNullException">编码或命令为空时抛出</exception>
+    // 与 Endpoints/RemotingEndpoints.SendCommandAsync 互为镜像，修改须同步
     [AllowAnonymous]
     [HttpPost(nameof(SendCommand))]
     public virtual Task<CommandReplyModel?> SendCommand(CommandInModel model)
@@ -268,6 +277,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     /// <summary>批量上报事件</summary>
     /// <param name="events">事件集合</param>
     /// <returns>处理的事件数量</returns>
+    // 与 Endpoints/RemotingEndpoints.PostEventsAsync 互为镜像，修改须同步
     [HttpPost(nameof(PostEvents))]
     public virtual Int32 PostEvents(EventModel[] events) => _deviceService.PostEvents(Context, events);
     #endregion

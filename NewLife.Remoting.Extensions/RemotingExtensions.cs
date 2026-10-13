@@ -22,12 +22,38 @@ public static class RemotingExtensions
     /// 注册密码提供者，用于通信过程中保护密钥，避免明文传输；
     /// 注册缓存提供者的默认实现；
     /// 注册授权策略 DeviceRequired（RequireClaim("code")），便于使用 [Authorize(Policy = "DeviceRequired")]保护接口；
+    /// 注册MVC模型绑定器（MVC 宿主专属，NativeAOT 宿主请改用 <see cref="AddRemotingCore"/>）。
     /// </remarks>
     /// <param name="services"></param>
     /// <param name="setting"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentNullException"></exception>
     public static IServiceCollection AddRemoting(this IServiceCollection services, ITokenSetting? setting = null)
+    {
+        services.AddRemotingCore(setting);
+
+        // 添加模型绑定器。MVC 宿主专属，AOT 宿主不注册（MVC 不支持 NativeAOT）
+        //var binderProvider = new ServiceModelBinderProvider();
+        services.Configure<MvcOptions>(mvcOptions =>
+        {
+            //mvcOptions.ModelBinderProviders.Insert(0, binderProvider);
+            mvcOptions.ModelBinderProviders.Insert(0, new InterfaceModelBinderProvider());
+        });
+        //services.AddSingleton<IModelMetadataProvider, ServicModelMetadataProvider>();
+
+        return services;
+    }
+
+    /// <summary>添加远程通信服务端核心服务。不含 MVC 专属配置，可供最小 API（NativeAOT）宿主使用</summary>
+    /// <remarks>
+    /// 与 <see cref="AddRemoting"/> 相比，仅少了 MVC 的接口模型绑定器注册，其余服务完全一致；
+    /// 最小 API 宿主请配合 <c>MapRemoting()</c> 使用。
+    /// </remarks>
+    /// <param name="services"></param>
+    /// <param name="setting"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static IServiceCollection AddRemotingCore(this IServiceCollection services, ITokenSetting? setting = null)
     {
         //if (setting == null) throw new ArgumentNullException(nameof(setting));
 
@@ -68,15 +94,6 @@ public static class RemotingExtensions
             if (options.GetPolicy("DeviceRequired") == null)
                 options.AddPolicy("DeviceRequired", policy => policy.RequireClaim("code"));
         });
-
-        // 添加模型绑定器
-        //var binderProvider = new ServiceModelBinderProvider();
-        services.Configure<MvcOptions>(mvcOptions =>
-        {
-            //mvcOptions.ModelBinderProviders.Insert(0, binderProvider);
-            mvcOptions.ModelBinderProviders.Insert(0, new InterfaceModelBinderProvider());
-        });
-        //services.AddSingleton<IModelMetadataProvider, ServicModelMetadataProvider>();
 
         return services;
     }
