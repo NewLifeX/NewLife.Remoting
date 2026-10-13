@@ -36,6 +36,13 @@ jobs:
     - name: AOT 冒烟
       run: ./out/AotSmoke.exe
 
+    # Extensions 最小 API 宿主的 AOT 冒烟（PublishAot 同样写在工程文件内）
+    - name: 最小 API NativeAOT 发布
+      run: dotnet publish AotSmoke.Web/AotSmoke.Web.csproj -c Release -r win-x64 -o out-web --nologo
+
+    - name: 最小 API AOT 冒烟
+      run: ./out-web/AotSmoke.Web.exe
+
   # linux-x64：观察期，暂不阻断
   aot-linux:
     runs-on: ubuntu-latest
@@ -56,3 +63,32 @@ jobs:
 
     - name: AOT 冒烟
       run: ./out/AotSmoke
+
+    - name: 最小 API NativeAOT 发布
+      run: dotnet publish AotSmoke.Web/AotSmoke.Web.csproj -c Release -r linux-x64 -o out-web --nologo
+
+    - name: 最小 API AOT 冒烟
+      run: ./out-web/AotSmoke.Web
+
+  # XCode 设备服务（DefaultDeviceService + XCode 实体）AOT 探针：观察期，暂不阻断
+  # 现状：XCode 尚未 AOT 就绪（实体工厂走反射构造，裁剪后缺无参构造），详见 Doc/AOT兼容性分析.md §8
+  # XCode 补齐后本作业应转为硬约束
+  aot-xcode-observe:
+    runs-on: windows-latest
+    continue-on-error: true
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup dotNET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: |
+          8.x
+          9.x
+          10.x
+
+    - name: XCode 设备服务 NativeAOT 发布
+      run: dotnet publish AotSmoke.XCode/AotSmoke.XCode.csproj -c Release -r win-x64 -o out-xcode --nologo
+
+    - name: XCode 设备服务 AOT 冒烟
+      run: ./out-xcode/AotSmoke.XCode.exe

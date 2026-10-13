@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyTitle>Extensions 最小 API NativeAOT 冒烟工程</AssemblyTitle>
+    <Description>NewLife.Remoting.Extensions 最小 API 宿主的 NativeAOT 实测：JIT 与 AOT 双跑逐场景 PASS/FAIL</Description>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- PublishAot 写在工程文件内，勿用命令行 -p: 传入（会波及多 TFM 依赖项目的低版本目标） -->
+    <PublishAot>true</PublishAot>
+    <!-- 严格 AOT 姿态：关闭 STJ 反射序列化，验证全链路依赖源生成/自有解析器 -->
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <!-- SYSLIB1224：JsonSerializableAttribute 仅作为 NewLife.Core 源生成器的成员访问器标记使用 -->
+    <NoWarn>1701;1702;CS7035;SYSLIB1224</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NewLife.Remoting.Extensions\NewLife.Remoting.Extensions.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,78 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<EntityModel xmlns:xs="http://www.w3.org/2001/XMLSchema-instance" xs:schemaLocation="https://newlifex.com https://newlifex.com/Model202509.xsd" ModelVersion="2.0.2026.130" Document="https://newlifex.com/xcode/model" xmlns="https://newlifex.com/Model202509.xsd">
+  <Option>
+    <!--类名模板。其中{name}替换为Table.Name，如{name}Model/I{name}Dto等-->
+    <ClassNameTemplate />
+    <!--显示名模板。其中{displayName}替换为Table.DisplayName-->
+    <DisplayNameTemplate />
+    <!--基类。可能包含基类和接口，其中{name}替换为Table.Name-->
+    <BaseClass>Entity</BaseClass>
+    <!--命名空间-->
+    <Namespace>AotSmoke.XCode.Data</Namespace>
+    <!--引用命名空间-->
+    <ExtendNameSpace />
+    <!--输出目录-->
+    <Output>.\</Output>
+    <!--是否使用中文文件名。默认false-->
+    <ChineseFileName>False</ChineseFileName>
+    <!--用于生成Copy函数的参数类型。例如{name}或I{name}-->
+    <ModelNameForCopy />
+    <!--带有索引器。实现IModel接口-->
+    <HasIModel>False</HasIModel>
+    <!--可为null上下文。生成String?等-->
+    <Nullable>False</Nullable>
+    <!--数据库连接名-->
+    <ConnName>AotSmokeXCode</ConnName>
+    <!--模型类模版。设置后生成模型类，用于接口数据传输，例如{name}Model-->
+    <ModelClass />
+    <!--模型类输出目录。默认当前目录的Models子目录-->
+    <ModelsOutput>.\Models\</ModelsOutput>
+    <!--模型接口模版。设置后生成模型接口，用于约束模型类和实体类，例如I{name}-->
+    <ModelInterface />
+    <!--模型接口输出目录。默认当前目录的Interfaces子目录-->
+    <InterfacesOutput>.\Interfaces\</InterfacesOutput>
+    <!--用户实体转为模型类的模型类。例如{name}或{name}DTO-->
+    <ModelNameForToModel />
+    <!--命名格式。Default/Upper/Lower/Underline-->
+    <NameFormat>Default</NameFormat>
+    <!--魔方区域显示名-->
+    <DisplayName />
+    <!--魔方控制器输出目录-->
+    <CubeOutput />
+  </Option>
+  <Tables>
+    <Table Name="Device" Description="设备。用于验证 XCode 实体在 NativeAOT 下的运行期可用性">
+      <Columns>
+        <Column Name="Id" DataType="Int32" Identity="True" PrimaryKey="True" Description="编号" />
+        <Column Name="Name" DataType="String" Master="True" Description="名称" />
+        <Column Name="Code" DataType="String" Description="编码。设备唯一证书" />
+        <Column Name="Secret" DataType="String" Description="密钥" />
+        <Column Name="Enable" DataType="Boolean" Description="启用" />
+        <Column Name="Online" DataType="Boolean" Description="在线" />
+        <Column Name="Uuid" DataType="String" Length="200" Description="唯一标识" />
+        <Column Name="Period" DataType="Int32" Description="心跳周期。默认60秒" />
+        <Column Name="CreateTime" DataType="DateTime" Description="创建时间" Model="False" Category="扩展" />
+        <Column Name="UpdateTime" DataType="DateTime" Description="更新时间" Model="False" Category="扩展" />
+      </Columns>
+      <Indexes>
+        <Index Columns="Code" Unique="True" />
+      </Indexes>
+    </Table>
+    <Table Name="DeviceOnline" Description="设备在线。用于验证 XCode 实体在 NativeAOT 下的运行期可用性">
+      <Columns>
+        <Column Name="Id" DataType="Int32" Identity="True" PrimaryKey="True" Description="编号" />
+        <Column Name="DeviceId" DataType="Int32" Description="设备" />
+        <Column Name="SessionId" DataType="String" Description="会话标识" />
+        <Column Name="LoginTime" DataType="DateTime" Description="登录时间" />
+        <Column Name="LastActive" DataType="DateTime" Description="最后活跃" />
+        <Column Name="LongLink" DataType="Boolean" Description="长连接" />
+        <Column Name="Pings" DataType="Int32" Description="心跳次数" />
+        <Column Name="CreateTime" DataType="DateTime" Description="创建时间" Model="False" Category="扩展" />
+        <Column Name="UpdateTime" DataType="DateTime" Description="更新时间" Model="False" Category="扩展" />
+      </Columns>
+      <Indexes>
+        <Index Columns="SessionId" Unique="True" />
+      </Indexes>
+    </Table>
+  </Tables>
+</EntityModel>
