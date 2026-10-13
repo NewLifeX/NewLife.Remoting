@@ -15,7 +15,7 @@ NewLife.Remoting 是 NewLife 技术栈的统一远程通信基础设施，由两
 | 包 | 定位 | 覆盖 |
 |:---|:-----|:------|
 | **NewLife.Remoting** | 核心通信库 | RPC 客户端/服务端、协议编解码、连接管理、流式调用、客户端基类、指令下发管线、自动更新 |
-| **NewLife.Remoting.Extensions** | 扩展库 | 服务端控制器基类、设备管理服务、Token 鉴权、命令响应总线 |
+| **NewLife.Remoting.Extensions** | 扩展库 | 服务端控制器基类、最小 API 宿主、设备管理服务、Token 鉴权、命令响应总线 |
 
 源码：https://github.com/NewLifeX/NewLife.Remoting  
 > NuGet：`NewLife.Remoting` / `NewLife.Remoting.Extensions`
@@ -24,10 +24,10 @@ NewLife.Remoting 是 NewLife 技术栈的统一远程通信基础设施，由两
 
 | 文档 | 说明 |
 |------|------|
-| [Doc/需求文档.md](Doc/需求文档.md) | 需求定义：愿景、核心目标、功能需求（RPC/STRM/CLNT/UPGD/SRV/CMD） |
+| [Doc/需求文档.md](Doc/需求文档.md) | 需求定义：愿景、核心目标、功能需求（RPC/STRM/CLNT/UPGD/SRV/CMD/AOT/EXT） |
 | [Doc/架构设计.md](Doc/架构设计.md) | 架构设计：分层概览、核心模块架构、内存管理、测试策略 |
 | [Doc/SRV-服务端架构.md](Doc/SRV-服务端架构.md) | 服务端业务架构：服务层设计、核心业务流程（登录/注册/注销/心跳/升级/事件上报/指令下发）、在线会话生命周期、集群部署 |
-| [Doc/功能清单.md](Doc/功能清单.md) | 功能追踪：61 个功能点的实现/测试/注释状态 |
+| [Doc/功能清单.md](Doc/功能清单.md) | 功能追踪：主功能状态、进行中项与待办（发版待办/待修复项） |
 | [Doc/竞品分析.md](Doc/竞品分析.md) | 竞品分析：RPC 框架对比 + IoT 指令下发对比矩阵 |
 | [Doc/SRMP.MD](Doc/SRMP.MD) | SRMP 协议规范 |
 | [Doc/RPC内存管理设计.md](Doc/RPC内存管理设计.md) | 零拷贝内存管理 |
@@ -45,9 +45,9 @@ NewLife.Remoting 是 NewLife 技术栈的统一远程通信基础设施，由两
 | **STRM 流式调用** | Server-Streaming：`IAsyncEnumerable<T>` 逐条推送，SRMP + SSE 双协议 |
 | **CLNT 客户端基类** | 登录/心跳/升级/指令/事件一站式封装，WS/SSE 双通道自动切换 |
 | **UPGD 自动更新** | 检测→下载→校验→解压→覆盖→重启全链路 |
-| **SRV 服务端基础** | ApiController/BaseController/BaseDeviceController、TokenService、IDeviceService |
+| **SRV 服务端基础** | ApiController/BaseController/BaseDeviceController、TokenService、IDeviceService；同一端点协议提供 MVC 与最小 API 两套宿主入口（镜像实现、测试锁定一致） |
 | **CMD 指令下发** | SessionManager + 事件总线广播 + WS/SSE/Ping 多通道 |
-| **AOT 支持** | net8.0+ 常驻 AOT 兼容分析（核心库 0 告警 / Extensions 21→0 告警）+ 自有源生成器（动作分发表/流式泵/签名类型保留），22 场景 NativeAOT 实测通过 |
+| **AOT 支持** | net8.0+ 常驻 AOT 兼容分析（核心库 0 告警 / Extensions 21→0 告警）+ 自有源生成器（动作分发表/流式泵/签名类型保留），核心库 22 场景 + Extensions 最小 API 宿主 11 场景 NativeAOT 实测通过（XCode 依赖边界见 AOT 文档 §8） |
 
 ## 快速开始
 
