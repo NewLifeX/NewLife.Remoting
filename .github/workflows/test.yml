@@ -137,12 +137,21 @@ jobs:
           echo "build attempt $i failed"
         done
         exit 1
+    - name: Prepare xunit console runner
+      # VSTest 的 PlatformEnvironment.get_Architecture() 不认识 loongarch64（NotSupportedException），
+      # dotnet test 在龙芯上无法运行；改用不依赖 VSTest 的 xunit 控制台运行器（纯托管代码，无架构假设）
+      run: |
+        mkdir -p .qemu/xunit
+        curl -fL -o /tmp/xunit.runner.console.nupkg https://www.nuget.org/api/v2/package/xunit.runner.console/2.9.3
+        unzip -q -o /tmp/xunit.runner.console.nupkg "tools/*" -d .qemu/xunit
+        ls -l .qemu/xunit/tools/net6.0/xunit.console.dll
     - name: Run Unit Tests (LoongArch64，观察期，容错执行)
       run: |
+        mkdir -p TestResults
         for i in 1 2 3; do
           echo "=== test attempt $i ==="
           docker run --rm --platform linux/loong64 -v "$PWD:/src" -v "$PWD/.qemu/nuget:/nuget" -w /src la64-dotnet:10.0.113 \
-            bash -c 'timeout -k 60s 80m dotnet test XUnitTest -f net10.0 -c Release --no-build --no-restore --nologo --logger "trx;LogFileName=loongarch64.trx" --results-directory TestResults' && exit 0
+            bash -c 'timeout -k 60s 80m dotnet /src/.qemu/xunit/tools/net6.0/xunit.console.dll /src/Bin/UnitTest/net10.0/XUnitTest.dll -parallel none -xml /src/TestResults/loongarch64.xml' && exit 0
           echo "test attempt $i failed"
         done
         exit 1
@@ -151,5 +160,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: test-results-loongarch64
-        path: TestResults/*.trx
+        path: TestResults/*
         if-no-files-found: ignore
