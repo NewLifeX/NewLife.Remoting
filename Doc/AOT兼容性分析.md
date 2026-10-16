@@ -226,7 +226,8 @@ dotnet publish -c Release -r win-x64 -o out
 
 > 实测结论：分析器随主包 `analyzers/dotnet/cs` 正常分发，消费者工程**无需任何额外配置**即自动生成动作委托；JIT 与 NativeAOT 两种姿态下 `FastInvoker` 均命中且 RPC 往返正常（ILC 0 告警）。
 
-> CI 防回归：`.github/workflows/aot.yml`（分析器零告警 + win-x64/linux-x64/linux-arm64 三工程 NativeAOT 冒烟含 XCode 探针均为硬约束；linux-loongarch64 为 QEMU JIT 冒烟观察期）。
+> CI 防回归：`.github/workflows/aot.yml`（分析器零告警 + win-x64/linux-x64/linux-arm64 三工程 NativeAOT 冒烟含 XCode 探针均为硬约束）。
+> linux-loongarch64（LA64）：QEMU JIT 冒烟曾 22/22 通过，但仿真稳定性不足以长期占用 3 小时 runner，2026-10-16 起暂缓（作业配方保留、`if: false` 不执行）；龙芯覆盖由 `.github/workflows/test.yml` 的 LA64 单元测试矩阵承接（xunit 控制台运行器，绕开 VSTest 的架构限制）。
 >
 > 说明：受限环境下 NewLife.Core 的 `MachineInfo` 首次探测会向 stderr 打印系统错误后按空值降级，属环境行为（正常 Windows 运行环境不出现），不影响场景结果与退出码。
 

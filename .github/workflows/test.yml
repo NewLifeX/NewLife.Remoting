@@ -138,12 +138,19 @@ jobs:
     - name: Prepare xunit console runner
       # VSTest 的 PlatformEnvironment.get_Architecture() 不认识 loongarch64（NotSupportedException），
       # dotnet test 在龙芯上无法运行；改用不依赖 VSTest 的 xunit 控制台运行器（纯托管代码，无架构假设）。
+      # 运行器自带的 runtimeconfig 只声明 NETCore.App，测试程序集依赖的 AspNetCore.App（控制器/HttpContext
+      # 用例）不在进程共享框架内，会抛 FileNotFoundException(Microsoft.AspNetCore.Mvc.Core)；此处显式补上，
+      # 由 DOTNET_ROLL_FORWARD=LatestMajor 提升到容器内的 10.0.x。
       # 下载到 RUNNER_TEMP 而非工作区：工作区内的 .qemu 由容器以 root 创建，宿主用户无法写入
       run: |
         mkdir -p "$RUNNER_TEMP/xunit"
         curl -fL -o "$RUNNER_TEMP/xunit.nupkg" https://www.nuget.org/api/v2/package/xunit.runner.console/2.9.3
         unzip -q -o "$RUNNER_TEMP/xunit.nupkg" "tools/*" -d "$RUNNER_TEMP/xunit"
+        printf '%s' '{"runtimeOptions":{"tfm":"net6.0","rollForward":"LatestMajor","frameworks":[{"name":"Microsoft.NETCore.App","version":"6.0.0"},{"name":"Microsoft.AspNetCore.App","version":"6.0.0"}]}}' \
+          > "$RUNNER_TEMP/xunit/tools/net6.0/xunit.console.runtimeconfig.json"
         ls -l "$RUNNER_TEMP/xunit/tools/net6.0/xunit.console.dll"
+        echo "=== container shared frameworks ==="
+        docker run --rm --platform linux/loong64 la64-dotnet:10.0.113 ls /usr/share/dotnet/shared
     - name: Run Unit Tests (LoongArch64，观察期，容错执行)
       run: |
         for i in 1 2 3; do

@@ -3,7 +3,8 @@ name: aot
 # AOT 兼容矩阵（参考 NewLife.Core 做法）：分析器零告警 + 三工程 NativeAOT 冒烟。
 #   NativeAOT 不支持跨 OS 编译，每个 RID 用对应原生 runner 发布运行：
 #     win-x64 → windows-latest；linux-x64 → ubuntu-latest；linux-arm64 → ubuntu-24.04-arm
-#   linux-loongarch64（LA64）：无 runtime pack、无 NativeAOT，QEMU 下以 JIT 姿态跑冒烟（观察期）
+#   linux-loongarch64（LA64）：无 runtime pack、无 NativeAOT；QEMU 下的 JIT 冒烟【2026-10-16 起暂缓】，
+#     作业配方保留但默认不执行（if: false），龙芯覆盖由 test.yml 的 LA64 单元测试矩阵承接。
 # 触发：push / PR / 手动（workflow_dispatch）；不采用夜间定时。
 
 on:
@@ -82,14 +83,18 @@ jobs:
         ./AotSmoke.Web/bin/aot-out/AotSmoke.Web$EXT
         ./AotSmoke.XCode/bin/aot-out/AotSmoke.XCode$EXT
 
-  # 龙芯 LA64（linux-loongarch64）：无 runtime pack、无 NativeAOT，QEMU 用户态仿真以 JIT 姿态跑核心冒烟（观察期）。
-  # 参考 numpy 的跨架构做法：① tonistiigi/binfmt 注册较新的 qemu-user-static（qemu 10.2.3，含 loong64；
-  #    9.2.2 的龙芯仿真存在缺陷，曾在 MSBuild/Regex 处触发内存损坏）；
-  # ② 业务在 loong64 Debian 容器内执行——容器根文件系统的 glibc/ld.so 与龙芯 SDK 匹配（宿主交叉 glibc 曾遇
-  # 「unexpected reloc type」）；③ 龙芯 SDK 由宿主下载后进入预构建镜像（.github/la64）。
-  # 还原/运行拆分为独立步骤，便于渐进查看日志；各步骤带重试，规避 QEMU 仿真的偶发内存/指令缺陷。稳定后转硬约束。
+  # 龙芯 LA64（linux-loongarch64）：无 runtime pack、无 NativeAOT，QEMU 用户态仿真以 JIT 姿态跑核心冒烟。
+  # 【2026-10-16 起暂缓】配方保留、默认不执行（if: false）：该冒烟在 QEMU 下曾 22/22 通过，但稳定性尚不足以
+  #   长期占用 3 小时 runner；龙芯覆盖当前由 test.yml 的 test (linux-la64 qemu) 单元测试矩阵承接。
+  #   恢复方式：删除下面那行 if，并同步更新本注释。
+  # 配方要点：① tonistiigi/binfmt 注册较新的 qemu-user-static（qemu 10.2.3，含 loong64；9.2.2 的龙芯仿真存在
+  #   缺陷，曾在 MSBuild/Regex 处触发内存损坏）；② 业务在 loong64 Debian 容器内执行——容器根文件系统的
+  #   glibc/ld.so 与龙芯 SDK 匹配（宿主交叉 glibc 曾遇「unexpected reloc type」）；③ 龙芯 SDK 由宿主下载后
+  #   进入预构建镜像（.github/la64）。还原/运行拆分为独立步骤，便于渐进查看日志；各步骤带重试，
+  #   规避 QEMU 仿真的偶发内存/指令缺陷。
   aot-loongarch64:
     name: smoke (linux-la64 qemu)
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 180
     continue-on-error: true
