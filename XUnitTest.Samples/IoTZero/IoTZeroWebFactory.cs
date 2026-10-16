@@ -84,6 +84,9 @@ public sealed class IoTZeroWebFactory : WebApplicationFactory<IoTZero::Program>,
         // WAF 在 CreateHost 后调用 TryExtractHostAddress，自动将实际端口写入 ClientOptions.BaseAddress
         BaseUrl = ClientOptions.BaseAddress?.ToString()?.TrimEnd('/') ?? "";
         XTrace.WriteLine("IoTZeroWebFactory 启动，地址：{0}", BaseUrl);
+        // 预热服务端：首个请求会触发 XCode 初始化与反向建表，CI 慢机器上可能持续数十秒；
+        // 提前在夹具初始化阶段消化，避免测试步骤内的首个登录请求反复撞上滚动超时（times*1000ms）
+        await WarmUpAsync();
         // XCode 静态 DAL 在进程内持久化，同一进程多次运行测试会复用共享数据库中的历史数据。
         // 在服务启动后、测试开始前，清空所有业务表，确保每次测试数据完全隔离。
         // 注意：必须在 _ = Services 之后执行（DAL 连接已建立），并在 SeedProduct 之前执行（避免误清产品数据）。
@@ -126,6 +129,30 @@ public sealed class IoTZeroWebFactory : WebApplicationFactory<IoTZero::Program>,
     #endregion
 
     #region 辅助
+    /// <summary>预热服务端：反复请求根路径，直到收到任意响应或超时（首次请求触发应用初始化）</summary>
+    private async Task WarmUpAsync()
+    {
+        if (BaseUrl.IsNullOrEmpty()) return;
+
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        var start = DateTime.Now;
+        while ((DateTime.Now - start).TotalSeconds < 60)
+        {
+            try
+            {
+                using var rs = await http.GetAsync(BaseUrl + "/");
+                XTrace.WriteLine("IoTZero 预热完成，状态={0}，耗时={1}ms", (Int32)rs.StatusCode, (Int32)(DateTime.Now - start).TotalMilliseconds);
+                return;
+            }
+            catch (Exception ex)
+            {
+                XTrace.WriteLine("IoTZero 预热中：{0}", ex.Message);
+                await Task.Delay(500);
+            }
+        }
+        XTrace.WriteLine("IoTZero 预热超时（60s）");
+    }
+
     /// <summary>读取 IoTClient.config 文件内容（登录后由 ClientSetting.Save 写入）</summary>
     /// <remarks>Config&lt;T&gt; 使用 GetBasePath() 保存到 AppDomain.CurrentDomain.BaseDirectory/Config/ 目录</remarks>
     public String? ReadClientConfigFile()

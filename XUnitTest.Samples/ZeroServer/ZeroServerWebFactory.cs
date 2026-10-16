@@ -89,11 +89,39 @@ public sealed class ZeroServerWebFactory : WebApplicationFactory<ZeroServer::Pro
         BaseUrl = ClientOptions.BaseAddress?.ToString()?.TrimEnd('/') ?? "";
         XTrace.WriteLine("ZeroServerWebFactory 启动，地址：{0}", BaseUrl);
 
+        // 预热服务端：首个请求会触发 Cube/XCode 初始化与反向建表，CI 慢机器上可能持续数十秒；
+        // 提前在夹具初始化阶段消化，避免测试步骤内的首个登录请求反复撞上滚动超时（times*1000ms）
+        await WarmUpAsync();
+
         // 初始化共享测试状态：创建客户端（Step1 时以空 Code/Secret 触发自动注册）
         TestSetting = new ClientSetting { Server = BaseUrl };
         TestClient  = new NodeClient(TestSetting) { Log = XTrace.Log };
 
         await Task.CompletedTask;
+    }
+
+    /// <summary>预热服务端：反复请求根路径，直到收到任意响应或超时（首次请求触发应用初始化）</summary>
+    private async Task WarmUpAsync()
+    {
+        if (BaseUrl.IsNullOrEmpty()) return;
+
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+        var start = DateTime.Now;
+        while ((DateTime.Now - start).TotalSeconds < 60)
+        {
+            try
+            {
+                using var rs = await http.GetAsync(BaseUrl + "/");
+                XTrace.WriteLine("ZeroServer 预热完成，状态={0}，耗时={1}ms", (Int32)rs.StatusCode, (Int32)(DateTime.Now - start).TotalMilliseconds);
+                return;
+            }
+            catch (Exception ex)
+            {
+                XTrace.WriteLine("ZeroServer 预热中：{0}", ex.Message);
+                await Task.Delay(500);
+            }
+        }
+        XTrace.WriteLine("ZeroServer 预热超时（60s）");
     }
 
     async Task IAsyncLifetime.DisposeAsync()
