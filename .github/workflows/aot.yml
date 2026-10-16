@@ -102,15 +102,18 @@ jobs:
           cnclarechen/numpy-loong64-debian:v1 \
           /bin/bash -c '
             set -e
-            apt-get update -qq
-            apt-get install -y -qq curl ca-certificates openssl >/dev/null
-            apt-get install -y -qq libssl3 >/dev/null 2>&1 || apt-get install -y -qq libssl3t64 >/dev/null 2>&1 || true
-            curl -fL -o /tmp/la64-sdk.tar.gz https://github.com/loongson/dotnet/releases/download/v10.0.113-loongarch64/dotnet-sdk-10.0.113-linux-loongarch64.tar.gz
+            uname -m
+            apt-get update -qq -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true 2>&1 | tail -1 || true
+            apt-get install -y -qq --allow-unauthenticated --no-install-recommends curl ca-certificates openssl >/dev/null 2>&1 || true
+            apt-get install -y -qq --allow-unauthenticated --no-install-recommends libssl3t64 >/dev/null 2>&1 || apt-get install -y -qq --allow-unauthenticated libssl3 >/dev/null 2>&1 || true
+            URL=https://github.com/loongson/dotnet/releases/download/v10.0.113-loongarch64/dotnet-sdk-10.0.113-linux-loongarch64.tar.gz
+            if ! curl -fL -o /tmp/la64-sdk.tar.gz "$URL"; then python3 -c "import urllib.request;urllib.request.urlretrieve(\"$URL\",\"/tmp/la64-sdk.tar.gz\")"; fi
             mkdir -p /usr/share/dotnet && tar -xzf /tmp/la64-sdk.tar.gz -C /usr/share/dotnet
             ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
             export DOTNET_CLI_TELEMETRY_OPTOUT=1
             # 以 invariant 模式运行，避免依赖容器内 LA64 原生 ICU 数据；冒烟场景不依赖区域性数据
             export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
             dotnet nuget add source https://lnuget.loongnix.cn/v3/index.json -n loongnuget || true
+            dotnet --info
             timeout 90m dotnet run -c Release --project AotSmoke/AotSmoke.csproj
           '
