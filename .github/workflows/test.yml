@@ -124,7 +124,7 @@ jobs:
         for i in 1 2 3; do
           echo "=== restore attempt $i ==="
           docker run --rm --platform linux/loong64 -v "$PWD:/src" -v "$PWD/.qemu/nuget:/nuget" -w /src la64-dotnet:10.0.113 \
-            bash -c 'dotnet nuget add source https://lnuget.loongnix.cn/v3/index.json -n loongnuget || true; dotnet --info; timeout -k 60s 30m dotnet restore XUnitTest' && exit 0
+            bash -c 'dotnet nuget add source https://lnuget.loongnix.cn/v3/index.json -n loongnuget || true; dotnet --info; timeout -k 60s 30m dotnet restore XUnitTest --disable-parallel' && exit 0
           echo "restore attempt $i failed"
         done
         exit 1

@@ -22,3 +22,8 @@ ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 \
     DOTNET_EnableHWIntrinsic=0 \
     QEMU_CPU=la464 \
     NUGET_PACKAGES=/nuget
+
+# QEMU 用户态仿真下 JIT 代码发布（W^X 双映射 + 指令缓存刷新）不稳定，曾致 SIGILL/内存损坏/属性求值 NRE；
+# 关闭 W^X 改用传统可写可执行内存页发布代码
+ENV DOTNET_EnableWriteXorExecute=0 \
+    MSBUILDDISABLENODEREUSE=1
