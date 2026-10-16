@@ -124,6 +124,9 @@ jobs:
             export DOTNET_CLI_TELEMETRY_OPTOUT=1
             # 以 invariant 模式运行，避免依赖容器内 LA64 原生 ICU 数据；测试不依赖区域性数据
             export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
+            # QEMU 仿真下限制 CPU 模型与 JIT 向量指令：规避 qemu 对 LASX/LSX 仿真的缺陷（曾致 SIGILL/SIGSEGV）
+            export QEMU_CPU=la464
+            export DOTNET_EnableHWIntrinsic=0
             dotnet nuget add source https://lnuget.loongnix.cn/v3/index.json -n loongnuget || true
             dotnet --info
             timeout 90m dotnet test XUnitTest -f net10.0 -c Release --nologo --logger "trx;LogFileName=loongarch64.trx" --results-directory TestResults
