@@ -83,7 +83,8 @@ jobs:
         ./AotSmoke.XCode/bin/aot-out/AotSmoke.XCode$EXT
 
   # 龙芯 LA64（linux-loongarch64）：无 runtime pack、无 NativeAOT，QEMU 下以 JIT 姿态跑核心冒烟（观察期）。
-  # 参考 NewLife.Core edge.yml 的 loongarch64 作业；稳定后转硬约束。
+  # 宿主加载器：Ubuntu 自带 loongarch64 交叉工具链提供 LA64 的 ld.so/libc/libstdc++，软链到宿主 /lib64
+  # 供 binfmt QEMU 解析，运行时经 LD_LIBRARY_PATH 找库（参考 duckdb 的跨架构做法）；稳定后转硬约束。
   aot-loongarch64:
     name: smoke (linux-la64 qemu)
     runs-on: ubuntu-latest
@@ -97,6 +98,12 @@ jobs:
         sudo apt-get update && sudo apt-get install -y qemu-user-static binfmt-support
         sudo update-binfmts --enable qemu-loongarch64 || true
         ls -l /usr/bin/qemu-loongarch64* || true
+    - name: Install LoongArch64 cross loader (glibc)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y g++-13-loongarch64-linux-gnu
+        sudo ln -sf /usr/loongarch64-linux-gnu/lib/ld-linux-loongarch-lp64d.so.1 /lib64/ld-linux-loongarch-lp64d.so.1
+        ls -l /lib64/ld-linux-loongarch-lp64d.so.1
     - name: Download Loongson .NET SDK (linux-loongarch64)
       run: |
         curl -fL -o "$HOME/la64-sdk.tar.gz" \
@@ -107,11 +114,13 @@ jobs:
       env:
         DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: 1
         DOTNET_CLI_TELEMETRY_OPTOUT: 1
+        LD_LIBRARY_PATH: /usr/loongarch64-linux-gnu/lib:/usr/loongarch64-linux-gnu/lib64
     - name: JIT Smoke (AotSmoke 22 场景)
       env:
         DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: 1
         DOTNET_CLI_TELEMETRY_OPTOUT: 1
         DOTNET_ROOT: /home/runner/la64
+        LD_LIBRARY_PATH: /usr/loongarch64-linux-gnu/lib:/usr/loongarch64-linux-gnu/lib64
       run: |
         export PATH="$HOME/la64:$PATH"
         dotnet nuget add source https://lnuget.loongnix.cn/v3/index.json -n loongnuget || true
