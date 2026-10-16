@@ -94,8 +94,9 @@ public sealed class IoTZeroWebFactory : WebApplicationFactory<IoTZero::Program>,
         // 预置测试所需的 Product（EdgeGateway），否则 OnRegister 会抛出“无效产品”
         SeedProduct();
         // 初始化共享测试状态：创建客户端（Step1 时以空 DeviceCode/DeviceSecret 触发自动注册）
+        // Timeout 抬高到 60s：滚动登录超时按 times*1000ms 递增并以 Timeout 为上限，默认 15s 在 CI 慢机器上仍可能不够
         TestSetting = new ClientSetting { Server = BaseUrl };
-        TestClient  = new HttpDevice(TestSetting) { Log = XTrace.Log };
+        TestClient  = new HttpDevice(TestSetting) { Log = XTrace.Log, Timeout = 60_000 };
         await Task.CompletedTask;
     }
 

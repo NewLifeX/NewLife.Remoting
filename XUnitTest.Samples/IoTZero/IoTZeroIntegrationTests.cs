@@ -47,23 +47,12 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
         setting.DeviceCode   = null!;
         setting.DeviceSecret = null!;
 
-        // CI 冷启动（首次请求初始化 XCode 与反向建表）可能超过客户端首个滚动超时（times*1000ms=1s）；
-        // 登录失败后 Status 回退 Ready，再次调用会自动以递增超时（2s/3s…）重试
-        for (var i = 0; i < 5 && !client.Logined; i++)
-        {
-            try
-            {
-                await client.Login(null, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                XTrace.WriteLine("第 {0} 次登录失败：{1}", i + 1, ex.Message);
-                await Task.Delay(500).ConfigureAwait(false);
-            }
-        }
+        // 服务端冷启动（Cube/XCode 初始化与反向建表）在 CI 慢机器上可能持续数十秒，而客户端单次登录的滚动
+        // 超时为 times*1000ms（首次仅 1s，上限 Timeout），固定次数重试会在服务端就绪前耗尽；改为时间预算内重试
+        var (ok, error) = await client.LoginWithBudgetAsync("Step1", 180);
 
         // 客户端状态验证
-        Assert.True(client.Logined, "Login 后 Logined 应为 true");
+        Assert.True(ok, $"Login 后 Logined 应为 true（最后错误：{error}）");
 
         // 服务端应已写回 DeviceCode 和 DeviceSecret（通过 IClientSetting.Code/Secret 接口）
         Assert.False(setting.DeviceCode.IsNullOrEmpty(),   "服务端应已回填 DeviceCode");
@@ -194,9 +183,9 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
         setting.DeviceSecret = newSecret;
 
         // 重新登录
-        await client.Login("重登测试", CancellationToken.None).ConfigureAwait(false);
+        var (ok, error) = await client.LoginWithBudgetAsync("重登测试", 60);
 
-        Assert.True(client.Logined, "修改密钥后重登，Logined 应为 true");
+        Assert.True(ok, $"修改密钥后重登，Logined 应为 true（最后错误：{error}）");
 
         // 等待写库
         await Task.Delay(300).ConfigureAwait(false);
