@@ -58,15 +58,13 @@ jobs:
         path: TestResults/*.trx
         if-no-files-found: ignore
 
-  # Samples 集成测试（ZeroServer/IoTZero 端到端）：观察期，暂不阻断。
-  # 现状（2026-10-16 首轮 CI）：GitHub runner 上 11/18 失败（本地全绿）——ZeroServer 首个登录请求超过
-  # 客户端首次 1s 滚动超时；IoTZero Step4 测试侧 XCode 更新 Device 时 Product 查询为空（环境/数据隔离差异）。
-  # 详见《功能清单》待修复项 FIX-1；修复后并入上方硬约束矩阵。
+  # Samples 集成测试（ZeroServer/IoTZero 端到端，18 项）：win-x64 / linux-x64 硬约束。
+  # 2026-10-16 曾在 GitHub runner 上 11/18 失败（本地全绿），根因已修：① 冷启动首个登录超过客户端 1s 滚动超时
+  # → 按递增超时重试；② IoTZero 预置产品后实体缓存异步刷新与插入竞争 → 强制同步刷新（FIX-1 已闭环）。
   samples:
     name: samples (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -139,19 +137,19 @@ jobs:
         exit 1
     - name: Prepare xunit console runner
       # VSTest 的 PlatformEnvironment.get_Architecture() 不认识 loongarch64（NotSupportedException），
-      # dotnet test 在龙芯上无法运行；改用不依赖 VSTest 的 xunit 控制台运行器（纯托管代码，无架构假设）
+      # dotnet test 在龙芯上无法运行；改用不依赖 VSTest 的 xunit 控制台运行器（纯托管代码，无架构假设）。
+      # 下载到 RUNNER_TEMP 而非工作区：工作区内的 .qemu 由容器以 root 创建，宿主用户无法写入
       run: |
-        mkdir -p .qemu/xunit
-        curl -fL -o /tmp/xunit.runner.console.nupkg https://www.nuget.org/api/v2/package/xunit.runner.console/2.9.3
-        unzip -q -o /tmp/xunit.runner.console.nupkg "tools/*" -d .qemu/xunit
-        ls -l .qemu/xunit/tools/net6.0/xunit.console.dll
+        mkdir -p "$RUNNER_TEMP/xunit"
+        curl -fL -o "$RUNNER_TEMP/xunit.nupkg" https://www.nuget.org/api/v2/package/xunit.runner.console/2.9.3
+        unzip -q -o "$RUNNER_TEMP/xunit.nupkg" "tools/*" -d "$RUNNER_TEMP/xunit"
+        ls -l "$RUNNER_TEMP/xunit/tools/net6.0/xunit.console.dll"
     - name: Run Unit Tests (LoongArch64，观察期，容错执行)
       run: |
-        mkdir -p TestResults
         for i in 1 2 3; do
           echo "=== test attempt $i ==="
-          docker run --rm --platform linux/loong64 -v "$PWD:/src" -v "$PWD/.qemu/nuget:/nuget" -w /src la64-dotnet:10.0.113 \
-            bash -c 'timeout -k 60s 80m dotnet /src/.qemu/xunit/tools/net6.0/xunit.console.dll /src/Bin/UnitTest/net10.0/XUnitTest.dll -parallel none -xml /src/TestResults/loongarch64.xml' && exit 0
+          docker run --rm --platform linux/loong64 -v "$PWD:/src" -v "$PWD/.qemu/nuget:/nuget" -v "$RUNNER_TEMP/xunit:/xunit" -w /src la64-dotnet:10.0.113 \
+            bash -c 'mkdir -p /src/TestResults; timeout -k 60s 80m dotnet /xunit/tools/net6.0/xunit.console.dll /src/Bin/UnitTest/net10.0/XUnitTest.dll -parallel none -xml /src/TestResults/loongarch64.xml' && exit 0
           echo "test attempt $i failed"
         done
         exit 1
