@@ -155,6 +155,11 @@ public sealed class IoTZeroWebFactory : WebApplicationFactory<IoTZero::Program>,
             product.Update();
         }
 
+        // 预置后强制清除缓存（force=true 使下次访问同步刷新）：
+        // 非强制清除只会置为过期，下次访问先返回旧集合再后台异步刷新，与刚写入的行竞争；
+        // CI 慢机器上会导致 Valid 中的 Product.FindById（走实体缓存）读不到新行而报「产品Id错误」
+        Product.Meta.Cache.Clear("预置产品后强制同步刷新", force: true);
+
         XTrace.WriteLine("IoTZero 产品已预置，Code=EdgeGateway, Id={0}", product.Id);
     }
 
@@ -167,11 +172,12 @@ public sealed class IoTZeroWebFactory : WebApplicationFactory<IoTZero::Program>,
         Device.Meta.Session.Execute("DELETE FROM Device");
         Product.Meta.Session.Execute("DELETE FROM Product");
 
-        // 清空实体缓存，避免残留对象影响后续 FindAll 查询
-        DeviceOnline.Meta.Cache.Clear("清空测试数据");
-        DeviceHistory.Meta.Cache.Clear("清空测试数据");
-        Device.Meta.Cache.Clear("清空测试数据");
-        Product.Meta.Cache.Clear("清空测试数据");
+        // 清空实体缓存，避免残留对象影响后续 FindAll 查询；force=true 使下次访问同步刷新，
+        // 避免异步刷新窗口内仍然读到旧集合（CI 慢机器上会出现跨测试步骤的脏读）
+        DeviceOnline.Meta.Cache.Clear("清空测试数据", force: true);
+        DeviceHistory.Meta.Cache.Clear("清空测试数据", force: true);
+        Device.Meta.Cache.Clear("清空测试数据", force: true);
+        Product.Meta.Cache.Clear("清空测试数据", force: true);
         DeviceOnline.Meta.SingleCache.Clear("清空测试数据");
         Device.Meta.SingleCache.Clear("清空测试数据");
 

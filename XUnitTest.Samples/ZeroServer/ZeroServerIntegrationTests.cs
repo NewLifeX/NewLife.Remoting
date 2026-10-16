@@ -47,7 +47,20 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
         setting.Code   = null!;
         setting.Secret = null!;
 
-        await client.Login(null, CancellationToken.None);
+        // CI 冷启动（首次请求初始化 XCode 与反向建表）可能超过客户端首个滚动超时（times*1000ms=1s）；
+        // 登录失败后 Status 回退 Ready，再次调用会自动以递增超时（2s/3s…）重试
+        for (var i = 0; i < 5 && !client.Logined; i++)
+        {
+            try
+            {
+                await client.Login(null, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                XTrace.WriteLine("第 {0} 次登录失败：{1}", i + 1, ex.Message);
+                await Task.Delay(500);
+            }
+        }
 
         // 客户端状态验证
         Assert.True(client.Logined, "Login 后 Logined 应为 true");
@@ -58,11 +71,15 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
 
         XTrace.WriteLine("自动注册成功，Code={0}", setting.Code);
 
-        // 等待 ClientSetting.Save() 写文件（异步 IO，稍作等待）
-        await Task.Delay(300);
-
-        // 配置文件持久化验证
-        var configContent = _factory.ReadClientConfigFile();
+        // 等待 ClientSetting.Save() 写文件（异步 IO；CI 慢机器上固定等待不可靠，改为轮询）
+        String? configContent = null;
+        var configDeadline = DateTime.Now.AddSeconds(5);
+        while (DateTime.Now < configDeadline)
+        {
+            configContent = _factory.ReadClientConfigFile();
+            if (!configContent.IsNullOrEmpty()) break;
+            await Task.Delay(200);
+        }
         Assert.False(configContent.IsNullOrEmpty(), "config/ZeroClient.config 应已写入磁盘");
         Assert.Contains(setting.Code,   configContent!, StringComparison.Ordinal);
         Assert.Contains(setting.Secret, configContent!, StringComparison.Ordinal);
@@ -82,11 +99,17 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
 
         var code = _factory.TestCode;
 
-        // 等待服务端异步写库完成
-        await Task.Delay(300);
+        // 轮询等待服务端异步写库完成（CI 慢机器上固定等待不可靠）
+        Node? node = null;
+        var nodeDeadline = DateTime.Now.AddSeconds(5);
+        while (DateTime.Now < nodeDeadline)
+        {
+            node = Node.FindByCodeWithCache(code, false);
+            if (node != null) break;
+            await Task.Delay(200);
+        }
 
         // 验证 Node 实体已创建
-        var node = Node.FindByCodeWithCache(code, false);
         Assert.NotNull(node);
         Assert.Equal(code, node.Code);
         Assert.True(node.Enable, "新注册的 Node 应为启用状态");
@@ -191,11 +214,16 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
         var rs = await client.Ping(CancellationToken.None);
         Assert.NotNull(rs);
 
-        // 等待服务端写库
-        await Task.Delay(300);
+        // 轮询等待服务端写库并刷新实体缓存，验证 PingCount 增加（CI 慢机器上固定等待不可靠）
+        NodeOnline? onlineAfter = null;
+        var pingDeadline = DateTime.Now.AddSeconds(5);
+        while (DateTime.Now < pingDeadline)
+        {
+            onlineAfter = NodeOnline.Find(NodeOnline._.NodeId == nodeId);
+            if (onlineAfter != null && onlineAfter.PingCount > pingCountBefore) break;
+            await Task.Delay(200);
+        }
 
-        // 刷新实体缓存后验证 PingCount 增加
-        var onlineAfter = NodeOnline.Find(NodeOnline._.NodeId == nodeId);
         Assert.NotNull(onlineAfter);
         Assert.True(onlineAfter.PingCount > pingCountBefore,
             $"Ping 后 PingCount 应增加，before={pingCountBefore}, after={onlineAfter.PingCount}");
@@ -263,7 +291,8 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
         var response = await http.PostAsync($"{_factory.BaseUrl}/Node/SendCommand", content);
         XTrace.WriteLine("SendCommand HTTP 状态={0}", response.StatusCode);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        // 等待客户端通过 WebSocket 收到命令（最多 20 秒，CI 慢机器上投递链路更慢）
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var cmdEvt = await tcs.Task.WaitAsync(cts.Token);
 
         Assert.NotNull(cmdEvt.Model);

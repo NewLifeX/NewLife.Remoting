@@ -47,7 +47,20 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
         setting.DeviceCode   = null!;
         setting.DeviceSecret = null!;
 
-        await client.Login(null, CancellationToken.None).ConfigureAwait(false);
+        // CI 冷启动（首次请求初始化 XCode 与反向建表）可能超过客户端首个滚动超时（times*1000ms=1s）；
+        // 登录失败后 Status 回退 Ready，再次调用会自动以递增超时（2s/3s…）重试
+        for (var i = 0; i < 5 && !client.Logined; i++)
+        {
+            try
+            {
+                await client.Login(null, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                XTrace.WriteLine("第 {0} 次登录失败：{1}", i + 1, ex.Message);
+                await Task.Delay(500).ConfigureAwait(false);
+            }
+        }
 
         // 客户端状态验证
         Assert.True(client.Logined, "Login 后 Logined 应为 true");
@@ -58,11 +71,15 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
 
         XTrace.WriteLine("自动注册成功，DeviceCode={0}", setting.DeviceCode);
 
-        // 等待 ClientSetting.Save() 写文件（异步 IO，稍作等待）
-        await Task.Delay(300).ConfigureAwait(false);
-
-        // 配置文件持久化验证（ClientSetting 的 [Config("IoTClient")] 写到 config/IoTClient.config）
-        var configContent = _factory.ReadClientConfigFile();
+        // 等待 ClientSetting.Save() 写文件（异步 IO；CI 慢机器上固定等待不可靠，改为轮询）
+        String? configContent = null;
+        var configDeadline = DateTime.Now.AddSeconds(5);
+        while (DateTime.Now < configDeadline)
+        {
+            configContent = _factory.ReadClientConfigFile();
+            if (!configContent.IsNullOrEmpty()) break;
+            await Task.Delay(200).ConfigureAwait(false);
+        }
         Assert.False(configContent.IsNullOrEmpty(), "config/IoTClient.config 应已写入磁盘");
         Assert.Contains(setting.DeviceCode,   configContent!, StringComparison.Ordinal);
         Assert.Contains(setting.DeviceSecret, configContent!, StringComparison.Ordinal);
@@ -82,11 +99,17 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
 
         var code = _factory.TestCode;
 
-        // 等待服务端异步写库完成（Device/DeviceOnline 由 Save 同步写入，无需长等待）
-        await Task.Delay(300).ConfigureAwait(false);
+        // 轮询等待服务端写库完成（CI 慢机器上固定等待不可靠；Device/DeviceOnline 由 Save 同步写入）
+        Device? device = null;
+        var deviceDeadline = DateTime.Now.AddSeconds(5);
+        while (DateTime.Now < deviceDeadline)
+        {
+            device = Device.FindByCode(code);
+            if (device != null) break;
+            await Task.Delay(200).ConfigureAwait(false);
+        }
 
         // 验证 Device 实体已创建（FindByCode 单参数）
-        var device = Device.FindByCode(code);
         Assert.NotNull(device);
         Assert.Equal(code, device.Code);
         Assert.True(device.Enable, "新注册的 Device 应为启用状态");
@@ -206,11 +229,16 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
         var rs = await client.Ping(CancellationToken.None).ConfigureAwait(false);
         Assert.NotNull(rs);
 
-        // 等待服务端写库
-        await Task.Delay(300).ConfigureAwait(false);
+        // 轮询等待服务端写库并刷新实体缓存，验证 Pings 增加（CI 慢机器上固定等待不可靠）
+        DeviceOnline? onlineAfter = null;
+        var pingDeadline = DateTime.Now.AddSeconds(5);
+        while (DateTime.Now < pingDeadline)
+        {
+            onlineAfter = DeviceOnline.Find(DeviceOnline._.DeviceId == deviceId);
+            if (onlineAfter != null && onlineAfter.Pings > pingsBefore) break;
+            await Task.Delay(200).ConfigureAwait(false);
+        }
 
-        // 刷新实体缓存后验证 Pings 增加
-        var onlineAfter = DeviceOnline.Find(DeviceOnline._.DeviceId == deviceId);
         Assert.NotNull(onlineAfter);
         Assert.True(onlineAfter.Pings > pingsBefore,
             $"Ping 后 Pings 应增加，before={pingsBefore}, after={onlineAfter.Pings}");
@@ -281,8 +309,8 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
         var response = await http.PostAsync($"{_factory.BaseUrl}/Device/SendCommand", content).ConfigureAwait(false);
         XTrace.WriteLine("SendCommand HTTP 状态={0}", response.StatusCode);
 
-        // 等待客户端通过 WebSocket 收到命令（最多 10 秒）
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        // 等待客户端通过 WebSocket 收到命令（最多 20 秒，CI 慢机器上投递链路更慢）
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var cmdEvt = await tcs.Task.WaitAsync(cts.Token).ConfigureAwait(false);
 
         Assert.NotNull(cmdEvt.Model);
