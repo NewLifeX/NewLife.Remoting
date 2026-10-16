@@ -93,7 +93,8 @@ jobs:
         if-no-files-found: ignore
 
   # 龙芯 LA64（linux-loongarch64）：无官方 runner / runtime pack / NativeAOT，QEMU 用户态仿真执行（观察期）。
-  # 参考 numpy 的跨架构做法：① tonistiigi/binfmt 注册较新的 qemu-user-static（qemu 9.2.2，含 loong64）；
+  # 参考 numpy 的跨架构做法：① tonistiigi/binfmt 注册较新的 qemu-user-static（qemu 10.2.3，含 loong64；
+  #    9.2.2 的龙芯仿真存在缺陷，曾在 MSBuild/Regex 处触发内存损坏）；
   # ② 业务在 loong64 Debian 容器内执行——容器根文件系统的 glibc/ld.so 与龙芯 SDK 匹配（宿主交叉 glibc 曾遇
   # 「unexpected reloc type」）；③ 龙芯 SDK（github.com/loongson/dotnet）由宿主下载后进入预构建镜像（.github/la64）。
   # 还原/编译/测试拆分为独立步骤，便于渐进查看日志；各步骤带重试，规避 QEMU 仿真的偶发内存/指令缺陷。
@@ -106,8 +107,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Initialize binfmt_misc (QEMU 9.2.2)
-      run: docker run --rm --privileged tonistiigi/binfmt:qemu-v9.2.2-52 --install all
+    - name: Initialize binfmt_misc (QEMU 10.2.3)
+      run: docker run --rm --privileged tonistiigi/binfmt:qemu-v10.2.3-68 --install all
     - name: Build LoongArch64 SDK image
       run: |
         curl -fL -o .github/la64/dotnet-sdk-10.0.113-linux-loongarch64.tar.gz \
