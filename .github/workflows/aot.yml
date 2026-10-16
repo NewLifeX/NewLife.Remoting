@@ -85,38 +85,34 @@ jobs:
   # 龙芯 LA64（linux-loongarch64）：无 runtime pack、无 NativeAOT，QEMU 用户态仿真以 JIT 姿态跑核心冒烟（观察期）。
   # 参考 numpy 的跨架构做法：① tonistiigi/binfmt 注册较新的 qemu-user-static（qemu 9.2.2，含 loong64）；
   # ② 业务在 loong64 Debian 容器内执行——容器根文件系统的 glibc/ld.so 与龙芯 SDK 匹配（宿主交叉 glibc 曾遇
-  # 「unexpected reloc type」）；③ 容器内下载龙芯 SDK（github.com/loongson/dotnet）。稳定后转硬约束。
+  # 「unexpected reloc type」）；③ 龙芯 SDK 由宿主下载后进入预构建镜像（.github/la64）。
+  # 还原/运行拆分为独立步骤，便于渐进查看日志；各步骤带重试，规避 QEMU 仿真的偶发内存/指令缺陷。稳定后转硬约束。
   aot-loongarch64:
     name: smoke (linux-la64 qemu)
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 180
     continue-on-error: true
 
     steps:
     - uses: actions/checkout@v4
     - name: Initialize binfmt_misc (QEMU 9.2.2)
       run: docker run --rm --privileged tonistiigi/binfmt:qemu-v9.2.2-52 --install all
+    - name: Build LoongArch64 SDK image
+      run: |
+        curl -fL -o .github/la64/dotnet-sdk-10.0.113-linux-loongarch64.tar.gz \
+          https://github.com/loongson/dotnet/releases/download/v10.0.113-loongarch64/dotnet-sdk-10.0.113-linux-loongarch64.tar.gz
+        for i in 1 2; do
+          echo "=== image build attempt $i ==="
+          docker build --platform linux/loong64 -t la64-dotnet:10.0.113 .github/la64 && exit 0
+          echo "image build attempt $i failed"
+        done
+        exit 1
     - name: JIT Smoke in LoongArch64 Container (AotSmoke 22 场景)
       run: |
-        docker run --rm --platform linux/loong64 -v "$PWD:/src" -w /src \
-          cnclarechen/numpy-loong64-debian:v1 \
-          /bin/bash -c '
-            set -e
-            uname -m
-            apt-get update -qq -o Acquire::Check-Valid-Until=false -o Acquire::AllowInsecureRepositories=true 2>&1 | tail -1 || true
-            apt-get install -y -qq --allow-unauthenticated --no-install-recommends curl ca-certificates openssl >/dev/null 2>&1 || true
-            apt-get install -y -qq --allow-unauthenticated --no-install-recommends libssl3t64 >/dev/null 2>&1 || apt-get install -y -qq --allow-unauthenticated libssl3 >/dev/null 2>&1 || true
-            URL=https://github.com/loongson/dotnet/releases/download/v10.0.113-loongarch64/dotnet-sdk-10.0.113-linux-loongarch64.tar.gz
-            if ! curl -fL -o /tmp/la64-sdk.tar.gz "$URL"; then python3 -c "import urllib.request;urllib.request.urlretrieve(\"$URL\",\"/tmp/la64-sdk.tar.gz\")"; fi
-            mkdir -p /usr/share/dotnet && tar -xzf /tmp/la64-sdk.tar.gz -C /usr/share/dotnet
-            ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
-            export DOTNET_CLI_TELEMETRY_OPTOUT=1
-            # 以 invariant 模式运行，避免依赖容器内 LA64 原生 ICU 数据；冒烟场景不依赖区域性数据
-            export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
-            # QEMU 仿真下限制 CPU 模型与 JIT 向量指令：规避 qemu 对 LASX/LSX 仿真的缺陷（曾致 SIGILL/SIGSEGV）
-            export QEMU_CPU=la464
-            export DOTNET_EnableHWIntrinsic=0
-            dotnet nuget add source https://lnuget.loongnix.cn/v3/index.json -n loongnuget || true
-            dotnet --info
-            timeout 90m dotnet run -c Release --project AotSmoke/AotSmoke.csproj
-          '
+        for i in 1 2 3; do
+          echo "=== smoke attempt $i ==="
+          docker run --rm --platform linux/loong64 -v "$PWD:/src" -v "$PWD/.qemu/nuget:/nuget" -w /src la64-dotnet:10.0.113 \
+            bash -c 'dotnet nuget add source https://lnuget.loongnix.cn/v3/index.json -n loongnuget || true; dotnet --info; timeout -k 60s 60m dotnet run -c Release --project AotSmoke/AotSmoke.csproj' && exit 0
+          echo "smoke attempt $i failed"
+        done
+        exit 1

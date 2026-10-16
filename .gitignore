@@ -22,3 +22,6 @@ bld/
 *.nuspec
 *.nupkg
 BenchmarkDotNet.Artifacts/
+# 龙芯 LA64 CI 临时产物（SDK 安装包与 NuGet 缓存，本地调试/工作流使用，不入库）
+.github/la64/*.tar.gz
+.qemu/
