@@ -23,9 +23,10 @@ namespace NewLife.Remoting.Extensions.Services;
 /// <param name="serviceProvider">服务提供者</param>
 /// <remarks>
 /// 设备与在线实体类型需要保留公开方法：静态构造按名称查找 <c>FindByCode</c>/<c>FindByName</c>/<c>FindBySessionId</c>，
-/// 并编译为强类型委托。NativeAOT 与裁剪下若成员被移除，将退化为空实现（找不到设备）
+/// 并编译为强类型委托。NativeAOT 与裁剪下若成员被移除，将退化为空实现（找不到设备）。
+/// 另需保留公开属性：<see cref="Entity{TEntity}"/> 的泛型注解要求 <c>PublicProperties</c>（XCode v12.2 AOT 基线）
 /// </remarks>
-public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] TDevice, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] TOnline>(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, IServiceProvider serviceProvider) : IDeviceService2
+public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.PublicProperties)] TDevice, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.PublicProperties)] TOnline>(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, IServiceProvider serviceProvider) : IDeviceService2
     where TDevice : Entity<TDevice>, IDeviceModel, new()
     where TOnline : Entity<TOnline>, IOnlineModel, new()
 {

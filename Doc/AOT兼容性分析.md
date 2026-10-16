@@ -1,6 +1,6 @@
 # NewLife.Remoting AOT 兼容性现状与边界
 
-> 基线：NewLife.Core 12.0（v12 分支）｜评估方式：**NativeAOT 真实编译 + 运行实测**（win-x64，.NET 10）｜冒烟工程：`AotSmoke/`、`AotSmoke.Web/`、`AotSmoke.XCode/`
+> 基线：NewLife.Core 12.0（v12 分支）+ NewLife.XCode 12.2.2026.1015-beta1338｜更新：2026-10-16｜评估方式：**NativeAOT 真实编译 + 运行实测**（win-x64，.NET 10）｜冒烟工程：`AotSmoke/`、`AotSmoke.Web/`、`AotSmoke.XCode/`
 > 范围：核心库 `NewLife.Remoting` 全量；`NewLife.Remoting.Extensions` 的最小 API 宿主（§7）与 XCode 依赖边界（§8）。
 
 ---
@@ -12,7 +12,7 @@
 - **告警面已收敛**：`IsAotCompatible` 已对 net8.0/net9.0/net10.0 常驻启用，库自身分析器告警由改造前 **19 条唯一告警** 收敛到 **0 条**；AOT 发布的 ILC 告警 **0 条**（§2.2）。
 - **改造中发现并修复 6 处库侧 AOT 缺陷**：HTTP 响应封套与客户端注销/升级参数使用匿名类型被裁剪、动作签名模型类型成员被裁剪等。这些缺陷在 JIT 下不可见，只有真机 AOT 才会暴露（§2.3 前 6 项）。
 - **另由新增业务闭环场景暴露 2 处解码缺陷**：①声明 `Object` 返回值时，服务端返回简单类型（`Boolean` 的 `True`、`DateTime` 的完整时间文本）会抛 `Non standard Json string`，`ClientBase.CommandReply` 最易触发；②`Guid`/`TimeSpan` 等以带引号字符串字面量写包的返回值无法解码（默认 JSON 宿主不支持顶层字符串字面量）。两者 JIT 下同样复现，已在解码侧统一加固（§2.3 第 7~8 项）。
-- **Extensions（ASP.NET Core）已纳入 AOT 范围**（2026-10-10 决策：不拆新包，在本包内同时提供 MVC 与最小 API 双宿主，详见 §7）。编译期基线：`IsAotCompatible` 对 net8.0+ 常驻启用，自身告警由 **21 条收敛到 0 条**（DAM 注解 + MVC 边界抑制声明）。运行期：最小 API 宿主 **11 场景 JIT/AOT 双通**（2026-10-13），并暴露/修复 1 处内置模型元数据被裁剪的缺陷；XCode 依赖的 `DefaultDeviceService` 实测未通过，见 §8。
+- **Extensions（ASP.NET Core）已纳入 AOT 范围**（2026-10-10 决策：不拆新包，在本包内同时提供 MVC 与最小 API 双宿主，详见 §7）。编译期基线：`IsAotCompatible` 对 net8.0+ 常驻启用，自身告警由 **21 条收敛到 0 条**（DAM 注解 + MVC 边界抑制声明）。运行期：最小 API 宿主 **11 场景 JIT/AOT 双通**（2026-10-13），并暴露/修复 1 处内置模型元数据被裁剪的缺陷；XCode 依赖的 `DefaultDeviceService` 已于 2026-10-16 打通（XCode v12.2 静态工厂 + 应用侧工厂保留 + Microsoft.Data.Sqlite 驱动路线，探针 JIT/AOT 双 6/6），见 §8。
 
 ---
 
@@ -113,6 +113,9 @@
   2. **带标记的 DTO**：类型打 `[System.Text.Json.Serialization.JsonSerializable(typeof(T))]`，由 NewLife.Core 源生成器落成员访问器表；
   3. **二进制**：`IPacket` / `IAccessor` 直通。
   > 该约束同时适用于请求参数与响应模型；作为动作签名出现的类型额外由 `Preserve` 保留。
+- **XCode 设备实体（DefaultDeviceService）**：XCode v12.2 起实体工厂提供编译期确定的静态构造，但仍需两项应用侧配合（参考 `AotSmoke.XCode/`）：
+  1. **工厂保留**——为每个实体类型以具体类型静态引用工厂入口（如 `_ = EntityFactory.GetFactory<MyDevice>();`，等价引用 `MyDevice.Meta.Factory`）；XCode 拦截器初始化等路径经 Type/反射创建工厂，未静态引用时 `DefaultEntityFactory<T>` 无参构造会被裁剪；
+  2. **SQLite 驱动路线**——引用 `Microsoft.Data.Sqlite` 包并添加裁剪根（`Microsoft.Data.Sqlite` 与 `SQLitePCLRaw.batteries_v2`/`provider.e_sqlite3`/`core` 四项）；`System.Data.SQLite` 为混合编译，AOT 下不可用。
 - **简单类型（设计约定）**：**动作返回简单类型时直接传文本，不做 JSON 包装**，只有复杂对象才走 JSON 包装。实际报文形态：`Boolean`→`True`/`False`、`DateTime`→完整时间文本、枚举→名称、字符串→裸文本、`Guid`/`TimeSpan` 等→带引号字符串字面量、数值→数字文本。
   客户端解码时按**声明的返回类型**转换：声明同类型即可直接用（如 `InvokeAsync<Guid>`）；**声明 `Object` 时拿到原样文本**，由调用方按需 `ToInt()`/`ToDateTime()`/`ToBoolean()` 转换。
   > 该约定意味着跨语言客户端（JS/Python/Go）需按文本解析而非严格 JSON 解析标量；复杂对象仍为规范 JSON。
@@ -131,7 +134,7 @@
 | 运行期才确定注册目标（`Register(Type` 变量`, "Method")`、`Register(instance, methodVariable)`） | 应用侧调用点 | 生成器无法静态确定 `(控制器类型, 方法名)`，不走静态表；宽面入口已用 `RequiresUnreferencedCode` 声明裁剪语义。请改用泛型入口或常量方法名。 |
 | 跨程序集非公开动作、`ref`/`out`/`params`、指针与 `ref struct` 签名 | 源生成器 | 无法用委托安全表达，生成器主动跳过并回退反射。 |
 | `AssemblyX` 程序集信息探测 | `ApiController.Info`、`ClientBase` | AOT 下按空值降级，不参与业务主链。 |
-| `NewLife.Remoting.Extensions`（ASP.NET Core MVC + NewLife.XCode） | 独立包 | **已纳入 AOT 范围（2026-10-10）**：不拆新包，本包内同时提供 MVC 与最小 API 双宿主。MVC 侧为设计边界（官方支持矩阵：MVC ❌），已用抑制声明标注并以 `InterfaceModelBinder` 为边界；最小 API 宿主 2026-10-13 已落地并通过 11 场景 AOT 冒烟；XCode 依赖（`DefaultDeviceService`）实测未通过，探针与证据见 §8。详见 §7/§8。 |
+| `NewLife.Remoting.Extensions`（ASP.NET Core MVC + NewLife.XCode） | 独立包 | **已纳入 AOT 范围（2026-10-10）**：不拆新包，本包内同时提供 MVC 与最小 API 双宿主。MVC 侧为设计边界（官方支持矩阵：MVC ❌），已用抑制声明标注并以 `InterfaceModelBinder` 为边界；最小 API 宿主 2026-10-13 已落地并通过 11 场景 AOT 冒烟；XCode 依赖（`DefaultDeviceService`）2026-10-16 打通（探针 JIT/AOT 双 6/6，见 §8）。详见 §7/§8。 |
 | `Samples/*`（IoTZero / ZeroServer / Zero.RpcServer / Demo） | 样例工程 | 依赖 XCode / Redis / Stardust，不纳入 AOT 范围。 |
 | 追踪 `NewSpan(..., new { ... })` 的标签对象 | `ClientBase` 等 | 标签仅用于 APM 展示，AOT 下匿名标签对象退化为空对象，不影响业务数据；暂不改造。 |
 | HTTP 通道的服务端流式推送与 WebSocket 握手 | `ApiHttpSession.SendMessage`、`ApiHttpHandler` | 非 AOT 差异，而是设计边界：HTTP 为请求-响应模型，流式推送抛 `NotSupportedException`，WS 握手直接回 501。故流式冒烟只覆盖 TCP，属预期。 |
@@ -154,7 +157,12 @@ dotnet run -c Release --project AotSmoke\AotSmoke.csproj                    # JI
 dotnet publish AotSmoke\AotSmoke.csproj -c Release -r win-x64 -o out        # NativeAOT 真编译（期望 0 条 ILC 告警）
 .\out\AotSmoke.exe                                                          # AOT 运行，逐场景 PASS/FAIL（非 0 退出码即失败）
 
-# 4) 回归
+# 4) XCode 边界探针（DefaultDeviceService + XCode 实体，SQLite 走 Microsoft.Data.Sqlite）
+dotnet run -c Release --project AotSmoke.XCode\AotSmoke.XCode.csproj                 # JIT 姿态基线（期望 6/6）
+dotnet publish AotSmoke.XCode\AotSmoke.XCode.csproj -c Release -r win-x64 -o out-xcode
+.\out-xcode\AotSmoke.XCode.exe                                                       # AOT 运行（期望 6/6）
+
+# 5) 回归
 dotnet test XUnitTest -c Release
 ```
 
@@ -204,7 +212,7 @@ dotnet publish -c Release -r win-x64 -o out
 | `WebHelper` | ASP.NET Http 抽象 | ✅ |
 | `Controllers/*`、`ModelBinders/*`、`ApiFilterAttribute`、`RemotingExtensions.AddRemoting` | **MVC** | ❌ MVC 宿主专属，已声明边界；`AddRemotingCore`/`MapRemoting` 不触碰 MVC 类型 |
 | `Endpoints/*`（鉴权与端点编排自带实现） | 无 MVC、无 XCode 依赖 | ✅ 与 MVC 侧互为镜像，一致性由镜像测试锁定 |
-| `DefaultDeviceService` | **XCode** | ❌ 实测未通过，见 §8 |
+| `DefaultDeviceService` | **XCode** | ✅ 已打通（XCode v12.2 beta + 应用侧工厂保留 + Microsoft.Data.Sqlite 驱动路线，见 §8） |
 
 ### 7.3 已完成的编译期基线
 
@@ -218,7 +226,7 @@ dotnet publish -c Release -r win-x64 -o out
 
 > 实测结论：分析器随主包 `analyzers/dotnet/cs` 正常分发，消费者工程**无需任何额外配置**即自动生成动作委托；JIT 与 NativeAOT 两种姿态下 `FastInvoker` 均命中且 RPC 往返正常（ILC 0 告警）。
 
-> CI 防回归：`.github/workflows/aot.yml`（win-x64 冒烟与分析器零告警硬约束阻断；linux-x64 与 XCode 探针为观察期）。
+> CI 防回归：`.github/workflows/aot.yml`（分析器零告警 + win-x64/linux-x64/linux-arm64 三工程 NativeAOT 冒烟含 XCode 探针均为硬约束；linux-loongarch64 为 QEMU JIT 冒烟观察期）。
 >
 > 说明：受限环境下 NewLife.Core 的 `MachineInfo` 首次探测会向 stderr 打印系统错误后按空值降级，属环境行为（正常 Windows 运行环境不出现），不影响场景结果与退出码。
 
@@ -244,18 +252,30 @@ JIT 与 NativeAOT（win-x64，`IsDynamicCodeSupported=False`）双姿态 **11/11
 
 ---
 
-## 8. XCode 依赖的 AOT 运行期探针（2026-10-13）
+## 8. XCode 依赖的 AOT 运行期探针（2026-10-13 首测；2026-10-16 打通）
 
 ### 8.1 结论
 
-`DefaultDeviceService<TDevice,TOnline>` 依赖 **NewLife.XCode 实体**（`XCode 12.2.2026.901`），当前**无法**在 NativeAOT 下运行；`AotSmoke.XCode` 作为探针长期留存，XCode 补齐 AOT 支持后应转为 CI 硬约束。
+`DefaultDeviceService<TDevice,TOnline>` 依赖 **NewLife.XCode 实体**；在 **XCode v12.2（12.2.2026.1015-beta1338 起）** 与应用侧两项配合下，**NativeAOT 运行 6/6 全通过、ILC 0 告警**；`AotSmoke.XCode` 探针已由观察期转 CI 硬约束。
 
-| 姿态 | 结果 | 说明 |
-|------|:----:|------|
-| JIT（`dotnet run`） | **6/6 通过** | 建表/新增、唯一索引查询与更新、在线记录读写、设备服务登录/心跳/注销 |
-| NativeAOT（win-x64） | **0/6 通过** | 首次实体操作即抛 `TypeInitializationException` |
+| 姿态 | 2026-10-13（XCode 12.2.2026.901） | 2026-10-16（XCode 12.2.2026.1015-beta1338） |
+|------|:----:|:----:|
+| JIT（`dotnet run`） | 6/6 通过 | 6/6 通过 |
+| NativeAOT（win-x64） | 0/6 通过（实体工厂反射构造被裁剪） | **6/6 通过** |
 
-### 8.2 失败证据
+场景：建表/新增、唯一索引查询与更新、在线记录读写、设备服务登录/心跳/注销。
+
+### 8.2 打通路径（2026-10-16）
+
+| 层面 | 变更 |
+|------|------|
+| XCode 侧 | v12.2 新增编译期确定的静态工厂入口 `EntityFactory.GetFactory<TEntity>()`，`Entity<T>.Meta.Factory` 改走该入口；分析器 0 告警、自身 AOT 冒烟 16/16（见 XCode《AOT兼容性分析》） |
+| 探针侧 | ① `Program.Main` 起始处为每个实体类型显式引用工厂：`_ = EntityFactory.GetFactory<Device>();`（等价 `Device.Meta.Factory`）；② 引用 `Microsoft.Data.Sqlite` 并添加 4 项裁剪根（`Microsoft.Data.Sqlite`、`SQLitePCLRaw.batteries_v2`、`SQLitePCLRaw.provider.e_sqlite3`、`SQLitePCLRaw.core`） |
+| Remoting 侧 | `DefaultDeviceService` 泛型注解补齐 `PublicProperties`（对齐 XCode v12.2 `Entity<TEntity>` 的保留要求，修复 IL2091） |
+
+**为何仍需要「工厂保留」**：XCode 拦截器初始化（`EntityInterceptors.Add`）与实体实例方法（`GetType().AsFactory()`）仍经 Type/反射创建工厂（`EntityFactory.CreateFactory(Type)`）；只有应用代码对具体实体类型静态引用静态工厂入口，编译器才会保留 `DefaultEntityFactory<T>` 的无参构造。该约束为 XCode 侧设计（其官方 AotSmoke 同样显式引用 `Meta.Factory`），应用侧配合方式见 §4。
+
+### 8.3 历史失败证据（2026-10-13，XCode 12.2.2026.901）
 
 ```
 [0] System.TypeInitializationException: A type initializer threw an exception.
@@ -264,22 +284,7 @@ JIT 与 NativeAOT（win-x64，`IsDynamicCodeSupported=False`）双姿态 **11/11
 [2] System.MissingMethodException: No parameterless constructor defined for type 'XCode.Entity`1+DefaultEntityFactory[AotSmoke.XCode.Data.Device]'.
 ```
 
-发布期告警（XCode 侧，非 Remoting 侧）：
-
-| 告警 | 位置 | 含义 |
-|------|------|------|
-| IL2104 / IL3053 | `XCode.dll` | XCode 程序集自身产生裁剪与 AOT 分析告警 |
-| IL3000 ×4 | `DriverLoader.Load`、`DbBase.GetProviderFactory` | 使用 `Assembly.Location`，单文件/AOT 下恒为空串 |
-
-### 8.3 根因与解除条件
-
-XCode 通过**运行时反射构造实体工厂**（`Entity<T>.Meta.Factory` 用反射创建 `DefaultEntityFactory<T>`，且需要无参构造），该构造在 AOT 裁剪下被移除。解除条件（按 XCode 侧）：
-
-1. 实体工厂改为编译期确定的构造（如 `new()` 约束、源生成器注册工厂），不再依赖反射实例化；
-2. 清理 `Assembly.Location` 用法（改用 `AppContext.BaseDirectory`）；
-3. 为 XCode 项目启用 `IsAotCompatible` 并清零自身告警。
-
-Remoting 侧已就绪：`DefaultDeviceService` 泛型参数的保留注解（§7.3 IL2090 处置）与端点宿主均无需再改，XCode 达标后探针即可全绿。
+调用链（当时）：`EntityInterceptors.Add → EntityFactory.CreateFactory(Type) → Reflect.CreateInstance`——拦截器初始化经反射构造实体工厂，`DefaultEntityFactory<T>` 无参构造被裁剪。发布期告警 IL2104/IL3053（`XCode.dll` 自身）与 IL3000×4（`Assembly.Location`）属当时 XCode 版本；v12.2 已清零分析器告警。
 
 ### 8.4 复现方法
 
@@ -287,7 +292,7 @@ Remoting 侧已就绪：`DefaultDeviceService` 泛型参数的保留注解（§7
 # JIT 姿态基线（期望 6/6 通过）
 dotnet run -c Release --project AotSmoke.XCode\AotSmoke.XCode.csproj
 
-# NativeAOT 真编译与运行（当前期望 0/6，失败信息见 8.2）
+# NativeAOT 真编译与运行（期望 6/6 通过、0 条 ILC 告警）
 dotnet publish AotSmoke.XCode\AotSmoke.XCode.csproj -c Release -r win-x64 -o out-xcode
 .\out-xcode\AotSmoke.XCode.exe
 ```

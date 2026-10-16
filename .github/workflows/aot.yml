@@ -1,5 +1,11 @@
 name: aot
 
+# AOT 兼容矩阵（参考 NewLife.Core 做法）：分析器零告警 + 三工程 NativeAOT 冒烟。
+#   NativeAOT 不支持跨 OS 编译，每个 RID 用对应原生 runner 发布运行：
+#     win-x64 → windows-latest；linux-x64 → ubuntu-latest；linux-arm64 → ubuntu-24.04-arm
+#   linux-loongarch64（LA64）：无 runtime pack、无 NativeAOT，QEMU 下以 JIT 姿态跑冒烟（观察期）
+# 触发：push / PR / 手动（workflow_dispatch）；不采用夜间定时。
+
 on:
   push:
     branches: [ '*' ]
@@ -8,87 +14,105 @@ on:
   workflow_dispatch:
 
 jobs:
-  # win-x64：分析器 0 告警与 NativeAOT 冒烟均为硬约束，失败即阻断
-  aot-windows:
+  # 分析器零告警（与 RID 无关）与源生成器单测，win-x64 硬约束
+  aot-analyzer:
+    name: aot analyzer (win-x64)
     runs-on: windows-latest
+    timeout-minutes: 30
 
     steps:
     - uses: actions/checkout@v4
     - name: Setup dotNET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: |
-          8.x
-          9.x
-          10.x
-
-    # net8.0+ 常驻 IsAotCompatible，构建告警即 AOT 兼容性回归
-    - name: 分析器零告警构建
-      run: dotnet build NewLife.Remoting/NewLife.Remoting.csproj -c Release --nologo
-
+        dotnet-version: 10.x
+    - name: 分析器零告警构建（-warnaserror 阻断新增告警）
+      run: |
+        dotnet build NewLife.Remoting/NewLife.Remoting.csproj -f net8.0 -c Release --nologo -warnaserror
+        dotnet build NewLife.Remoting/NewLife.Remoting.csproj -f net10.0 -c Release --nologo -warnaserror
+        dotnet build NewLife.Remoting.Extensions/NewLife.Remoting.Extensions.csproj -f net8.0 -c Release --nologo -warnaserror
+        dotnet build NewLife.Remoting.Extensions/NewLife.Remoting.Extensions.csproj -f net10.0 -c Release --nologo -warnaserror
     - name: 源生成器单元测试
       run: dotnet test XUnitTest.SourceGenerator -c Release --nologo
 
-    # PublishAot 写在冒烟工程文件内，勿用命令行 -p: 传入
-    - name: NativeAOT 发布
-      run: dotnet publish AotSmoke/AotSmoke.csproj -c Release -r win-x64 -o out --nologo
+  # 三工程 NativeAOT 冒烟：AotSmoke（核心链路 22 场景）、AotSmoke.Web（最小 API 宿主 11 场景）、
+  # AotSmoke.XCode（XCode 设备链路 6 场景，EXT-6 后转硬约束）。JIT 基线先行，再原生发布运行（非 0 退出码即失败）。
+  aot:
+    name: aot (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            os: windows-latest
+            bin: AotSmoke.exe
+          - rid: linux-x64
+            os: ubuntu-latest
+            bin: AotSmoke
+          - rid: linux-arm64
+            os: ubuntu-24.04-arm
+            bin: AotSmoke
 
-    - name: AOT 冒烟
-      run: ./out/AotSmoke.exe
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup dotNET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.x
+    - name: Install NativeAOT Prerequisites (Linux)
+      if: runner.os == 'Linux'
+      run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+    - name: JIT Baseline (22 + 11 + 6 场景)
+      run: |
+        dotnet run -c Release --project AotSmoke/AotSmoke.csproj
+        dotnet run -c Release --project AotSmoke.Web/AotSmoke.Web.csproj
+        dotnet run -c Release --project AotSmoke.XCode/AotSmoke.XCode.csproj
+    - name: Publish NativeAOT (三工程)
+      run: |
+        dotnet publish AotSmoke/AotSmoke.csproj -c Release -r ${{ matrix.rid }} -o AotSmoke/bin/aot-out
+        dotnet publish AotSmoke.Web/AotSmoke.Web.csproj -c Release -r ${{ matrix.rid }} -o AotSmoke.Web/bin/aot-out
+        dotnet publish AotSmoke.XCode/AotSmoke.XCode.csproj -c Release -r ${{ matrix.rid }} -o AotSmoke.XCode/bin/aot-out
+    - name: Run NativeAOT Smoke
+      shell: bash
+      run: |
+        if [[ "${{ matrix.bin }}" == "AotSmoke.exe" ]]; then EXT=".exe"; else EXT=""; fi
+        ./AotSmoke/bin/aot-out/AotSmoke$EXT
+        ./AotSmoke.Web/bin/aot-out/AotSmoke.Web$EXT
+        ./AotSmoke.XCode/bin/aot-out/AotSmoke.XCode$EXT
 
-    # Extensions 最小 API 宿主的 AOT 冒烟（PublishAot 同样写在工程文件内）
-    - name: 最小 API NativeAOT 发布
-      run: dotnet publish AotSmoke.Web/AotSmoke.Web.csproj -c Release -r win-x64 -o out-web --nologo
-
-    - name: 最小 API AOT 冒烟
-      run: ./out-web/AotSmoke.Web.exe
-
-  # linux-x64：观察期，暂不阻断
-  aot-linux:
+  # 龙芯 LA64（linux-loongarch64）：无 runtime pack、无 NativeAOT，QEMU 下以 JIT 姿态跑核心冒烟（观察期）。
+  # 参考 NewLife.Core edge.yml 的 loongarch64 作业；稳定后转硬约束。
+  aot-loongarch64:
+    name: smoke (linux-la64 qemu)
     runs-on: ubuntu-latest
+    timeout-minutes: 150
     continue-on-error: true
 
     steps:
     - uses: actions/checkout@v4
-    - name: Setup dotNET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: |
-          8.x
-          9.x
-          10.x
-
-    - name: NativeAOT 发布
-      run: dotnet publish AotSmoke/AotSmoke.csproj -c Release -r linux-x64 -o out --nologo
-
-    - name: AOT 冒烟
-      run: ./out/AotSmoke
-
-    - name: 最小 API NativeAOT 发布
-      run: dotnet publish AotSmoke.Web/AotSmoke.Web.csproj -c Release -r linux-x64 -o out-web --nologo
-
-    - name: 最小 API AOT 冒烟
-      run: ./out-web/AotSmoke.Web
-
-  # XCode 设备服务（DefaultDeviceService + XCode 实体）AOT 探针：观察期，暂不阻断
-  # 现状：XCode 尚未 AOT 就绪（实体工厂走反射构造，裁剪后缺无参构造），详见 Doc/AOT兼容性分析.md §8
-  # XCode 补齐后本作业应转为硬约束
-  aot-xcode-observe:
-    runs-on: windows-latest
-    continue-on-error: true
-
-    steps:
-    - uses: actions/checkout@v4
-    - name: Setup dotNET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: |
-          8.x
-          9.x
-          10.x
-
-    - name: XCode 设备服务 NativeAOT 发布
-      run: dotnet publish AotSmoke.XCode/AotSmoke.XCode.csproj -c Release -r win-x64 -o out-xcode --nologo
-
-    - name: XCode 设备服务 AOT 冒烟
-      run: ./out-xcode/AotSmoke.XCode.exe
+    - name: Install QEMU (loong64 binfmt)
+      run: |
+        sudo apt-get update && sudo apt-get install -y qemu-user-static binfmt-support
+        sudo update-binfmts --enable qemu-loongarch64 || true
+        ls -l /usr/bin/qemu-loongarch64* || true
+    - name: Download Loongson .NET SDK (linux-loongarch64)
+      run: |
+        curl -fL -o "$HOME/la64-sdk.tar.gz" \
+          https://github.com/loongson/dotnet/releases/download/v10.0.113-loongarch64/dotnet-sdk-10.0.113-linux-loongarch64.tar.gz
+        mkdir -p "$HOME/la64" && tar -xzf "$HOME/la64-sdk.tar.gz" -C "$HOME/la64"
+        "$HOME/la64/dotnet" --info
+      # 仿真下 --info 会真实执行 LA64 版 dotnet，是 QEMU 通路的第一道验证
+      env:
+        DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: 1
+        DOTNET_CLI_TELEMETRY_OPTOUT: 1
+    - name: JIT Smoke (AotSmoke 22 场景)
+      env:
+        DOTNET_SYSTEM_GLOBALIZATION_INVARIANT: 1
+        DOTNET_CLI_TELEMETRY_OPTOUT: 1
+        DOTNET_ROOT: /home/runner/la64
+      run: |
+        export PATH="$HOME/la64:$PATH"
+        dotnet nuget add source https://lnuget.loongnix.cn/v3/index.json -n loongnuget || true
+        dotnet run -c Release --project AotSmoke/AotSmoke.csproj

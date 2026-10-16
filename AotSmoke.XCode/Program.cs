@@ -44,6 +44,11 @@ internal static class Program
 
         Console.WriteLine($"数据目录：{dir}");
 
+        // AOT 保留实体工厂构造：XCode 拦截器初始化经 Type/反射创建实体工厂，
+        // 需以具体类型静态引用 GetFactory<T>()，否则 DefaultEntityFactory<T> 无参构造会被裁剪
+        _ = EntityFactory.GetFactory<Device>();
+        _ = EntityFactory.GetFactory<DeviceOnline>();
+
         try
         {
             await Run("01 实体建表与新增", InsertDevice);
@@ -89,6 +94,8 @@ internal static class Program
                 sb.AppendLine($"    [{i}] {cur.GetType().FullName}: {cur.Message}");
                 cur = cur.InnerException;
             }
+            // 带堆栈的完整链路：AOT 裁剪类失败必须凭调用栈定位具体入口
+            sb.AppendLine(ex.ToString());
             Console.Write(sb.ToString());
         }
 

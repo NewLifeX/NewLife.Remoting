@@ -16,7 +16,17 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.XCode" Version="12.2.2026.901" />
+    <PackageReference Include="NewLife.XCode" Version="12.2.2026.1015-beta1338" />
+    <!-- SQLite 驱动的 AOT 路线：Microsoft.Data.Sqlite（SQLitePCLRaw 原生库）；System.Data.SQLite 为混合编译，不支持 NativeAOT -->
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- 静态引用驱动裁剪根：配合 XCode 驱动加载器的“程序集限定名”降级路径，在 AOT 下无需动态加载即可命中驱动 -->
+    <TrimmerRootAssembly Include="Microsoft.Data.Sqlite" />
+    <!-- 程序集名注意：bundle_e_sqlite3 包内的程序集名为 SQLitePCLRaw.batteries_v2 -->
+    <TrimmerRootAssembly Include="SQLitePCLRaw.batteries_v2" />
+    <TrimmerRootAssembly Include="SQLitePCLRaw.provider.e_sqlite3" />
+    <TrimmerRootAssembly Include="SQLitePCLRaw.core" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\NewLife.Remoting.Extensions\NewLife.Remoting.Extensions.csproj" />
