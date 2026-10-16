@@ -15,9 +15,12 @@ namespace XUnitTest.Samples;
 /// <remarks>
 /// 四个测试方法共享同一 ApiServer 实例（IClassFixture），减少启动开销。
 /// 每个协议独立建立连接，Session 状态各自隔离，互不干扰。
+/// 夹具需要可用的 SQLite 驱动（建表并预置用户），因此标记 Requires=Sqlite：
+/// 驱动缺失的平台（如龙芯，System.Data.SQLite 无 loongarch64 构建）由 CI 以 -notrait 过滤。
 /// </remarks>
 [Collection("ZeroRpcServer")]
 [TestCaseOrderer("NewLife.UnitTest.DefaultOrderer", "NewLife.UnitTest")]
+[Trait("Requires", "Sqlite")]
 public class ZeroRpcServerIntegrationTests : IClassFixture<ZeroRpcServerFixture>
 {
     private readonly ZeroRpcServerFixture _fixture;

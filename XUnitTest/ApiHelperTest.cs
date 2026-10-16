@@ -18,6 +18,9 @@ namespace XUnitTest.Remoting;
 /// <summary>ApiHttp助手类测试</summary>
 public class ApiHelperTest : DisposeBase
 {
+    /// <summary>测试宿主程序集名。VSTest 为 testhost，xunit 控制台运行器为 xunit.console（用于绕开 VSTest 的架构限制）</summary>
+    private static String TestHostName => System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ?? "testhost";
+
     private readonly ApiServer _Server;
     private readonly HttpClient _Client;
 
@@ -365,7 +368,7 @@ public class ApiHelperTest : DisposeBase
         var dic = await _Client.GetAsync<IDictionary<String, Object>>("api/info");
         Assert.NotNull(dic);
         Assert.True(dic.Count >= 10);
-        Assert.StartsWith("testhost", (dic["Name"] + ""));
+        Assert.StartsWith(TestHostName, (dic["Name"] + ""));
 
         var pk = await _Client.GetAsync<IPacket>("api/info");
         Assert.NotNull(pk);
@@ -427,7 +430,7 @@ public class ApiHelperTest : DisposeBase
         var dic = await _Client.InvokeAsync<IDictionary<String, Object>>(HttpMethod.Get, "api/info", null, r => r.Headers.Authorization = auth);
         Assert.NotNull(dic);
         Assert.True(dic.Count > 10);
-        Assert.StartsWith("testhost", (dic["Name"] + ""));
+        Assert.StartsWith(TestHostName, (dic["Name"] + ""));
         Assert.Equal("12345678", (dic["token"] + ""));
 
         var pk = await _Client.GetAsync<IPacket>("api/info");

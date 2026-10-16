@@ -152,11 +152,13 @@ jobs:
         echo "=== container shared frameworks ==="
         docker run --rm --platform linux/loong64 la64-dotnet:10.0.113 ls /usr/share/dotnet/shared
     - name: Run Unit Tests (LoongArch64，观察期，容错执行)
+      # -notrait Requires=Sqlite：XCode 的 SQLite 驱动（System.Data.SQLite）没有 loongarch64 构建，
+      # 插件下载源 x.newlifex.com 亦无对应包，依赖建表的样例 RPC 集成测试在龙芯上无法运行。
       run: |
         for i in 1 2 3; do
           echo "=== test attempt $i ==="
           docker run --rm --platform linux/loong64 -v "$PWD:/src" -v "$PWD/.qemu/nuget:/nuget" -v "$RUNNER_TEMP/xunit:/xunit" -w /src la64-dotnet:10.0.113 \
-            bash -c 'mkdir -p /src/TestResults; timeout -k 60s 80m dotnet /xunit/tools/net6.0/xunit.console.dll /src/Bin/UnitTest/net10.0/XUnitTest.dll -parallel none -xml /src/TestResults/loongarch64.xml' && exit 0
+            bash -c 'mkdir -p /src/TestResults; timeout -k 60s 80m dotnet /xunit/tools/net6.0/xunit.console.dll /src/Bin/UnitTest/net10.0/XUnitTest.dll -parallel none -notrait Requires=Sqlite -xml /src/TestResults/loongarch64.xml' && exit 0
           echo "test attempt $i failed"
         done
         exit 1
