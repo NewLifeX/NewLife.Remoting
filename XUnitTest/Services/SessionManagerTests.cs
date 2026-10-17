@@ -187,6 +187,66 @@ public class SessionManagerTests
         Assert.Equal("ok", r1?.Data);
         Assert.Equal("ok", r2?.Data);
     }
+
+    [Fact(DisplayName = "响应等待超时返回null")]
+    public async Task WaitResponse_Timeout_ReturnsNull()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ICacheProvider>(new MemoryCacheProvider());
+        var sp = services.BuildServiceProvider();
+
+        using var manager = new TestSessionManager(sp);
+
+        var rs = await manager.WaitResponseAsync(101, 1, CancellationToken.None);
+
+        Assert.Null(rs);
+    }
+
+    [Fact(DisplayName = "响应等待取消抛异常")]
+    public async Task WaitResponse_Cancelled_Throws()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ICacheProvider>(new MemoryCacheProvider());
+        var sp = services.BuildServiceProvider();
+
+        using var manager = new TestSessionManager(sp);
+        using var cts = new CancellationTokenSource(50);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => manager.WaitResponseAsync(102, 30, cts.Token));
+    }
+    #endregion
+
+    #region 总线消息路由测试
+    [Fact(DisplayName = "总线消息路由到对应会话")]
+    public async Task OnMessage_RoutesToSession()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ICacheProvider>(new MemoryCacheProvider());
+        var sp = services.BuildServiceProvider();
+
+        using var manager = new TestSessionManager(sp);
+        var session = new TestCommandSession { Code = "device100" };
+        manager.Add(session);
+
+        await manager.CallOnMessage("device100#{\"Id\":1,\"Command\":\"restart\"}", CancellationToken.None);
+
+        Assert.True(session.Handled);
+        Assert.Equal("restart", session.LastCommand?.Command);
+    }
+
+    [Fact(DisplayName = "总线消息格式非法时不抛异常")]
+    public async Task OnMessage_Malformed_NoThrow()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ICacheProvider>(new MemoryCacheProvider());
+        var sp = services.BuildServiceProvider();
+
+        using var manager = new TestSessionManager(sp);
+
+        await manager.CallOnMessage("no-separator", CancellationToken.None);
+        await manager.CallOnMessage("unknown#not-json", CancellationToken.None);
+    }
     #endregion
 
     #region 辅助类
@@ -211,6 +271,9 @@ public class SessionManagerTests
 
         public new Task<CommandReplyModel?> WaitResponseAsync(Int64 commandId, Int32 timeout, CancellationToken cancellationToken)
             => base.WaitResponseAsync(commandId, timeout, cancellationToken);
+
+        public Task CallOnMessage(String message, CancellationToken cancellationToken)
+            => OnMessage(message, null!, cancellationToken);
     }
 
     /// <summary>内存缓存提供者（简化实现用于测试）</summary>

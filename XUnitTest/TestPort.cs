@@ -27,6 +27,8 @@ internal static class TestPort
     private static Int32 _cursor = -1;
 
     /// <summary>本次运行已分配过的端口。不复用，避免 ReuseAddress 下两个实例绑到同一端口</summary>
+    /// <remarks>同时把 port+1 一并占位：ApiServer 在 HttpPort=0 时会自动使用主端口+1 作为 HTTP 端口，
+    /// 若不占位，并行执行的其它用例可能把该端口再次分配给自己的 SRMP 监听，造成随机绑定失败。</remarks>
     private static readonly HashSet<Int32> _used = [];
 
     /// <summary>取一个 TCP 与 UDP 均可绑定的显式端口</summary>
@@ -41,7 +43,11 @@ internal static class TestPort
 
             lock (_used)
             {
-                if (!_used.Add(port)) continue;
+                // 同时占住 port+1，避免它被别的用例选作主端口，与 HttpPort=0 自动占用的端口冲突
+                if (_used.Contains(port) || _used.Contains(port + 1)) continue;
+
+                _used.Add(port);
+                _used.Add(port + 1);
             }
 
             if (CanBind(port, SocketType.Stream) && CanBind(port, SocketType.Dgram)) return port;

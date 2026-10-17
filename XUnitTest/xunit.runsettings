@@ -4,7 +4,10 @@
     <TestCaseFilter>FullyQualifiedName~XUnitTest</TestCaseFilter>
   </RunConfiguration>
   <xUnit>
-    <ParallelizeTestCollections>false</ParallelizeTestCollections>
-    <MaxParallelThreads>1</MaxParallelThreads>
+    <!-- 按测试类（集合）并行。网络集成用例统一使用 TestPort 动态端口，并为 HttpPort=0 自动占用的主端口+1 预留，
+         用例之间不会争抢端口；此前全局串行是整轮耗时的主要来源 -->
+    <ParallelizeTestCollections>true</ParallelizeTestCollections>
+    <!-- 0 表示由 xUnit 按处理器数量决定并发度，兼顾本地多核与 CI 小规格 runner -->
+    <MaxParallelThreads>0</MaxParallelThreads>
   </xUnit>
 </RunSettings>
