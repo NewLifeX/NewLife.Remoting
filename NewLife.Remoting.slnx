@@ -1,0 +1,37 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/Benchmark/">
+    <Project Path="Benchmark/NewLife.Remoting.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/Samples/">
+    <Project Path="Samples/Demo/Demo.csproj" />
+    <Project Path="Samples/IoTZero/IoTZero.csproj" />
+    <Project Path="Samples/Zero.Desktop/Zero.Desktop.csproj" />
+    <Project Path="Samples/Zero.RpcServer/Zero.RpcServer.csproj" />
+    <Project Path="Samples/ZeroServer/ZeroServer.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".github/copilot-instructions.md" />
+    <File Path=".github/workflows/publish-beta.yml" />
+    <File Path=".github/workflows/publish.yml" />
+    <File Path=".github/workflows/test.yml" />
+    <File Path="Readme.MD" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="AotSmoke.Web/AotSmoke.Web.csproj" />
+    <Project Path="AotSmoke.XCode/AotSmoke.XCode.csproj" />
+    <Project Path="AotSmoke/AotSmoke.csproj" />
+    <Project Path="Test/Test.csproj" />
+    <Project Path="XUnitTest.Samples/XUnitTest.Samples.csproj" />
+    <Project Path="XUnitTest.SourceGenerator/XUnitTest.SourceGenerator.csproj" />
+    <Project Path="XUnitTest/XUnitTest.csproj" />
+  </Folder>
+  <Project Path="NewLife.Remoting.Extensions/NewLife.Remoting.Extensions.csproj" />
+  <Project Path="NewLife.Remoting.SourceGenerator/NewLife.Remoting.SourceGenerator.csproj" />
+  <Project Path="NewLife.Remoting/NewLife.Remoting.csproj" />
+</Solution>

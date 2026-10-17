@@ -16,9 +16,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.XCode" Version="12.2.2026.1015-beta1338" />
+    <PackageReference Include="NewLife.XCode" Version="12.2.2026.1017-beta1246" />
     <!-- SQLite 驱动的 AOT 路线：Microsoft.Data.Sqlite（SQLitePCLRaw 原生库）；System.Data.SQLite 为混合编译，不支持 NativeAOT -->
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
   </ItemGroup>
   <ItemGroup>
     <!-- 静态引用驱动裁剪根：配合 XCode 驱动加载器的“程序集限定名”降级路径，在 AOT 下无需动态加载即可命中驱动 -->
