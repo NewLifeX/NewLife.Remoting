@@ -1,14 +1,26 @@
 # NewLife.Remoting — 统一远程通信框架 (RPC + HTTP + WebSocket + SRMP)
 
-![GitHub top language](https://img.shields.io/github/languages/top/newlifex/NewLife.Remoting?logo=github)
-![GitHub License](https://img.shields.io/github/license/newlifex/NewLife.Remoting?logo=github)
-![Nuget Downloads](https://img.shields.io/nuget/dt/NewLife.Remoting?logo=nuget)
-![Nuget](https://img.shields.io/nuget/v/NewLife.Remoting?logo=nuget)
-![Nuget (with prereleases)](https://img.shields.io/nuget/vpre/NewLife.Remoting?label=dev%20nuget&logo=nuget)
+![GitHub License](https://img.shields.io/github/license/NewLifeX/NewLife.Remoting?logo=github)
+![NuGet Downloads](https://img.shields.io/nuget/dt/NewLife.Remoting?logo=nuget)
+![NuGet](https://img.shields.io/nuget/v/NewLife.Remoting?logo=nuget)
+![NuGet prerelease](https://img.shields.io/nuget/vpre/NewLife.Remoting?label=dev%20nuget&logo=nuget)
+![NuGet Downloads (Extensions)](https://img.shields.io/nuget/dt/NewLife.Remoting.Extensions?logo=nuget)
+![NuGet (Extensions)](https://img.shields.io/nuget/v/NewLife.Remoting.Extensions?logo=nuget)
+![NuGet prerelease (Extensions)](https://img.shields.io/nuget/vpre/NewLife.Remoting.Extensions?label=dev%20nuget&logo=nuget)
+[![NativeAOT](https://github.com/NewLifeX/NewLife.Remoting/actions/workflows/aot.yml/badge.svg?branch=master)](https://github.com/NewLifeX/NewLife.Remoting/actions/workflows/aot.yml)
+[![test](https://github.com/NewLifeX/NewLife.Remoting/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/NewLifeX/NewLife.Remoting/actions/workflows/test.yml)
+<!-- metrics:start -->
+[![AOT smoke](https://img.shields.io/badge/AOT%20smoke-23%2F23-brightgreen?logo=dotnet)](Doc/AOT兼容性分析.md)
+[![TFM](https://img.shields.io/badge/TFM-7%20%28net45%20%E2%86%92%20net10.0%29-512BD4?logo=dotnet)](https://www.nuget.org/packages/NewLife.Remoting)
+[![locales](https://img.shields.io/badge/locales-2-2ea44f?logo=dotnet)](Doc/多语言本地化接入.md)
+<!-- metrics:end -->
+![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
+![arch](https://img.shields.io/badge/arch-x64%20%7C%20arm64%20%7C%20LoongArch64-orange)
+[![contributors](https://img.shields.io/github/contributors/NewLifeX/NewLife.Remoting?logo=github)](https://github.com/NewLifeX/NewLife.Remoting/graphs/contributors)
 
-![Nuget Downloads](https://img.shields.io/nuget/dt/NewLife.Remoting.Extensions?logo=nuget)
-![Nuget](https://img.shields.io/nuget/v/NewLife.Remoting.Extensions?logo=nuget)
-![Nuget (with prereleases)](https://img.shields.io/nuget/vpre/NewLife.Remoting.Extensions?label=dev%20nuget&logo=nuget)
+<!-- lang:start -->
+🌐 [繁體中文](README.zh-TW.md) | [English](README.en.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [日本語](README.ja.md) | [Français](README.fr.md) | [Português](README.pt.md) | [Русский](README.ru.md) | [한국어](README.ko.md) | [العربية](README.ar.md)
+<!-- lang:end -->
 
 NewLife.Remoting 是 NewLife 技术栈的统一远程通信基础设施，由两个 NuGet 包组成：
 
@@ -24,8 +36,8 @@ NewLife.Remoting 是 NewLife 技术栈的统一远程通信基础设施，由两
 
 | 文档 | 说明 |
 |------|------|
-| [Doc/需求文档.md](Doc/需求文档.md) | 需求定义：愿景、核心目标、功能需求（RPC/STRM/CLNT/UPGD/SRV/CMD/AOT/EXT） |
-| [Doc/架构设计.md](Doc/架构设计.md) | 架构设计：分层概览、核心模块架构、内存管理、测试策略 |
+| [Doc/需求文档.md](Doc/需求文档.md) | 需求定义：愿景、核心目标、功能需求（RPC/STRM/CLNT/UPGD/SRV/CMD/AOT/L10N/EXT） |
+| [Doc/架构设计.md](Doc/架构设计.md) | 架构设计：分层概览、核心模块架构、内存管理、测试策略、设计决策 |
 | [Doc/SRV-服务端架构.md](Doc/SRV-服务端架构.md) | 服务端业务架构：服务层设计、核心业务流程（登录/注册/注销/心跳/升级/事件上报/指令下发）、在线会话生命周期、集群部署 |
 | [Doc/功能清单.md](Doc/功能清单.md) | 功能追踪：主功能状态、进行中项与待办（发版待办/待修复项） |
 | [Doc/竞品分析.md](Doc/竞品分析.md) | 竞品分析：RPC 框架对比 + IoT 指令下发对比矩阵 |
@@ -33,7 +45,9 @@ NewLife.Remoting 是 NewLife 技术栈的统一远程通信基础设施，由两
 | [Doc/RPC内存管理设计.md](Doc/RPC内存管理设计.md) | 零拷贝内存管理 |
 | [Doc/自动更新机制.md](Doc/自动更新机制.md) | 自动更新全链路设计 |
 | [Doc/重试策略.md](Doc/重试策略.md) | 重试策略：IRetryPolicy 接口与指数退避示例 |
-| [Doc/AOT兼容性分析.md](Doc/AOT兼容性分析.md) | NativeAOT 支持范围、22 场景实测结论、下游使用指引与已知边界 |
+| [Doc/AOT兼容性分析.md](Doc/AOT兼容性分析.md) | NativeAOT 支持范围、<!--aot-scenarios:start-->23<!--aot-scenarios:end--> 场景实测（冒烟 <!--aot-smoke:start-->23/23<!--aot-smoke:end-->）、下游使用指引与已知边界 |
+| [Doc/多语言本地化接入.md](Doc/多语言本地化接入.md) | 运行时消息英文化、`Locales/*.yml` 词表与 `L.T` 接入指引 |
+| [Doc/README多语言规范.md](Doc/README多语言规范.md) | README 11 种语言的定序规则、生成脚本与 CI 门禁 |
 
 ---
 
@@ -47,7 +61,8 @@ NewLife.Remoting 是 NewLife 技术栈的统一远程通信基础设施，由两
 | **UPGD 自动更新** | 检测→下载→校验→解压→覆盖→重启全链路 |
 | **SRV 服务端基础** | ApiController/BaseController/BaseDeviceController、TokenService、IDeviceService；同一端点协议提供 MVC 与最小 API 两套宿主入口（镜像实现、测试锁定一致） |
 | **CMD 指令下发** | SessionManager + 事件总线广播 + WS/SSE/Ping 多通道 |
-| **AOT 支持** | net8.0+ 常驻 AOT 兼容分析（核心库 0 告警 / Extensions 21→0 告警）+ 自有源生成器（动作分发表/流式泵/签名类型保留），核心库 22 场景 + Extensions 最小 API 宿主 11 场景 + XCode 设备服务链路 6 场景 NativeAOT 实测通过（XCode v12.2 打通，见 AOT 文档 §8） |
+| **L10N 多语言** | 运行时消息以英文为源文，`Locales/*.yml` 词表覆盖简体/繁体中文，缺译文自动回退英文；不依赖 ResourceManager 与卫星程序集 |
+| **AOT 支持** | net8.0+ 常驻 AOT 兼容分析（核心库 0 告警 / Extensions 0 告警）+ 自有源生成器（动作分发表/流式泵/签名类型保留），核心库 <!--aot-scenarios:start-->23<!--aot-scenarios:end--> 场景 + Extensions 最小 API 宿主 11 场景 + XCode 设备服务链路 6 场景 NativeAOT 实测通过（见 AOT 文档 §8） |
 
 ## 快速开始
 
@@ -94,14 +109,14 @@ client.Headers["TenantId"] = "tenant-01";
 | TCP 长连接数 | 10,000 | 4,000,000 |
 | RPC 吞吐 | 100,000 TPS | 22,660,000 TPS |
 | 单次 RPC 延迟 | ~41 μs | — |
-| 框架兼容 | net45 / net461 / netstandard2.0 / netstandard2.1 / net5.0 ~ net10.0（net8.0+ 支持 NativeAOT） |
+| 框架兼容 | net45 / net461 / netstandard2.0 / netstandard2.1 / net6.0 / net8.0 / net10.0（跟随 NewLife.Core v12，net8.0+ 支持 NativeAOT） |
 
 ---
 ## 与其它 NewLife 组件协同
 
 | 组件 | 协同价值 |
 | ---- | -------- |
-| NewLife.Core | 日志、配置、序列化、对象池、TimerX、性能追踪 |
+| NewLife.Core | 日志、配置、序列化、多语言、对象池、TimerX、性能追踪 |
 | NewLife.Net | 高性能网络栈、WebSocket/编码器、端口复用 |
 | NewLife.Redis | 分布式缓存 / 消息队列，扩展会话共享或推送 fanout |
 | Stardust | 节点注册、配置中心、APM、发布中心；可托管 ApiServer 节点 |
@@ -110,13 +125,13 @@ client.Headers["TenantId"] = "tenant-01";
 
 ## 贡献与反馈
 
-欢迎：Bug 反馈 / 性能优化 PR / 新协议编解码 / 控制器示例 / 文档补充。
+欢迎：Bug 反馈 / 性能优化 PR / 新协议编解码 / 控制器示例 / 文档补充 / 新语种翻译。
 Issue 讨论请尽量提供：运行环境、目标框架、最小可复现代码、日志摘要。
 
 ---
 ## 新生命项目矩阵
 
-各项目默认支持 net9.0/netstandard2.1/netstandard2.0/net4.62/net4.5，旧版（2024.0801）支持 net4.0/net2.0  
+各项目默认支持 net10.0/net8.0/netstandard2.1/netstandard2.0/net4.62/net4.5，旧版（2024.0801）支持 net4.0/net2.0  
 
 | 项目 | 年份 | 说明 |
 | :--: | :--: | ---- |

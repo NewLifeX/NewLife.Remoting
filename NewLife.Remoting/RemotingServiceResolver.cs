@@ -24,14 +24,14 @@ public class RemotingServiceResolver(IServiceProvider serviceProvider) : ConfigS
     protected override IApiClient BuildClient(String name, String address)
     {
         var addrs = address.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries);
-        if (addrs.Length == 0) throw new InvalidOperationException($"服务[{name}]地址不能为空");
+        if (addrs.Length == 0) throw new InvalidOperationException(L.T("Address of service [{0}] cannot be empty", name));
 
         var first = addrs[0].Trim();
 
         // ws/wss 通道已随 SRMP-over-WS 一并取消：SRMP 走 tcp/udp，HTTP 走 ApiHttpClient
         if (first.StartsWith("ws://", StringComparison.OrdinalIgnoreCase) ||
             first.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
-            throw new NotSupportedException($"服务[{name}]地址[{first}]已不受支持，SRMP 请改用 tcp:// 或 udp://，HTTP 调用请使用 http:// 或 https://");
+            throw new NotSupportedException(L.T("Address [{1}] of service [{0}] is no longer supported; use tcp:// or udp:// for SRMP, and http:// or https:// for HTTP calls", name, first));
 
         if (first.StartsWith("tcp://", StringComparison.OrdinalIgnoreCase) ||
             first.StartsWith("udp://", StringComparison.OrdinalIgnoreCase))

@@ -50,7 +50,7 @@ public class HttpMessage : Message
     /// <returns></returns>
     public override IMessage CreateReply()
     {
-        if (Reply) throw new Exception("不能根据响应消息创建响应消息");
+        if (Reply) throw new Exception(L.T("Cannot create a reply message from a reply message"));
 
         var msg = new HttpMessage
         {

@@ -82,11 +82,11 @@ public class ApiHandler : IApiHandler, IAsyncApiHandler
         var provider = (Host as IServiceProvider);
         var manager = provider?.GetService<IApiManager>();
         manager ??= serviceProvider.GetService<IApiManager>();
-        var api = manager?.Find(action) ?? throw new ApiException(ApiCode.NotFound, $"无法找到名为[{action}]的服务！");
+        var api = manager?.Find(action) ?? throw new ApiException(ApiCode.NotFound, L.T("Cannot find service named [{0}]!", action));
 
         // 全局共用控制器，或者每次创建对象实例
         var controller = manager.CreateController(api, serviceProvider)
-            ?? throw new ApiException(ApiCode.Forbidden, $"无法创建名为[{api.Name}]的服务！");
+            ?? throw new ApiException(ApiCode.Forbidden, L.T("Cannot create service named [{0}]!", api.Name));
         if (controller is IApi capi) capi.Session = session;
         if (session is INetSession ss)
             api.LastSession = ss.Remote?.ToString();

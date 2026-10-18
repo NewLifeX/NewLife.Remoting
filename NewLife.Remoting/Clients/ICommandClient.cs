@@ -147,7 +147,7 @@ public static class CommandClientHelper
     private static async Task<Object?> OnCommand(ICommandClient client, CommandModel model, CancellationToken cancellationToken)
     {
         if (!client.Commands.TryGetValue(model.Command, out var d))
-            throw new ApiException(ApiCode.NotFound, $"找不到服务[{model.Command}]");
+            throw new ApiException(ApiCode.NotFound, L.T("Cannot find service [{0}]", model.Command));
 
         if (d is Func<String?, Task<String?>> func1)
             return await func1(model.Argument).ConfigureAwait(false);
@@ -165,6 +165,6 @@ public static class CommandClientHelper
         if (d is Func<CommandModel, CommandReplyModel> func31) return func31(model);
         if (d is Func<String?, String?> func32) return func32(model.Argument);
 
-        throw new ApiException(ApiCode.InternalServerError, $"服务[{model.Command}]的签名[{d}]不正确");
+        throw new ApiException(ApiCode.InternalServerError, L.T("Signature [{0}] of service [{1}] is incorrect", d, model.Command));
     }
 }

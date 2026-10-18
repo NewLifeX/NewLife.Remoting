@@ -88,7 +88,7 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
             _lastPongTime > 0 &&
             Runtime.TickCount64 - _lastPongTime > pingPeriod * 3)
         {
-            _client.Log?.Info("[{0}]WebSocket心跳超时，强制重连", _client.Name);
+            _client.Log?.Info("[{0}]WebSocket heartbeat timed out, forcing reconnect", _client.Name);
 
             _websocket.TryDispose();
             _websocket = null;
@@ -192,12 +192,12 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
                     wex.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely ||
                     socket.State == WebSocketState.Aborted)
                 {
-                    _client.Log?.Debug("[{0}]WebSocket连接断开[{1}]", _client.Name, wex.WebSocketErrorCode);
+                    _client.Log?.Debug("[{0}]WebSocket connection closed [{1}]", _client.Name, wex.WebSocketErrorCode);
                     break;
                 }
                 catch (SocketException sex) when (IsNormalDisconnect(sex.SocketErrorCode))
                 {
-                    _client.Log?.Debug("[{0}]WebSocket连接断开[{1}]", _client.Name, sex.SocketErrorCode);
+                    _client.Log?.Debug("[{0}]WebSocket connection closed [{1}]", _client.Name, sex.SocketErrorCode);
                     break;
                 }
                 catch (Exception ex)
@@ -205,7 +205,7 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
                     if (source.IsCancellationRequested) break;
 
                     if (ex is not WebSocketException || socket.State != WebSocketState.Aborted)
-                        _client.Log?.Error("[{0}]WebSocket异常[{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
+                        _client.Log?.Error("[{0}]WebSocket error [{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
                     if (ex is WebSocketException) break;
                 }
             }

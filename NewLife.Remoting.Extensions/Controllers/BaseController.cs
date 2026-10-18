@@ -86,7 +86,7 @@ public abstract class BaseController(IDeviceService? deviceService, ITokenServic
                 {
                     // 匿名访问接口无需验证。例如星尘Node的SendCommand接口，并不使用Node令牌，而是使用App令牌
                     var rs = OnAuthorize(token!, ctx);
-                    if (!rs) throw new ApiException(ApiCode.Unauthorized, "认证失败");
+                    if (!rs) throw new ApiException(ApiCode.Unauthorized, L.T("Authentication failed"));
                 }
             }
         }
@@ -97,7 +97,7 @@ public abstract class BaseController(IDeviceService? deviceService, ITokenServic
 
             // 特殊处理数据库异常，避免泄漏SQL语句
             if (ex.GetType().FullName == "XCode.Exceptions.XSqlException")
-                msg = "数据库SQL错误";
+                msg = L.T("Database SQL error");
 
             var traceId = DefaultSpan.Current?.TraceId;
             context.Result = ex is ApiException aex
@@ -122,7 +122,7 @@ public abstract class BaseController(IDeviceService? deviceService, ITokenServic
 
         // 刷新令牌只能用于刷新，禁止作为访问令牌调用业务接口（V-14 令牌分离）
         if (ex == null && jwt != null && jwt["kind"] + "" == "refresh")
-            ex = new ApiException(ApiCode.Unauthorized, "刷新令牌不能作为访问令牌使用！");
+            ex = new ApiException(ApiCode.Unauthorized, L.T("A refresh token cannot be used as an access token!"));
 
         var code = context.Code = jwt?.Subject;
         context.ClientId = jwt?.Id!;
@@ -141,7 +141,7 @@ public abstract class BaseController(IDeviceService? deviceService, ITokenServic
             var ds2 = _deviceService as IDeviceService2;
 
             var dv = ds2 != null ? ds2.GetDevice(code) : _deviceService.QueryDevice(code);
-            if (dv == null || !dv.Enable) ex ??= new ApiException(ApiCode.Forbidden, "无效客户端！");
+            if (dv == null || !dv.Enable) ex ??= new ApiException(ApiCode.Forbidden, L.T("Invalid client!"));
 
             context.Device = dv!;
 

@@ -47,7 +47,7 @@ internal static class RemotingEndpoints
         var rs = deviceService.Login(ctx, request, "Http");
 
         var dv = ctx.Device;
-        if (dv == null) throw new ApiException(ApiCode.Forbidden, "未找到设备");
+        if (dv == null) throw new ApiException(ApiCode.Forbidden, L.T("Device not found"));
 
         rs ??= new LoginResponse { Name = dv.Name, };
 
@@ -136,7 +136,7 @@ internal static class RemotingEndpoints
 
         var channel = http.Request.Query["channel"] + "";
 
-        if (ctx.Device == null) throw new ApiException(ApiCode.Unauthorized, "未登录");
+        if (ctx.Device == null) throw new ApiException(ApiCode.Unauthorized, L.T("Not logged in"));
 
         // 提取基础路径（scheme://host），兼容 http/https
         var uri = http.Request.GetRawUrl().ToString();
@@ -165,7 +165,7 @@ internal static class RemotingEndpoints
     public static Task NotifyAsync(HttpContext http)
     {
         // 与 MVC 一致：非WebSocket请求按 400 业务码封装返回，不让客户端空等
-        if (!http.WebSockets.IsWebSocketRequest) return WriteResultAsync(http, ApiCode.BadRequest, null, "不是WebSocket请求");
+        if (!http.WebSockets.IsWebSocketRequest) return WriteResultAsync(http, ApiCode.BadRequest, null, L.T("Not a WebSocket request"));
 
         return InvokeAsync(http, false, async (ctx, sp) =>
         {
@@ -212,8 +212,8 @@ internal static class RemotingEndpoints
     {
         var model = await ReadModelAsync<CommandInModel>(http).ConfigureAwait(false);
         if (model == null) throw new ArgumentNullException(nameof(CommandInModel));
-        if (model.Code.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Code), "必须指定编码");
-        if (model.Command.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Command), "必须指定命令");
+        if (model.Code.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Code), L.T("Code must be specified"));
+        if (model.Command.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Command), L.T("Command must be specified"));
 
         var deviceService = sp.GetRequiredService<IDeviceService>();
 
@@ -250,7 +250,7 @@ internal static class RemotingEndpoints
 
         // 刷新令牌只能用于刷新，禁止作为访问令牌调用业务接口（V-14 令牌分离）
         if (ex == null && jwt != null && jwt["kind"] + "" == "refresh")
-            ex = new ApiException(ApiCode.Unauthorized, "刷新令牌不能作为访问令牌使用！");
+            ex = new ApiException(ApiCode.Unauthorized, L.T("A refresh token cannot be used as an access token!"));
 
         var code = context.Code = jwt?.Subject;
         context.ClientId = jwt?.Id!;
@@ -269,7 +269,7 @@ internal static class RemotingEndpoints
             var ds2 = deviceService as IDeviceService2;
 
             var dv = ds2 != null ? ds2.GetDevice(code) : deviceService.QueryDevice(code);
-            if (dv == null || !dv.Enable) ex ??= new ApiException(ApiCode.Forbidden, "无效客户端！");
+            if (dv == null || !dv.Enable) ex ??= new ApiException(ApiCode.Forbidden, L.T("Invalid client!"));
 
             context.Device = dv!;
 
@@ -310,7 +310,7 @@ internal static class RemotingEndpoints
     /// <exception cref="ApiException">未登录时抛出</exception>
     private static async Task HandleNotifyAsync(DeviceContext context, HttpContext http, IServiceProvider sp, CommandSession session, String spanName, CancellationToken cancellationToken)
     {
-        var device = context.Device ?? throw new ApiException(ApiCode.Unauthorized, "未登录");
+        var device = context.Device ?? throw new ApiException(ApiCode.Unauthorized, L.T("Not logged in"));
 
         var deviceService = sp.GetRequiredService<IDeviceService>();
         var tracer = sp.GetService<ITracer>();
@@ -393,13 +393,13 @@ internal static class RemotingEndpoints
                 if (!allowAnonymous)
                 {
                     var rs = Authenticate(ctx.Token, ctx, tokenService, deviceService);
-                    if (!rs) throw new ApiException(ApiCode.Unauthorized, "认证失败");
+                    if (!rs) throw new ApiException(ApiCode.Unauthorized, L.T("Authentication failed"));
 
                     // 将身份映射为 ClaimsPrincipal，便于端点内使用 User 或授权中间件
                     http.User = BuildPrincipal(ctx);
                 }
 
-                if (deviceService == null) throw new InvalidOperationException($"未注册设备服务[{nameof(IDeviceService)}]");
+                if (deviceService == null) throw new InvalidOperationException(L.T("Device service [{0}] is not registered", nameof(IDeviceService)));
 
                 var value = await handler(ctx, provider).ConfigureAwait(false);
 

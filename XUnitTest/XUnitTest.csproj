@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <AssemblyTitle>通信单元测试集</AssemblyTitle>
     <Description>覆盖Remoting核心组件行为与兼容性回归验证</Description>
     <OutputPath>..\Bin\UnitTest</OutputPath>

@@ -1,0 +1,11 @@
+{
+  "updated": "2026-10-19",
+  "doc": "Doc/README多语言规范.md",
+  "values": {
+    "aotSmoke": "23/23",
+    "aotScenarios": 23,
+    "tfmCount": 7,
+    "localeCount": 2,
+    "readmeLocaleCount": 11
+  }
+}

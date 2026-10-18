@@ -171,7 +171,7 @@ public class RemotingEndpointTests : IAsyncLifetime
         var text = await PostTextAsync("Ping");
 
         Assert.Contains("\"code\":401", text);
-        Assert.Contains("认证失败", text);
+        Assert.Contains("Authentication failed", text);
     }
 
     [Fact, DisplayName("最小API拒绝把刷新令牌当作访问令牌")]
@@ -187,7 +187,7 @@ public class RemotingEndpointTests : IAsyncLifetime
         var text = await PostTextAsync("Ping");
 
         Assert.Contains("\"code\":401", text);
-        Assert.Contains("刷新令牌不能作为访问令牌使用", text);
+        Assert.Contains("A refresh token cannot be used as an access token", text);
     }
 
     [Fact, DisplayName("最小API升级返回绝对更新地址")]
@@ -262,7 +262,7 @@ public class RemotingEndpointTests : IAsyncLifetime
         var text = await PostTextAsync("SendCommand", new Dictionary<String, Object?> { ["Command"] = "Reboot" });
 
         Assert.Contains("\"code\":", text);
-        Assert.Contains("必须指定编码", text);
+        Assert.Contains("Code must be specified", text);
     }
 
     [Fact, DisplayName("最小API非WebSocket请求通知端点返回400")]
@@ -273,7 +273,7 @@ public class RemotingEndpointTests : IAsyncLifetime
         var text = await GetTextAsync("Notify");
 
         Assert.Contains("\"code\":400", text);
-        Assert.Contains("不是WebSocket请求", text);
+        Assert.Contains("Not a WebSocket request", text);
     }
 
     [Fact, DisplayName("最小API通过WebSocket下发指令")]
@@ -318,7 +318,7 @@ public class RemotingEndpointTests : IAsyncLifetime
 
         // 与 MVC 的 Login_设备不存在_抛出异常 镜像
         Assert.Contains("\"code\":403", text);
-        Assert.Contains("未找到设备", text);
+        Assert.Contains("Device not found", text);
     }
 
     [Fact, DisplayName("最小API注销后令牌立即失效")]
@@ -332,7 +332,7 @@ public class RemotingEndpointTests : IAsyncLifetime
         // 与 MVC 的 Logout_注销后吊销当前令牌 镜像：注销后原令牌不可再用于业务接口
         var text = await PostTextAsync("Ping", new Dictionary<String, Object?> { ["State"] = "ok" });
         Assert.Contains("\"code\":401", text);
-        Assert.Contains("令牌已吊销", text);
+        Assert.Contains("The token has been revoked", text);
     }
 
     [Fact, DisplayName("最小API心跳在令牌临近过期时续签")]

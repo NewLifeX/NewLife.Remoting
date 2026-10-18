@@ -86,7 +86,7 @@ public class ClientSingleCluster<T> : ICluster<String, T>
 
         // 遍历所有服务，找到可用服务端
         var svrs = GetItems().ToArray();
-        if (svrs == null || svrs.Length == 0) throw new InvalidOperationException("没有设置服务端地址Servers");
+        if (svrs == null || svrs.Length == 0) throw new InvalidOperationException(L.T("No server address is configured in Servers"));
 
         var idx = Interlocked.Increment(ref _index);
         Exception? last = null;
@@ -98,9 +98,9 @@ public class ClientSingleCluster<T> : ICluster<String, T>
             try
             {
                 if (k == 0)
-                    WriteLog("[{0}]集群连接：{1}", Name, svr);
+                    WriteLog("[{0}]Cluster connecting: {1}", Name, svr);
                 else
-                    WriteLog("[{0}]集群转移：{1}", Name, svr);
+                    WriteLog("[{0}]Cluster failover: {1}", Name, svr);
 
                 var client = OnCreate(svr);
                 //client.Open();

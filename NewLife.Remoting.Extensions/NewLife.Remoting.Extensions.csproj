@@ -2,7 +2,9 @@
 
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <TargetFrameworks>net6.0;net7.0;net8.0;net9.0;net10.0</TargetFrameworks>
+    <!-- 目标框架对齐 NewLife.Core v12：net7.0/net9.0 已由上游合并（net7.0→net6.0，net9.0→net8.0），
+         保留会被 NuGet 回退到 netstandard2.1 资产，与 Core 内嵌的 CodeAnalysis 补齐类型冲突（CS0433） -->
+    <TargetFrameworks>net6.0;net8.0;net10.0</TargetFrameworks>
     <AssemblyTitle>远程通信服务扩展</AssemblyTitle>
     <Description>提供设备接入控制器、令牌服务与会话管理扩展</Description>
     <Company>新生命开发团队</Company>
@@ -69,6 +71,7 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="NewLife.Core" Version="12.0.2026.1018-beta1517" />
     <PackageReference Include="NewLife.XCode" Version="12.2.2026.1017-beta1246" />
   </ItemGroup>
   <ItemGroup>

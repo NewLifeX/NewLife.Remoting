@@ -81,7 +81,7 @@ public class Upgrade
         var file = UpdatePath.CombinePath(fileName).GetBasePath();
         if (File.Exists(file)) File.Delete(file);
 
-        WriteLog("准备下载 {0} 到 {1}", url, file);
+        WriteLog("Preparing to download {0} to {1}", url, file);
 
         var sw = Stopwatch.StartNew();
 
@@ -99,13 +99,13 @@ public class Upgrade
             catch (Exception ex) when (ex is IOException || ex is HttpRequestException)
             {
                 if (retry-- <= 0) throw;
-                WriteLog("下载失败，2秒后重试：{0}", ex.Message);
+                WriteLog("Download failed, retrying in 2 seconds: {0}", ex.Message);
                 await TaskEx.Delay(2_000, cancellationToken).ConfigureAwait(false);
             }
         }
 
         sw.Stop();
-        WriteLog("下载完成！{2} 大小{0:n0}字节，耗时{1:n0}ms", file.AsFile().Length, sw.ElapsedMilliseconds, file);
+        WriteLog("Download completed! {2} size {0:n0} bytes, elapsed {1:n0}ms", file.AsFile().Length, sw.ElapsedMilliseconds, file);
 
         var md5 = file.AsFile().MD5().ToHex();
         WriteLog("MD5: {0}", md5);
@@ -138,14 +138,14 @@ public class Upgrade
         var file = SourceFile;
         if (file.IsNullOrEmpty() || !File.Exists(file)) return false;
 
-        WriteLog("发现更新包 {0}", file);
+        WriteLog("Update package found: {0}", file);
 
         // 解压更新程序包
         if (!file.EndsWithIgnoreCase(".zip")) return false;
 
         var tmp = TempPath;
         if (tmp.IsNullOrEmpty()) tmp = TempPath = Path.GetTempPath().CombinePath(Path.GetFileNameWithoutExtension(file));
-        WriteLog("解压缩到临时目录 {0}", tmp);
+        WriteLog("Extracting to temporary directory {0}", tmp);
         file.AsFile().Extract(tmp, true);
 
         return true;
@@ -163,7 +163,7 @@ public class Upgrade
         var tmp = TempPath;
         if (tmp.IsNullOrEmpty() || !Directory.Exists(tmp)) return false;
 
-        WriteLog("发现更新源目录 {0}", tmp);
+        WriteLog("Update source directory found: {0}", tmp);
 
         // 记录移动文件，更新失败时恢复
         var dic = new Dictionary<String, String>();
@@ -173,7 +173,7 @@ public class Upgrade
             {
                 case UpdateModes.Full:
                     // 完整包：清空目标目录（保护配置、更新目录、备份和日志）
-                    WriteLog("完整包模式，清空目标目录");
+                    WriteLog("Full package mode, clearing the destination directory");
                     {
                         var protectedNames = new[] { "appsettings.json", "appsettings.*.json", "Update", "Log", "Config" };
                         foreach (var item in dest.AsDirectory().GetAllFiles(null, false))
@@ -199,7 +199,7 @@ public class Upgrade
                     break;
                 case UpdateModes.Partial:
                     // 部分包：不清理目标，直接覆盖
-                    WriteLog("部分包模式，直接覆盖");
+                    WriteLog("Partial package mode, overwriting in place");
                     break;
                 case UpdateModes.Standard:
                 default:
@@ -283,16 +283,16 @@ public class Upgrade
                 // ARM64 慢速存储额外等待页缓存回写完成
                 if (StorageFlushDelay > 0)
                 {
-                    WriteLog("等待落盘 {0}ms（慢速存储保护）", StorageFlushDelay);
+                    WriteLog("Waiting {0}ms for data to be flushed to disk (slow storage protection)", StorageFlushDelay);
                     Thread.Sleep(StorageFlushDelay);
                 }
             }
 
-            WriteLog("更新成功！");
+            WriteLog("Update succeeded!");
         }
         catch
         {
-            WriteLog("更新失败，恢复文件");
+            WriteLog("Update failed, restoring files");
             Restore(dic);
 
             throw;
@@ -374,11 +374,11 @@ public class Upgrade
             }
             catch (Exception ex)
             {
-                WriteLog("回滚失败：{0}", ex.Message);
+                WriteLog("Rollback failed: {0}", ex.Message);
             }
         }
 
-        if (count > 0) WriteLog("回滚完成，共恢复 {0} 个文件", count);
+        if (count > 0) WriteLog("Rollback completed, {0} files restored", count);
 
         return count;
     }
@@ -418,7 +418,7 @@ public class Upgrade
         {
             // .NET Core 应用：使用 dotnet <name>.dll <args>，跨平台标准写法
             fileName = ResolvePath(name + ".dll");
-            if (!File.Exists(fileName)) throw new FileNotFoundException($"未找到 .NET 应用入口：{fileName}");
+            if (!File.Exists(fileName)) throw new FileNotFoundException(L.T("Cannot find the .NET application entry point: {0}", fileName));
 
             dotnetPath = ResolveDotNetPath();
         }
@@ -444,7 +444,7 @@ public class Upgrade
                 }
             }
 
-            if (!File.Exists(fileName)) throw new FileNotFoundException($"未找到可执行文件：{fileName}");
+            if (!File.Exists(fileName)) throw new FileNotFoundException(L.T("Cannot find the executable file: {0}", fileName));
         }
 
         // Linux 上对新二进制文件执行 chmod +x，确保有执行权限
@@ -458,7 +458,7 @@ public class Upgrade
             p?.WaitForExit(5_000);
         }
 
-        WriteLog("拉起进程 {0} {1}", fileName, args);
+        WriteLog("Starting process {0} {1}", fileName, args);
         try
         {
             var workingDir = Path.GetDirectoryName(fileName)!;
@@ -504,8 +504,8 @@ public class Upgrade
                 var stderr = p.StandardError.ReadToEnd();
                 LastErrorMessage = !stderr.IsNullOrEmpty()
                     ? $"ExitCode={p.ExitCode}, stderr={stderr}"
-                    : $"ExitCode={p.ExitCode}（无错误输出）";
-                WriteLog("启动进程失败：{0}", LastErrorMessage);
+                    : $"ExitCode={p.ExitCode} (no error output)";
+                WriteLog("Failed to start process: {0}", LastErrorMessage);
                 return false;
             }
 
@@ -517,7 +517,7 @@ public class Upgrade
             // 保存完整异常信息供调用方通过 WriteInfoEvent 上报到节点历史，
             // 方便用户在 Web 管理界面直接看到失败原因（如 dotnet 未找到、文件无权限等）
             LastErrorMessage = ex.ToString();
-            WriteLog("启动进程失败：{0}", ex);
+            WriteLog("Failed to start process: {0}", ex);
             return false;
         }
     }
@@ -611,7 +611,7 @@ public class Upgrade
     public virtual void KillSelf()
     {
         var p = Process.GetCurrentProcess();
-        WriteLog("退出当前进程 {0}", p.Id);
+        WriteLog("Exiting current process {0}", p.Id);
 
         if (!Runtime.IsConsole)
             p.CloseMainWindow();
@@ -628,7 +628,7 @@ public class Upgrade
     {
         if (cmd.IsNullOrEmpty()) return;
 
-        WriteLog("执行命令：{0}", cmd);
+        WriteLog("Executing command: {0}", cmd);
 
         var args = "";
         var p = cmd.IndexOf(' ');

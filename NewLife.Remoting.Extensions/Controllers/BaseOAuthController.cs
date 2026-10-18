@@ -51,15 +51,15 @@ public abstract class BaseOAuthController(ITokenService tokenService, ITokenSett
 
                 // 访问令牌只能调用业务接口，禁止作为刷新令牌使用（V-14 令牌分离）
                 if (ex == null && jwt != null && jwt["kind"] + "" == "access")
-                    ex = new ApiException(ApiCode.Unauthorized, "访问令牌不能作为刷新令牌使用！");
+                    ex = new ApiException(ApiCode.Unauthorized, L.T("An access token cannot be used as a refresh token!"));
 
                 // 验证应用
                 var name = jwt?.Subject;
                 var app = name.IsNullOrEmpty() ? null : FindByName(name);
                 if (app == null)
-                    ex ??= new ApiException(ApiCode.NotFound, $"无效应用[{name}]");
+                    ex ??= new ApiException(ApiCode.NotFound, L.T("Invalid application [{0}]", name));
                 else if (!app.Enable)
-                    ex ??= new ApiException(ApiCode.Forbidden, $"应用[{name}]已停用");
+                    ex ??= new ApiException(ApiCode.Forbidden, L.T("Application [{0}] is disabled", name));
 
                 if (jwt != null && clientId.IsNullOrEmpty()) clientId = jwt.Id;
 
@@ -76,7 +76,7 @@ public abstract class BaseOAuthController(ITokenService tokenService, ITokenSett
                 return tokenModel;
             }
             else
-                throw new NotSupportedException($"未支持 grant_type={model.grant_type}");
+                throw new NotSupportedException(L.T("Unsupported grant_type={0}", model.grant_type));
         }
         catch (Exception ex)
         {
@@ -102,16 +102,16 @@ public abstract class BaseOAuthController(ITokenService tokenService, ITokenSett
         var app = FindByName(username);
         // 查找或创建应用，避免多线程创建冲突
         app ??= Register(username, password, autoRegister, ip);
-        if (app == null) throw new ApiException(ApiCode.NotFound, $"[{username}]无效！");
+        if (app == null) throw new ApiException(ApiCode.NotFound, L.T("[{0}] is invalid!", username));
 
         //// 检查黑白名单
         //if (!app.ValidSource(ip))
         //    throw new ApiException(ApiCode.Forbidden, $"应用[{username}]禁止{ip}访问！");
 
         // 检查应用有效性
-        if (!app.Enable) throw new ApiException(ApiCode.Forbidden, $"[{username}]已禁用！");
+        if (!app.Enable) throw new ApiException(ApiCode.Forbidden, L.T("[{0}] is disabled!", username));
         //if (!app.Secret.IsNullOrEmpty() && password != app.Secret) throw new ApiException(401, $"非法访问应用[{username}]！");
-        if (!OnAuthorize(app, password, ip)) throw new ApiException(ApiCode.Unauthorized, $"非法访问[{username}]！");
+        if (!OnAuthorize(app, password, ip)) throw new ApiException(ApiCode.Unauthorized, L.T("Illegal access [{0}]!", username));
 
         return app;
     }

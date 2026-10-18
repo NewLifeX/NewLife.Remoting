@@ -105,14 +105,14 @@ public class ApiClient : ApiHost, IApiClient
             if (Active) return true;
 
             var ss = Servers;
-            if (ss == null || ss.Length == 0) throw new ArgumentNullException(nameof(Servers), "未指定服务端地址");
+            if (ss == null || ss.Length == 0) throw new ArgumentNullException(nameof(Servers), L.T("Server address is not specified."));
 
             JsonHost ??= ServiceProvider?.GetService<IJsonHost>() ?? JsonHelper.Default;
             Encoder ??= new JsonEncoder { JsonHost = JsonHost };
 
             // 集群
             Cluster = InitCluster();
-            WriteLog("集群模式：{0}", Cluster?.GetType().GetDisplayName() ?? Cluster?.ToString());
+            WriteLog("Cluster mode: {0}", Cluster?.GetType().GetDisplayName() ?? Cluster?.ToString());
 
             Encoder.Log = EncoderLog;
 
@@ -254,7 +254,7 @@ public class ApiClient : ApiHost, IApiClient
                     }
 
                     if (ex is TaskCanceledException)
-                        throw new TaskCanceledException($"[{action}]超时[{Timeout:n0}ms]取消，Server={client?.Remote}");
+                        throw new TaskCanceledException(L.T("Request [{0}] canceled after {1:n0}ms timeout, Server={2}", action, Timeout, client?.Remote));
 
                     throw;
                 }
@@ -369,9 +369,9 @@ public class ApiClient : ApiHost, IApiClient
             if (ex is TaskCanceledException)
             {
                 if (Log != null && Log.Enable && Log.Level <= LogLevel.Debug)
-                    throw new TimeoutException($"请求[{action}]超时({msg})！", ex);
+                    throw new TimeoutException(L.T("Request [{0}] timed out ({1})!", action, msg), ex);
                 else
-                    throw new TimeoutException($"请求[{action}]超时({msg})！");
+                    throw new TimeoutException(L.T("Request [{0}] timed out ({1})!", action, msg));
             }
             throw;
         }
@@ -379,9 +379,9 @@ public class ApiClient : ApiHost, IApiClient
         {
             span?.SetError(ex, args);
             if (Log != null && Log.Enable && Log.Level <= LogLevel.Debug)
-                throw new TimeoutException($"请求[{action}]超时({msg})！", ex);
+                throw new TimeoutException(L.T("Request [{0}] timed out ({1})!", action, msg), ex);
             else
-                throw new TimeoutException($"请求[{action}]超时({msg})！");
+                throw new TimeoutException(L.T("Request [{0}] timed out ({1})!", action, msg));
         }
         catch (Exception ex)
         {
@@ -392,7 +392,7 @@ public class ApiClient : ApiHost, IApiClient
         {
             var msCost = st.StopCount(sw) / 1000;
             // 慢调用日志：包含 Action、请求消息（部分重要标识）、耗时ms。用于定位网络/服务端慢点。
-            if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢调用[{action}]({msg})，耗时{msCost:n0}ms");
+            if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog("Slow call [{0}]({1}) took {2:n0}ms", action, msg, msCost);
 
             span?.Dispose();
         }
@@ -512,7 +512,7 @@ public class ApiClient : ApiHost, IApiClient
         {
             var msCost = st.StopCount(sw) / 1000;
             // 慢调用日志：包含 Action 和耗时ms（单向调用不涉及解码过程）。
-            if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog($"慢调用[{action}]，耗时{msCost:n0}ms");
+            if (SlowTrace > 0 && msCost >= SlowTrace) WriteLog("Slow call [{0}] took {1:n0}ms", action, msCost);
         }
     }
     #endregion
@@ -568,13 +568,13 @@ public class ApiClient : ApiHost, IApiClient
             {
                 task.ContinueWith(t =>
                 {
-                    if (t.Exception != null) Log?.Error("[{0}]自动登录失败：{1}", Name, t.Exception.GetTrue().Message);
+                    if (t.Exception != null) Log?.Error("[{0}]Automatic login failed: {1}", Name, t.Exception.GetTrue().Message);
                 }, TaskScheduler.Default);
             }
         }
         catch (Exception ex)
         {
-            Log?.Error("[{0}]自动登录触发失败：{1}", Name, ex.Message);
+            Log?.Error("[{0}]Failed to trigger automatic login: {1}", Name, ex.Message);
         }
     }
 
@@ -611,7 +611,7 @@ public class ApiClient : ApiHost, IApiClient
         var uri = new NetUri(svr);
 
         // ws/wss 通道已取消：SRMP 走 tcp/udp，HTTP 调用请使用 ApiHttpClient
-        if (uri.Type == NetType.WebSocket) throw new NotSupportedException($"地址[{svr}]的WebSocket通道已不受支持，SRMP请改用tcp://或udp://，HTTP调用请使用ApiHttpClient");
+        if (uri.Type == NetType.WebSocket) throw new NotSupportedException(L.T("WebSocket channel of address [{0}] is no longer supported; use tcp:// or udp:// for SRMP, and ApiHttpClient for HTTP calls", svr));
 
         // UDP 使用本项目子类：Core 只把协议与并发度下发给按端点创建的会话，匹配超时需另行补齐（见 ApiUdpServer）
         var client = uri.Type == NetType.Udp
@@ -664,7 +664,7 @@ public class ApiClient : ApiHost, IApiClient
     {
         var sb = Pool.StringBuilder.Get();
         var pf1 = StatInvoke;
-        if (pf1 != null && pf1.Value > 0) sb.AppendFormat("请求：{0} ", pf1);
+        if (pf1 != null && pf1.Value > 0) sb.AppendFormat(L.T("Requests: {0} ", pf1));
 
         var msg = sb.Return(true);
         if (msg.IsNullOrEmpty() || msg == _Last) return;

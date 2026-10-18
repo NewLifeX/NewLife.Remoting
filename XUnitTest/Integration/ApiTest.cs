@@ -97,7 +97,7 @@ public class ApiTest : DisposeBase
 
         Assert.NotNull(ex);
         Assert.Equal(404, ex.Code);
-        Assert.Equal("无法找到名为[api/info3]的服务！", ex.Message);
+        Assert.Equal("Cannot find service named [api/info3]!", ex.Message);
 
         var uri = new NetUri(_Client.Servers[0]);
         Assert.Equal(uri + "/api/info3", ex.Source);

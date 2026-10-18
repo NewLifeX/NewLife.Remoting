@@ -16,11 +16,18 @@
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
-    <File Path=".github/copilot-instructions.md" />
+    <File Path=".github/workflows/aot.yml" />
     <File Path=".github/workflows/publish-beta.yml" />
     <File Path=".github/workflows/publish.yml" />
+    <File Path=".github/workflows/readme.yml" />
     <File Path=".github/workflows/test.yml" />
+    <File Path="check-english-exceptions.ps1" />
+    <File Path="check-locales.ps1" />
+    <File Path="readme-languages.json" />
+    <File Path="readme-metrics.json" />
     <File Path="Readme.MD" />
+    <File Path="sync-readme-languages.ps1" />
+    <File Path="sync-readme-metrics.ps1" />
   </Folder>
   <Folder Name="/Tests/">
     <Project Path="AotSmoke.Web/AotSmoke.Web.csproj" />

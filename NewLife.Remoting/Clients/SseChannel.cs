@@ -96,12 +96,12 @@ class SseChannel(ClientBase client) : DisposeBase
             var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
             _ = Task.Factory.StartNew(() => DoPull(stream, _source.Token), TaskCreationOptions.LongRunning);
 
-            _client.WriteLog("SSE连接成功: {0}", uri);
+            _client.WriteLog("SSE connected: {0}", uri);
         }
         catch (Exception ex)
         {
             span?.SetError(ex, null);
-            _client.WriteLog("SSE连接失败: {0}", ex.Message);
+            _client.WriteLog("SSE connection failed: {0}", ex.Message);
 
             // 失败时释放未纳入管理的响应对象
             _response.TryDispose();
@@ -193,7 +193,7 @@ class SseChannel(ClientBase client) : DisposeBase
         catch (Exception ex)
         {
             if (!cancellationToken.IsCancellationRequested)
-                _client.Log?.Error("[{0}]SSE异常[{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
+                _client.Log?.Error("[{0}]SSE error [{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
         }
         finally
         {
@@ -215,7 +215,7 @@ class SseChannel(ClientBase client) : DisposeBase
         }
         catch (Exception ex)
         {
-            _client.Log?.Error("[{0}]SSE命令处理异常: {1}", _client.Name, ex.Message);
+            _client.Log?.Error("[{0}]SSE command handling error: {1}", _client.Name, ex.Message);
         }
     }
     #endregion

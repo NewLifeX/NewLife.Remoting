@@ -396,7 +396,7 @@ public class ApiHelperTest : DisposeBase
         var ex = await Assert.ThrowsAsync<ApiException>(() => _Client.GetAsync<Object>("api/info3"));
 
         Assert.Equal(404, ex.Code);
-        Assert.Equal("无法找到名为[api/info3]的服务！", ex.Message);
+        Assert.Equal("Cannot find service named [api/info3]!", ex.Message);
         //Assert.Equal(_Client.BaseAddress + "api/info3", ex.Source);
     }
 

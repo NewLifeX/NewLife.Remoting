@@ -88,7 +88,7 @@ class WsChannel(ClientBase client) : DisposeBase
             _lastPongTime > 0 &&
             Runtime.TickCount64 - _lastPongTime > pingPeriod * 3)
         {
-            _client.Log?.Info("[{0}]WebSocket心跳超时，强制重连", _client.Name);
+            _client.Log?.Info("[{0}]WebSocket heartbeat timed out, forcing reconnect", _client.Name);
 
             _websocket.TryDispose();
             _websocket = null;
@@ -208,14 +208,14 @@ class WsChannel(ClientBase client) : DisposeBase
             catch (ObjectDisposedException) { break; }
             catch (SocketException sex) when (IsNormalDisconnect(sex.SocketErrorCode))
             {
-                _client.Log?.Debug("[{0}]WebSocket连接断开[{1}]", _client.Name, sex.SocketErrorCode);
+                _client.Log?.Debug("[{0}]WebSocket connection closed [{1}]", _client.Name, sex.SocketErrorCode);
                 break;
             }
             catch (Exception ex)
             {
                 if (source.IsCancellationRequested) break;
 
-                _client.Log?.Error("[{0}]WebSocket异常[{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
+                _client.Log?.Error("[{0}]WebSocket error [{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
                 if (ex is SocketException) break;
             }
         }

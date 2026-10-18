@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using NewLife.Collections;
 using NewLife.Log;
 using NewLife.Net;
@@ -68,7 +69,7 @@ public class ClientPoolCluster<T> : ICluster<String, T> where T : class
 
         // 遍历所有服务，找到可用服务端
         var svrs = GetItems().ToArray();
-        if (svrs == null || svrs.Length == 0) throw new InvalidOperationException("没有设置服务端地址Servers");
+        if (svrs == null || svrs.Length == 0) throw new InvalidOperationException(L.T("No server address is configured in Servers"));
 
         var idx = Interlocked.Increment(ref _index);
         Exception? last = null;
@@ -79,7 +80,7 @@ public class ClientPoolCluster<T> : ICluster<String, T> where T : class
             var svr = svrs[k];
             try
             {
-                WriteLog("[{0}]集群均衡：{1}", Name, svr);
+                WriteLog("[{0}]Cluster balancing: {1}", Name, svr);
 
                 var client = OnCreate(svr);
                 //client.Open();
@@ -98,6 +99,9 @@ public class ClientPoolCluster<T> : ICluster<String, T> where T : class
         throw last ?? new NullReferenceException();
     }
 
+    // MyPool.OnCreate 已重载为 Host.CreateClient()，基类经由无参构造创建实例的路径在本类型中不可达；
+    // 因此不需要向 T 传导 PublicParameterlessConstructor 要求（Core v12 的 ObjectPool<T> 已加该注解）
+    [UnconditionalSuppressMessage("Trimming", "IL2091", Justification = "OnCreate 已重载，基类的无参构造创建路径不可达")]
     class MyPool : ObjectPool<T>
     {
         public ClientPoolCluster<T> Host { get; set; }

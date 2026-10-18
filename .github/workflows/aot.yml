@@ -2,7 +2,9 @@ name: aot
 
 # AOT 兼容矩阵（参考 NewLife.Core 做法）：分析器零告警 + 三工程 NativeAOT 冒烟。
 #   NativeAOT 不支持跨 OS 编译，每个 RID 用对应原生 runner 发布运行：
-#     win-x64 → windows-latest；linux-x64 → ubuntu-latest；linux-arm64 → ubuntu-24.04-arm
+#     win-x64 → windows-latest；linux-x64 → ubuntu-latest；linux-arm64 → ubuntu-24.04-arm（以上为阻断门禁）
+#     win-arm64 / osx-arm64 / osx-x64 → 观察期（continue-on-error），平台稳定全绿后逐项转阻断
+#   linux-musl-x64 / linux-musl-arm64 → alpine 容器内原生发布运行（观察期）
 #   linux-loongarch64（LA64）：无 runtime pack、无 NativeAOT；QEMU 下的 JIT 冒烟【2026-10-16 起暂缓】，
 #     作业配方保留但默认不执行（if: false），龙芯覆盖由 test.yml 的 LA64 单元测试矩阵承接。
 # 触发：push / PR / 手动（workflow_dispatch）；不采用夜间定时。
@@ -26,7 +28,10 @@ jobs:
     - name: Setup dotNET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 10.x
+        # net8.0 目标需要 8.x SDK 提供对应目标包（runner 镜像已不再预装旧版 SDK）
+        dotnet-version: |
+          8.x
+          10.x
     - name: 分析器零告警构建（-warnaserror 阻断新增告警）
       run: |
         dotnet build NewLife.Remoting/NewLife.Remoting.csproj -f net8.0 -c Release --nologo -warnaserror
@@ -36,12 +41,13 @@ jobs:
     - name: 源生成器单元测试
       run: dotnet test XUnitTest.SourceGenerator -c Release --nologo
 
-  # 三工程 NativeAOT 冒烟：AotSmoke（核心链路 22 场景）、AotSmoke.Web（最小 API 宿主 11 场景）、
+  # 三工程 NativeAOT 冒烟：AotSmoke（核心链路 23 场景，含多语言词表）、AotSmoke.Web（最小 API 宿主 11 场景）、
   # AotSmoke.XCode（XCode 设备链路 6 场景，EXT-6 后转硬约束）。JIT 基线先行，再原生发布运行（非 0 退出码即失败）。
   aot:
     name: aot (${{ matrix.rid }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
+    continue-on-error: ${{ matrix.experimental == true }}
     strategy:
       fail-fast: false
       matrix:
@@ -49,12 +55,24 @@ jobs:
           - rid: win-x64
             os: windows-latest
             bin: AotSmoke.exe
+          - rid: win-arm64
+            os: windows-11-arm
+            bin: AotSmoke.exe
+            experimental: true
           - rid: linux-x64
             os: ubuntu-latest
             bin: AotSmoke
           - rid: linux-arm64
             os: ubuntu-24.04-arm
             bin: AotSmoke
+          - rid: osx-arm64
+            os: macos-latest
+            bin: AotSmoke
+            experimental: true
+          - rid: osx-x64
+            os: macos-15-intel
+            bin: AotSmoke
+            experimental: true
 
     steps:
     - uses: actions/checkout@v4
@@ -65,7 +83,7 @@ jobs:
     - name: Install NativeAOT Prerequisites (Linux)
       if: runner.os == 'Linux'
       run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
-    - name: JIT Baseline (22 + 11 + 6 场景)
+    - name: JIT Baseline (23 + 11 + 6 场景)
       run: |
         dotnet run -c Release --project AotSmoke/AotSmoke.csproj
         dotnet run -c Release --project AotSmoke.Web/AotSmoke.Web.csproj
@@ -82,6 +100,38 @@ jobs:
         ./AotSmoke/bin/aot-out/AotSmoke$EXT
         ./AotSmoke.Web/bin/aot-out/AotSmoke.Web$EXT
         ./AotSmoke.XCode/bin/aot-out/AotSmoke.XCode$EXT
+
+  # NativeAOT 冒烟（musl）：alpine 容器内原生发布运行（观察期）。
+  # 容器内 actions/setup-dotnet 不可用，改用 dotnet-install.sh；官方要求 alpine 3.15+ 且安装 clang/build-base/zlib-dev
+  aot-musl:
+    name: aot (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-musl-x64
+            os: ubuntu-latest
+          - rid: linux-musl-arm64
+            os: ubuntu-24.04-arm
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Publish & Run NativeAOT Smoke (alpine)
+      run: |
+        docker run --rm -v "$PWD:/src" -w /src alpine:3.20 sh -c '
+          set -e
+          apk add --no-cache bash curl clang build-base zlib-dev icu-libs >/dev/null
+          curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+          bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet >/dev/null
+          ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
+          export DOTNET_CLI_TELEMETRY_OPTOUT=1
+          dotnet run -c Release --project AotSmoke/AotSmoke.csproj
+          dotnet publish AotSmoke/AotSmoke.csproj -c Release -r ${{ matrix.rid }} -o AotSmoke/bin/aot-out
+          ./AotSmoke/bin/aot-out/AotSmoke
+        '
 
   # 龙芯 LA64（linux-loongarch64）：无 runtime pack、无 NativeAOT，QEMU 用户态仿真以 JIT 姿态跑核心冒烟。
   # 【2026-10-16 起暂缓】配方保留、默认不执行（if: false）：该冒烟在 QEMU 下曾 22/22 通过，但稳定性尚不足以
@@ -113,7 +163,7 @@ jobs:
           echo "image build attempt $i failed"
         done
         exit 1
-    - name: JIT Smoke in LoongArch64 Container (AotSmoke 22 场景)
+    - name: JIT Smoke in LoongArch64 Container (AotSmoke 23 场景)
       run: |
         for i in 1 2 3; do
           echo "=== smoke attempt $i ==="

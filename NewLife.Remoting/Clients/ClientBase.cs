@@ -248,7 +248,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (_client == null)
         {
             var urls = Server ?? Setting?.Server;
-            if (urls.IsNullOrEmpty()) throw new ArgumentNullException(nameof(Setting), "未指定服务端地址");
+            if (urls.IsNullOrEmpty()) throw new ArgumentNullException(nameof(Setting), L.T("Server address is not specified."));
 
             _client = urls.StartsWithIgnoreCase("http", "https") ? CreateHttp(urls) : CreateRpc(urls);
             _lastServer = urls;
@@ -297,7 +297,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 _ = HandleAsync(api.Data, null, default).ContinueWith(t =>
                 {
                     if (t.IsFaulted)
-                        Log?.Error("HandleAsync通知失败: {0}", t.Exception?.GetTrue()?.Message);
+                        Log?.Error("HandleAsync notification failed: {0}", t.Exception?.GetTrue()?.Message);
                 }, TaskScheduler.Default);
         }
     }
@@ -383,7 +383,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     if (needLogin && Features.HasFlag(Features.Login))
                     {
                         Log?.Debug("{0}", ex);
-                        WriteLog("重新登录，因调用[{0}]失败：{1}", action, ex.Message);
+                        WriteLog("Re-login because call [{0}] failed: {1}", action, ex.Message);
                         await Login(action, cancellationToken).ConfigureAwait(false);
 
                         // 再次执行当前请求
@@ -449,7 +449,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     if (needLogin && Features.HasFlag(Features.Login))
                     {
                         Log?.Debug("{0}", ex);
-                        WriteLog("重新登录，因调用[{0}]失败：{1}", action, ex.Message);
+                        WriteLog("Re-login because call [{0}] failed: {1}", action, ex.Message);
                         await Login(action, cancellationToken).ConfigureAwait(false);
 
                         // 再次执行当前请求
@@ -528,7 +528,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
         else
         {
-            throw new NotSupportedException("流式调用当前仅支持 TCP RPC 模式（ApiClient），不支持 HTTP 模式");
+            throw new NotSupportedException(L.T("Streaming calls currently support only the TCP RPC mode (ApiClient), not the HTTP mode"));
         }
     }
 
@@ -557,7 +557,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     {
         if (!NetworkInterface.GetIsNetworkAvailable())
         {
-            WriteLog("网络不可达，延迟连接服务器");
+            WriteLog("Network unreachable, delaying the connection to the server");
             return;
         }
 
@@ -604,7 +604,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         // 如果正在登录，则稍等一会，避免重复登录。
         if (Status == LoginStatus.LoggingIn)
         {
-            Log?.Write(level, "[{0}]正在登录，请稍等{1}ms！序号：{2}，来源：{3}", Name, 50 * 100, times, source);
+            Log?.Write(level, "[{0}]Logging in, please wait {1}ms! Sequence: {2}, Source: {3}", Name, 50 * 100, times, source);
             for (var i = 0; Status == LoginStatus.LoggingIn && i < 50; i++)
             {
                 await TaskEx.Delay(100, cancellationToken).ConfigureAwait(false);
@@ -619,7 +619,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         ILoginRequest? request = null;
         ILoginResponse? response = null;
         using var span = Tracer?.NewSpan(nameof(Login), new { Code, source, Server });
-        Log?.Write(level, "[{0}]登录：{1}，序号：{2}，来源：{3}", Name, Code, times, source);
+        Log?.Write(level, "[{0}]Login: {1}, Sequence: {2}, Source: {3}", Name, Code, times, source);
         try
         {
             // 创建登录请求，用户可重载BuildLoginRequest实现自定义登录请求，填充更多参数
@@ -637,7 +637,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             response = await LoginAsync(request, ts.Token).ConfigureAwait(false);
             if (response == null) return null;
 
-            Log?.Write(level, "[{0}]登录成功：{1}，序号：{2}，来源：{3}", Name, response, times, source);
+            Log?.Write(level, "[{0}]Login succeeded: {1}, Sequence: {2}, Source: {3}", Name, response, times, source);
 
             // 登录后设置用于用户认证的token
             SetToken(response.Token);
@@ -646,7 +646,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
         catch (Exception ex)
         {
-            Log?.Write(level, "[{0}]登录失败：{1}，序号：{2}，来源：{3}", Name, ex.Message, times, source);
+            Log?.Write(level, "[{0}]Login failed: {1}, Sequence: {2}, Source: {3}", Name, ex.Message, times, source);
 
             Status = LoginStatus.Ready;
             span?.SetError(ex, null);
@@ -668,7 +668,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         // 登录成果。服务端执行自动注册时，可能有下发编码和密钥
         if (!response.Code.IsNullOrEmpty() && !response.Secret.IsNullOrEmpty())
         {
-            WriteLog("下发密钥：{0}/{1}", response.Code, response.Secret);
+            WriteLog("Issued secret: {0}/{1}", response.Code, response.Secret);
             Code = response.Code;
             Secret = response.Secret;
 
@@ -692,7 +692,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
         catch (Exception ex)
         {
-            Log?.Error("[{0}]OnLogined事件异常: {1}", Name, ex.Message);
+            Log?.Error("[{0}]OnLogined event error: {1}", Name, ex.Message);
         }
 
         return response;
@@ -773,7 +773,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (!Logined) return null;
 
         using var span = Tracer?.NewSpan(nameof(Logout), reason);
-        WriteLog("注销：{0} {1}", Code, reason);
+        WriteLog("Logout: {0} {1}", Code, reason);
 
         try
         {
@@ -896,14 +896,14 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 Status = LoginStatus.Ready;
                 if (Features.HasFlag(Features.Login))
                 {
-                    Log?.Debug("[{0}]重新登录，因心跳失败：{1}", Name, ex.Message);
+                    Log?.Debug("[{0}]Re-login because heartbeat failed: {1}", Name, ex.Message);
                     await Login(nameof(Ping), cancellationToken).ConfigureAwait(false);
                 }
 
                 return null;
             }
 
-            Log?.Debug("[{0}]心跳异常：{1}", Name, ex.GetTrue().Message);
+            Log?.Debug("[{0}]Heartbeat error: {1}", Name, ex.GetTrue().Message);
 
             // 常见网络断开错误不要抛出异常
             if (ex2 is IOException || ex2 is SocketException sex && sex.SocketErrorCode == SocketError.ConnectionReset)
@@ -997,9 +997,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         // 参数作为通道
         var channel = arguments;
         var rs = await Upgrade(channel).ConfigureAwait(false);
-        if (rs == null) return "没有可用更新！";
+        if (rs == null) return L.T("No update available!");
 
-        return $"成功更新到[{rs.Version}]";
+        return L.T("Successfully updated to [{0}]", rs.Version);
     }
 
     private String? _lastVersion;
@@ -1010,7 +1010,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     public virtual async Task<IUpgradeInfo?> Upgrade(String? channel, CancellationToken cancellationToken = default)
     {
         using var span = Tracer?.NewSpan(nameof(Upgrade));
-        WriteLog("检查更新");
+        WriteLog("Checking for updates");
 
         // 清理旧版备份文件
         var ug = new Upgrade { Log = Log };
@@ -1021,8 +1021,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         if (info == null || info.Version == _lastVersion) return info;
 
         // _lastVersion避免频繁更新同一个版本
-        WriteLog("发现更新：{0}", info.ToJson(true));
-        this.WriteInfoEvent("Upgrade", $"准备从[{_lastVersion}]更新到[{info.Version}]，开始下载 {info.Source}");
+        WriteLog("Update found: {0}", info.ToJson(true));
+        this.WriteInfoEvent("Upgrade", L.T("Preparing to update from [{1}] to [{2}], downloading {0}", info.Source, _lastVersion, info.Version));
 
         try
         {
@@ -1033,26 +1033,26 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             // 检查文件完整性
             if (!info.FileHash.IsNullOrEmpty() && !ug.CheckFileHash(info.FileHash))
             {
-                this.WriteInfoEvent("Upgrade", "下载完成，哈希校验失败");
+                this.WriteInfoEvent("Upgrade", L.T("Download completed, hash verification failed"));
             }
             else
             {
-                this.WriteInfoEvent("Upgrade", "下载完成，准备解压文件");
+                this.WriteInfoEvent("Upgrade", L.T("Download completed, preparing to extract files"));
                 if (!ug.Extract())
                 {
-                    this.WriteInfoEvent("Upgrade", "解压失败");
+                    this.WriteInfoEvent("Upgrade", L.T("Extraction failed"));
                 }
                 else
                 {
                     var info2 = info as IUpgradeInfo2;
                     if (info2 != null && !info2.Preinstall.IsNullOrEmpty())
                     {
-                        this.WriteInfoEvent("Upgrade", "执行预安装脚本");
+                        this.WriteInfoEvent("Upgrade", L.T("Running the pre-install script"));
 
                         ug.Run(info2.Preinstall);
                     }
 
-                    this.WriteInfoEvent("Upgrade", "解压完成，准备覆盖文件");
+                    this.WriteInfoEvent("Upgrade", L.T("Extraction completed, preparing to overwrite files"));
 
                     // 执行更新，解压缩覆盖文件
                     var rs = ug.Update();
@@ -1070,7 +1070,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         {
             span?.SetError(ex, null);
             //Log?.Error(ex.ToString());
-            this.WriteErrorEvent("Upgrade", $"更新失败！{ex.Message}");
+            this.WriteErrorEvent("Upgrade", L.T("Update failed! {0}", ex.Message));
             throw;
         }
 
@@ -1105,7 +1105,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         {
             // 首次失败可能是慢速存储落盘延迟或 JIT 冷启动，等待后重试一次
             var delay = 5_000;
-            this.WriteInfoEvent("Upgrade", $"新版首次启动失败，等待{delay}ms后重试。{upgrade.LastErrorMessage}");
+            this.WriteInfoEvent("Upgrade", L.T("The new version failed to start for the first time, retrying after {0}ms. {1}", delay, upgrade.LastErrorMessage));
             Thread.Sleep(delay);
             rs = upgrade.Run(name, gs, 3_000);
         }
@@ -1114,7 +1114,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         {
             // 新版启动成功（冒烟测试通过），旧版退出
             var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
-            this.WriteInfoEvent("Upgrade", "强制更新完成，新进程已拉起，准备退出当前进程！PID=" + pid);
+            this.WriteInfoEvent("Upgrade", L.T("Forced update completed, the new process has started, exiting the current process! PID={0}", pid));
 
             upgrade.KillSelf();
         }
@@ -1122,7 +1122,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         {
             // 两次均失败，确认新版有致命缺陷，回滚 .del 恢复旧版文件，旧进程继续运行
             upgrade.Rollback();
-            this.WriteInfoEvent("Upgrade", "新版启动失败（冒烟测试不通过），已回滚旧版文件，当前服务继续运行。" + upgrade.LastErrorMessage);
+            this.WriteInfoEvent("Upgrade", L.T("The new version failed to start (smoke test failed); the old files have been rolled back and the current service keeps running. {0}", upgrade.LastErrorMessage));
         }
     }
 
@@ -1271,7 +1271,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             await ValidWebSocket(http).ConfigureAwait(false);
 
             // 令牌为空或未启用 Notify 时，WebSocket 通道可能未建立
-            if (_ws == null || !_ws.Active) throw new InvalidOperationException("WebSocket通道不可用，无法发送上行消息");
+            if (_ws == null || !_ws.Active) throw new InvalidOperationException(L.T("The WebSocket channel is unavailable; cannot send upstream messages"));
 
             await _ws.SendTextAsync(packet, cancellationToken).ConfigureAwait(false);
         }
@@ -1303,7 +1303,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     await ReceiveCommand(model, str, source, cancellationToken).ConfigureAwait(false);
                 }
                 else
-                    throw new InvalidDataException("无效命令！");
+                    throw new InvalidDataException(L.T("Invalid command!"));
             }
         }
     }
@@ -1337,7 +1337,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             // 有效期判断前把UTC转为本地时间
             var now = GetNow();
             var expire = model.Expire.ToLocalTime();
-            WriteLog("[{0}] 收到命令: {1}", source, message);
+            WriteLog("[{0}] Command received: {1}", source, message);
             if (expire.Year < 2000 || expire > now)
             {
                 // 延迟执行
@@ -1363,12 +1363,12 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                                 await TaskEx.Delay(step).ConfigureAwait(false);
                                 remain -= step;
                             }
-                            WriteLog("[{0}] 延迟执行: {1}", source, message);
+                            WriteLog("[{0}] Delayed execution: {1}", source, message);
                             await OnReceiveCommand(model, message, CancellationToken.None).ConfigureAwait(false);
                         }
                         catch (Exception ex)
                         {
-                            Log?.Error("延迟命令执行失败: {0}", ex.Message);
+                            Log?.Error("Delayed command execution failed: {0}", ex.Message);
                         }
                     }, cancellationToken);
 
@@ -1376,7 +1376,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     {
                         Id = model.Id,
                         Status = CommandStatus.处理中,
-                        Data = $"已安排计划执行 {startTime.ToFullString()}"
+                        Data = L.T("Scheduled execution at {0}", startTime.ToFullString())
                     };
 
                     if (Features.HasFlag(Features.CommandReply))

@@ -120,7 +120,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
     /// <returns>命令响应，超时或 fire-and-forget 时返回 null</returns>
     public virtual async Task<CommandReplyModel?> PublishAsync(String code, CommandModel command, String? message, Int32 timeout = 0, CancellationToken cancellationToken = default)
     {
-        if (command == null && message.IsNullOrEmpty()) throw new ArgumentNullException(nameof(command), "命令和消息不能同时为空");
+        if (command == null && message.IsNullOrEmpty()) throw new ArgumentNullException(nameof(command), L.T("Command and message cannot both be empty"));
 
         if (command != null && command.TraceId.IsNullOrEmpty()) command.TraceId = DefaultSpan.Current?.TraceId;
         if (message.IsNullOrEmpty() && command != null)
@@ -175,7 +175,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
             bus ??= new EventBus<String>();
 
             // 订阅总线事件到 OnMessage
-            span?.AppendTag($"订阅[{Topic}]的总线事件到OnMessage，再根据消息头的设备号分发给各Session，一般是WebSocket下发指令");
+            span?.AppendTag(L.T("Subscribed bus events of [{0}] to OnMessage, dispatching to sessions by device code in the message header; typically used for WebSocket commands", Topic));
             bus.Subscribe(OnMessage);
 
             return bus;
@@ -236,7 +236,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
                 span?.Value = 1;
             }
             else
-                span?.AppendTag($"未找到编号为[{code}]的会话，无法处理消息。");
+                span?.AppendTag(L.T("Session [{0}] not found, cannot process the message.", code));
         }
     }
     #endregion
@@ -370,7 +370,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
                 _responseBus ??= _cacheProvider?.CreateEventBus<String>(topic, ClientId);
                 _responseBus ??= new EventBus<String>();
 
-                span?.AppendTag($"订阅[{topic}]的总线事件到OnCommandResponse，用于匹配命令响应回调");
+                span?.AppendTag(L.T("Subscribed bus events of [{0}] to OnCommandResponse to match command response callbacks", topic));
                 _responseBus.Subscribe(OnCommandResponse);
             }
             catch (Exception ex)
@@ -552,7 +552,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
             // 记录日志
             if (item.Value is ILogFeature lf)
-                lf.Log?.Info("[{0}]不活跃销毁", item.Key);
+                lf.Log?.Info("[{0}]Destroyed due to inactivity", item.Key);
 
             // 关闭并释放会话
             if (item.Value is INetSession ss) ss.Close(nameof(RemoveNotAlive));

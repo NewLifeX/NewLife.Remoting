@@ -522,7 +522,7 @@ public class BaseDeviceControllerTests
 
         var model = new CommandInModel { Code = "", Command = "restart" };
         var ex = await Assert.ThrowsAsync<ArgumentNullException>(() => controller.SendCommand(model));
-        Assert.Contains("编码", ex.Message);
+        Assert.Contains("Code must be specified", ex.Message);
     }
 
     [Fact]
@@ -535,7 +535,7 @@ public class BaseDeviceControllerTests
 
         var model = new CommandInModel { Code = "dev-001", Command = "" };
         var ex = await Assert.ThrowsAsync<ArgumentNullException>(() => controller.SendCommand(model));
-        Assert.Contains("命令", ex.Message);
+        Assert.Contains("Command must be specified", ex.Message);
     }
     #endregion
 
@@ -592,7 +592,7 @@ public class BaseDeviceControllerTests
 
         Assert.IsType<BadRequestObjectResult>(result);
         var badRequest = (BadRequestObjectResult)result;
-        Assert.Equal("不是WebSocket请求", badRequest.Value);
+        Assert.Equal("Not a WebSocket request", badRequest.Value);
     }
     #endregion
 }

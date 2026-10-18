@@ -171,7 +171,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             span?.SetError(ex, null);
-            Log?.WriteLog("WebSocket发送异常", false, ex.Message);
+            Log?.WriteLog("WebSocket send error", false, ex.Message);
         }
     }
     #endregion
@@ -189,7 +189,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
     /// <returns></returns>
     public override async Task WaitAsync(DeviceContext context, CancellationToken cancellationToken)
     {
-        var ctx = context["HttpContext"] as HttpContext ?? throw new InvalidOperationException("缺少HttpContext");
+        var ctx = context["HttpContext"] as HttpContext ?? throw new InvalidOperationException(L.T("Missing HttpContext"));
 
         // 获取远程地址信息
         var connection = ctx.Connection;
@@ -198,7 +198,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
         var remote = new IPEndPoint(address, connection.RemotePort);
         var sid = Rand.Next();
 
-        Log?.WriteLog("WebSocket连接", true, $"State={socket.State} sid={sid} Remote={remote}");
+        Log?.WriteLog("WebSocket connected", true, $"State={socket.State} sid={sid} Remote={remote}");
 
         // 通知上线
         SetOnline?.Invoke(true);
@@ -229,10 +229,10 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
         catch (ObjectDisposedException) { }
         catch (WebSocketException ex)
         {
-            Log?.WriteLog("WebSocket异常", false, ex.Message);
+            Log?.WriteLog("WebSocket error", false, ex.Message);
         }
 
-        Log?.WriteLog("WebSocket断开", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
+        Log?.WriteLog("WebSocket disconnected", true, $"State={socket.State} CloseStatus={socket.CloseStatus} sid={sid} Remote={remote}");
 
         // 通知下线
         SetOnline?.Invoke(false);
@@ -266,7 +266,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
                 catch (ObjectDisposedException) { break; }
                 catch (WebSocketException ex) when (!source.IsCancellationRequested)
                 {
-                    Log?.WriteLog("WebSocket异常", false, ex.Message);
+                    Log?.WriteLog("WebSocket error", false, ex.Message);
                     break;
                 }
                 catch (Exception ex) when (!source.IsCancellationRequested)

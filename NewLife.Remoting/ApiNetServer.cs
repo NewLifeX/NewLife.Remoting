@@ -87,7 +87,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
             // 若此处触发，说明下层编解码实现存在设计缺陷
             if (msg.Payload == null)
             {
-                WriteLog("Payload 不应为 null，请检查下层编解码实现");
+                WriteLog("Payload should not be null, check the underlying codec implementation");
                 return;
             }
 
@@ -109,7 +109,7 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
                     // 若触发则说明下层消息投递逻辑存在设计缺陷
                     if (m is not IMessage msg2 || msg2.Payload == null)
                     {
-                        WriteLog("线程池回调收到非法消息，不应发生，请检查下层消息投递实现");
+                        WriteLog("Thread pool callback received an invalid message, check the underlying message dispatch implementation");
                         return;
                     }
 

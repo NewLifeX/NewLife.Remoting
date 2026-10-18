@@ -129,7 +129,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         var ms = Manager.Services;
         if (ms.Count > 0)
         {
-            Log.Info("{0} 可用服务{1}个：", Name, ms.Count);
+            Log.Info("{0} has {1} available services:", Name, ms.Count);
             var max = ms.Max(e => e.Key.Length);
             foreach (var item in ms)
             {
@@ -192,7 +192,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         var svr = Server;
         if (svr != null) return svr;
 
-        if (Port < 0) throw new ArgumentNullException(nameof(Server), "未指定服务器Server，且未指定端口Port！");
+        if (Port < 0) throw new ArgumentNullException(nameof(Server), L.T("Neither Server nor Port is specified!"));
 
         var server = new ApiNetServer
         {
@@ -232,9 +232,9 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
 
         Encoder.Log = EncoderLog;
 
-        Log.Info("启动[{0}]", Name);
-        Log.Info("编码：{0}", Encoder);
-        Log.Info("处理：{0}", Handler);
+        Log.Info("Starting [{0}]", Name);
+        Log.Info("Encoder: {0}", Encoder);
+        Log.Info("Handler: {0}", Handler);
 
         var svr = EnsureCreate();
 
@@ -309,18 +309,18 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         catch (Exception ex) when (port > 0 && HttpPort == 0)
         {
             // 自动端口被占用时退回系统随机端口
-            Log.Warn("Http端口[{0}]启动失败，改用随机端口：{1}", port, ex.Message);
+            Log.Warn("HTTP port [{0}] failed to start, falling back to a random port: {1}", port, ex.Message);
 
             svr.TryDispose();
 
-            svr = CreateHttpServer(0) ?? throw new InvalidOperationException($"无法创建Http服务器，端口[{port}]");
+            svr = CreateHttpServer(0) ?? throw new InvalidOperationException(L.T("Cannot create HTTP server on port [{0}]", port));
             svr.Start();
         }
 
         HttpServer = svr;
         HttpPort = svr.Port;
 
-        Log.Info("Http服务端口：{0}", HttpPort);
+        Log.Info("HTTP service port: {0}", HttpPort);
 
         return svr;
     }
@@ -353,7 +353,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
 
         _Timer.TryDispose();
 
-        Log.Info("停止{0} {1}", GetType().Name, reason);
+        Log.Info("Stopping {0} {1}", GetType().Name, reason);
         Server.Stop(reason ?? (GetType().Name + "Stop"));
         HttpServer?.Stop(reason ?? (GetType().Name + "Stop"));
 
@@ -456,7 +456,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
                     code = 500;
                     // 数据库异常脱敏，避免泄漏 SQL 语句
                     result = ex.GetType().FullName == "XCode.Exceptions.XSqlException"
-                        ? "数据库SQL错误"
+                        ? L.T("Database SQL error")
                         : ex.Message;
                 }
 
@@ -486,7 +486,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         {
             var msCost = st.StopCount(sw) / 1000;
             if (SlowTrace > 0 && msCost >= SlowTrace)
-                WriteLog($"慢处理[{request?.Action}]，Code={code}，耗时{msCost:n0}ms");
+                WriteLog("Slow processing [{0}], Code={1}, elapsed {2:n0}ms", request?.Action, code, msCost);
 
             // CreateResponse 异常时 result 未纳入响应，需要释放归还 ArrayPool
             if (result != null && response == null) result.TryDispose();
@@ -569,7 +569,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     {
         var sb = Pool.StringBuilder.Get();
         var pf2 = StatProcess;
-        if (pf2 != null && pf2.Value > 0) sb.AppendFormat("处理：{0} ", pf2);
+        if (pf2 != null && pf2.Value > 0) sb.AppendFormat(L.T("Processed: {0} ", pf2));
 
         if (Server is NetServer ns)
             sb.Append(ns.GetStat());
@@ -654,7 +654,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         catch (OperationCanceledException)
         {
             // 客户端断开导致的取消，静默结束
-            WriteLog("流式调用已取消（客户端断开）");
+            WriteLog("Streaming call canceled (client disconnected)");
         }
     }
 
@@ -680,7 +680,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         var iface = resultType.GetInterfaces().FirstOrDefault(i =>
             i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>));
         if (iface == null)
-            throw new InvalidOperationException($"流式返回类型 {resultType.FullName} 未实现 IAsyncEnumerable<T>");
+            throw new InvalidOperationException(L.T("Streaming return type {0} does not implement IAsyncEnumerable<T>", resultType.FullName));
 
         var elementType = iface.GetGenericArguments()[0];
 
@@ -692,10 +692,10 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
         }
 
         // 回退：运行期泛型实例化，仅动态代码可用时成立
-        DynamicCode.ThrowIfNotSupported($"值类型流式返回 IAsyncEnumerable<{elementType.Name}>");
+        DynamicCode.ThrowIfNotSupported(L.T("value type streaming return IAsyncEnumerable<{0}>", elementType.Name));
 
         var helperMethod = typeof(ApiStreamPump).GetMethod(nameof(ApiStreamPump.PumpAsync), BindingFlags.Public | BindingFlags.Static)
-            ?? throw new InvalidOperationException("找不到 PumpAsync 方法");
+            ?? throw new InvalidOperationException(L.T("Cannot find the PumpAsync method"));
         var genericHelper = helperMethod.MakeGenericMethod(elementType);
         var invokeTask = (Task)genericHelper.Invoke(null, [streamResult, session, msg, action, enc, cancellationToken])!;
         await invokeTask.ConfigureAwait(false);

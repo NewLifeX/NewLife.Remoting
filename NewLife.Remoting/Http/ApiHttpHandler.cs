@@ -27,16 +27,16 @@ class ApiHttpHandler(ApiHttpServer server) : IHttpHandler
         // SRMP-over-WS 已取消：Core 会在路由前完成 WS 握手，这里明确拒绝，避免客户端拿到 101 之后空等
         if (context.WebSocket != null)
         {
-            server.Log.Warn("拒绝WebSocket握手 {0} {1}", request.Method, request.RequestUri);
+            server.Log.Warn("Rejected WebSocket handshake {0} {1}", request.Method, request.RequestUri);
 
             context.Response.StatusCode = HttpStatusCode.NotImplemented;
             context.Response.ContentType = "text/plain";
-            context.Response.Body = (ArrayPacket)"WebSocket通道不受支持，SRMP请使用tcp/udp，HTTP请使用本端口".GetBytes();
+            context.Response.Body = (ArrayPacket)L.T("The WebSocket channel is not supported; use tcp/udp for SRMP and this port for HTTP").GetBytes();
 
             return;
         }
 
-        if (server.Host is not ApiServer host) throw new InvalidOperationException($"Http服务端[{server.Name}]的主机不是ApiServer");
+        if (server.Host is not ApiServer host) throw new InvalidOperationException(L.T("Host of HTTP server [{0}] is not an ApiServer", server.Name));
 
         var session = new ApiHttpSession(server) { ["Encoder"] = server.Encoder };
 
@@ -151,12 +151,12 @@ class ApiHttpSession(ApiHttpServer server) : IApiSession
     /// <param name="args">参数</param>
     /// <param name="flag">标识</param>
     /// <returns>写入的字节数</returns>
-    public Int32 InvokeOneWay(String action, Object? args = null, Byte flag = 0) => throw new NotSupportedException("HTTP通道为请求-响应模型，不支持服务端主动调用");
+    public Int32 InvokeOneWay(String action, Object? args = null, Byte flag = 0) => throw new NotSupportedException(L.T("The HTTP channel is a request-response model and does not support server-initiated calls"));
 
     /// <summary>发送消息。用于流式推送等场景</summary>
     /// <param name="msg">消息</param>
     /// <returns>写入的字节数</returns>
-    public Int32 SendMessage(IMessage msg) => throw new NotSupportedException("HTTP通道不支持服务端流式推送，请改用tcp/udp通道");
+    public Int32 SendMessage(IMessage msg) => throw new NotSupportedException(L.T("The HTTP channel does not support server-side streaming push; use the tcp/udp channel instead"));
 
     /// <summary>返回会话描述</summary>
     /// <returns></returns>

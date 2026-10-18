@@ -24,6 +24,12 @@ internal static class TestPort
     /// <summary>候选池大小</summary>
     private const Int32 PoolSize = 9000;
 
+    /// <summary>候选池分片数。多目标框架并行跑测试时，按进程号错开起始位置，避免两个测试进程选到同一端口</summary>
+    private const Int32 ShardCount = 8;
+
+    /// <summary>本进程的分片偏移</summary>
+    private static readonly Int32 _shardOffset = (Int32)(Environment.ProcessId % ShardCount) * (PoolSize / ShardCount);
+
     private static Int32 _cursor = -1;
 
     /// <summary>本次运行已分配过的端口。不复用，避免 ReuseAddress 下两个实例绑到同一端口</summary>
@@ -35,7 +41,7 @@ internal static class TestPort
     /// <returns>可用于双协议服务器监听的端口</returns>
     public static Int32 PickDual()
     {
-        var start = Interlocked.Increment(ref _cursor);
+        var start = Interlocked.Increment(ref _cursor) + _shardOffset;
 
         for (var i = 0; i < PoolSize; i++)
         {

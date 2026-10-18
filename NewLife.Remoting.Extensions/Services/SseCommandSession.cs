@@ -99,7 +99,7 @@ public class SseCommandSession : CommandSession
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            Log?.WriteLog("SSE发送命令失败", false, ex.Message);
+            Log?.WriteLog("Failed to send SSE command", false, ex.Message);
         }
     }
     #endregion
@@ -137,7 +137,7 @@ public class SseCommandSession : CommandSession
             await _body.FlushAsync(source.Token).ConfigureAwait(false);
 
             // 保持连接，定期发送心跳
-            Log?.WriteLog("SSE连接", true, $"Code={Code}");
+            Log?.WriteLog("SSE connected", true, $"Code={Code}");
 
             while (!source.IsCancellationRequested)
             {
@@ -153,7 +153,7 @@ public class SseCommandSession : CommandSession
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex)
                 {
-                    Log?.WriteLog("SSE心跳异常", false, ex.Message);
+                    Log?.WriteLog("SSE heartbeat error", false, ex.Message);
                     break;
                 }
             }
@@ -163,7 +163,7 @@ public class SseCommandSession : CommandSession
             _source = null;
         }
 
-        Log?.WriteLog("SSE断开", true, $"Code={Code}");
+        Log?.WriteLog("SSE disconnected", true, $"Code={Code}");
 
         // 通知下线
         SetOnline?.Invoke(false);

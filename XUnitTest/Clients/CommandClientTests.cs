@@ -203,7 +203,7 @@ public class CommandClientTests
         // Assert
         Assert.NotNull(result);
         Assert.Equal(CommandStatus.错误, result.Status);
-        Assert.Contains("找不到服务", result.Data);
+        Assert.Contains("Cannot find service", result.Data);
     }
 
     /// <summary>测试命令名称不区分大小写</summary>

@@ -89,18 +89,18 @@ class ApiHttpServer : DisposeBase, IApiServer
     /// <summary>开始</summary>
     public virtual void Start()
     {
-        Log.Info("启动Http服务端[{0}]，端口 {1}", Name, Port);
+        Log.Info("Starting HTTP server [{0}], port {1}", Name, Port);
 
         Server.Start();
 
-        Log.Info("Http服务端[{0}]就绪，端口 {1}", Name, Port);
+        Log.Info("HTTP server [{0}] ready, port {1}", Name, Port);
     }
 
     /// <summary>停止</summary>
     /// <param name="reason">关闭原因。便于日志分析</param>
     public virtual void Stop(String reason)
     {
-        Log.Info("停止Http服务端[{0}] {1}", Name, reason);
+        Log.Info("Stopping HTTP server [{0}] {1}", Name, reason);
 
         Server.Stop(reason);
     }

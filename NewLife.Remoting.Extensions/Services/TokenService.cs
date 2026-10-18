@@ -27,7 +27,7 @@ public class TokenService(ITokenSetting tokenSetting, ITracer tracer, ICacheProv
     {
         var ss = tokenSetting.TokenSecret.Split(':');
         if (ss.Length < 2 || ss[0].IsNullOrEmpty() || ss[1].IsNullOrEmpty())
-            throw new InvalidOperationException("令牌密钥格式错误，应为 算法:密钥，例如 HS256:xxxx");
+            throw new InvalidOperationException(L.T("Invalid token secret format; expected algorithm:secret, for example HS256:xxxx"));
 
         return new JwtBuilder
         {
@@ -108,9 +108,9 @@ public class TokenService(ITokenSetting tokenSetting, ITracer tracer, ICacheProv
 
         Exception? ex = null;
         if (!jwt.TryDecode(token, out var message))
-            ex = new ApiException(ApiCode.Unauthorized, $"非法访问[{jwt.Subject}] {message}");
+            ex = new ApiException(ApiCode.Unauthorized, L.T("Illegal access [{0}] {1}", jwt.Subject, message));
         else if (IsRevoked(token))
-            ex = new ApiException(ApiCode.Unauthorized, "令牌已吊销！");
+            ex = new ApiException(ApiCode.Unauthorized, L.T("The token has been revoked!"));
 
         return (jwt, ex);
     }

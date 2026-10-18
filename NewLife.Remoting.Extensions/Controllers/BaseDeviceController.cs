@@ -52,7 +52,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
         var rs = _deviceService.Login(Context, request, "Http");
 
         var dv = Context.Device;
-        if (dv == null) throw new ApiException(ApiCode.Forbidden, "未找到设备");
+        if (dv == null) throw new ApiException(ApiCode.Forbidden, L.T("Device not found"));
 
         rs ??= new LoginResponse { Name = dv.Name, };
 
@@ -138,7 +138,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     [HttpPost(nameof(Upgrade))]
     public virtual IUpgradeInfo? Upgrade(String? channel)
     {
-        if (Context.Device == null) throw new ApiException(ApiCode.Unauthorized, "未登录");
+        if (Context.Device == null) throw new ApiException(ApiCode.Unauthorized, L.T("Not logged in"));
 
         // 提取基础路径（scheme://host），兼容 http/https
         var uri = Request.GetRawUrl().ToString();
@@ -178,7 +178,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
             return new EmptyResult();
         }
 
-        return BadRequest("不是WebSocket请求");
+        return BadRequest(L.T("Not a WebSocket request"));
     }
 
     /// <summary>SSE 下行通知。WebSocket 不可用时的降级通道，通过 Server-Sent Events 单向推送命令</summary>
@@ -205,7 +205,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     // 与 Endpoints/RemotingEndpoints 的长连接装配段互为镜像，修改须同步
     protected virtual async Task HandleNotify(DeviceContext context, String spanName, CommandSession session, CancellationToken cancellationToken)
     {
-        var device = context.Device ?? throw new ApiException(ApiCode.Unauthorized, "未登录");
+        var device = context.Device ?? throw new ApiException(ApiCode.Unauthorized, L.T("Not logged in"));
 
         using var span = _tracer?.NewSpan(spanName, device.Code);
         span?.Detach(HttpContext.Request.Headers);
@@ -266,8 +266,8 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     public virtual Task<CommandReplyModel?> SendCommand(CommandInModel model)
     {
         ArgumentNullException.ThrowIfNull(model);
-        if (model.Code.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Code), "必须指定编码");
-        if (model.Command.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Command), "必须指定命令");
+        if (model.Code.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Code), L.T("Code must be specified"));
+        if (model.Command.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Command), L.T("Command must be specified"));
 
         return _deviceService.SendCommand(Context, model, HttpContext.RequestAborted);
     }

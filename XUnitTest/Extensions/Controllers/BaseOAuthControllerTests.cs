@@ -166,7 +166,7 @@ public class BaseOAuthControllerTests
 
         var ex = Assert.Throws<ApiException>(() => ctrl.Token(new TokenInModel { grant_type = "refresh_token", refresh_token = tm.AccessToken }));
         Assert.Equal(ApiCode.Unauthorized, ex.Code);
-        Assert.Contains("访问令牌不能作为刷新令牌使用", ex.Message);
+        Assert.Contains("An access token cannot be used as a refresh token", ex.Message);
     }
 
     [Fact, DisplayName("未支持的授权类型抛出NotSupported")]

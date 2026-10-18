@@ -80,7 +80,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         var code = request.Code;
         var device = context.Device;
         if (device == null && !code.IsNullOrEmpty()) device = QueryDevice(code);
-        if (device != null && !device.Enable) throw new ApiException(ApiCode.Forbidden, "禁止登录");
+        if (device != null && !device.Enable) throw new ApiException(ApiCode.Forbidden, L.T("Login is forbidden"));
         if (device != null)
         {
             context.Device = device;
@@ -104,7 +104,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
             autoReg = true;
         }
 
-        if (device == null) throw new ApiException(ApiCode.Unauthorized, "登录失败");
+        if (device == null) throw new ApiException(ApiCode.Unauthorized, L.T("Login failed"));
 
         // 注册完成后，需要尽快更新上下文
         context.Device = device;
@@ -422,7 +422,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
             using var span = _tracer?.NewSpan($"{Name}CreateOnline", new { context.Code, context.ClientId });
 
             if (context.Device is not IDeviceModel2 device)
-                throw new InvalidDataException($"创建在线对象需要{GetType().FullName}重载CreateOnline或者设备实体类{typeof(TDevice).FullName}实现IDeviceModel2");
+                throw new InvalidDataException(L.T("Creating an online object requires {0} to override CreateOnline or the device entity {1} to implement IDeviceModel2", GetType().FullName, typeof(TDevice).FullName));
 
             online = device.CreateOnline(sid);
             if (online is IEntity entity)
@@ -526,7 +526,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         ArgumentNullException.ThrowIfNull(model);
 
         var target = GetDevice(model.Code!);
-        if (target == null) throw new ArgumentNullException(nameof(model.Code), "未找到指定设备 " + model.Code);
+        if (target == null) throw new ArgumentNullException(nameof(model.Code), L.T("Cannot find device {0}", model.Code));
 
         // 验证令牌。[AllowAnonymous] 接口（如 SendCommand）使用应用令牌而非设备令牌：
         // 若未注册 ITokenService（测试环境），则跳过；注册了则必须携带合法令牌。
@@ -534,7 +534,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         if (tokenService != null)
         {
             if (context.Token.IsNullOrEmpty())
-                throw new ApiException(ApiCode.Unauthorized, "SendCommand 需要应用令牌");
+                throw new ApiException(ApiCode.Unauthorized, L.T("SendCommand requires an application token"));
             var (jwt, ex) = tokenService.DecodeToken(context.Token);
             if (ex != null) throw ex;
         }
@@ -557,9 +557,9 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
             using var span = _tracer?.NewSpan($"cmd:CommandReply", reply);
 
             if (reply.Status == CommandStatus.错误)
-                throw new Exception($"命令错误！{reply.Data}");
+                throw new Exception(L.T("Command error! {0}", reply.Data));
             else if (reply.Status == CommandStatus.取消)
-                throw new Exception($"命令已取消！{reply.Data}");
+                throw new Exception(L.T("Command canceled! {0}", reply.Data));
 
             return reply;
         }
@@ -644,7 +644,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
             if (time.Year > 2000) entity.SetItem("CreateTime", time);
             return entity;
         }
-        throw new InvalidDataException($"创建事件对象失败，设备实体类{typeof(TDevice).FullName}实现IDeviceModel2但CreateHistory返回空");
+        throw new InvalidDataException(L.T("Failed to create the event object: the device entity {0} implements IDeviceModel2 but CreateHistory returned null", typeof(TDevice).FullName));
     }
     #endregion
 

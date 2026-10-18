@@ -91,7 +91,7 @@ public class ApiHttpClientTests : DisposeBase
         Assert.NotNull(ex);
         Assert.Equal(404, ex.Code);
         //Assert.True(ex.Message.EndsWith("无法找到名为[api/info3]的服务！"));
-        Assert.EndsWith("无法找到名为[api/info3]的服务！", ex.Message);
+        Assert.EndsWith("Cannot find service named [api/info3]!", ex.Message);
     }
 
     [Theory(DisplayName = "令牌测试")]

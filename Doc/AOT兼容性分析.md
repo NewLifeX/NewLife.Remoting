@@ -1,15 +1,15 @@
 # NewLife.Remoting AOT 兼容性现状与边界
 
-> 基线：NewLife.Core 12.0（v12 分支）+ NewLife.XCode 12.2.2026.1015-beta1338｜更新：2026-10-16｜评估方式：**NativeAOT 真实编译 + 运行实测**（win-x64，.NET 10）｜冒烟工程：`AotSmoke/`、`AotSmoke.Web/`、`AotSmoke.XCode/`
+> 基线：NewLife.Core 12.0.2026.1018-beta1517 + NewLife.XCode 12.2.2026.1017-beta1246｜更新：2026-10-19｜评估方式：**NativeAOT 真实编译 + 运行实测**（win-x64，.NET 10）｜冒烟工程：`AotSmoke/`、`AotSmoke.Web/`、`AotSmoke.XCode/`
 > 范围：核心库 `NewLife.Remoting` 全量；`NewLife.Remoting.Extensions` 的最小 API 宿主（§7）与 XCode 依赖边界（§8）。
 
 ---
 
 ## 1. 现状摘要
 
-- **核心链路实测全通**：22 场景冒烟 JIT/AOT 双通（§2.1），覆盖 RPC 注册与调用、JSON 编解码、二进制直通、参数默认值、异步动作、流式（引用类型与值类型）、HTTP 入口、依赖注入、每请求实例化、通配路由、源生成命中与回退、内置 DTO 往返、客户端基类登录/心跳/事件/注销全链路、单方法注册、指令下发闭环（客户端命令分发与回执、服务端主动下发、会话管理器路由），以及简单类型直传与升级更新链路。
+- **核心链路实测全通**：23 场景冒烟 JIT/AOT 双通（§2.1），覆盖 RPC 注册与调用、JSON 编解码、二进制直通、参数默认值、异步动作、流式（引用类型与值类型）、HTTP 入口、依赖注入、每请求实例化、通配路由、源生成命中与回退、内置 DTO 往返、客户端基类登录/心跳/事件/注销全链路、单方法注册、指令下发闭环（客户端命令分发与回执、服务端主动下发、会话管理器路由），以及简单类型直传与升级更新链路。
 - **支持方式**：沿用 NewLife.Core 的「泛型/Type 入口保留注解 + 源生成器静态表 + 动态能力守卫」三件套，并为 Remoting 增补第五条生成器通道（动作分发表 + 流式泵 + 签名类型保留），见 §3。
-- **告警面已收敛**：`IsAotCompatible` 已对 net8.0/net9.0/net10.0 常驻启用，库自身分析器告警由改造前 **19 条唯一告警** 收敛到 **0 条**；AOT 发布的 ILC 告警 **0 条**（§2.2）。
+- **告警面已收敛**：`IsAotCompatible` 已对 net8.0/net10.0 常驻启用，库自身分析器告警由改造前 **19 条唯一告警** 收敛到 **0 条**；AOT 发布的 ILC 告警 **0 条**（§2.2）。
 - **改造中发现并修复 6 处库侧 AOT 缺陷**：HTTP 响应封套与客户端注销/升级参数使用匿名类型被裁剪、动作签名模型类型成员被裁剪等。这些缺陷在 JIT 下不可见，只有真机 AOT 才会暴露（§2.3 前 6 项）。
 - **另由新增业务闭环场景暴露 2 处解码缺陷**：①声明 `Object` 返回值时，服务端返回简单类型（`Boolean` 的 `True`、`DateTime` 的完整时间文本）会抛 `Non standard Json string`，`ClientBase.CommandReply` 最易触发；②`Guid`/`TimeSpan` 等以带引号字符串字面量写包的返回值无法解码（默认 JSON 宿主不支持顶层字符串字面量）。两者 JIT 下同样复现，已在解码侧统一加固（§2.3 第 7~8 项）。
 - **Extensions（ASP.NET Core）已纳入 AOT 范围**（2026-10-10 决策：不拆新包，在本包内同时提供 MVC 与最小 API 双宿主，详见 §7）。编译期基线：`IsAotCompatible` 对 net8.0+ 常驻启用，自身告警由 **21 条收敛到 0 条**（DAM 注解 + MVC 边界抑制声明）。运行期：最小 API 宿主 **11 场景 JIT/AOT 双通**（2026-10-13），并暴露/修复 1 处内置模型元数据被裁剪的缺陷；XCode 依赖的 `DefaultDeviceService` 已于 2026-10-16 打通（XCode v12.2 静态工厂 + 应用侧工厂保留 + Microsoft.Data.Sqlite 驱动路线，探针 JIT/AOT 双 6/6），见 §8。
@@ -18,7 +18,7 @@
 
 ## 2. 实测数据
 
-### 2.1 运行期：22 场景冒烟（JIT/AOT 双通）
+### 2.1 运行期：23 场景冒烟（JIT/AOT 双通）
 
 | # | 场景 | # | 场景 |
 |---|------|---|------|
@@ -33,9 +33,10 @@
 | 17 | 单方法注册的静态委托与裁剪保留 | 18 | 客户端命令分发与回执上报 |
 | 19 | 服务端主动下发命令与设备回执 | 20 | 会话管理器命令下发与路由 |
 | 21 | 简单类型参数与返回值直传 | 22 | 升级信息与更新包处理链路 |
+| 23 | 多语言词表与本地化回退（`Locales/*.yml` 内嵌表） | — | — |
 
 > 场景 18/19/20 覆盖设备平台最典型的「指令下发」链路：客户端命令委托分发与回执（`CommandModel` 解码 → 命令匹配 → `CommandReplyModel` 上报）、服务端 `InvokeAll("Notify", …)` 主动下发（出站命令模型 JSON 不得退化为空对象）、`SessionManager.PublishAsync → code#json → 事件总线 → 会话路由`。
-> 场景 21 双向验证「简单类型不做 JSON 包装」这一设计约定（`Boolean`/`DateTime`/`Guid`/`TimeSpan`/枚举作参数与返回值）；场景 22 覆盖升级链路（`IUpgradeInfo` 接口返回类型往返、更新包哈希校验/解压/覆盖在临时目录内沙箱执行）。
+> 场景 21 双向验证「简单类型不做 JSON 包装」这一设计约定（`Boolean`/`DateTime`/`Guid`/`TimeSpan`/枚举作参数与返回值）；场景 22 覆盖升级链路（`IUpgradeInfo` 接口返回类型往返、更新包哈希校验/解压/覆盖在临时目录内沙箱执行）；场景 23 验证 NewLife.Core v12 的多语言词表在 AOT 下可用——译文以 Deflate 压缩内嵌并由模块初始化器注册，不依赖 `ResourceManager` 与卫星程序集，简体中文命中、未注册语言回退英文。
 > AOT 判真：原生发布件入口 `Assembly.Location` 为空，而 JIT 基线为磁盘路径。冒烟工程固定「严格 AOT 姿态」（`PublishAot=true` 使 SDK 把 `RuntimeFeature.IsDynamicCodeSupported` 置为 false），两种运行的该值均为 False，**不作判别依据**。
 
 ### 2.2 编译期：分析器与 ILC 告警
@@ -49,7 +50,7 @@
 | IL2067 / IL2072 | 2 + 1 | 运行时类型成员要求未满足（JSON 转换目标类型、值类型默认值构造） | 参数注解 + 改写为无需反射的默认值语义 |
 | IL3050 | 1 | 流式值类型元素的运行期泛型实例化 | 源生成器静态泵 + 闭集扎根 + `DynamicCode` 守卫 |
 
-**当前均为 0 条**：库自身构建 0 条分析器告警（net8.0/net9.0/net10.0 实测）；AOT 发布 ILC 告警 0 条（冒烟工程实测）。
+**当前均为 0 条**：库自身构建 0 条分析器告警（net8.0/net10.0 实测）；AOT 发布 ILC 告警 0 条（冒烟工程实测）。
 说明：ILC 只认 `UnconditionalSuppressMessage`，不认 `#pragma warning disable`——库内声明一律用特性。
 
 ### 2.3 改造中发现并修复的库侧缺陷
@@ -152,7 +153,7 @@ dotnet build NewLife.Remoting\NewLife.Remoting.csproj -c Release
 # 2) 源生成器单测
 dotnet test XUnitTest.SourceGenerator -c Release
 
-# 3) 冒烟实测（22 场景工程；PublishAot 写在工程文件内）
+# 3) 冒烟实测（23 场景工程；PublishAot 写在工程文件内）
 dotnet run -c Release --project AotSmoke\AotSmoke.csproj                    # JIT 姿态基线
 dotnet publish AotSmoke\AotSmoke.csproj -c Release -r win-x64 -o out        # NativeAOT 真编译（期望 0 条 ILC 告警）
 .\out\AotSmoke.exe                                                          # AOT 运行，逐场景 PASS/FAIL（非 0 退出码即失败）
@@ -227,7 +228,7 @@ dotnet publish -c Release -r win-x64 -o out
 > 实测结论：分析器随主包 `analyzers/dotnet/cs` 正常分发，消费者工程**无需任何额外配置**即自动生成动作委托；JIT 与 NativeAOT 两种姿态下 `FastInvoker` 均命中且 RPC 往返正常（ILC 0 告警）。
 
 > CI 防回归：`.github/workflows/aot.yml`（分析器零告警 + win-x64/linux-x64/linux-arm64 三工程 NativeAOT 冒烟含 XCode 探针均为硬约束）。
-> linux-loongarch64（LA64）：QEMU JIT 冒烟曾 22/22 通过，但仿真稳定性不足以长期占用 3 小时 runner，2026-10-16 起暂缓（作业配方保留、`if: false` 不执行）；龙芯覆盖由 `.github/workflows/test.yml` 的 LA64 单元测试矩阵承接（xunit 控制台运行器，绕开 VSTest 的架构限制；2026-10-16 run #317 实测 700 项 0 失败，`-notrait Requires=Sqlite` 过滤掉依赖 SQLite 驱动的样例用例——System.Data.SQLite 无 loongarch64 构建）。
+> linux-loongarch64（LA64）：QEMU JIT 冒烟曾 22/22 通过（当时场景数），但仿真稳定性不足以长期占用 3 小时 runner，2026-10-16 起暂缓（作业配方保留、`if: false` 不执行）；龙芯覆盖由 `.github/workflows/test.yml` 的 LA64 单元测试矩阵承接（xunit 控制台运行器，绕开 VSTest 的架构限制；2026-10-16 run #317 实测 700 项 0 失败，`-notrait Requires=Sqlite` 过滤掉依赖 SQLite 驱动的样例用例——System.Data.SQLite 无 loongarch64 构建）。
 >
 > 说明：受限环境下 NewLife.Core 的 `MachineInfo` 首次探测会向 stderr 打印系统错误后按空值降级，属环境行为（正常 Windows 运行环境不出现），不影响场景结果与退出码。
 

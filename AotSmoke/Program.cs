@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
@@ -59,6 +60,7 @@ internal static class Program
         await Run("20 会话管理器命令下发与路由", SessionManagerPublish);
         await Run("21 简单类型参数与返回值直传", SimpleTypeRoundTrip);
         await Run("22 升级信息与更新包处理链路", UpgradeFlow);
+        await Run("23 多语言词表与本地化回退", LocalizationTables);
 
         Console.WriteLine(_failed == 0
             ? $"=== 全部通过 {_total}/{_total} ==="
@@ -509,6 +511,33 @@ internal static class Program
         {
             try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch { }
         }
+    }
+
+    /// <summary>组件多语言词表：源生成器内嵌的压缩词表在 NativeAOT 下可直接建表，不依赖 ResourceManager 与卫星程序集</summary>
+    private static Task LocalizationTables()
+    {
+        var saved = Localization.Culture;
+        try
+        {
+            CultureInfo? zh;
+            try { zh = CultureInfo.GetCultureInfo("zh-CN"); }
+            catch (CultureNotFoundException) { return Task.CompletedTask; }
+
+            Localization.Culture = zh;
+            var text = Localization.Translate("Server address is not specified.");
+            if (text != "未指定服务端地址。") throw new Exception($"简体词表未命中：{text}");
+
+            // 未提供词表的语言回退英文原文
+            Localization.Culture = CultureInfo.GetCultureInfo("en-US");
+            text = Localization.Translate("Server address is not specified.");
+            if (text != "Server address is not specified.") throw new Exception($"英文回退异常：{text}");
+        }
+        finally
+        {
+            Localization.Culture = saved;
+        }
+
+        return Task.CompletedTask;
     }
     #endregion
 

@@ -1,10 +1,11 @@
 name: test
 
-# 单元测试矩阵：覆盖主流 RID（参考 NewLife.Core 的跨平台做法）
-#   win-x64 → windows-latest；linux-x64 → ubuntu-latest；linux-arm64 → ubuntu-24.04-arm（原生 arm64 runner）
-#   linux-loongarch64（LA64）→ ubuntu-latest + QEMU 仿真 + 龙芯 SDK（社区支持平台，无官方 runner；观察期）
+# 单元测试矩阵（参考 NewLife.Core 的跨平台做法）：目标框架 × 操作系统/指令集
+#   TFM：net10.0（最新）与 net8.0（最低受支持运行时）；netstandard2.1/netstandard2.0/net45 由全解决方案编译校验承担
+#   OS/架构：win-x64、linux-x64、linux-arm64 为阻断门禁；win-arm64 / osx-arm64 / osx-x64 / musl 为观察期
+#   linux-loongarch64（LA64）→ ubuntu-latest + QEMU 仿真 + 龙芯 SDK（社区平台，无官方 runner；观察期）
 # 触发：push / PR / 手动（workflow_dispatch）；不采用夜间定时——GitHub 为镜像仓库，同步推送即触发。
-# 用例零外部服务依赖（Samples 在 Testing 环境跳过外部连接）；未来若引入 mysql/redis/rocketmq 等依赖，可在对应 job 内直接安装。
+# 用例零外部服务依赖（Samples 在 Testing 环境跳过外部连接）。
 
 on:
   push:
@@ -14,47 +15,156 @@ on:
   workflow_dispatch:
 
 jobs:
-  # 常规三平台：主测试集 + 源生成器（硬约束）
-  test:
-    name: test (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 40
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: win-x64
-            os: windows-latest
-          - name: linux-x64
-            os: ubuntu-latest
-          - name: linux-arm64
-            os: ubuntu-24.04-arm
+  # 全解决方案编译校验（含 Samples/Benchmark/AotSmoke 等非测试工程）+ 静态门禁
+  # 门禁两项：运行时消息必须为英文、多语言词表一致（README 语言与指标由 readme.yml 负责）
+  build:
+    name: build solution
+    runs-on: windows-latest
+    timeout-minutes: 30
 
     steps:
     - uses: actions/checkout@v4
     - name: Setup dotNET
       uses: actions/setup-dotnet@v4
       with:
+        # 解决方案含 net10.0-windows（Samples/Zero.Desktop），需对应 SDK 提供 WindowsDesktop 目标包
         dotnet-version: |
-          6.x
-          7.x
           8.x
-          9.x
           10.x
+        cache: true
+        cache-dependency-path: '**/*.csproj'
+    - name: Build
+      shell: pwsh
+      # 源生成器工程既作为解决方案条目、又被多目标工程引用生成，两类实例会被并行重复生成，
+      # 偶发 CS2012（同一 obj 输出被两个编译器进程写入）；重试一次即可（第二次已是增量构建）
+      run: |
+        dotnet build NewLife.Remoting.slnx -c Release
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host '首次构建失败，重试一次（已知并行重复生成竞态）'
+          dotnet build NewLife.Remoting.slnx -c Release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+        }
+    - name: Check English runtime messages
+      shell: pwsh
+      run: pwsh -File ./check-english-exceptions.ps1
+    - name: Check locale tables
+      shell: pwsh
+      run: pwsh -File ./check-locales.ps1
+
+  # 测试矩阵：每个 TFM × OS 独立 job，job 间并行且互不争抢宿主资源（进程/端口/CPU），
+  # 每个 job 只构建自身目标框架，省去全解决方案构建的墙钟开销（编译校验由 build job 承担）
+  test:
+    name: test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    continue-on-error: ${{ matrix.experimental == true }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ============ Windows x64（阻断门禁） ============
+          - name: win-x64-net10.0
+            os: windows-latest
+            framework: net10.0
+            dotnet: |
+              8.x
+              10.x
+          - name: win-x64-net8.0
+            os: windows-latest
+            framework: net8.0
+            dotnet: |
+              8.x
+              10.x
+          # ============ Linux x64（阻断门禁） ============
+          - name: linux-x64-net10.0
+            os: ubuntu-latest
+            framework: net10.0
+            dotnet: |
+              8.x
+              10.x
+          - name: linux-x64-net8.0
+            os: ubuntu-latest
+            framework: net8.0
+            dotnet: |
+              8.x
+              10.x
+          # ============ Linux arm64（原生 runner，阻断门禁） ============
+          - name: linux-arm64-net10.0
+            os: ubuntu-24.04-arm
+            framework: net10.0
+            dotnet: |
+              8.x
+              10.x
+          - name: linux-arm64-net8.0
+            os: ubuntu-24.04-arm
+            framework: net8.0
+            dotnet: |
+              8.x
+              10.x
+          # ============ Windows arm64（观察期） ============
+          - name: win-arm64-net10.0
+            os: windows-11-arm
+            framework: net10.0
+            dotnet: 10.x
+            experimental: true
+          # ============ macOS Apple Silicon（观察期） ============
+          - name: osx-arm64-net10.0
+            os: macos-latest
+            framework: net10.0
+            dotnet: 10.x
+            experimental: true
+          # ============ macOS Intel（观察期） ============
+          - name: osx-x64-net10.0
+            os: macos-15-intel
+            framework: net10.0
+            dotnet: 10.x
+            experimental: true
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup dotNET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ matrix.dotnet }}
+        cache: true
+        cache-dependency-path: '**/*.csproj'
     - name: Build
       run: |
-        dotnet build NewLife.Remoting -c Release
-        dotnet build NewLife.Remoting.Extensions -c Release
-        dotnet build NewLife.Remoting.SourceGenerator -c Release
+        dotnet build NewLife.Remoting -c Release -f ${{ matrix.framework }}
+        dotnet build NewLife.Remoting.Extensions -c Release -f ${{ matrix.framework }}
     - name: Test (XUnitTest)
-      run: dotnet test XUnitTest -c Release --logger "trx;LogFileName=XUnitTest-${{ matrix.name }}.trx" --results-directory TestResults
-    - name: Test (XUnitTest.SourceGenerator)
-      run: dotnet test XUnitTest.SourceGenerator -c Release --logger "trx;LogFileName=SourceGenerator-${{ matrix.name }}.trx" --results-directory TestResults
+      # blame-hang：用例挂起时超时转储，便于事后定位（正常单 job 约 1 分钟，远小于 15 分钟阈值）；
+      # dump-type 取值 full/mini/none 区分大小写，写 Mini 会让 dotnet test 直接报参数错误、整个 job 秒退
+      run: dotnet test XUnitTest -c Release -f ${{ matrix.framework }} --blame-hang-timeout 15m --blame-hang-dump-type mini --logger "trx;LogFileName=XUnitTest-${{ matrix.name }}.trx" --results-directory TestResults
     - name: Upload Test Results
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: test-results-${{ matrix.name }}
+        path: TestResults/*.trx
+        if-no-files-found: ignore
+
+  # 源生成器单测：与 RID 无关，独立 job 避免在矩阵里重复执行
+  test-source-generator:
+    name: test (source generator)
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup dotNET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.x
+        cache: true
+        cache-dependency-path: '**/*.csproj'
+    - name: Test (XUnitTest.SourceGenerator)
+      run: dotnet test XUnitTest.SourceGenerator -c Release --logger "trx;LogFileName=SourceGenerator.trx" --results-directory TestResults
+    - name: Upload Test Results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-source-generator
         path: TestResults/*.trx
         if-no-files-found: ignore
 
@@ -80,6 +190,8 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.x
+        cache: true
+        cache-dependency-path: '**/*.csproj'
     - name: Test (XUnitTest.Samples)
       run: dotnet test XUnitTest.Samples -c Release --logger "trx;LogFileName=Samples-${{ matrix.name }}.trx" --results-directory TestResults
     - name: Upload Test Results
@@ -89,6 +201,42 @@ jobs:
         name: samples-results-${{ matrix.name }}
         path: TestResults/*.trx
         if-no-files-found: ignore
+
+  # musl（Alpine）容器矩阵（观察期）：覆盖 linux-musl-x64 / linux-musl-arm64 两种 libc 变体
+  # 容器内 actions/setup-dotnet 不可用，改用 dotnet-install.sh；宿主先 warm NuGet 缓存并挂载进容器复用
+  test-musl:
+    name: test (musl-${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            os: ubuntu-latest
+          - arch: arm64
+            os: ubuntu-24.04-arm
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup dotNET (warm NuGet cache)
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.x
+        cache: true
+        cache-dependency-path: '**/*.csproj'
+    - name: Test (alpine, net10.0)
+      run: |
+        docker run --rm -v "$PWD:/src" -v "$HOME/.nuget/packages:/nuget-packages" -e NUGET_PACKAGES=/nuget-packages -w /src alpine:3.20 sh -c '
+          set -e
+          apk add --no-cache bash curl icu-libs krb5-libs libgcc libstdc++ tzdata >/dev/null
+          curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+          bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet >/dev/null
+          ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
+          export DOTNET_CLI_TELEMETRY_OPTOUT=1
+          dotnet test XUnitTest -f net10.0 -c Release --nologo
+        '
 
   # 龙芯 LA64（linux-loongarch64）：无官方 runner / runtime pack / NativeAOT，QEMU 用户态仿真执行（观察期）。
   # 参考 numpy 的跨架构做法：① tonistiigi/binfmt 注册较新的 qemu-user-static（qemu 10.2.3，含 loong64；

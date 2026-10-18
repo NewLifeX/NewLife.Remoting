@@ -145,7 +145,7 @@ public class BaseControllerTests
 
         var json = Assert.IsType<JsonResult>(context.Result);
         Assert.Contains("\"code\":401", json.Value.ToJson());
-        Assert.Contains("认证失败", json.Value.ToJson());
+        Assert.Contains("Authentication failed", json.Value.ToJson());
     }
 
     [Fact, DisplayName("刷新令牌不能作为访问令牌")]
@@ -156,7 +156,7 @@ public class BaseControllerTests
 
         var ex = Assert.Throws<ApiException>(() => ctrl.OnAuthorize(tm.RefreshToken, new DeviceContext()));
         Assert.Equal(ApiCode.Unauthorized, ex.Code);
-        Assert.Contains("刷新令牌不能作为访问令牌使用", ex.Message);
+        Assert.Contains("A refresh token cannot be used as an access token", ex.Message);
     }
 
     [Fact, DisplayName("合法令牌装载设备并映射身份声明")]
@@ -189,7 +189,7 @@ public class BaseControllerTests
 
         var ex = Assert.Throws<ApiException>(() => ctrl.OnAuthorize(tm.AccessToken, new DeviceContext()));
         Assert.Equal(ApiCode.Forbidden, ex.Code);
-        Assert.Contains("无效客户端", ex.Message);
+        Assert.Contains("Invalid client", ex.Message);
     }
 
     [Fact, DisplayName("设备被禁用返回403")]
@@ -212,7 +212,7 @@ public class BaseControllerTests
         var json = Assert.IsType<JsonResult>(context.Result);
         var text = json.Value.ToJson();
         Assert.Contains("\"code\":401", text);
-        Assert.Contains("认证失败", text);
+        Assert.Contains("Authentication failed", text);
 
         // 设备上下文已暴露到 Items，供下游日志中间件使用
         Assert.NotNull(ctrl.HttpContext.Items[nameof(DeviceContext)]);

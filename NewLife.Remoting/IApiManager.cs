@@ -147,7 +147,7 @@ public class ApiManager(IServiceProvider serviceProvider) : IApiManager
         controller ??= serviceProvider?.CreateInstance(api.Type);
 
         controller ??= api.Type.CreateInstance();
-        if (controller == null) throw new InvalidDataException($"无法创建[{api.Type.FullName}]的实例");
+        if (controller == null) throw new InvalidDataException(L.T("Cannot create an instance of [{0}]", api.Type.FullName));
 
         return controller;
     }
