@@ -25,7 +25,7 @@
     <File Path="check-locales.ps1" />
     <File Path="readme-languages.json" />
     <File Path="readme-metrics.json" />
-    <File Path="Readme.MD" />
+    <File Path="README.md" />
     <File Path="sync-readme-languages.ps1" />
     <File Path="sync-readme-metrics.ps1" />
   </Folder>
