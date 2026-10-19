@@ -12,7 +12,7 @@
 <!-- metrics:start -->
 [![AOT smoke](https://img.shields.io/badge/AOT%20smoke-23%2F23-brightgreen?logo=dotnet)](Doc/AOT兼容性分析.md)
 [![TFM](https://img.shields.io/badge/TFM-7%20%28net45%20%E2%86%92%20net10.0%29-512BD4?logo=dotnet)](https://www.nuget.org/packages/NewLife.Remoting)
-[![locales](https://img.shields.io/badge/locales-2-2ea44f?logo=dotnet)](Doc/多语言本地化接入.md)
+[![locales](https://img.shields.io/badge/locales-31-2ea44f?logo=dotnet)](Doc/多语言本地化接入.md)
 <!-- metrics:end -->
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
 ![arch](https://img.shields.io/badge/arch-x64%20%7C%20arm64%20%7C%20loongarch64-orange)
@@ -63,7 +63,7 @@ NewLife.Remoting — единая инфраструктура удалённо�
 | **UPGD-обновление** | Поиск → загрузка → проверка → распаковка → замена → перезапуск |
 | **SRV-сервер** | ApiController/BaseController/BaseDeviceController, TokenService, IDeviceService; один и тот же протокол доступен через MVC и Minimal API (зеркальные реализации, закреплённые тестами) |
 | **CMD-команды** | SessionManager + широковещательная шина событий + каналы WS/SSE/Ping |
-| **L10N-локализация** | Сообщения времени выполнения используют английский как исходный текст; `Locales/*.yml` дают упрощённый и традиционный китайский, при отсутствии перевода — английский; без ResourceManager и сателлитных сборок |
+| **L10N-локализация** | Сообщения времени выполнения используют английский как исходный текст; `Locales/*.yml` содержат встроенные таблицы для 31 языка (включая упрощённый и традиционный китайский), при отсутствии перевода — английский; без ResourceManager и сателлитных сборок |
 | **Поддержка AOT** | Постоянный анализ AOT для net8.0+ (0 предупреждений в основной библиотеке и Extensions) + собственный генератор кода (таблица диспетчеризации, потоковые насосы, сохранение сигнатур); NativeAOT проверен на <!--aot-scenarios:start-->23<!--aot-scenarios:end--> сценариях, 11 сценариях Minimal API и 6 сценариях устройств XCode (см. документ AOT §8) |
 
 ## Быстрый старт

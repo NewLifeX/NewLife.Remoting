@@ -12,7 +12,7 @@
 <!-- metrics:start -->
 [![AOT smoke](https://img.shields.io/badge/AOT%20smoke-23%2F23-brightgreen?logo=dotnet)](Doc/AOT兼容性分析.md)
 [![TFM](https://img.shields.io/badge/TFM-7%20%28net45%20%E2%86%92%20net10.0%29-512BD4?logo=dotnet)](https://www.nuget.org/packages/NewLife.Remoting)
-[![locales](https://img.shields.io/badge/locales-2-2ea44f?logo=dotnet)](Doc/多语言本地化接入.md)
+[![locales](https://img.shields.io/badge/locales-31-2ea44f?logo=dotnet)](Doc/多语言本地化接入.md)
 <!-- metrics:end -->
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
 ![arch](https://img.shields.io/badge/arch-x64%20%7C%20arm64%20%7C%20loongarch64-orange)
@@ -61,7 +61,7 @@ NewLife.Remoting 是 NewLife 技术栈的统一远程通信基础设施，由两
 | **UPGD 自动更新** | 检测→下载→校验→解压→覆盖→重启全链路 |
 | **SRV 服务端基础** | ApiController/BaseController/BaseDeviceController、TokenService、IDeviceService；同一端点协议提供 MVC 与最小 API 两套宿主入口（镜像实现、测试锁定一致） |
 | **CMD 指令下发** | SessionManager + 事件总线广播 + WS/SSE/Ping 多通道 |
-| **L10N 多语言** | 运行时消息以英文为源文，`Locales/*.yml` 词表覆盖简体/繁体中文，缺译文自动回退英文；不依赖 ResourceManager 与卫星程序集 |
+| **L10N 多语言** | 运行时消息以英文为源文，`Locales/*.yml` 内置 31 种语言词表（含简体/繁体中文），缺译文自动回退英文；不依赖 ResourceManager 与卫星程序集 |
 | **AOT 支持** | net8.0+ 常驻 AOT 兼容分析（核心库 0 告警 / Extensions 0 告警）+ 自有源生成器（动作分发表/流式泵/签名类型保留），核心库 <!--aot-scenarios:start-->23<!--aot-scenarios:end--> 场景 + Extensions 最小 API 宿主 11 场景 + XCode 设备服务链路 6 场景 NativeAOT 实测通过（见 AOT 文档 §8） |
 
 ## 快速开始

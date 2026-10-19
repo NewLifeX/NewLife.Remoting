@@ -12,7 +12,7 @@
 <!-- metrics:start -->
 [![AOT smoke](https://img.shields.io/badge/AOT%20smoke-23%2F23-brightgreen?logo=dotnet)](Doc/AOT兼容性分析.md)
 [![TFM](https://img.shields.io/badge/TFM-7%20%28net45%20%E2%86%92%20net10.0%29-512BD4?logo=dotnet)](https://www.nuget.org/packages/NewLife.Remoting)
-[![locales](https://img.shields.io/badge/locales-2-2ea44f?logo=dotnet)](Doc/多语言本地化接入.md)
+[![locales](https://img.shields.io/badge/locales-31-2ea44f?logo=dotnet)](Doc/多语言本地化接入.md)
 <!-- metrics:end -->
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
 ![arch](https://img.shields.io/badge/arch-x64%20%7C%20arm64%20%7C%20loongarch64-orange)
@@ -63,7 +63,7 @@ Code source : https://github.com/NewLifeX/NewLife.Remoting
 | **UPGD mise à jour** | Détecter → télécharger → vérifier → extraire → remplacer → redémarrer |
 | **SRV base serveur** | ApiController/BaseController/BaseDeviceController, TokenService, IDeviceService ; le même protocole d'endpoint est exposé en MVC et en Minimal API (implémentations miroir verrouillées par tests) |
 | **CMD commandes** | SessionManager + diffusion par bus d'événements + canaux WS/SSE/Ping |
-| **L10N localisation** | Les messages d'exécution ont l'anglais pour texte source ; `Locales/*.yml` fournissent le chinois simplifié et traditionnel, avec repli sur l'anglais ; sans ResourceManager ni assemblys satellites |
+| **L10N localisation** | Les messages d'exécution ont l'anglais pour texte source ; `Locales/*.yml` fournissent 31 langues intégrées (dont le chinois simplifié et traditionnel), avec repli sur l'anglais ; sans ResourceManager ni assemblys satellites |
 | **Support AOT** | Analyse AOT permanente à partir de net8.0 (0 avertissement sur la bibliothèque principale et Extensions) + générateur de source interne (table de dispatch, pompes de streaming, conservation des signatures) ; NativeAOT validé sur <!--aot-scenarios:start-->23<!--aot-scenarios:end--> scénarios, 11 scénarios Minimal API et 6 scénarios d'appareils XCode (voir doc AOT §8) |
 
 ## Démarrage rapide

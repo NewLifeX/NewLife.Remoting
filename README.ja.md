@@ -12,7 +12,7 @@
 <!-- metrics:start -->
 [![AOT smoke](https://img.shields.io/badge/AOT%20smoke-23%2F23-brightgreen?logo=dotnet)](Doc/AOT兼容性分析.md)
 [![TFM](https://img.shields.io/badge/TFM-7%20%28net45%20%E2%86%92%20net10.0%29-512BD4?logo=dotnet)](https://www.nuget.org/packages/NewLife.Remoting)
-[![locales](https://img.shields.io/badge/locales-2-2ea44f?logo=dotnet)](Doc/多语言本地化接入.md)
+[![locales](https://img.shields.io/badge/locales-31-2ea44f?logo=dotnet)](Doc/多语言本地化接入.md)
 <!-- metrics:end -->
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
 ![arch](https://img.shields.io/badge/arch-x64%20%7C%20arm64%20%7C%20loongarch64-orange)
@@ -63,7 +63,7 @@ NewLife.Remoting は NewLife スタックの統合リモーティング基盤で
 | **UPGD 自動更新** | 検出 → ダウンロード → 検証 → 展開 → 上書き → 再起動 |
 | **SRV サーバー基底** | ApiController/BaseController/BaseDeviceController、TokenService、IDeviceService。同一エンドポイントを MVC と Minimal API の両方で提供（ミラー実装をテストで固定） |
 | **CMD コマンド配信** | SessionManager + イベントバスブロードキャスト + WS/SSE/Ping チャネル |
-| **L10N 多言語** | 実行時メッセージは英語を原文とし、`Locales/*.yml` が簡体字・繁体字中国語を提供、未訳は英語へフォールバック。ResourceManager とサテライトアセンブリ不要 |
+| **L10N 多言語** | 実行時メッセージは英語を原文とし、`Locales/*.yml` に 31 言語を内蔵（簡体字・繁体字中国語を含む）、未訳は英語へフォールバック。ResourceManager とサテライトアセンブリ不要 |
 | **AOT 対応** | net8.0+ で AOT 解析を常時有効（コアライブラリ 0 警告 / Extensions 0 警告）+ 独自ソースジェネレーター（アクション分離表、ストリームポンプ、シグネチャ型保持）。コア <!--aot-scenarios:start-->23<!--aot-scenarios:end--> シナリオ、Extensions Minimal API 11 シナリオ、XCode デバイス経路 6 シナリオを NativeAOT で実測（AOT ドキュメント §8） |
 
 ## クイックスタート

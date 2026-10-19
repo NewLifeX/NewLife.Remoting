@@ -60,6 +60,25 @@ public class LocalizationTests
     }
     #endregion
 
+    #region 其它语言
+    [Fact(DisplayName = "多语言：德语等非中文语言词表已注册")]
+    public void Translate_de()
+    {
+        var saved = Localization.Culture;
+        try
+        {
+            Localization.Culture = CultureInfo.GetCultureInfo("de-DE");
+
+            Assert.Equal("Serveradresse ist nicht angegeben.", Localization.Translate(CoreKey));
+            Assert.Equal("Authentifizierung fehlgeschlagen", Localization.Translate(ExtKey));
+        }
+        finally
+        {
+            Localization.Culture = saved;
+        }
+    }
+    #endregion
+
     #region 回退
     [Theory(DisplayName = "多语言：无词表的语言回退英文原文")]
     [InlineData("en-US")]

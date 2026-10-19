@@ -237,7 +237,9 @@ public class ApiClientTests : DisposeBase
         var ex = await Assert.ThrowsAnyAsync<Exception>(
             () => client.InvokeAsync<String>("ClientTest/Delay", new { ms = 1000 }));
 
-        Assert.True(ex is TimeoutException or TaskCanceledException);
+        // 超时经取消链路抛出，TaskCanceledException 与 OperationCanceledException 都属正常（前者是后者子类），
+        // 具体哪一种取决于取消在哪个等待点被观察到，不宜把断言收窄到单一类型
+        Assert.True(ex is TimeoutException or OperationCanceledException, $"unexpected {ex.GetType().FullName}: {ex.Message}");
     }
 
     [Fact(DisplayName = "InvokeAsync取消令牌提前取消")]

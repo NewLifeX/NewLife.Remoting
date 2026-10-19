@@ -12,7 +12,7 @@
 <!-- metrics:start -->
 [![AOT smoke](https://img.shields.io/badge/AOT%20smoke-23%2F23-brightgreen?logo=dotnet)](Doc/AOT兼容性分析.md)
 [![TFM](https://img.shields.io/badge/TFM-7%20%28net45%20%E2%86%92%20net10.0%29-512BD4?logo=dotnet)](https://www.nuget.org/packages/NewLife.Remoting)
-[![locales](https://img.shields.io/badge/locales-2-2ea44f?logo=dotnet)](Doc/多语言本地化接入.md)
+[![locales](https://img.shields.io/badge/locales-31-2ea44f?logo=dotnet)](Doc/多语言本地化接入.md)
 <!-- metrics:end -->
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
 ![arch](https://img.shields.io/badge/arch-x64%20%7C%20arm64%20%7C%20loongarch64-orange)
@@ -63,7 +63,7 @@ Código-fonte: https://github.com/NewLifeX/NewLife.Remoting
 | **UPGD atualização** | Detectar → baixar → verificar → extrair → sobrescrever → reiniciar |
 | **SRV base do servidor** | ApiController/BaseController/BaseDeviceController, TokenService, IDeviceService; o mesmo endpoint é exposto em MVC e em Minimal API (implementações espelhadas validadas por testes) |
 | **CMD comandos** | SessionManager + broadcast por barramento de eventos + canais WS/SSE/Ping |
-| **L10N localização** | As mensagens usam inglês como texto de origem; `Locales/*.yml` fornecem chinês simplificado e tradicional, com fallback para inglês; sem ResourceManager nem assemblies satélite |
+| **L10N localização** | As mensagens usam inglês como texto de origem; `Locales/*.yml` fornecem 31 idiomas integrados (incluindo chinês simplificado e tradicional), com fallback para inglês; sem ResourceManager nem assemblies satélite |
 | **Suporte AOT** | Análise AOT permanente a partir do net8.0 (0 avisos na biblioteca principal e no Extensions) + gerador de código próprio (tabela de despacho, bombas de streaming, preservação de assinaturas); NativeAOT validado em <!--aot-scenarios:start-->23<!--aot-scenarios:end--> cenários, 11 do host Minimal API e 6 da cadeia de dispositivos XCode (ver doc AOT §8) |
 
 ## Início rápido

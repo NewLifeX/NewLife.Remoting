@@ -12,7 +12,7 @@
 <!-- metrics:start -->
 [![AOT smoke](https://img.shields.io/badge/AOT%20smoke-23%2F23-brightgreen?logo=dotnet)](Doc/AOT兼容性分析.md)
 [![TFM](https://img.shields.io/badge/TFM-7%20%28net45%20%E2%86%92%20net10.0%29-512BD4?logo=dotnet)](https://www.nuget.org/packages/NewLife.Remoting)
-[![locales](https://img.shields.io/badge/locales-2-2ea44f?logo=dotnet)](Doc/多语言本地化接入.md)
+[![locales](https://img.shields.io/badge/locales-31-2ea44f?logo=dotnet)](Doc/多语言本地化接入.md)
 <!-- metrics:end -->
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)
 ![arch](https://img.shields.io/badge/arch-x64%20%7C%20arm64%20%7C%20loongarch64-orange)
@@ -63,7 +63,7 @@ NewLife.Remoting هو البنية التحتية الموحّدة للاتصا�
 | **UPGD التحديث** | كشف → تنزيل → تحقّق → فك ضغط → استبدال → إعادة تشغيل |
 | **SRV أساس الخادم** | ApiController/BaseController/BaseDeviceController وTokenService وIDeviceService؛ تُقدَّم نقطة النهاية نفسها عبر MVC وMinimal API (تطبيقات متطابقة يثبّتها الاختبار) |
 | **CMD الأوامر** | SessionManager + بثّ ناقل الأحداث + قنوات WS/SSE/Ping |
-| **L10N التعدد اللغوي** | رسائل وقت التشغيل بالنص الإنجليزي كمصدر، وتوفّر `Locales/*.yml` الصينية المبسطة والتقليدية مع الرجوع إلى الإنجليزية عند غياب الترجمة؛ دون ResourceManager أو تجميعات تابعة |
+| **L10N التعدد اللغوي** | رسائل وقت التشغيل بالنص الإنجليزي كمصدر، وتوفّر `Locales/*.yml` 31 لغة مضمّنة (بما فيها الصينية المبسطة والتقليدية) مع الرجوع إلى الإنجليزية عند غياب الترجمة؛ دون ResourceManager أو تجميعات تابعة |
 | **دعم AOT** | تحليل AOT دائم ابتداءً من net8.0 (صفر تحذيرات في المكتبة الأساسية وExtensions) + مولّد شيفرة خاص (جدول التوزيع، مضخّات البثّ، الحفاظ على التوقيعات)؛ تم التحقق بـ NativeAOT على <!--aot-scenarios:start-->23<!--aot-scenarios:end--> سيناريو و11 سيناريو لمضيف Minimal API و6 سيناريوهات لمسار أجهزة XCode (انظر وثيقة AOT §8) |
 
 ## البدء السريع

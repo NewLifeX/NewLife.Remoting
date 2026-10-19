@@ -357,7 +357,15 @@ public class ApiClient : ApiHost, IApiClient
         {
             // 发起请求，等待返回。流式与数据报会话统一由 Core 的响应匹配交付（UdpServer/UdpSession 与 TcpSession 共用同一套匹配机制）
             rs = (await client.SendMessageAsync(msg, cancellationToken).ConfigureAwait(false)) as IMessage;
-            if (rs == null || rs.Payload == null) return default;
+            if (rs == null || rs.Payload == null)
+            {
+                // 取消时底层可能返回 null 而不抛异常，这里补抛超时；
+                // 否则调用方会把“请求已取消”当成“服务端返回空”，静默丢失超时错误
+                if (cancellationToken.IsCancellationRequested)
+                    throw new TimeoutException(L.T("Request [{0}] timed out ({1})!", action, msg));
+
+                return default;
+            }
         }
         catch (AggregateException aggex)
         {

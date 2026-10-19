@@ -1,5 +1,6 @@
-# 多语言词表一致性校验：键集合、占位符、格式说明符、孤儿键
+# 多语言词表一致性校验：语言清单、键集合、占位符、格式说明符、孤儿键
 # 以基准语言文件（默认 zh-Hans.yml）为准，同一目录下所有语言必须提供完全相同的键集合
+# 语言清单见 locales.json（与 NewLife.Core 对齐），各词表目录的语言文件必须与之完全一致
 #
 # 用法：
 #   pwsh -File check-locales.ps1                                   # 本仓默认目录
@@ -9,6 +10,7 @@ param(
     [String[]]$LocaleDir = @("NewLife.Remoting\Locales", "NewLife.Remoting.Extensions\Locales"),
     [String]$Baseline = "zh-Hans.yml",
     [String[]]$SourceDir = @("NewLife.Remoting", "NewLife.Remoting.Extensions"),
+    [String]$LocaleSet = "locales.json",
     [Switch]$SkipOrphan
 )
 
@@ -79,6 +81,15 @@ $allWarnings = @()
 $references = @()
 $localeCount = 0
 
+# 语言清单：有清单时校验各目录语言文件集合完全一致，防止漏提交或误加语言
+$expectLocales = @()
+if ($LocaleSet) {
+    $setPath = if ([IO.Path]::IsPathRooted($LocaleSet)) { $LocaleSet } else { Join-Path $root $LocaleSet }
+    if (Test-Path -LiteralPath $setPath) {
+        $expectLocales = @((Get-Content -LiteralPath $setPath -Raw -Encoding UTF8 | ConvertFrom-Json).locales)
+    }
+}
+
 foreach ($item in $LocaleDir) {
     $dir = if ([IO.Path]::IsPathRooted($item)) { $item } else { Join-Path $root $item }
     if (!(Test-Path $dir)) {
@@ -94,6 +105,16 @@ foreach ($item in $LocaleDir) {
     $reference = Read-Locale $referencePath
     $references += $reference
     foreach ($e in $reference.Errors) { $allErrors += "$($referencePath): $e" }
+
+    $present = @(Get-ChildItem $dir -Filter *.yml | ForEach-Object { $_.BaseName })
+    if ($expectLocales.Count -gt 0) {
+        foreach ($code in $expectLocales) {
+            if ($present -notcontains $code) { $allErrors += "$dir 缺少语言文件：$code.yml" }
+        }
+        foreach ($code in $present) {
+            if ($expectLocales -notcontains $code) { $allErrors += "$dir 存在清单外的语言文件：$code.yml" }
+        }
+    }
 
     foreach ($file in Get-ChildItem $dir -Filter *.yml | Sort-Object Name) {
         $localeCount++
