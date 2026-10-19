@@ -1,10 +1,18 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Routing;
 using NewLife;
 using NewLife.Log;
 using NewLife.Remoting;
 using NewLife.Remoting.Clients;
+using NewLife.Remoting.Extensions;
 using Xunit;
 
 namespace XUnitTest.Common;
@@ -173,5 +181,113 @@ public class LocalizationTests
     private sealed class TestHost : ApiHost { }
 
     private sealed class TestClient : ClientBase { }
+    #endregion
+
+    #region 请求语言
+    [Fact(DisplayName = "多语言：Accept-Language 按 q 权重选择语言")]
+    public void RequestCulture_parse_quality()
+    {
+        Assert.Equal("zh-CN", RequestCultureScope.ParseAcceptLanguage("fr-FR;q=0.5, zh-CN;q=0.9, en;q=0.8")!.Name);
+        Assert.Equal("de-DE", RequestCultureScope.ParseAcceptLanguage("de-DE")!.Name);
+        Assert.Null(RequestCultureScope.ParseAcceptLanguage(""));
+        Assert.Null(RequestCultureScope.ParseAcceptLanguage("invalid-!!"));
+    }
+
+    [Fact(DisplayName = "多语言：按 Accept-Language 切换请求语言并在释放后还原")]
+    public void RequestCulture_scope_switch_and_restore()
+    {
+        var saved = Localization.Culture;
+        var savedLog = Localization.LogCulture;
+        var savedUI = CultureInfo.CurrentUICulture;
+        try
+        {
+            Localization.Culture = null;
+            Localization.LogCulture = null;
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en-US");
+
+            using (RequestCultureScope.Create("fr-FR;q=0.5, zh-CN;q=0.9, en;q=0.8"))
+            {
+                Assert.Equal("zh-CN", CultureInfo.CurrentUICulture.Name);
+                Assert.Equal("未指定服务端地址。", Localization.Translate(CoreKey));
+            }
+
+            Assert.Equal("en-US", CultureInfo.CurrentUICulture.Name);
+        }
+        finally
+        {
+            Localization.Culture = saved;
+            Localization.LogCulture = savedLog;
+            CultureInfo.CurrentUICulture = savedUI;
+        }
+    }
+
+    [Fact(DisplayName = "多语言：全局固定 Culture 时忽略请求语言")]
+    public void RequestCulture_scope_ignores_fixed_culture()
+    {
+        var saved = Localization.Culture;
+        var savedUI = CultureInfo.CurrentUICulture;
+        try
+        {
+            Localization.Culture = CultureInfo.GetCultureInfo("en-US");
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en-US");
+
+            using (RequestCultureScope.Create("zh-CN"))
+            {
+                Assert.Equal("en-US", CultureInfo.CurrentUICulture.Name);
+                Assert.Equal(CoreKey, Localization.Translate(CoreKey));
+            }
+        }
+        finally
+        {
+            Localization.Culture = saved;
+            CultureInfo.CurrentUICulture = savedUI;
+        }
+    }
+
+    [Fact(DisplayName = "多语言：ApiFilter 按请求头切换语言并在执行后还原")]
+    public void ApiFilter_applies_request_culture()
+    {
+        var saved = Localization.Culture;
+        var savedUI = CultureInfo.CurrentUICulture;
+        try
+        {
+            Localization.Culture = null;
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en-US");
+
+            var http = new DefaultHttpContext();
+            http.Request.Headers["Accept-Language"] = "de-DE";
+            var filter = new ApiFilterAttribute();
+            filter.OnActionExecuting(CreateExecutingContext(http));
+
+            try
+            {
+                Assert.Equal("de-DE", CultureInfo.CurrentUICulture.Name);
+                Assert.Equal("Serveradresse ist nicht angegeben.", Localization.Translate(CoreKey));
+            }
+            finally
+            {
+                filter.OnActionExecuted(CreateExecutedContext(http));
+            }
+
+            Assert.Equal("en-US", CultureInfo.CurrentUICulture.Name);
+        }
+        finally
+        {
+            Localization.Culture = saved;
+            CultureInfo.CurrentUICulture = savedUI;
+        }
+    }
+
+    private static ActionExecutingContext CreateExecutingContext(HttpContext http)
+    {
+        var actionContext = new ActionContext(http, new RouteData(), new ControllerActionDescriptor());
+        return new ActionExecutingContext(actionContext, [], new Dictionary<String, Object?>(), new Object());
+    }
+
+    private static ActionExecutedContext CreateExecutedContext(HttpContext http)
+    {
+        var actionContext = new ActionContext(http, new RouteData(), new ControllerActionDescriptor());
+        return new ActionExecutedContext(actionContext, [], new Object());
+    }
     #endregion
 }

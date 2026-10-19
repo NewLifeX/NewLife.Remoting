@@ -1,8 +1,8 @@
 # 繁體中文詞表（zh-Hant，統一承接 zh-TW / zh-HK / zh-MO）。鍵為英文原文，與原始碼字串逐字一致；缺少的鍵執行時回退英文。
 "Server address is not specified.": "未指定伺服器位址。"
 "Cluster mode: {0}": "叢集模式：{0}"
-"Request [{0}] canceled after {1:n0}ms timeout, Server={2}": "要求[{0}]逾時[{1:n0}ms]取消，Server={2}"
-"Request [{0}] timed out ({1})!": "要求[{0}]逾時({1})！"
+"Request [{0}] canceled after {1:n0}ms timeout, Server={2}": "請求[{0}]逾時[{1:n0}ms]取消，Server={2}"
+"Request [{0}] timed out ({1})!": "請求[{0}]逾時({1})！"
 "Slow call [{0}]({1}) took {2:n0}ms": "慢速呼叫[{0}]({1})，耗時{2:n0}ms"
 "Slow call [{0}] took {1:n0}ms": "慢速呼叫[{0}]，耗時{1:n0}ms"
 "WebSocket channel of address [{0}] is no longer supported; use tcp:// or udp:// for SRMP, and ApiHttpClient for HTTP calls": "位址[{0}]的WebSocket通道已不受支援，SRMP請改用tcp://或udp://，HTTP呼叫請使用ApiHttpClient"
@@ -102,7 +102,7 @@
 "Rejected WebSocket handshake {0} {1}": "拒絕WebSocket握手 {0} {1}"
 "The WebSocket channel is not supported; use tcp/udp for SRMP and this port for HTTP": "WebSocket通道不受支援，SRMP請使用tcp/udp，HTTP請使用本埠"
 "Host of HTTP server [{0}] is not an ApiServer": "Http伺服器[{0}]的主機不是ApiServer"
-"The HTTP channel is a request-response model and does not support server-initiated calls": "HTTP通道為要求-回應模型，不支援伺服器主動呼叫"
+"The HTTP channel is a request-response model and does not support server-initiated calls": "HTTP通道為請求-回應模型，不支援伺服器主動呼叫"
 "The HTTP channel does not support server-side streaming push; use the tcp/udp channel instead": "HTTP通道不支援伺服器端串流推送，請改用tcp/udp通道"
 "Cannot create a reply message from a reply message": "不能根據回應訊息建立回應訊息"
 "Command and message cannot both be empty": "命令和訊息不能同時為空"
@@ -110,7 +110,7 @@
 "Session [{0}] not found, cannot process the message.": "找不到編號為[{0}]的工作階段，無法處理訊息。"
 "Subscribed bus events of [{0}] to OnCommandResponse to match command response callbacks": "訂閱[{0}]的匯流排事件到OnCommandResponse，用於比對命令回應回呼"
 "[{0}]Destroyed due to inactivity": "[{0}]閒置銷毀"
-"Requests: {0} ": "要求：{0} "
+"Requests: {0} ": "請求：{0} "
 "Processed: {0} ": "處理：{0} "
 
 "[{0}]TryConnectServer: {1}": "[{0}]嘗試連線伺服器：{1}"

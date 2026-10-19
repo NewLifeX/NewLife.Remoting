@@ -23,6 +23,7 @@ class ApiHttpHandler(ApiHttpServer server) : IHttpHandler
     public virtual async Task ProcessRequestAsync(IHttpContext context)
     {
         var request = context.Request;
+        using var culture = RequestCultureScope.Create(request.Headers.TryGetValue("Accept-Language", out var language) ? language : null);
 
         // SRMP-over-WS 已取消：Core 会在路由前完成 WS 握手，这里明确拒绝，避免客户端拿到 101 之后空等
         if (context.WebSocket != null)

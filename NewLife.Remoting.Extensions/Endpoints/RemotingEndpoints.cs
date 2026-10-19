@@ -376,6 +376,7 @@ internal static class RemotingEndpoints
     [DynamicDependency(_ModelMembers, typeof(UpgradeInfo))]
     private static async Task InvokeAsync(HttpContext http, Boolean allowAnonymous, Func<DeviceContext, IServiceProvider, Task<Object?>> handler, Boolean writeResult = true)
     {
+        using var culture = RequestCultureScope.Create(http.Request.Headers.AcceptLanguage.ToString());
         var ctx = DeviceContextPool.Rent();
         try
         {

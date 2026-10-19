@@ -32,7 +32,7 @@
 "A refresh token cannot be used as an access token!": "重新整理權杖不能作為存取權杖使用！"
 "An access token cannot be used as a refresh token!": "存取權杖不能作為重新整理權杖使用！"
 "Invalid client!": "無效用戶端！"
-"Not a WebSocket request": "不是WebSocket要求"
+"Not a WebSocket request": "不是WebSocket請求"
 "Illegal access [{0}] {1}": "非法存取[{0}] {1}"
 "The token has been revoked!": "權杖已撤銷！"
 "Database SQL error": "資料庫SQL錯誤"

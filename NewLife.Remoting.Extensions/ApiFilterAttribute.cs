@@ -34,6 +34,15 @@ public sealed class ApiFilterAttribute : ActionFilterAttribute
         //if (!context.ModelState.IsValid)
         //    throw new ApplicationException(context.ModelState.Values.First(p => p.Errors.Count > 0).Errors[0].ErrorMessage);
 
+        // 请求语言：未全局固定 Culture 时，按 Accept-Language 切换当前 UI 文化
+        // 过滤器可能因继承链重复注册，先释放旧作用域，避免文化无法还原
+        if (context.HttpContext.Items.TryGetValue(typeof(RequestCultureScope), out var old) && old is IDisposable oldScope)
+        {
+            oldScope.Dispose();
+            context.HttpContext.Items.Remove(typeof(RequestCultureScope));
+        }
+        context.HttpContext.Items[typeof(RequestCultureScope)] = RequestCultureScope.Create(context.HttpContext.Request.Headers.AcceptLanguage.ToString());
+
         // 访问令牌
         var token = GetToken(context.HttpContext);
         context.HttpContext.Items["Token"] = token;
@@ -46,39 +55,50 @@ public sealed class ApiFilterAttribute : ActionFilterAttribute
     /// <param name="context"></param>
     public override void OnActionExecuted(ActionExecutedContext context)
     {
-        if (context.HttpContext.WebSockets.IsWebSocketRequest) return;
-
-        if (context.Result != null)
+        try
         {
-            if (context.Result is ObjectResult obj)
+            if (context.HttpContext.WebSockets.IsWebSocketRequest) return;
+
+            if (context.Result != null)
             {
-                context.Result = new JsonResult(new { code = obj.StatusCode ?? 0, data = obj.Value });
+                if (context.Result is ObjectResult obj)
+                {
+                    context.Result = new JsonResult(new { code = obj.StatusCode ?? 0, data = obj.Value });
+                }
+                else if (context.Result is EmptyResult)
+                {
+                    DefaultTracer.Instance?.NewSpan("apiFilter-EmptyResult");
+                    context.Result = new JsonResult(new { code = 0, data = new { } });
+                }
             }
-            else if (context.Result is EmptyResult)
+            else if (context.Exception != null && !context.ExceptionHandled)
             {
-                DefaultTracer.Instance?.NewSpan("apiFilter-EmptyResult");
-                context.Result = new JsonResult(new { code = 0, data = new { } });
+                var ex = context.Exception.GetTrue();
+                if (ex is ApiException aex)
+                    context.Result = new JsonResult(new { code = aex.Code, message = aex.Message });
+                else
+                {
+                    context.Result = new JsonResult(new { code = 500, message = ex.Message });
+
+                    // 埋点拦截业务异常
+                    var action = context.HttpContext.Request.Path + "";
+                    if (context.ActionDescriptor is ControllerActionDescriptor act) action = $"/{act.ControllerName}/{act.ActionName}";
+
+                    DefaultTracer.Instance?.NewError(action, ex);
+                }
+
+                context.ExceptionHandled = true;
+            }
+
+            base.OnActionExecuted(context);
+        }
+        finally
+        {
+            if (context.HttpContext.Items.TryGetValue(typeof(RequestCultureScope), out var value) && value is IDisposable scope)
+            {
+                scope.Dispose();
+                context.HttpContext.Items.Remove(typeof(RequestCultureScope));
             }
         }
-        else if (context.Exception != null && !context.ExceptionHandled)
-        {
-            var ex = context.Exception.GetTrue();
-            if (ex is ApiException aex)
-                context.Result = new JsonResult(new { code = aex.Code, message = aex.Message });
-            else
-            {
-                context.Result = new JsonResult(new { code = 500, message = ex.Message });
-
-                // 埋点拦截业务异常
-                var action = context.HttpContext.Request.Path + "";
-                if (context.ActionDescriptor is ControllerActionDescriptor act) action = $"/{act.ControllerName}/{act.ActionName}";
-
-                DefaultTracer.Instance?.NewError(action, ex);
-            }
-
-            context.ExceptionHandled = true;
-        }
-
-        base.OnActionExecuted(context);
     }
 }
