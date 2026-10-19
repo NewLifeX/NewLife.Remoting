@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Controllers;
@@ -365,6 +366,42 @@ public class LocalizationTests
             }
 
             Assert.Equal("en-US", CultureInfo.CurrentUICulture.Name);
+        }
+        finally
+        {
+            Localization.Culture = saved;
+            CultureInfo.CurrentUICulture = savedUI;
+        }
+    }
+
+    [Fact(DisplayName = "多语言：宿主已配置 RequestLocalization 时 ApiFilter 不覆盖宿主语言")]
+    public void ApiFilter_defers_to_host_request_culture()
+    {
+        var saved = Localization.Culture;
+        var savedUI = CultureInfo.CurrentUICulture;
+        try
+        {
+            Localization.Culture = null;
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
+
+            var http = new DefaultHttpContext();
+            http.Request.Headers["Accept-Language"] = "de-DE";
+            http.Features.Set<IRequestCultureFeature>(new RequestCultureFeature(new RequestCulture(CultureInfo.GetCultureInfo("fr-FR")), null));
+
+            var filter = new ApiFilterAttribute();
+            filter.OnActionExecuting(CreateExecutingContext(http));
+
+            try
+            {
+                Assert.Equal("fr-FR", CultureInfo.CurrentUICulture.Name);
+                Assert.Equal("Échec de l'authentification", Localization.Translate(ExtKey));
+            }
+            finally
+            {
+                filter.OnActionExecuted(CreateExecutedContext(http));
+            }
+
+            Assert.Equal("fr-FR", CultureInfo.CurrentUICulture.Name);
         }
         finally
         {

@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using NewLife.Log;
@@ -34,14 +35,15 @@ public sealed class ApiFilterAttribute : ActionFilterAttribute
         //if (!context.ModelState.IsValid)
         //    throw new ApplicationException(context.ModelState.Values.First(p => p.Errors.Count > 0).Errors[0].ErrorMessage);
 
-        // 请求语言：未全局固定 Culture 时，按 Accept-Language 切换当前 UI 文化
+        // 请求语言：宿主已启用 RequestLocalization 时沿用其选择，否则按 Accept-Language 切换当前 UI 文化
         // 过滤器可能因继承链重复注册，先释放旧作用域，避免文化无法还原
         if (context.HttpContext.Items.TryGetValue(typeof(RequestCultureScope), out var old) && old is IDisposable oldScope)
         {
             oldScope.Dispose();
             context.HttpContext.Items.Remove(typeof(RequestCultureScope));
         }
-        context.HttpContext.Items[typeof(RequestCultureScope)] = RequestCultureScope.Create(context.HttpContext.Request.Headers.AcceptLanguage.ToString());
+        if (context.HttpContext.Features.Get<IRequestCultureFeature>() == null)
+            context.HttpContext.Items[typeof(RequestCultureScope)] = RequestCultureScope.Create(context.HttpContext.Request.Headers.AcceptLanguage.ToString());
 
         // 访问令牌
         var token = GetToken(context.HttpContext);

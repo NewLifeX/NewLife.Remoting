@@ -2,6 +2,7 @@
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.Extensions.DependencyInjection;
 using NewLife.Log;
 using NewLife.Remoting.Extensions.Services;
@@ -376,7 +377,9 @@ internal static class RemotingEndpoints
     [DynamicDependency(_ModelMembers, typeof(UpgradeInfo))]
     private static async Task InvokeAsync(HttpContext http, Boolean allowAnonymous, Func<DeviceContext, IServiceProvider, Task<Object?>> handler, Boolean writeResult = true)
     {
-        using var culture = RequestCultureScope.Create(http.Request.Headers.AcceptLanguage.ToString());
+        using var culture = http.Features.Get<IRequestCultureFeature>() == null
+            ? RequestCultureScope.Create(http.Request.Headers.AcceptLanguage.ToString())
+            : null;
         var ctx = DeviceContextPool.Rent();
         try
         {
