@@ -1,10 +1,10 @@
 # README 多语言规范
 
-根目录的 `Readme.MD` 与 `README.*.md` 是同一份说明文档的多语种版本。语言切换行由脚本从 `readme-languages.json` 生成，本文规定切换行的**顺序**与**维护方式**。
+根目录的 `README.md`（English，默认落地页）与 `README.*.md` 是同一份说明文档的多语种版本。语言切换行由脚本从 `readme-languages.json` 生成，本文规定切换行的**顺序**与**维护方式**。
 
 ## 定序规则
 
-1. **固定前三**：中文（`Readme.MD`，权威版与 GitHub 默认落地页）→ 繁體中文（`README.zh-TW.md`，与简体同源，紧邻便于对照）→ English（通用语，非中文读者的第一选择）。
+1. **固定前三**：English（`README.md`，默认落地页与 NuGet 包 README 的源文件）→ 简体中文（`README.zh-CN.md`，与英文同批维护）→ 繁體中文（`README.zh-TW.md`，与简体同源，紧邻便于对照）。
 2. **其余按技术内容语种规模排序**：以 W3Techs「内容语种占比」（全球 top 1000 万站点首页）为依据，一次定序后**冻结**。
 3. **新语种一律追加到末尾**，不做全局重排（同一语言的不同书写系统例外：紧跟其主语言，如 `繁體中文` 紧随简体）；只有拿到更可靠的读者分布数据时，才允许做一次整体校正。
 
@@ -12,9 +12,9 @@
 
 | # | 语种 | 文件 | 依据（W3Techs，2025-12-03） |
 |---|------|------|------|
-| 1 | 中文（简体） | `Readme.MD` | 权威版与默认落地页，固定第一位 |
-| 2 | 繁體中文 | `README.zh-TW.md` | 与简体同源，紧随简体便于对照 |
-| 3 | English | `README.en.md` | 通用语，固定第三位 |
+| 1 | English | `README.md` | 默认落地页与 NuGet 包 README 的源文件，固定第一位 |
+| 2 | 简体中文 | `README.zh-CN.md` | 与英文同批维护，固定第二位 |
+| 3 | 繁體中文 | `README.zh-TW.md` | 与简体同源，紧随简体便于对照 |
 | 4 | Español | `README.es.md` | 6.0% |
 | 5 | Deutsch | `README.de.md` | 5.9% |
 | 6 | 日本語 | `README.ja.md` | 5.1% |
@@ -30,19 +30,20 @@
 
 - README 的读者是**开发者**，语种价值取决于「多少开发者能读」，而不是「多少人会说」。
 - 人口数据逐年变化，按人口排意味着反复重排；而切换行只有 10 个链接、一屏可扫完，**排序的边际收益很低，重排成本（11 个文件重复编辑与评审噪声）很高**。
-- 固定前一/前三可避免通用语被某个大语种挤到后面。
+- 固定前三可避免通用语被某个大语种挤到后面。
 
 ## 维护方式
 
 - **单一事实源**：`readme-languages.json`（`code` / `name` / `file`，数组顺序即展示顺序）。
 - **生成与校验**：`sync-readme-languages.ps1` 按配置重写各 README 的切换块；加 `-Check` 只校验不写入，不一致时退出码 1。
 - **指标同步**：`readme-metrics.json` 保存会随发布变化的数字（AOT 冒烟场景数、TFM 数量、运行时词表语言数），`sync-readme-metrics.ps1` 重写徽章块与 `<!--aot-scenarios:start-->…<!--aot-scenarios:end-->`、`<!--aot-smoke:start-->…<!--aot-smoke:end-->` 标记内的数字。
-- **CI 门禁**：`.github/workflows/readme.yml` 在 README、配置或脚本变动时执行两项 `-Check`，顺序不一致、副本漂移或指标过期都会失败。
+- **NuGet 包版**：`sync-readme-package.ps1` 按 `readme-package.json` 从 `README.md` 生成 `README.nuget.md`，把所有相对链接改写为 GitHub 绝对地址；加 `-Check` 校验生成物与 `PackageReadmeFile` 目标。
+- **CI 门禁**：`.github/workflows/readme.yml` 在 README、配置或脚本变动时执行三项 `-Check`，顺序不一致、副本漂移、指标过期或包版漂移都会失败。
 - 各 README 只有下面标记块之间的内容由脚本生成，其余内容不受影响：
 
 ```markdown
 <!-- lang:start -->
-🌐 [中文](Readme.MD) | [English](README.en.md) | ...
+🌐 [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md) | ...
 <!-- lang:end -->
 
 <!-- metrics:start -->
@@ -54,11 +55,11 @@
 
 ## 新增一种语言
 
-1. 翻译整篇 README，文件名用 `README.{BCP 47 语言标签}.md`（如 `README.zh-TW.md`；中文版固定为 `Readme.MD`）。
+1. 翻译整篇 README，文件名用 `README.{BCP 47 语言标签}.md`（如 `README.zh-TW.md`；中文版固定为 `README.zh-CN.md`）。
 2. 在 `readme-languages.json` 的 `languages` 数组**末尾**追加 `{ "code", "name", "file" }`，`name` 用本族语名称。
-3. 补齐徽章块（`<!-- metrics:start -->` 起）与切换行标记块，正文开头写明「本翻译可能滞后，以中文版为准」。
+3. 补齐徽章块（`<!-- metrics:start -->` 起）与切换行标记块，正文开头写明「本翻译可能滞后，以 [English README](README.md) 为准」。
 4. 运行 `pwsh -File sync-readme-languages.ps1` 生成切换行，再运行 `pwsh -File sync-readme-metrics.ps1` 对齐徽章。
-5. 两项 `-Check` 均通过后提交；根目录新增了 README 却没登记到配置，脚本会直接报错。
+5. 三项 `-Check` 均通过后提交；根目录新增了 README 却没登记到配置，脚本会直接报错。
 
 ## 徽章规则（本仓取值）
 

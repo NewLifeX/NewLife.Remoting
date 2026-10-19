@@ -19,7 +19,7 @@
 [![contributors](https://img.shields.io/github/contributors/NewLifeX/NewLife.Remoting?logo=github)](https://github.com/NewLifeX/NewLife.Remoting/graphs/contributors)
 
 <!-- lang:start -->
-🌐 [中文](Readme.MD) | [English](README.en.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [日本語](README.ja.md) | [Français](README.fr.md) | [Português](README.pt.md) | [Русский](README.ru.md) | [한국어](README.ko.md) | [العربية](README.ar.md)
+🌐 [English](README.md) | [简体中文](README.zh-CN.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [日本語](README.ja.md) | [Français](README.fr.md) | [Português](README.pt.md) | [Русский](README.ru.md) | [한국어](README.ko.md) | [العربية](README.ar.md)
 <!-- lang:end -->
 
 NewLife.Remoting 是 NewLife 技術棧的統一遠端通訊基礎設施，由兩個 NuGet 套件組成：
@@ -32,7 +32,7 @@ NewLife.Remoting 是 NewLife 技術棧的統一遠端通訊基礎設施，由兩
 原始碼：https://github.com/NewLifeX/NewLife.Remoting  
 > NuGet：`NewLife.Remoting` / `NewLife.Remoting.Extensions`
 
-> ⚠️ 本翻譯可能落後於[簡體中文版](Readme.MD)，以簡體中文版為準。
+> ⚠️ 本翻譯可能落後於[英文 README](README.md)，內容以英文版為準。
 
 ## 文件索引
 

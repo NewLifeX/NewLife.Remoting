@@ -19,7 +19,7 @@
 [![contributors](https://img.shields.io/github/contributors/NewLifeX/NewLife.Remoting?logo=github)](https://github.com/NewLifeX/NewLife.Remoting/graphs/contributors)
 
 <!-- lang:start -->
-🌐 [中文](Readme.MD) | [繁體中文](README.zh-TW.md) | [English](README.en.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [日本語](README.ja.md) | [Français](README.fr.md) | [Português](README.pt.md) | [Русский](README.ru.md) | [한국어](README.ko.md)
+🌐 [English](README.md) | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [日本語](README.ja.md) | [Français](README.fr.md) | [Português](README.pt.md) | [Русский](README.ru.md) | [한국어](README.ko.md)
 <!-- lang:end -->
 
 NewLife.Remoting هو البنية التحتية الموحّدة للاتصال عن بُعد في منظومة NewLife، ويُقدَّم في حزمتي NuGet:
@@ -32,7 +32,7 @@ NewLife.Remoting هو البنية التحتية الموحّدة للاتصا�
 الشيفرة المصدرية: https://github.com/NewLifeX/NewLife.Remoting  
 > NuGet: `NewLife.Remoting` / `NewLife.Remoting.Extensions`
 
-> ⚠️ قد تتأخر هذه الترجمة عن [النسخة الصينية](Readme.MD) التي تُعدّ المرجع.
+> ⚠️ قد تتأخر هذه الترجمة عن أحدث نسخة؛ المحتوى المعتمد هو [README الإنجليزي](README.md).
 
 ## فهرس الوثائق
 

@@ -1,28 +1,31 @@
 name: readme
 
-# README 语言切换行由 sync-readme-languages.ps1 从 readme-languages.json 生成，
-# 指标徽章与场景数字由 sync-readme-metrics.ps1 从 readme-metrics.json 生成。
+# README 语言切换行由 sync-readme-languages.ps1 从 readme-languages.json 生成；
+# 指标徽章与场景数字由 sync-readme-metrics.ps1 从 readme-metrics.json 生成；
+# NuGet 包版由 sync-readme-package.ps1 从 README.md 生成。
 # 手工改顺序、或某一份副本忘记同步，都会在这里被拦下。
 on:
   push:
     branches: [ '*' ]
     paths:
       - 'README*.md'
-      - 'Readme.MD'
       - 'readme-languages.json'
       - 'readme-metrics.json'
+      - 'readme-package.json'
       - 'sync-readme-languages.ps1'
       - 'sync-readme-metrics.ps1'
+      - 'sync-readme-package.ps1'
       - '.github/workflows/readme.yml'
   pull_request:
     branches: [ '*' ]
     paths:
       - 'README*.md'
-      - 'Readme.MD'
       - 'readme-languages.json'
       - 'readme-metrics.json'
+      - 'readme-package.json'
       - 'sync-readme-languages.ps1'
       - 'sync-readme-metrics.ps1'
+      - 'sync-readme-package.ps1'
       - '.github/workflows/readme.yml'
   workflow_dispatch:
 
@@ -31,7 +34,7 @@ permissions:
 
 jobs:
   language-switcher:
-    name: check language switcher
+    name: check readme
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -43,3 +46,6 @@ jobs:
     - name: Check README metrics
       shell: pwsh
       run: pwsh -NoProfile -File ./sync-readme-metrics.ps1 -Check
+    - name: Check README package copy
+      shell: pwsh
+      run: pwsh -NoProfile -File ./sync-readme-package.ps1 -Check

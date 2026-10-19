@@ -19,7 +19,7 @@
 [![contributors](https://img.shields.io/github/contributors/NewLifeX/NewLife.Remoting?logo=github)](https://github.com/NewLifeX/NewLife.Remoting/graphs/contributors)
 
 <!-- lang:start -->
-🌐 [中文](Readme.MD) | [繁體中文](README.zh-TW.md) | [English](README.en.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [日本語](README.ja.md) | [Português](README.pt.md) | [Русский](README.ru.md) | [한국어](README.ko.md) | [العربية](README.ar.md)
+🌐 [English](README.md) | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [日本語](README.ja.md) | [Português](README.pt.md) | [Русский](README.ru.md) | [한국어](README.ko.md) | [العربية](README.ar.md)
 <!-- lang:end -->
 
 NewLife.Remoting est l'infrastructure de communication distante unifiée de la pile NewLife, distribuée en deux packages NuGet :
@@ -32,7 +32,7 @@ NewLife.Remoting est l'infrastructure de communication distante unifiée de la p
 Code source : https://github.com/NewLifeX/NewLife.Remoting  
 > NuGet : `NewLife.Remoting` / `NewLife.Remoting.Extensions`
 
-> ⚠️ Cette traduction peut être en retard sur le [README chinois](Readme.MD), qui fait référence.
+> ⚠️ Cette traduction peut être en retard ; la version de référence est le [README anglais](README.md).
 
 ## Index de la documentation
 

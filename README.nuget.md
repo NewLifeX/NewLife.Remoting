@@ -1,3 +1,5 @@
+<!-- generated from README.md by sync-readme-package.ps1; do not edit -->
+
 # NewLife.Remoting — Unified Remoting Framework (RPC + HTTP + WebSocket + SRMP)
 
 ![GitHub License](https://img.shields.io/github/license/NewLifeX/NewLife.Remoting?logo=github)
@@ -10,16 +12,16 @@
 [![NativeAOT](https://github.com/NewLifeX/NewLife.Remoting/actions/workflows/aot.yml/badge.svg?branch=master)](https://github.com/NewLifeX/NewLife.Remoting/actions/workflows/aot.yml)
 [![test](https://github.com/NewLifeX/NewLife.Remoting/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/NewLifeX/NewLife.Remoting/actions/workflows/test.yml)
 <!-- metrics:start -->
-[![AOT smoke](https://img.shields.io/badge/AOT%20smoke-23%2F23-brightgreen?logo=dotnet)](Doc/AOT兼容性分析.md)
+[![AOT smoke](https://img.shields.io/badge/AOT%20smoke-23%2F23-brightgreen?logo=dotnet)](https://github.com/NewLifeX/NewLife.Remoting/blob/master/Doc/AOT兼容性分析.md)
 [![TFM](https://img.shields.io/badge/TFM-7%20%28net45%20%E2%86%92%20net10.0%29-512BD4?logo=dotnet)](https://www.nuget.org/packages/NewLife.Remoting)
-[![locales](https://img.shields.io/badge/locales-31-2ea44f?logo=dotnet)](Doc/多语言本地化接入.md)
+[![locales](https://img.shields.io/badge/locales-31-2ea44f?logo=dotnet)](https://github.com/NewLifeX/NewLife.Remoting/blob/master/Doc/多语言本地化接入.md)
 <!-- metrics:end -->
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS%20%7C%20Android%20%7C%20iOS-blue)
 ![arch](https://img.shields.io/badge/arch-x64%20%7C%20arm64%20%7C%20loongarch64%20%7C%20riscv64%20%7C%20s390x-orange)
 [![contributors](https://img.shields.io/github/contributors/NewLifeX/NewLife.Remoting?logo=github)](https://github.com/NewLifeX/NewLife.Remoting/graphs/contributors)
 
 <!-- lang:start -->
-🌐 [中文](Readme.MD) | [繁體中文](README.zh-TW.md) | [Español](README.es.md) | [Deutsch](README.de.md) | [日本語](README.ja.md) | [Français](README.fr.md) | [Português](README.pt.md) | [Русский](README.ru.md) | [한국어](README.ko.md) | [العربية](README.ar.md)
+🌐 [简体中文](https://github.com/NewLifeX/NewLife.Remoting/blob/master/README.zh-CN.md) | [繁體中文](https://github.com/NewLifeX/NewLife.Remoting/blob/master/README.zh-TW.md) | [Español](https://github.com/NewLifeX/NewLife.Remoting/blob/master/README.es.md) | [Deutsch](https://github.com/NewLifeX/NewLife.Remoting/blob/master/README.de.md) | [日本語](https://github.com/NewLifeX/NewLife.Remoting/blob/master/README.ja.md) | [Français](https://github.com/NewLifeX/NewLife.Remoting/blob/master/README.fr.md) | [Português](https://github.com/NewLifeX/NewLife.Remoting/blob/master/README.pt.md) | [Русский](https://github.com/NewLifeX/NewLife.Remoting/blob/master/README.ru.md) | [한국어](https://github.com/NewLifeX/NewLife.Remoting/blob/master/README.ko.md) | [العربية](https://github.com/NewLifeX/NewLife.Remoting/blob/master/README.ar.md)
 <!-- lang:end -->
 
 NewLife.Remoting is the unified remoting infrastructure of the NewLife stack, shipped as two NuGet packages:
@@ -32,24 +34,22 @@ NewLife.Remoting is the unified remoting infrastructure of the NewLife stack, sh
 Source: https://github.com/NewLifeX/NewLife.Remoting  
 > NuGet: `NewLife.Remoting` / `NewLife.Remoting.Extensions`
 
-> ⚠️ This translation may lag behind the [Chinese README](Readme.MD), which is the authoritative source.
-
 ## Documentation Index
 
 | Document | Description |
 |------|------|
-| [Doc/需求文档.md](Doc/需求文档.md) | Requirements: vision, core goals, functional requirements (RPC/STRM/CLNT/UPGD/SRV/CMD/AOT/L10N/EXT) |
-| [Doc/架构设计.md](Doc/架构设计.md) | Architecture: layering, core module design, memory management, test strategy, design decisions |
-| [Doc/SRV-服务端架构.md](Doc/SRV-服务端架构.md) | Server business architecture: service layer, core flows (login/register/logout/heartbeat/upgrade/event upload/command push), online session lifecycle, cluster deployment |
-| [Doc/功能清单.md](Doc/功能清单.md) | Feature tracking: status, in-progress items and backlog (release TODOs / pending fixes) |
-| [Doc/竞品分析.md](Doc/竞品分析.md) | Competitive analysis: RPC framework comparison + IoT command push matrix |
-| [Doc/SRMP.MD](Doc/SRMP.MD) | SRMP protocol specification |
-| [Doc/RPC内存管理设计.md](Doc/RPC内存管理设计.md) | Zero-copy memory management |
-| [Doc/自动更新机制.md](Doc/自动更新机制.md) | End-to-end auto-update design |
-| [Doc/重试策略.md](Doc/重试策略.md) | Retry policy: `IRetryPolicy` and exponential backoff samples |
-| [Doc/AOT兼容性分析.md](Doc/AOT兼容性分析.md) | NativeAOT support scope, <!--aot-scenarios:start-->23<!--aot-scenarios:end--> verified scenarios (smoke <!--aot-smoke:start-->23/23<!--aot-smoke:end-->), downstream guidance and known limits |
-| [Doc/多语言本地化接入.md](Doc/多语言本地化接入.md) | English runtime messages, `Locales/*.yml` tables and `L.T` integration guide |
-| [Doc/README多语言规范.md](Doc/README多语言规范.md) | Ordering rules, generator scripts and CI gate for the 11 README languages |
+| [Doc/需求文档.md](https://github.com/NewLifeX/NewLife.Remoting/blob/master/Doc/需求文档.md) | Requirements: vision, core goals, functional requirements (RPC/STRM/CLNT/UPGD/SRV/CMD/AOT/L10N/EXT) |
+| [Doc/架构设计.md](https://github.com/NewLifeX/NewLife.Remoting/blob/master/Doc/架构设计.md) | Architecture: layering, core module design, memory management, test strategy, design decisions |
+| [Doc/SRV-服务端架构.md](https://github.com/NewLifeX/NewLife.Remoting/blob/master/Doc/SRV-服务端架构.md) | Server business architecture: service layer, core flows (login/register/logout/heartbeat/upgrade/event upload/command push), online session lifecycle, cluster deployment |
+| [Doc/功能清单.md](https://github.com/NewLifeX/NewLife.Remoting/blob/master/Doc/功能清单.md) | Feature tracking: status, in-progress items and backlog (release TODOs / pending fixes) |
+| [Doc/竞品分析.md](https://github.com/NewLifeX/NewLife.Remoting/blob/master/Doc/竞品分析.md) | Competitive analysis: RPC framework comparison + IoT command push matrix |
+| [Doc/SRMP.MD](https://github.com/NewLifeX/NewLife.Remoting/blob/master/Doc/SRMP.MD) | SRMP protocol specification |
+| [Doc/RPC内存管理设计.md](https://github.com/NewLifeX/NewLife.Remoting/blob/master/Doc/RPC内存管理设计.md) | Zero-copy memory management |
+| [Doc/自动更新机制.md](https://github.com/NewLifeX/NewLife.Remoting/blob/master/Doc/自动更新机制.md) | End-to-end auto-update design |
+| [Doc/重试策略.md](https://github.com/NewLifeX/NewLife.Remoting/blob/master/Doc/重试策略.md) | Retry policy: `IRetryPolicy` and exponential backoff samples |
+| [Doc/AOT兼容性分析.md](https://github.com/NewLifeX/NewLife.Remoting/blob/master/Doc/AOT兼容性分析.md) | NativeAOT support scope, <!--aot-scenarios:start-->23<!--aot-scenarios:end--> verified scenarios (smoke <!--aot-smoke:start-->23/23<!--aot-smoke:end-->), downstream guidance and known limits |
+| [Doc/多语言本地化接入.md](https://github.com/NewLifeX/NewLife.Remoting/blob/master/Doc/多语言本地化接入.md) | English runtime messages, `Locales/*.yml` tables and `L.T` integration guide |
+| [Doc/README多语言规范.md](https://github.com/NewLifeX/NewLife.Remoting/blob/master/Doc/README多语言规范.md) | Ordering rules, generator scripts and CI gate for the 11 README languages |
 
 ---
 
