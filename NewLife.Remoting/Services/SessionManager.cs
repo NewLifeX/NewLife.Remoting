@@ -465,7 +465,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
                 span?.AppendTag(null!, 1);
         }
         else
-            span?.AppendTag($"skip remove, current session is different");
+            span?.AppendTag(L.T("Skip removal because the current session is different"));
     }
 
     /// <summary>根据标识获取会话</summary>

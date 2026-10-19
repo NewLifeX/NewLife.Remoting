@@ -799,6 +799,12 @@ public class Upgrade
     /// <summary>输出日志</summary>
     /// <param name="format"></param>
     /// <param name="args"></param>
-    public void WriteLog(String format, params Object?[] args) => Log?.Info($"[{Name}]{format}", args);
+    public void WriteLog(String format, params Object?[] args)
+    {
+        // 日志语言在进入 Logger.Format 前先翻译，避免拼接名称前缀后整串无法命中词表
+        if (Log == null || Log == Logger.Null) return;
+
+        Log.Info("[" + Name + "]" + Localization.TranslateForLog(format), args);
+    }
     #endregion
 }

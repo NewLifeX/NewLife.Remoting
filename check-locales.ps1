@@ -1,4 +1,4 @@
-# 多语言词表一致性校验：语言清单、键集合、占位符、格式说明符、孤儿键
+# 多语言词表一致性校验：语言清单、键集合、占位符、格式说明符、孤儿键、L.T 引用覆盖
 # 以基准语言文件（默认 zh-Hans.yml）为准，同一目录下所有语言必须提供完全相同的键集合
 # 语言清单见 locales.json（与 NewLife.Core 对齐），各词表目录的语言文件必须与之完全一致
 #
@@ -154,7 +154,9 @@ foreach ($item in $LocaleDir) {
     }
 }
 
-# 孤儿键：基准表中的键在源码里完全找不到（改文案后遗留的死条目）
+# 孤儿键：基准表中的键在源码里找不到对应的完整字符串字面量（改文案后遗留的死条目）
+# 必须按带引号的完整字面量匹配：仅做子串匹配时，"[{0}]Cluster balancing: {1}" 会掩盖
+# "Cluster balancing: {1}" 这类前缀被改掉却未同步词表的错位。
 if (!$SkipOrphan) {
     $sourceDirs = @($SourceDir | ForEach-Object {
         if ([IO.Path]::IsPathRooted($_)) { $_ } else { Join-Path $root $_ }
@@ -168,8 +170,33 @@ if (!$SkipOrphan) {
         foreach ($key in $reference.Entries.Keys) {
             # 源码中的字面量形式：制表符写作 \t，引号写作 \"
             $escaped = $key.Replace('\', '\\').Replace('"', '\"').Replace("`t", '\t').Replace("`r", '\r').Replace("`n", '\n')
-            if (!$sourceText.Contains($key) -and !$sourceText.Contains($escaped)) {
-                $allErrors += "孤儿键（源码中找不到）：$key"
+            if (!$sourceText.Contains('"' + $escaped + '"')) {
+                $allErrors += "孤儿键（源码中找不到完整字符串字面量）：$key"
+            }
+        }
+    }
+}
+
+# 源码引用校验：L.T("...") 的键必须存在于同组件的基准词表
+# 词表目录与源码目录按参数顺序一一对应；两者数量不一致时无法归属，直接报错
+if (!$SkipOrphan) {
+    if ($LocaleDir.Count -ne $SourceDir.Count) {
+        $allErrors += "LocaleDir 与 SourceDir 数量不一致，无法校验 L.T 引用：$($LocaleDir.Count) != $($SourceDir.Count)"
+    }
+    else {
+        for ($i = 0; $i -lt $LocaleDir.Count; $i++) {
+            $srcDir = if ([IO.Path]::IsPathRooted($SourceDir[$i])) { $SourceDir[$i] } else { Join-Path $root $SourceDir[$i] }
+            if (!(Test-Path $srcDir)) { continue }
+
+            $sourceText = (Get-ChildItem $srcDir -Recurse -Filter *.cs |
+                Where-Object { $_.FullName -notmatch '\\(obj|bin|Locales)\\' } |
+                ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
+
+            foreach ($m in [regex]::Matches($sourceText, 'L\.T\(\s*"((?:[^"\\]|\\.)*)"')) {
+                $key = Unescape-Yaml $m.Groups[1].Value
+                if (!$references[$i].Entries.Contains($key)) {
+                    $allErrors += "L.T 引用的键不在基准词表中：$key（$($LocaleDir[$i])）"
+                }
             }
         }
     }

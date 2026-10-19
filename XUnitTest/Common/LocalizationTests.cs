@@ -2,6 +2,9 @@ using System;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using NewLife;
+using NewLife.Log;
+using NewLife.Remoting;
+using NewLife.Remoting.Clients;
 using Xunit;
 
 namespace XUnitTest.Common;
@@ -120,5 +123,55 @@ public class LocalizationTests
             Localization.Culture = saved;
         }
     }
+    #endregion
+
+    #region 日志
+    [Fact(DisplayName = "多语言：日志拼接名称前缀后仍按模板翻译")]
+    public void WriteLog_translates_template_after_name_prefix()
+    {
+        var saved = Localization.Culture;
+        var savedLog = Localization.LogCulture;
+        try
+        {
+            Localization.Culture = CultureInfo.GetCultureInfo("zh-CN");
+            Localization.LogCulture = CultureInfo.GetCultureInfo("zh-CN");
+
+            var log1 = new CaptureLog();
+            var host = new TestHost { Name = "Test", Log = log1 };
+            host.WriteLog("Slow call [{0}] took {1:n0}ms", "Api/Info", 1_234);
+            Assert.Equal("[Test]慢调用[Api/Info]，耗时1,234ms", log1.Message);
+
+            var log2 = new CaptureLog();
+            var upgrade = new Upgrade { Name = "Test", Log = log2 };
+            upgrade.WriteLog("Update succeeded!");
+            Assert.Equal("[Test]更新成功！", log2.Message);
+
+            var log3 = new CaptureLog();
+            var client = new TestClient { Name = "Test", Log = log3 };
+            client.WriteLog("Logout: {0} {1}", "Api/Info", "old");
+            Assert.Equal("[Test]注销：Api/Info old", log3.Message);
+
+            var log4 = new CaptureLog();
+            var cluster = new ClientSingleCluster<String> { Name = "Test", Log = log4 };
+            cluster.WriteLog("[{0}]Cluster connecting: {1}", "Test", "svc");
+            Assert.Equal("[Test]集群连接：svc", log4.Message);
+        }
+        finally
+        {
+            Localization.Culture = saved;
+            Localization.LogCulture = savedLog;
+        }
+    }
+
+    private sealed class CaptureLog : Logger
+    {
+        public String? Message { get; private set; }
+
+        protected override void OnWrite(LogLevel level, String format, params Object?[] args) => Message = Format(format, args);
+    }
+
+    private sealed class TestHost : ApiHost { }
+
+    private sealed class TestClient : ClientBase { }
     #endregion
 }
