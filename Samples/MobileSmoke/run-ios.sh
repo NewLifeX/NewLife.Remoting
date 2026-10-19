@@ -4,14 +4,25 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PROJECT="$ROOT/Samples/MobileSmoke/MobileSmoke.csproj"
 CONFIGURATION="${CONFIGURATION:-Release}"
-RUNTIME="${RUNTIME:-iossimulator-arm64}"
+
+# 模拟器与宿主同架构：arm64 主机用 iossimulator-arm64，x64 主机用 iossimulator-x64
+if [ "$(uname -m)" = "arm64" ]; then
+  DEFAULT_RUNTIME="iossimulator-arm64"
+else
+  DEFAULT_RUNTIME="iossimulator-x64"
+fi
+RUNTIME="${RUNTIME:-$DEFAULT_RUNTIME}"
+
 BUNDLE_ID="com.newlife.smoke.remoting"
 TIMEOUT="${TIMEOUT:-180}"
 ARTIFACTS="$ROOT/Bin/MobileSmoke/artifacts"
 
 mkdir -p "$ARTIFACTS"
 
-dotnet build "$PROJECT" -c "$CONFIGURATION" -f net10.0-ios -p:RuntimeIdentifier="$RUNTIME" --nologo
+# 项目是 android+ios 双目标，必须把目标框架收窄到单一平台；
+# 否则 macOS 上还原期仍会解析 Android workload，缺失时直接 NETSDK1178
+dotnet build "$PROJECT" -c "$CONFIGURATION" -f net10.0-ios \
+  -p:MobileTargetFramework=net10.0-ios -p:RuntimeIdentifier="$RUNTIME" --nologo
 
 APP="$(find "$ROOT/Bin/MobileSmoke" -maxdepth 6 -name "*.app" -print -quit)"
 if [ -z "$APP" ]; then
@@ -44,7 +55,8 @@ done
 
 if [ -z "$RESULT" ]; then
   echo "smoke.json not found within ${TIMEOUT}s."
-  xcrun simctl spawn "$UDID" log show --last 2m --style compact --predicate 'process == "MobileSmoke"' || true
+  xcrun simctl spawn "$UDID" log show --last 2m --style compact --predicate 'process == "MobileSmoke"' > "$ARTIFACTS/ios-log.txt" 2>&1 || true
+  cat "$ARTIFACTS/ios-log.txt" || true
   exit 1
 fi
 

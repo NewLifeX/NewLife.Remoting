@@ -2,7 +2,10 @@
 
   <!-- 移动端兼容冒烟：在主库之上运行核心 API，Android 跑模拟器、iOS 跑模拟器 -->
   <PropertyGroup>
-    <TargetFrameworks>net10.0-android;net10.0-ios</TargetFrameworks>
+    <!-- CI 只跑单平台时用 -p:MobileTargetFramework=<tfm> 收窄目标框架，避免另一平台的 workload 缺失导致还原期 NETSDK1178。
+         这里不能用全局 -p:TargetFrameworks，全局属性会传导到引用的项目，破坏它们自己的目标框架 -->
+    <TargetFrameworks Condition="'$(MobileTargetFramework)' != ''">$(MobileTargetFramework)</TargetFrameworks>
+    <TargetFrameworks Condition="'$(MobileTargetFramework)' == ''">net10.0-android;net10.0-ios</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
