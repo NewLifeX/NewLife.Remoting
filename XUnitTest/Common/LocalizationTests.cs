@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -88,6 +89,34 @@ public class LocalizationTests
             Localization.Culture = saved;
         }
     }
+
+    /// <summary>与 locales.json 保持一致的 31 种内置语言</summary>
+    public static readonly String[] Locales =
+    [
+        "ar", "bn", "cs", "da", "de", "el", "es", "fa", "fi", "fr", "he", "hi", "hu", "id", "it", "ja",
+        "ko", "ms", "nb", "nl", "pl", "pt", "ro", "ru", "sv", "th", "tr", "uk", "vi", "zh-Hans", "zh-Hant",
+    ];
+
+    /// <summary>全部内置语言的测试数据</summary>
+    public static IEnumerable<Object[]> LocaleData => Locales.Select(e => new Object[] { e });
+
+    [Theory(DisplayName = "多语言：全部内置语言的词表均在运行时注册")]
+    [MemberData(nameof(LocaleData))]
+    public void Translate_all_locales(String name)
+    {
+        var saved = Localization.Culture;
+        try
+        {
+            Localization.Culture = CultureInfo.GetCultureInfo(name);
+
+            Assert.NotEqual(CoreKey, Localization.Translate(CoreKey));
+            Assert.NotEqual(ExtKey, Localization.Translate(ExtKey));
+        }
+        finally
+        {
+            Localization.Culture = saved;
+        }
+    }
     #endregion
 
     #region 回退
@@ -161,8 +190,60 @@ public class LocalizationTests
 
             var log4 = new CaptureLog();
             var cluster = new ClientSingleCluster<String> { Name = "Test", Log = log4 };
-            cluster.WriteLog("[{0}]Cluster connecting: {1}", "Test", "svc");
+            cluster.WriteLog("Cluster connecting: {0}", "svc");
             Assert.Equal("[Test]集群连接：svc", log4.Message);
+
+            var log5 = new CaptureLog();
+            var pool = new ClientPoolCluster<String> { Name = "Test", Log = log5 };
+            pool.WriteLog("Cluster balancing: {0}", "svc");
+            Assert.Equal("[Test]集群均衡：svc", log5.Message);
+        }
+        finally
+        {
+            Localization.Culture = saved;
+            Localization.LogCulture = savedLog;
+        }
+    }
+
+    [Fact(DisplayName = "多语言：自定义 ILog 实现同样先翻译并格式化再拼接前缀")]
+    public void WriteLog_translates_for_custom_ilog()
+    {
+        var saved = Localization.Culture;
+        var savedLog = Localization.LogCulture;
+        try
+        {
+            Localization.Culture = CultureInfo.GetCultureInfo("zh-CN");
+            Localization.LogCulture = CultureInfo.GetCultureInfo("zh-CN");
+
+            var log = new RawLog();
+            var host = new TestHost { Name = "Test", Log = log };
+            host.WriteLog("Slow call [{0}] took {1:n0}ms", "Api/Info", 1_234);
+
+            Assert.Equal("[Test]慢调用[Api/Info]，耗时1,234ms", Assert.Single(log.Messages));
+        }
+        finally
+        {
+            Localization.Culture = saved;
+            Localization.LogCulture = savedLog;
+        }
+    }
+
+    [Fact(DisplayName = "多语言：日志语言独立于界面语言")]
+    public void WriteLog_uses_log_culture()
+    {
+        var saved = Localization.Culture;
+        var savedLog = Localization.LogCulture;
+        try
+        {
+            Localization.Culture = CultureInfo.GetCultureInfo("de-DE");
+            Localization.LogCulture = CultureInfo.GetCultureInfo("zh-CN");
+
+            var log = new CaptureLog();
+            var host = new TestHost { Name = "Test", Log = log };
+            host.WriteLog("Update succeeded!");
+
+            Assert.Equal("[Test]更新成功！", log.Message);
+            Assert.Equal("Serveradresse ist nicht angegeben.", Localization.Translate(CoreKey));
         }
         finally
         {
@@ -176,6 +257,20 @@ public class LocalizationTests
         public String? Message { get; private set; }
 
         protected override void OnWrite(LogLevel level, String format, params Object?[] args) => Message = Format(format, args);
+    }
+
+    private sealed class RawLog : ILog
+    {
+        public List<String> Messages { get; } = [];
+        public Boolean Enable { get; set; } = true;
+        public LogLevel Level { get; set; } = LogLevel.All;
+
+        public void Write(LogLevel level, String format, params Object?[] args) => Messages.Add(args.Length == 0 ? format : $"{format}|{String.Join(",", args)}");
+        public void Debug(String format, params Object?[] args) => Write(LogLevel.Debug, format, args);
+        public void Info(String format, params Object?[] args) => Write(LogLevel.Info, format, args);
+        public void Warn(String format, params Object?[] args) => Write(LogLevel.Warn, format, args);
+        public void Error(String format, params Object?[] args) => Write(LogLevel.Error, format, args);
+        public void Fatal(String format, params Object?[] args) => Write(LogLevel.Fatal, format, args);
     }
 
     private sealed class TestHost : ApiHost { }

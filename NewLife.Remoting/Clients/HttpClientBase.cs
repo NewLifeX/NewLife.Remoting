@@ -125,7 +125,7 @@ public class HttpClientBase : ClientBase
                 catch (Exception ex)
                 {
                     span?.SetError(ex, null);
-                    WriteLog("{0}", ex);
+                    WriteLog("{0}", ex.ToString());
                 }
             }
 

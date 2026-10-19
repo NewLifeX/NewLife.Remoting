@@ -576,13 +576,13 @@ public class ApiClient : ApiHost, IApiClient
             {
                 task.ContinueWith(t =>
                 {
-                    if (t.Exception != null) Log?.Error("[{0}]Automatic login failed: {1}", Name, t.Exception.GetTrue().Message);
+                    if (t.Exception != null) Log?.ErrorPrefixed("[" + Name + "]", "Automatic login failed: {0}", t.Exception.GetTrue().Message);
                 }, TaskScheduler.Default);
             }
         }
         catch (Exception ex)
         {
-            Log?.Error("[{0}]Failed to trigger automatic login: {1}", Name, ex.Message);
+            Log?.ErrorPrefixed("[" + Name + "]", "Failed to trigger automatic login: {0}", ex.Message);
         }
     }
 

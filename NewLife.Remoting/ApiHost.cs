@@ -54,16 +54,10 @@ public abstract class ApiHost : DisposeBase, IApiHost, IExtend, ILogFeature, ITr
     /// <summary>性能跟踪器</summary>
     public ITracer? Tracer { get; set; } = DefaultTracer.Instance;
 
-    /// <summary>写日志</summary>
-    /// <param name="format"></param>
-    /// <param name="args"></param>
-    public void WriteLog(String format, params Object?[] args)
-    {
-        // 日志语言在进入 Logger.Format 前先翻译，避免拼接名称前缀后整串无法命中词表
-        if (Log == null || Log == Logger.Null) return;
-
-        Log.Info("[" + Name + "]" + Localization.TranslateForLog(format), args);
-    }
+    /// <summary>写日志。名称前缀不参与本地化，先按日志语言翻译并格式化消息，再拼接前缀</summary>
+    /// <param name="format">格式化字符串</param>
+    /// <param name="args">参数</param>
+    public void WriteLog(String format, params Object?[] args) => Log?.InfoPrefixed("[" + Name + "]", format, args);
 
     /// <summary>已重载。返回具有本类特征的字符串</summary>
     /// <returns>String</returns>

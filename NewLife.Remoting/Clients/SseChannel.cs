@@ -193,7 +193,7 @@ class SseChannel(ClientBase client) : DisposeBase
         catch (Exception ex)
         {
             if (!cancellationToken.IsCancellationRequested)
-                _client.Log?.Error("[{0}]SSE error [{1}]: {2}", _client.Name, ex.GetType().Name, ex.Message);
+                _client.Log?.ErrorPrefixed("[" + _client.Name + "]", "SSE error [{0}]: {1}", ex.GetType().Name, ex.Message);
         }
         finally
         {
@@ -215,7 +215,7 @@ class SseChannel(ClientBase client) : DisposeBase
         }
         catch (Exception ex)
         {
-            _client.Log?.Error("[{0}]SSE command handling error: {1}", _client.Name, ex.Message);
+            _client.Log?.ErrorPrefixed("[" + _client.Name + "]", "SSE command handling error: {0}", ex.Message);
         }
     }
     #endregion

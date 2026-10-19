@@ -80,7 +80,7 @@ public class ClientPoolCluster<T> : ICluster<String, T> where T : class
             var svr = svrs[k];
             try
             {
-                WriteLog("[{0}]Cluster balancing: {1}", Name, svr);
+                WriteLog("Cluster balancing: {0}", svr);
 
                 var client = OnCreate(svr);
                 //client.Open();
@@ -141,9 +141,9 @@ public class ClientPoolCluster<T> : ICluster<String, T> where T : class
     /// <summary>日志</summary>
     public ILog Log { get; set; } = Logger.Null;
 
-    /// <summary>写日志</summary>
-    /// <param name="format"></param>
-    /// <param name="args"></param>
-    public void WriteLog(String format, params Object[] args) => Log?.Info(format, args);
+    /// <summary>写日志。名称前缀不参与本地化，先按日志语言翻译并格式化消息，再拼接前缀</summary>
+    /// <param name="format">格式化字符串</param>
+    /// <param name="args">参数</param>
+    public void WriteLog(String format, params Object[] args) => Log?.InfoPrefixed("[" + Name + "]", format, args);
     #endregion
 }

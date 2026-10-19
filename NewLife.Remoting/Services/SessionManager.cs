@@ -552,7 +552,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
 
             // 记录日志
             if (item.Value is ILogFeature lf)
-                lf.Log?.Info("[{0}]Destroyed due to inactivity", item.Key);
+                lf.Log?.InfoPrefixed("[" + item.Key + "]", "Destroyed due to inactivity");
 
             // 关闭并释放会话
             if (item.Value is INetSession ss) ss.Close(nameof(RemoveNotAlive));

@@ -572,7 +572,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             // 登录报错后，加大定时间隔，输出简单日志
             if (timer != null && timer.Period < 30_000) timer.Period += 5_000;
 
-            Log?.Error("[{0}]TryConnectServer: {1}", Name, ex.Message);
+            Log?.ErrorPrefixed("[" + Name + "]", "TryConnectServer: {0}", ex.Message);
 
             if (!Logined) return;
         }
@@ -604,7 +604,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         // 如果正在登录，则稍等一会，避免重复登录。
         if (Status == LoginStatus.LoggingIn)
         {
-            Log?.Write(level, "[{0}]Logging in, please wait {1}ms! Sequence: {2}, Source: {3}", Name, 50 * 100, times, source);
+            Log?.WritePrefixed(level, "[" + Name + "]", "Logging in, please wait {0}ms! Sequence: {1}, Source: {2}", 50 * 100, times, source);
             for (var i = 0; Status == LoginStatus.LoggingIn && i < 50; i++)
             {
                 await TaskEx.Delay(100, cancellationToken).ConfigureAwait(false);
@@ -619,7 +619,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         ILoginRequest? request = null;
         ILoginResponse? response = null;
         using var span = Tracer?.NewSpan(nameof(Login), new { Code, source, Server });
-        Log?.Write(level, "[{0}]Login: {1}, Sequence: {2}, Source: {3}", Name, Code, times, source);
+        Log?.WritePrefixed(level, "[" + Name + "]", "Login: {0}, Sequence: {1}, Source: {2}", Code, times, source);
         try
         {
             // 创建登录请求，用户可重载BuildLoginRequest实现自定义登录请求，填充更多参数
@@ -637,7 +637,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             response = await LoginAsync(request, ts.Token).ConfigureAwait(false);
             if (response == null) return null;
 
-            Log?.Write(level, "[{0}]Login succeeded: {1}, Sequence: {2}, Source: {3}", Name, response, times, source);
+            Log?.WritePrefixed(level, "[" + Name + "]", "Login succeeded: {0}, Sequence: {1}, Source: {2}", response, times, source);
 
             // 登录后设置用于用户认证的token
             SetToken(response.Token);
@@ -646,7 +646,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
         catch (Exception ex)
         {
-            Log?.Write(level, "[{0}]Login failed: {1}, Sequence: {2}, Source: {3}", Name, ex.Message, times, source);
+            Log?.WritePrefixed(level, "[" + Name + "]", "Login failed: {0}, Sequence: {1}, Source: {2}", ex.Message, times, source);
 
             Status = LoginStatus.Ready;
             span?.SetError(ex, null);
@@ -692,7 +692,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
         catch (Exception ex)
         {
-            Log?.Error("[{0}]OnLogined event error: {1}", Name, ex.Message);
+            Log?.ErrorPrefixed("[" + Name + "]", "OnLogined event error: {0}", ex.Message);
         }
 
         return response;
@@ -791,7 +791,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         catch (Exception ex)
         {
             span?.SetError(ex, null);
-            Log?.Error("[{0}]Logout: {1}", Name, ex.ToString());
+            Log?.ErrorPrefixed("[" + Name + "]", "Logout: {0}", ex.ToString());
 
             return null;
         }
@@ -896,14 +896,14 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                 Status = LoginStatus.Ready;
                 if (Features.HasFlag(Features.Login))
                 {
-                    Log?.Debug("[{0}]Re-login because heartbeat failed: {1}", Name, ex.Message);
+                    Log?.WritePrefixed(LogLevel.Debug, "[" + Name + "]", "Re-login because heartbeat failed: {0}", ex.Message);
                     await Login(nameof(Ping), cancellationToken).ConfigureAwait(false);
                 }
 
                 return null;
             }
 
-            Log?.Debug("[{0}]Heartbeat error: {1}", Name, ex.GetTrue().Message);
+            Log?.WritePrefixed(LogLevel.Debug, "[" + Name + "]", "Heartbeat error: {0}", ex.GetTrue().Message);
 
             // 常见网络断开错误不要抛出异常
             if (ex2 is IOException || ex2 is SocketException sex && sex.SocketErrorCode == SocketError.ConnectionReset)
@@ -1209,7 +1209,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         catch (Exception ex)
         {
             span?.SetError(ex, null);
-            Log?.Debug("[{0}]{1}", Name, ex);
+            Log?.WritePrefixed(LogLevel.Debug, "[" + Name + "]", "{0}", ex.ToString());
         }
     }
 
@@ -1557,15 +1557,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <summary>日志</summary>
     public ILog Log { get; set; } = Logger.Null;
 
-    /// <summary>写日志</summary>
+    /// <summary>写日志。名称前缀不参与本地化，先按日志语言翻译并格式化消息，再拼接前缀</summary>
     /// <param name="format">格式化字符串</param>
     /// <param name="args">参数</param>
-    public void WriteLog(String format, params Object?[] args)
-    {
-        // 日志语言在进入 Logger.Format 前先翻译，避免拼接名称前缀后整串无法命中词表
-        if (Log == null || Log == Logger.Null) return;
-
-        Log.Info("[" + Name + "]" + Localization.TranslateForLog(format), args);
-    }
+    public void WriteLog(String format, params Object?[] args) => Log?.InfoPrefixed("[" + Name + "]", format, args);
     #endregion
 }

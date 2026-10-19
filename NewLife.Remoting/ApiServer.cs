@@ -443,7 +443,7 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
             {
                 ex = ex.GetTrue();
 
-                if (ShowError) WriteLog("{0}", ex);
+                if (ShowError) WriteLog("{0}", ex.ToString());
 
                 // 支持自定义错误码
                 if (ex is ApiException aex)
