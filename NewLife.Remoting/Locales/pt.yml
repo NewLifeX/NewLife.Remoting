@@ -40,7 +40,7 @@
 "Streaming calls currently support only the TCP RPC mode (ApiClient), not the HTTP mode": "As chamadas de streaming atualmente suportam apenas o modo RPC TCP (ApiClient), não o modo HTTP"
 "Network unreachable, delaying the connection to the server": "Rede inacessível, conexão ao servidor adiada"
 "Issued secret: {0}/{1}": "Segredo emitido: {0}/{1}"
-"Logout: {0} {1}": "Logout: {0} {1}"
+"Logout: {0} {1}": "Sair: {0} {1}"
 "Checking for updates": "Verificando atualizações"
 "Update found: {0}": "Atualização encontrada: {0}"
 "Preparing to update from [{1}] to [{2}], downloading {0}": "Preparando a atualização de [{1}] para [{2}], baixando {0}"

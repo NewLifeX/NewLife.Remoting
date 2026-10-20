@@ -40,7 +40,7 @@
 "Streaming calls currently support only the TCP RPC mode (ApiClient), not the HTTP mode": "Panggilan streaming saat ini hanya mendukung mode RPC TCP (ApiClient), bukan mode HTTP"
 "Network unreachable, delaying the connection to the server": "Jaringan tidak terjangkau, koneksi ke server ditunda"
 "Issued secret: {0}/{1}": "Rahasia yang diterbitkan: {0}/{1}"
-"Logout: {0} {1}": "Logout: {0} {1}"
+"Logout: {0} {1}": "Keluar: {0} {1}"
 "Checking for updates": "Memeriksa pembaruan"
 "Update found: {0}": "Pembaruan ditemukan: {0}"
 "Preparing to update from [{1}] to [{2}], downloading {0}": "Menyiapkan pembaruan dari [{1}] ke [{2}], mengunduh {0}"
