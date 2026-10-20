@@ -1,4 +1,4 @@
-# 多语言词表一致性校验：语言清单、键集合、占位符、格式说明符、孤儿键、L.T 引用覆盖
+# 多语言词表一致性校验：语言清单、键集合、占位符、格式说明符、未翻译、孤儿键、L.T 引用覆盖
 # 以基准语言文件（默认 zh-Hans.yml）为准，同一目录下所有语言必须提供完全相同的键集合
 # 语言清单见 locales.json（与 NewLife.Core 对齐），各词表目录的语言文件必须与之完全一致
 #
@@ -149,6 +149,12 @@ foreach ($item in $LocaleDir) {
                     $allWarnings += "$($file.FullName): 格式说明符不一致 → $key"
                     break
                 }
+            }
+
+            # 未翻译：句子级词条（3 个及以上空白分隔片段）的译文不得与英文原文完全相同。
+            # 单词型技术词（MD5、Encoder、Handler 等）在部分语言中就是本地通行写法，不在此列。
+            if ($value -ceq $key -and @($key -split '\s+' | Where-Object { $_ }).Count -ge 3) {
+                $allErrors += "$($file.FullName): 未翻译（译文与英文原文相同）→ $key"
             }
         }
     }
