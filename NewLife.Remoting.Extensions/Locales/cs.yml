@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "Neoprávněný přístup [{0}] {1}"
 "The token has been revoked!": "Token byl odvolán!"
 "Database SQL error": "Chyba SQL databáze"
+"NewLife Remoting Extensions": "Rozšíření NewLife Remoting"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "Ovladače přístupu zařízení, token služby a rozšíření správy relací pro NewLife.Remoting."

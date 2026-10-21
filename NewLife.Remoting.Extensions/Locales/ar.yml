@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "وصول غير قانوني [{0}] {1}"
 "The token has been revoked!": "تم إبطال الرمز!"
 "Database SQL error": "خطأ SQL في قاعدة البيانات"
+"NewLife Remoting Extensions": "إضافات NewLife Remoting"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "وحدات تحكم وصول الأجهزة وخدمات الرموز المميزة وامتدادات إدارة الجلسات لـ NewLife.Remoting."

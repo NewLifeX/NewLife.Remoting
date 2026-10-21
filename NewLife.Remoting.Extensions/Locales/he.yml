@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "גישה בלתי חוקית [{0}] {1}"
 "The token has been revoked!": "האסימון בוטל!"
 "Database SQL error": "שגיאת SQL במסד הנתונים"
+"NewLife Remoting Extensions": "הרחבות NewLife Remoting"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "בקרי גישה להתקנים, שירותי אסימון והרחבות לניהול הפעלות עבור NewLife.Remoting."

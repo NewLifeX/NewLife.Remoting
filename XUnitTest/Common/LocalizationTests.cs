@@ -114,6 +114,11 @@ public class LocalizationTests
 
             Assert.NotEqual(CoreKey, Localization.Translate(CoreKey));
             Assert.NotEqual(ExtKey, Localization.Translate(ExtKey));
+
+            // 元数据词条同样要求全语言覆盖，不得回退英文源文
+            Assert.NotEqual(MainDescription, Localization.Translate(MainDescription));
+            Assert.NotEqual(ExtDescription, Localization.Translate(ExtDescription));
+            Assert.NotEqual("Load balancing", Localization.Translate("Load balancing"));
         }
         finally
         {
@@ -174,10 +179,14 @@ public class LocalizationTests
             Assert.Equal("远程通信服务扩展", Localization.Translate("NewLife Remoting Extensions"));
             Assert.Equal("提供设备接入控制器、令牌服务与会话管理扩展", Localization.Translate(ExtDescription));
 
-            // 元数据只维护少数语言，其余语言回退英文源文
+            // 全部语言全量覆盖：德语等非中文语言同样有译文
             Localization.Culture = CultureInfo.GetCultureInfo("de-DE");
+            Assert.Equal("NewLife Remoting-Bibliothek", Localization.Translate("NewLife Remoting Library"));
+            Assert.Equal("Einheitliche RPC-, HTTP-, WebSocket- und SRMP-Kommunikation für Client-Server- und IoT-Anwendungen.", Localization.Translate(MainDescription));
+
+            // 未内置的区域回退英文源文
+            Localization.Culture = CultureInfo.GetCultureInfo("sw-KE");
             Assert.Equal("NewLife Remoting Library", Localization.Translate("NewLife Remoting Library"));
-            Assert.Equal(MainDescription, Localization.Translate(MainDescription));
         }
         finally
         {
@@ -198,6 +207,9 @@ public class LocalizationTests
 
             Assert.Equal("负载均衡", Localization.Translate("Load balancing"));
             Assert.Equal("故障转移", Localization.Translate("Failover"));
+
+            Localization.Culture = CultureInfo.GetCultureInfo("de-DE");
+            Assert.Equal("Lastverteilung", Localization.Translate("Load balancing"));
         }
         finally
         {

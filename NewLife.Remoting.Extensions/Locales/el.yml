@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "Μη εξουσιοδοτημένη πρόσβαση [{0}] {1}"
 "The token has been revoked!": "Το διακριτικό έχει ανακληθεί!"
 "Database SQL error": "Σφάλμα SQL βάσης δεδομένων"
+"NewLife Remoting Extensions": "Επεκτάσεις NewLife Remoting"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "Ελεγκτές πρόσβασης συσκευών, υπηρεσίες διακριτικών και επεκτάσεις διαχείρισης συνεδριών για το NewLife.Remoting."

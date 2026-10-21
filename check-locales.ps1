@@ -1,7 +1,7 @@
 # 多语言词表一致性校验：语言清单、键集合、占位符、格式说明符、未翻译、孤儿键、L.T 引用覆盖
 # 以基准语言文件（默认 zh-Hans.yml）为准，同一目录下所有语言必须提供完全相同的键集合
 # 语言清单见 locales.json（与 NewLife.Core 对齐），各词表目录的语言文件必须与之完全一致
-# 可选键见各词表目录的 metadata-keys.json（程序集标题/描述等元数据）：允许只出现在部分语言，缺失时运行时回退英文源文
+# 本仓要求**全部语言全量覆盖**：不使用上游的可选键豁免，任何键缺失或仅回退英文都会失败
 #
 # 用法：
 #   pwsh -File check-locales.ps1                                   # 本仓默认目录
@@ -12,7 +12,6 @@ param(
     [String]$Baseline = "zh-Hans.yml",
     [String[]]$SourceDir = @("NewLife.Remoting", "NewLife.Remoting.Extensions"),
     [String]$LocaleSet = "locales.json",
-    [String]$MetadataKeys = "metadata-keys.json",
     [Switch]$SkipOrphan
 )
 
@@ -106,18 +105,6 @@ foreach ($item in $LocaleDir) {
     }
     $reference = Read-Locale $referencePath
     foreach ($e in $reference.Errors) { $allErrors += "$($referencePath): $e" }
-
-    # 可选键：元数据类词条允许只给部分语言译文，其余语言回退英文源文
-    $optionalKeys = [Collections.Generic.HashSet[String]]::new([StringComparer]::Ordinal)
-    if ($MetadataKeys) {
-        $metadataPath = Join-Path $dir $MetadataKeys
-        if (Test-Path -LiteralPath $metadataPath) {
-            foreach ($key in (Get-Content -LiteralPath $metadataPath -Raw -Encoding UTF8 | ConvertFrom-Json).keys) {
-                if (![String]::IsNullOrEmpty($key)) { [void]$optionalKeys.Add($key) }
-            }
-        }
-    }
-    $reference.OptionalKeys = $optionalKeys
     $references += $reference
 
     $present = @(Get-ChildItem $dir -Filter *.yml | ForEach-Object { $_.BaseName })
@@ -126,28 +113,23 @@ foreach ($item in $LocaleDir) {
             if ($present -notcontains $code) { $allErrors += "$dir 缺少语言文件：$code.yml" }
         }
         foreach ($code in $present) {
-            # en 为可选词表：元数据源文非英文时用它提供英文译文，不属于语言清单
-            if ($expectLocales -notcontains $code -and $code -ne "en") { $allErrors += "$dir 存在清单外的语言文件：$code.yml" }
+            if ($expectLocales -notcontains $code) { $allErrors += "$dir 存在清单外的语言文件：$code.yml" }
         }
     }
 
     foreach ($file in Get-ChildItem $dir -Filter *.yml | Sort-Object Name) {
         $localeCount++
         if ($file.Name -eq $Baseline) { continue }
-        # en 为可选词表：未列出的消息键回退英文源文，不参与「所有语言同键集」校验
-        $isEnglish = $file.BaseName -eq "en"
         $locale = Read-Locale $file.FullName
         foreach ($e in $locale.Errors) { $allErrors += "$($file.FullName): $e" }
 
-        if (!$isEnglish) {
-            foreach ($key in $reference.Entries.Keys) {
-                if (!$locale.Entries.Contains($key) -and !$optionalKeys.Contains($key)) {
-                    $allErrors += "$($file.FullName): 缺少键 $key"
-                }
+        foreach ($key in $reference.Entries.Keys) {
+            if (!$locale.Entries.Contains($key)) {
+                $allErrors += "$($file.FullName): 缺少键 $key"
             }
         }
         foreach ($key in $locale.Entries.Keys) {
-            if (!$reference.Entries.Contains($key) -and !$optionalKeys.Contains($key)) {
+            if (!$reference.Entries.Contains($key)) {
                 $allErrors += "$($file.FullName): 多余键 $key"
                 continue
             }
@@ -172,8 +154,7 @@ foreach ($item in $LocaleDir) {
 
             # 未翻译：句子级词条（3 个及以上空白分隔片段）的译文不得与英文原文完全相同。
             # 单词型技术词（MD5、Encoder、Handler 等）在部分语言中就是本地通行写法，不在此列。
-            # 可选键（元数据）按约定只维护少数语言，其余语言省略回退英文，不参与本判定。
-            if (!$optionalKeys.Contains($key) -and $value -ceq $key -and @($key -split '\s+' | Where-Object { $_ }).Count -ge 3) {
+            if ($value -ceq $key -and @($key -split '\s+' | Where-Object { $_ }).Count -ge 3) {
                 $allErrors += "$($file.FullName): 未翻译（译文与英文原文相同）→ $key"
             }
         }
@@ -199,9 +180,6 @@ if (!$SkipOrphan) {
 
     foreach ($reference in $references) {
         foreach ($key in $reference.Entries.Keys) {
-            # 可选键由 csproj 元数据或运行时数据引用，不参与源码归属判定
-            if ($reference.OptionalKeys.Contains($key)) { continue }
-
             # 源码中的字面量形式：制表符写作 \t，引号写作 \"
             $escaped = $key.Replace('\', '\\').Replace('"', '\"').Replace("`t", '\t').Replace("`r", '\r').Replace("`n", '\n')
             $inCode = $sourceText.Contains('"' + $escaped + '"')
@@ -231,7 +209,7 @@ if (!$SkipOrphan) {
             # 覆盖 L.T / L.TLog / Localization.Translate(ForLog)，含显式传入区域性作为首参的重载
             foreach ($m in [regex]::Matches($sourceText, '(?:L\.TLog|L\.T|Localization\.Translate(?:ForLog)?)\s*\(\s*(?:[A-Za-z_][\w\.]*\s*,\s*)?"((?:[^"\\]|\\.)*)"')) {
                 $key = Unescape-Yaml $m.Groups[1].Value
-                if (!$references[$i].Entries.Contains($key) -and !$references[$i].OptionalKeys.Contains($key)) {
+                if (!$references[$i].Entries.Contains($key)) {
                     $allErrors += "缺少词条（源码已调用 L.T/Translate）：$key（$($LocaleDir[$i])）"
                 }
             }

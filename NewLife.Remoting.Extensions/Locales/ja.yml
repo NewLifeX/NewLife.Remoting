@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "不正なアクセス [{0}] {1}"
 "The token has been revoked!": "トークンは失効しています！"
 "Database SQL error": "データベース SQL エラー"
+"NewLife Remoting Extensions": "NewLife Remoting 拡張機能"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "NewLife.Remoting 向けのデバイスアクセスコントローラー、トークンサービス、セッション管理拡張。"

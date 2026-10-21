@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "Onrechtmatige toegang [{0}] {1}"
 "The token has been revoked!": "Het token is ingetrokken!"
 "Database SQL error": "SQL-databasefout"
+"NewLife Remoting Extensions": "NewLife Remoting-uitbreidingen"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "Apparaattoegangscontrollers, tokendiensten en extensies voor sessiebeheer voor NewLife.Remoting."

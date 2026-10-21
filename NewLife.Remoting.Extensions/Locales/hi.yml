@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "अवैध पहुँच [{0}] {1}"
 "The token has been revoked!": "टोकन रद्द कर दिया गया है!"
 "Database SQL error": "SQL डेटाबेस त्रुटि"
+"NewLife Remoting Extensions": "NewLife Remoting एक्सटेंशन"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "NewLife.Remoting के लिए डिवाइस एक्सेस कंट्रोलर, टोकन सेवाएँ और सत्र प्रबंधन एक्सटेंशन।"

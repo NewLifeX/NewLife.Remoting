@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "অবৈধ অ্যাক্সেস [{0}] {1}"
 "The token has been revoked!": "টোকেন বাতিল করা হয়েছে!"
 "Database SQL error": "SQL ডাটাবেস ত্রুটি"
+"NewLife Remoting Extensions": "NewLife Remoting এক্সটেনশন"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "NewLife.Remoting-এর জন্য ডিভাইস অ্যাক্সেস কন্ট্রোলার, টোকেন পরিষেবা ও সেশন ব্যবস্থাপনা এক্সটেনশন।"

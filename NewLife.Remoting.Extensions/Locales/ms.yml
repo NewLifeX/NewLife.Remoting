@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "Akses tidak sah [{0}] {1}"
 "The token has been revoked!": "Token telah dibatalkan!"
 "Database SQL error": "Ralat SQL pangkalan data"
+"NewLife Remoting Extensions": "Sambungan NewLife Remoting"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "Pengawal akses peranti, perkhidmatan token dan sambungan pengurusan sesi untuk NewLife.Remoting."

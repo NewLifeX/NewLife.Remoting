@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "การเข้าถึงที่ไม่ได้รับอนุญาต [{0}] {1}"
 "The token has been revoked!": "โทเค็นถูกเพิกถอนแล้ว!"
 "Database SQL error": "ข้อผิดพลาด SQL ของฐานข้อมูล"
+"NewLife Remoting Extensions": "ส่วนขยาย NewLife Remoting"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "คอนโทรลเลอร์การเข้าถึงอุปกรณ์ บริการโทเค็น และส่วนขยายการจัดการเซสชันสำหรับ NewLife.Remoting"

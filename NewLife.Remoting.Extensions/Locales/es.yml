@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "Acceso ilegal [{0}] {1}"
 "The token has been revoked!": "¡El token ha sido revocado!"
 "Database SQL error": "Error SQL de la base de datos"
+"NewLife Remoting Extensions": "Extensiones de NewLife Remoting"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "Controladores de acceso a dispositivos, servicios de token y extensiones de gestión de sesiones para NewLife.Remoting."

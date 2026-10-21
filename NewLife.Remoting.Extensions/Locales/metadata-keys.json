@@ -1,8 +1,0 @@
-{
-  "comment": "允许只出现在部分语言的可选键（元数据、语言名等）。由 collect-metadata-keys.ps1 生成，缺失时回退源文。",
-  "updated": "2026-10-21",
-  "keys": [
-    "Device access controllers, token services and session management extensions for NewLife.Remoting.",
-    "NewLife Remoting Extensions"
-  ]
-}

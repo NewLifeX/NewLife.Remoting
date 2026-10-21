@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "Незаконный доступ [{0}] {1}"
 "The token has been revoked!": "Токен отозван!"
 "Database SQL error": "Ошибка SQL базы данных"
+"NewLife Remoting Extensions": "Расширения NewLife Remoting"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "Контроллеры доступа к устройствам, службы токенов и расширения управления сеансами для NewLife.Remoting."

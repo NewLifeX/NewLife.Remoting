@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "Laiton pääsy [{0}] {1}"
 "The token has been revoked!": "Tunnus on peruutettu!"
 "Database SQL error": "SQL-tietokantavirhe"
+"NewLife Remoting Extensions": "NewLife Remoting -laajennukset"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "Laitekäytön ohjaimet, tunnepalvelut ja istunnonhallinnan laajennukset NewLife.Remotingille."

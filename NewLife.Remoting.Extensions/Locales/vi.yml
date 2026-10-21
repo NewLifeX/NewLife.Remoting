@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "Truy cập trái phép [{0}] {1}"
 "The token has been revoked!": "Mã thông báo đã bị thu hồi!"
 "Database SQL error": "Lỗi SQL cơ sở dữ liệu"
+"NewLife Remoting Extensions": "Tiện ích mở rộng NewLife Remoting"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "Bộ điều khiển truy cập thiết bị, dịch vụ mã thông báo và tiện ích quản lý phiên cho NewLife.Remoting."

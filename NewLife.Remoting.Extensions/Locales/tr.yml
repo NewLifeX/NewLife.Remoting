@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "Yetkisiz erişim [{0}] {1}"
 "The token has been revoked!": "Belirteç iptal edildi!"
 "Database SQL error": "SQL veritabanı hatası"
+"NewLife Remoting Extensions": "NewLife Remoting Uzantıları"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "NewLife.Remoting için cihaz erişim denetleyicileri, belirteç hizmetleri ve oturum yönetimi uzantıları."
