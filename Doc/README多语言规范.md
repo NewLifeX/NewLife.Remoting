@@ -35,9 +35,9 @@
 ## 维护方式
 
 - **单一事实源**：`readme-languages.json`（`code` / `name` / `file`，数组顺序即展示顺序）。
-- **生成与校验**：`sync-readme-languages.ps1` 按配置重写各 README 的切换块；加 `-Check` 只校验不写入，不一致时退出码 1。
-- **指标同步**：`readme-metrics.json` 保存会随发布变化的数字（AOT 冒烟场景数、TFM 数量、运行时词表语言数），`sync-readme-metrics.ps1` 重写徽章块与 `<!--aot-scenarios:start-->…<!--aot-scenarios:end-->`、`<!--aot-smoke:start-->…<!--aot-smoke:end-->` 标记内的数字。
-- **NuGet 包版**：`sync-readme-package.ps1` 按 `readme-package.json` 从 `README.md` 生成 `README.nuget.md`，把所有相对链接改写为 GitHub 绝对地址；加 `-Check` 校验生成物与 `PackageReadmeFile` 目标。
+- **生成与校验**：`Tools/Scripts/sync-readme-languages.ps1` 按配置重写各 README 的切换块；加 `-Check` 只校验不写入，不一致时退出码 1。
+- **指标同步**：`readme-metrics.json` 保存会随发布变化的数字（AOT 冒烟场景数、TFM 数量、运行时词表语言数），`Tools/Scripts/sync-readme-metrics.ps1` 重写徽章块与 `<!--aot-scenarios:start-->…<!--aot-scenarios:end-->`、`<!--aot-smoke:start-->…<!--aot-smoke:end-->` 标记内的数字。
+- **NuGet 包版**：`Tools/Scripts/sync-readme-package.ps1` 按 `readme-package.json` 从 `README.md` 生成 `README.nuget.md`，把所有相对链接改写为 GitHub 绝对地址；加 `-Check` 校验生成物与 `PackageReadmeFile` 目标。
 - **CI 门禁**：`.github/workflows/readme.yml` 在 README、配置或脚本变动时执行三项 `-Check`，顺序不一致、副本漂移、指标过期或包版漂移都会失败。
 - 各 README 只有下面标记块之间的内容由脚本生成，其余内容不受影响：
 
@@ -58,7 +58,7 @@
 1. 翻译整篇 README，文件名用 `README.{BCP 47 语言标签}.md`（如 `README.zh-TW.md`；中文版固定为 `README.zh-CN.md`）。
 2. 在 `readme-languages.json` 的 `languages` 数组**末尾**追加 `{ "code", "name", "file" }`，`name` 用本族语名称。
 3. 补齐徽章块（`<!-- metrics:start -->` 起）与切换行标记块，正文开头写明「本翻译可能滞后，以 [English README](README.md) 为准」。
-4. 运行 `pwsh -File sync-readme-languages.ps1` 生成切换行，再运行 `pwsh -File sync-readme-metrics.ps1` 对齐徽章。
+4. 运行 `pwsh -File Tools/Scripts/sync-readme-languages.ps1` 生成切换行，再运行 `pwsh -File Tools/Scripts/sync-readme-metrics.ps1` 对齐徽章。
 5. 三项 `-Check` 均通过后提交；根目录新增了 README 却没登记到配置，脚本会直接报错。
 
 ## 徽章规则（本仓取值）

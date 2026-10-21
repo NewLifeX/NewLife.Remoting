@@ -5,12 +5,12 @@
 # NuGet 不支持相对链接，因此包内 README 必须独立生成，不能直接嵌入 README.md。
 #
 # 用法：
-#   pwsh -File sync-readme-package.ps1           # 生成
-#   pwsh -File sync-readme-package.ps1 -Check    # 只校验不写入，不一致退出码 1（CI 使用）
-#   pwsh -File sync-readme-package.ps1 -Root D:\src\MyLib
+#   pwsh -File Tools/Scripts/sync-readme-package.ps1           # 生成
+#   pwsh -File Tools/Scripts/sync-readme-package.ps1 -Check    # 只校验不写入，不一致退出码 1（CI 使用）
+#   pwsh -File Tools/Scripts/sync-readme-package.ps1 -Root D:\src\MyLib
 param(
     [Switch]$Check,
-    [String]$Root = $PSScriptRoot,
+    [String]$Root = (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)),
     [String]$Config = "readme-package.json"
 )
 

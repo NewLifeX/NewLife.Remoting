@@ -46,10 +46,10 @@ jobs:
         }
     - name: Check English runtime messages
       shell: pwsh
-      run: pwsh -File ./check-english-exceptions.ps1
+      run: pwsh -File ./Tools/Scripts/check-english-exceptions.ps1
     - name: Check locale tables
       shell: pwsh
-      run: pwsh -File ./check-locales.ps1
+      run: pwsh -File ./Tools/Scripts/check-locales.ps1
 
   # 测试矩阵：每个 TFM × OS 独立 job，job 间并行且互不争抢宿主资源（进程/端口/CPU），
   # 每个 job 只构建自身目标框架，省去全解决方案构建的墙钟开销（编译校验由 build job 承担）

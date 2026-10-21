@@ -4,9 +4,9 @@
 # 本仓要求**全部语言全量覆盖**：不使用上游的可选键豁免，任何键缺失或仅回退英文都会失败
 #
 # 用法：
-#   pwsh -File check-locales.ps1                                   # 本仓默认目录
-#   pwsh -File check-locales.ps1 -LocaleDir src\Lib\Locales -SourceDir src\Lib
-#   pwsh -File check-locales.ps1 -SkipOrphan                       # 只校验词表内部一致性
+#   pwsh -File Tools/Scripts/check-locales.ps1                     # 本仓默认目录
+#   pwsh -File Tools/Scripts/check-locales.ps1 -LocaleDir src\Lib\Locales -SourceDir src\Lib
+#   pwsh -File Tools/Scripts/check-locales.ps1 -SkipOrphan         # 只校验词表内部一致性
 param(
     [String[]]$LocaleDir = @("NewLife.Remoting\Locales", "NewLife.Remoting.Extensions\Locales"),
     [String]$Baseline = "zh-Hans.yml",
@@ -17,7 +17,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$root = $PSScriptRoot
+# 脚本位于 Tools/Scripts，仓库根目录需要上溯两级
+$root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $pattern = '^\s*"((?:[^"\\]|\\.)*)"\s*:\s*"((?:[^"\\]|\\.)*)"\s*$'
 $placeholder = '\{(\d+)(?:,-?\d+)?(:[^}]*)?\}'
 

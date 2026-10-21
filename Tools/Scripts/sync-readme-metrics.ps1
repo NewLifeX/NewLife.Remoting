@@ -4,13 +4,13 @@
 # 会随发布变化的数字，不再散落在 11 份 README 里手工维护。
 #
 # 用法：
-#   pwsh -File sync-readme-metrics.ps1 -Migrate   # 首次迁移：给旧数字套上标记，并生成徽章块
-#   pwsh -File sync-readme-metrics.ps1            # 按配置写入标记块与数字
-#   pwsh -File sync-readme-metrics.ps1 -Check     # 只校验不写入，不一致退出码 1（CI 使用）
+#   pwsh -File Tools/Scripts/sync-readme-metrics.ps1 -Migrate   # 首次迁移：给旧数字套上标记，并生成徽章块
+#   pwsh -File Tools/Scripts/sync-readme-metrics.ps1            # 按配置写入标记块与数字
+#   pwsh -File Tools/Scripts/sync-readme-metrics.ps1 -Check     # 只校验不写入，不一致退出码 1（CI 使用）
 param(
     [Switch]$Check,
     [Switch]$Migrate,
-    [String]$Root = $PSScriptRoot,
+    [String]$Root = (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)),
     [String]$Config = "readme-metrics.json"
 )
 

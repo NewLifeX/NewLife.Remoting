@@ -3,11 +3,11 @@
 # 说明：英文原文是词表键，译文放在各组件 Locales/*.yml；日志经 Logger.Format 自动翻译，异常用 L.T(...) 显式翻译。
 #
 # 用法：
-#   pwsh -File check-english-exceptions.ps1                       # 本仓默认目录，失败退出码 1
-#   pwsh -File check-english-exceptions.ps1 -Dir src -List        # 盘点中文消息，不失败
-#   pwsh -File check-english-exceptions.ps1 -Dir src -Csv hits.csv # 导出待翻译清单
+#   pwsh -File Tools/Scripts/check-english-exceptions.ps1                       # 本仓默认目录，失败退出码 1
+#   pwsh -File Tools/Scripts/check-english-exceptions.ps1 -Dir src -List        # 盘点中文消息，不失败
+#   pwsh -File Tools/Scripts/check-english-exceptions.ps1 -Dir src -Csv hits.csv # 导出待翻译清单
 param(
-    [String]$Root = $PSScriptRoot,
+    [String]$Root = (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)),
     [String[]]$Dir,
     [String[]]$Exclude = @(),
     [String]$MessageCall = 'throw new|: base\(|Console\.Write|MessageBox\.Show|AppendTag\(|NewError\(|NewSpan\(|Debug\.Fail\(|WriteLog\(|OnWrite\(|XTrace\.|Log\??\.(Write|Error|Info|Debug|Warn|Fatal)|WriteInfoEvent\(|WriteErrorEvent\(|BadRequest\(|WriteResultAsync\(|AppendFormat\(|L\.T\(|ex\s*\?\?=\s*new|ex\s*=\s*new',
