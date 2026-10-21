@@ -126,3 +126,5 @@
 "Copy {0}": "複製 {0}"
 "Move {0}": "移動 {0}"
 "Skip removal because the current session is different": "跳過移除，因為目前工作階段不同"
+"NewLife Remoting Library": "NewLife統一遠端通訊框架"
+"Unified RPC, HTTP, WebSocket and SRMP communication for client-server and IoT applications.": "提供RPC、HTTP、WebSocket與SRMP統一通訊能力"

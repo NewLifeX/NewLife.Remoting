@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "非法存取[{0}] {1}"
 "The token has been revoked!": "權杖已撤銷！"
 "Database SQL error": "資料庫SQL錯誤"
+"NewLife Remoting Extensions": "遠端通訊服務擴充"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "提供裝置接入控制器、權杖服務與工作階段管理擴充"

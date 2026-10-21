@@ -1,6 +1,7 @@
 # 多语言词表一致性校验：语言清单、键集合、占位符、格式说明符、未翻译、孤儿键、L.T 引用覆盖
 # 以基准语言文件（默认 zh-Hans.yml）为准，同一目录下所有语言必须提供完全相同的键集合
 # 语言清单见 locales.json（与 NewLife.Core 对齐），各词表目录的语言文件必须与之完全一致
+# 可选键见各词表目录的 metadata-keys.json（程序集标题/描述等元数据）：允许只出现在部分语言，缺失时运行时回退英文源文
 #
 # 用法：
 #   pwsh -File check-locales.ps1                                   # 本仓默认目录
@@ -11,6 +12,7 @@ param(
     [String]$Baseline = "zh-Hans.yml",
     [String[]]$SourceDir = @("NewLife.Remoting", "NewLife.Remoting.Extensions"),
     [String]$LocaleSet = "locales.json",
+    [String]$MetadataKeys = "metadata-keys.json",
     [Switch]$SkipOrphan
 )
 
@@ -103,8 +105,20 @@ foreach ($item in $LocaleDir) {
         exit 1
     }
     $reference = Read-Locale $referencePath
-    $references += $reference
     foreach ($e in $reference.Errors) { $allErrors += "$($referencePath): $e" }
+
+    # 可选键：元数据类词条允许只给部分语言译文，其余语言回退英文源文
+    $optionalKeys = [Collections.Generic.HashSet[String]]::new([StringComparer]::Ordinal)
+    if ($MetadataKeys) {
+        $metadataPath = Join-Path $dir $MetadataKeys
+        if (Test-Path -LiteralPath $metadataPath) {
+            foreach ($key in (Get-Content -LiteralPath $metadataPath -Raw -Encoding UTF8 | ConvertFrom-Json).keys) {
+                if (![String]::IsNullOrEmpty($key)) { [void]$optionalKeys.Add($key) }
+            }
+        }
+    }
+    $reference.OptionalKeys = $optionalKeys
+    $references += $reference
 
     $present = @(Get-ChildItem $dir -Filter *.yml | ForEach-Object { $_.BaseName })
     if ($expectLocales.Count -gt 0) {
@@ -123,7 +137,7 @@ foreach ($item in $LocaleDir) {
         foreach ($e in $locale.Errors) { $allErrors += "$($file.FullName): $e" }
 
         foreach ($key in $reference.Entries.Keys) {
-            if (!$locale.Entries.Contains($key)) {
+            if (!$locale.Entries.Contains($key) -and !$optionalKeys.Contains($key)) {
                 $allErrors += "$($file.FullName): 缺少键 $key"
             }
         }
@@ -153,7 +167,8 @@ foreach ($item in $LocaleDir) {
 
             # 未翻译：句子级词条（3 个及以上空白分隔片段）的译文不得与英文原文完全相同。
             # 单词型技术词（MD5、Encoder、Handler 等）在部分语言中就是本地通行写法，不在此列。
-            if ($value -ceq $key -and @($key -split '\s+' | Where-Object { $_ }).Count -ge 3) {
+            # 可选键（元数据）按约定只维护少数语言，其余语言省略回退英文，不参与本判定。
+            if (!$optionalKeys.Contains($key) -and $value -ceq $key -and @($key -split '\s+' | Where-Object { $_ }).Count -ge 3) {
                 $allErrors += "$($file.FullName): 未翻译（译文与英文原文相同）→ $key"
             }
         }
@@ -163,6 +178,7 @@ foreach ($item in $LocaleDir) {
 # 孤儿键：基准表中的键在源码里找不到对应的完整字符串字面量（改文案后遗留的死条目）
 # 必须按带引号的完整字面量匹配：仅做子串匹配时，"[{0}]Cluster balancing: {1}" 会掩盖
 # "Cluster balancing: {1}" 这类前缀被改掉却未同步词表的错位。
+# 源文范围含 .cs 与 .csproj：程序集标题/描述等元数据写在 csproj 中（XML 元素值），同样是词表源文。
 if (!$SkipOrphan) {
     $sourceDirs = @($SourceDir | ForEach-Object {
         if ([IO.Path]::IsPathRooted($_)) { $_ } else { Join-Path $root $_ }
@@ -172,11 +188,20 @@ if (!$SkipOrphan) {
         Where-Object { $_.FullName -notmatch '\\(obj|bin|Locales)\\' } |
         ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
 
+    $projectText = ($sourceDirs | ForEach-Object { Get-ChildItem $_ -Recurse -Filter *.csproj } |
+        Where-Object { $_.FullName -notmatch '\\(obj|bin)\\' } |
+        ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
+
     foreach ($reference in $references) {
         foreach ($key in $reference.Entries.Keys) {
+            # 可选键由 csproj 元数据或运行时数据引用，不参与源码归属判定
+            if ($reference.OptionalKeys.Contains($key)) { continue }
+
             # 源码中的字面量形式：制表符写作 \t，引号写作 \"
             $escaped = $key.Replace('\', '\\').Replace('"', '\"').Replace("`t", '\t').Replace("`r", '\r').Replace("`n", '\n')
-            if (!$sourceText.Contains('"' + $escaped + '"')) {
+            $inCode = $sourceText.Contains('"' + $escaped + '"')
+            $inProject = $projectText.Contains('>' + $key + '<')
+            if (!$inCode -and !$inProject) {
                 $allErrors += "孤儿键（源码中找不到完整字符串字面量）：$key"
             }
         }

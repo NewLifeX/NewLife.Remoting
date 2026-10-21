@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Localization;
@@ -142,6 +143,46 @@ public class LocalizationTests
 
     [Fact(DisplayName = "多语言：未知键回退英文原文")]
     public void Translate_unknown_key() => Assert.Equal("Not a translated message.", Localization.Translate("Not a translated message."));
+    #endregion
+
+    #region 元数据
+    /// <summary>NewLife.Remoting 程序集描述（词表源文，允许其它语言回退英文）</summary>
+    private const String MainDescription = "Unified RPC, HTTP, WebSocket and SRMP communication for client-server and IoT applications.";
+
+    /// <summary>NewLife.Remoting.Extensions 程序集描述（词表源文，允许其它语言回退英文）</summary>
+    private const String ExtDescription = "Device access controllers, token services and session management extensions for NewLife.Remoting.";
+
+    [Fact(DisplayName = "多语言：程序集标题与描述为英文源文，中文有译文")]
+    public void Translate_assembly_metadata()
+    {
+        var main = typeof(ApiClient).Assembly;
+        var ext = typeof(ApiFilterAttribute).Assembly;
+
+        Assert.Equal("NewLife Remoting Library", main.GetCustomAttribute<AssemblyTitleAttribute>()?.Title);
+        Assert.Equal(MainDescription, main.GetCustomAttribute<AssemblyDescriptionAttribute>()?.Description);
+        Assert.Equal("NewLife Remoting Extensions", ext.GetCustomAttribute<AssemblyTitleAttribute>()?.Title);
+        Assert.Equal(ExtDescription, ext.GetCustomAttribute<AssemblyDescriptionAttribute>()?.Description);
+
+        var saved = Localization.Culture;
+        try
+        {
+            Localization.Culture = CultureInfo.GetCultureInfo("zh-CN");
+
+            Assert.Equal("NewLife统一远程通信框架", Localization.Translate("NewLife Remoting Library"));
+            Assert.Equal("提供RPC、HTTP、WebSocket与SRMP统一通信能力", Localization.Translate(MainDescription));
+            Assert.Equal("远程通信服务扩展", Localization.Translate("NewLife Remoting Extensions"));
+            Assert.Equal("提供设备接入控制器、令牌服务与会话管理扩展", Localization.Translate(ExtDescription));
+
+            // 元数据只维护少数语言，其余语言回退英文源文
+            Localization.Culture = CultureInfo.GetCultureInfo("de-DE");
+            Assert.Equal("NewLife Remoting Library", Localization.Translate("NewLife Remoting Library"));
+            Assert.Equal(MainDescription, Localization.Translate(MainDescription));
+        }
+        finally
+        {
+            Localization.Culture = saved;
+        }
+    }
     #endregion
 
     #region 占位符

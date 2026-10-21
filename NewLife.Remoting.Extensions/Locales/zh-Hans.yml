@@ -36,3 +36,5 @@
 "Illegal access [{0}] {1}": "非法访问[{0}] {1}"
 "The token has been revoked!": "令牌已吊销！"
 "Database SQL error": "数据库SQL错误"
+"NewLife Remoting Extensions": "远程通信服务扩展"
+"Device access controllers, token services and session management extensions for NewLife.Remoting.": "提供设备接入控制器、令牌服务与会话管理扩展"

@@ -1,0 +1,7 @@
+{
+  "note": "可选键：程序集标题与描述。csproj 的 AssemblyTitle/Description 为英文源文，允许只给部分语言译文，缺失时运行时回退英文",
+  "keys": [
+    "NewLife Remoting Extensions",
+    "Device access controllers, token services and session management extensions for NewLife.Remoting."
+  ]
+}
