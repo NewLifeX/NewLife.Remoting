@@ -5,7 +5,7 @@ using NewLife.Net;
 namespace NewLife.Remoting;
 
 /// <summary>客户端单连接故障转移集群</summary>
-[DisplayName("故障转移")]
+[DisplayName("Failover")]
 public class ClientSingleCluster<T> : ICluster<String, T>
 {
     /// <summary>名称</summary>

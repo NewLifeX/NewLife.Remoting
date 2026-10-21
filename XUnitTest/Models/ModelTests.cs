@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using NewLife;
 using NewLife.Remoting;
 using NewLife.Remoting.Models;
 using Xunit;
@@ -251,10 +252,32 @@ public class ModelTests
     [DisplayName("UpdateModes描述属性")]
     public void UpdateModes_Descriptions()
     {
-        var partialDesc = typeof(UpdateModes).GetField(nameof(UpdateModes.Partial))!
-            .GetCustomAttributes(typeof(DescriptionAttribute), false);
-        Assert.Single(partialDesc);
-        Assert.Equal("部分包", ((DescriptionAttribute)partialDesc[0]).Description);
+        // 结构元数据以英文为源文，展示层（Cube 等）按 L.T 翻译
+        var expected = new Dictionary<UpdateModes, String>
+        {
+            [UpdateModes.Partial] = "Partial package",
+            [UpdateModes.Standard] = "Standard package",
+            [UpdateModes.Full] = "Full package",
+        };
+        var saved = Localization.Culture;
+        try
+        {
+            Localization.Culture = System.Globalization.CultureInfo.GetCultureInfo("zh-CN");
+            foreach (var item in expected)
+            {
+                var atts = typeof(UpdateModes).GetField(item.Key.ToString())!
+                    .GetCustomAttributes(typeof(DescriptionAttribute), false);
+                Assert.Single(atts);
+
+                var des = ((DescriptionAttribute)atts[0]).Description;
+                Assert.Equal(item.Value, des);
+                Assert.NotEqual(des, Localization.Translate(des!));
+            }
+        }
+        finally
+        {
+            Localization.Culture = saved;
+        }
     }
     #endregion
 

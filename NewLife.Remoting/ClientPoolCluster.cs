@@ -12,7 +12,7 @@ namespace NewLife.Remoting;
 /// 借出时通过 <see cref="ObjectPool{T}.OnGet"/> 检查连接活性，自动丢弃死连接并重建。
 /// 池参数（Max/Min/IdleTime/WaitTimeout/MaxLifetime）可通过 <c>((ObjectPool&lt;T&gt;)cluster.Pool)</c> 直接设置。
 /// </remarks>
-[DisplayName("负载均衡")]
+[DisplayName("Load balancing")]
 public class ClientPoolCluster<T> : ICluster<String, T> where T : class
 {
     /// <summary>名称</summary>

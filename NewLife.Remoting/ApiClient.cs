@@ -112,7 +112,8 @@ public class ApiClient : ApiHost, IApiClient
 
             // 集群
             Cluster = InitCluster();
-            WriteLog("Cluster mode: {0}", Cluster?.GetType().GetDisplayName() ?? Cluster?.ToString());
+            var mode = Cluster?.GetType().GetDisplayName();
+            WriteLog("Cluster mode: {0}", mode == null ? Cluster?.ToString() : L.T(mode));
 
             Encoder.Log = EncoderLog;
 

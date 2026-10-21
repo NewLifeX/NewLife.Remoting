@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
@@ -177,6 +178,26 @@ public class LocalizationTests
             Localization.Culture = CultureInfo.GetCultureInfo("de-DE");
             Assert.Equal("NewLife Remoting Library", Localization.Translate("NewLife Remoting Library"));
             Assert.Equal(MainDescription, Localization.Translate(MainDescription));
+        }
+        finally
+        {
+            Localization.Culture = saved;
+        }
+    }
+
+    [Fact(DisplayName = "多语言：集群元数据标签为英文源文，中文有译文")]
+    public void Translate_cluster_metadata()
+    {
+        Assert.Equal("Load balancing", typeof(ClientPoolCluster<String>).GetCustomAttribute<DisplayNameAttribute>()?.DisplayName);
+        Assert.Equal("Failover", typeof(ClientSingleCluster<String>).GetCustomAttribute<DisplayNameAttribute>()?.DisplayName);
+
+        var saved = Localization.Culture;
+        try
+        {
+            Localization.Culture = CultureInfo.GetCultureInfo("zh-CN");
+
+            Assert.Equal("负载均衡", Localization.Translate("Load balancing"));
+            Assert.Equal("故障转移", Localization.Translate("Failover"));
         }
         finally
         {

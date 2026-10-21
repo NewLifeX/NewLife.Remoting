@@ -126,23 +126,28 @@ foreach ($item in $LocaleDir) {
             if ($present -notcontains $code) { $allErrors += "$dir 缺少语言文件：$code.yml" }
         }
         foreach ($code in $present) {
-            if ($expectLocales -notcontains $code) { $allErrors += "$dir 存在清单外的语言文件：$code.yml" }
+            # en 为可选词表：元数据源文非英文时用它提供英文译文，不属于语言清单
+            if ($expectLocales -notcontains $code -and $code -ne "en") { $allErrors += "$dir 存在清单外的语言文件：$code.yml" }
         }
     }
 
     foreach ($file in Get-ChildItem $dir -Filter *.yml | Sort-Object Name) {
         $localeCount++
         if ($file.Name -eq $Baseline) { continue }
+        # en 为可选词表：未列出的消息键回退英文源文，不参与「所有语言同键集」校验
+        $isEnglish = $file.BaseName -eq "en"
         $locale = Read-Locale $file.FullName
         foreach ($e in $locale.Errors) { $allErrors += "$($file.FullName): $e" }
 
-        foreach ($key in $reference.Entries.Keys) {
-            if (!$locale.Entries.Contains($key) -and !$optionalKeys.Contains($key)) {
-                $allErrors += "$($file.FullName): 缺少键 $key"
+        if (!$isEnglish) {
+            foreach ($key in $reference.Entries.Keys) {
+                if (!$locale.Entries.Contains($key) -and !$optionalKeys.Contains($key)) {
+                    $allErrors += "$($file.FullName): 缺少键 $key"
+                }
             }
         }
         foreach ($key in $locale.Entries.Keys) {
-            if (!$reference.Entries.Contains($key)) {
+            if (!$reference.Entries.Contains($key) -and !$optionalKeys.Contains($key)) {
                 $allErrors += "$($file.FullName): 多余键 $key"
                 continue
             }
@@ -223,10 +228,11 @@ if (!$SkipOrphan) {
                 Where-Object { $_.FullName -notmatch '\\(obj|bin|Locales)\\' } |
                 ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
 
-            foreach ($m in [regex]::Matches($sourceText, 'L\.T\(\s*"((?:[^"\\]|\\.)*)"')) {
+            # 覆盖 L.T / L.TLog / Localization.Translate(ForLog)，含显式传入区域性作为首参的重载
+            foreach ($m in [regex]::Matches($sourceText, '(?:L\.TLog|L\.T|Localization\.Translate(?:ForLog)?)\s*\(\s*(?:[A-Za-z_][\w\.]*\s*,\s*)?"((?:[^"\\]|\\.)*)"')) {
                 $key = Unescape-Yaml $m.Groups[1].Value
-                if (!$references[$i].Entries.Contains($key)) {
-                    $allErrors += "L.T 引用的键不在基准词表中：$key（$($LocaleDir[$i])）"
+                if (!$references[$i].Entries.Contains($key) -and !$references[$i].OptionalKeys.Contains($key)) {
+                    $allErrors += "缺少词条（源码已调用 L.T/Translate）：$key（$($LocaleDir[$i])）"
                 }
             }
         }
