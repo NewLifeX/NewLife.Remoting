@@ -17,7 +17,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.13" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
-    <PackageReference Include="NewLife.XCode" Version="12.2.2026.1020-beta1559" />
+    <PackageReference Include="NewLife.XCode" Version="12.2.2026.1021-beta0423" />
     <PackageReference Include="Moq" Version="4.21.0" />
     <PackageReference Include="NewLife.UnitTest" Version="1.1.2026.301-beta0617" />
     <PackageReference Include="xunit" Version="2.9.3" />
