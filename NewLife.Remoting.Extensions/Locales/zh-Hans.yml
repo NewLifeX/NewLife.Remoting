@@ -21,7 +21,7 @@
 "SSE connected": "SSE连接"
 "SSE heartbeat error": "SSE心跳异常"
 "SSE disconnected": "SSE断开"
-"Invalid token secret format; expected algorithm:secret, for example HS256:xxxx": "令牌密钥格式错误，应为 算法:密钥，例如 HS256:xxxx"
+"Invalid token secret format; expected algorithm:secret, for example HS256:xxxx": "令牌密钥格式错误，应为算法:密钥，例如 HS256:xxxx"
 "WebSocket send error": "WebSocket发送异常"
 "Missing HttpContext": "缺少HttpContext"
 "WebSocket connected": "WebSocket连接"
