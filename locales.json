@@ -1,6 +1,7 @@
 {
   "note": "内置语言清单：与 NewLife.Core 的 Locales 集合同步，新增/删除语言时先改这里，Tools/Scripts/check-locales.ps1 会校验各词表目录与之一致",
   "reference": "NewLife.Core",
+  "minimumLocales": 31,
   "locales": [
     "ar",
     "bn",

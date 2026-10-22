@@ -83,12 +83,38 @@ $allWarnings = @()
 $references = @()
 $localeCount = 0
 
-# 语言清单：有清单时校验各目录语言文件集合完全一致，防止漏提交或误加语言
+# 语言清单：校验各目录语言文件集合完全一致，防止漏提交或误加语言
+# 清单缺失或为空时直接报错，避免“少一份语言文件也能通过”的静默退化
 $expectLocales = @()
 if ($LocaleSet) {
     $setPath = if ([IO.Path]::IsPathRooted($LocaleSet)) { $LocaleSet } else { Join-Path $root $LocaleSet }
-    if (Test-Path -LiteralPath $setPath) {
-        $expectLocales = @((Get-Content -LiteralPath $setPath -Raw -Encoding UTF8 | ConvertFrom-Json).locales)
+    if (!(Test-Path -LiteralPath $setPath)) {
+        $allErrors += "未找到语言清单：$setPath"
+    }
+    else {
+        $config = $null
+        try {
+            $config = Get-Content -LiteralPath $setPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        }
+        catch {
+            $allErrors += "语言清单解析失败：$setPath（$($_.Exception.Message)）"
+        }
+
+        if ($null -ne $config) {
+            $expectLocales = @($config.locales)
+            if ($expectLocales.Count -eq 0) {
+                $allErrors += "语言清单未配置任何语言：$setPath"
+            }
+            foreach ($group in ($expectLocales | Group-Object | Where-Object { $_.Count -gt 1 })) {
+                $allErrors += "语言清单存在重复项：$($group.Name)"
+            }
+
+            # 最少语言数：防止同时删除语言文件与清单项后静默减少支持语种
+            $minimum = if ($null -ne $config.minimumLocales) { [int]$config.minimumLocales } else { 0 }
+            if ($minimum -gt 0 -and $expectLocales.Count -lt $minimum) {
+                $allErrors += "语言清单仅配置 $($expectLocales.Count) 种语言，少于要求的 $minimum 种：$setPath"
+            }
+        }
     }
 }
 
@@ -136,6 +162,11 @@ foreach ($item in $LocaleDir) {
             }
 
             $value = $locale.Entries[$key]
+            if ($value.Trim().Length -eq 0) {
+                $allErrors += "$($file.FullName): 空译文 → $key"
+                continue
+            }
+
             $expected = Get-Placeholders $key
             $actual = Get-Placeholders $value
             if (!$expected.SetEquals($actual)) {
@@ -153,9 +184,11 @@ foreach ($item in $LocaleDir) {
                 }
             }
 
-            # 未翻译：句子级词条（3 个及以上空白分隔片段）的译文不得与英文原文完全相同。
+            # 未翻译：句子级词条（3 个及以上空白分隔片段，或 2 个片段且以句末标点结尾）的译文不得与英文原文完全相同。
             # 单词型技术词（MD5、Encoder、Handler 等）在部分语言中就是本地通行写法，不在此列。
-            if ($value -ceq $key -and @($key -split '\s+' | Where-Object { $_ }).Count -ge 3) {
+            $words = @($key -split '\s+' | Where-Object { $_ })
+            $isSentence = $words.Count -ge 3 -or ($words.Count -ge 2 -and $key -match '[.!?。！？]$')
+            if ($value -ceq $key -and $isSentence) {
                 $allErrors += "$($file.FullName): 未翻译（译文与英文原文相同）→ $key"
             }
         }
@@ -212,6 +245,37 @@ if (!$SkipOrphan) {
                 $key = Unescape-Yaml $m.Groups[1].Value
                 if (!$references[$i].Entries.Contains($key)) {
                     $allErrors += "缺少词条（源码已调用 L.T/Translate）：$key（$($LocaleDir[$i])）"
+                }
+            }
+        }
+    }
+}
+
+# 运行时消息覆盖：日志/异常/控制台/埋点调用中的自然语言字面量必须在基准词表
+# 纯格式串（{0}=>{1}、rpc:、cmd:）与单词型技术标签不含自然语言，跳过
+if (!$SkipOrphan -and $LocaleDir.Count -eq $SourceDir.Count) {
+    # 埋点标签（AppendTag/NewSpan）与开发断言保持稳定英文，不要求翻译，故不纳入覆盖校验
+    $callPattern = 'Log\??\.(Write|Error|Info|Debug|Warn|Fatal)\(|WriteLog\(|XTrace\.|Console\.Write(Line)?\(|WriteInfoEvent\(|WriteErrorEvent\(|NewError\(|OnWrite\(|BadRequest\(|throw new (?:XException|ApiException)\('
+    for ($i = 0; $i -lt $LocaleDir.Count; $i++) {
+        $srcDir = if ([IO.Path]::IsPathRooted($SourceDir[$i])) { $SourceDir[$i] } else { Join-Path $root $SourceDir[$i] }
+        if (!(Test-Path $srcDir)) { continue }
+
+        foreach ($file in (Get-ChildItem $srcDir -Recurse -Filter *.cs | Where-Object { $_.FullName -notmatch '\\(obj|bin|Locales)\\' })) {
+            $lines = [IO.File]::ReadAllLines($file.FullName)
+            for ($n = 0; $n -lt $lines.Count; $n++) {
+                $line = $lines[$n]
+                $text = $line.Trim()
+                if ($text.Length -eq 0 -or $text.StartsWith('//') -or $text.StartsWith('///') -or $text.StartsWith('[')) { continue }
+                if ($line -notmatch $callPattern) { continue }
+                if ($line -match '\$"' -or $line -match 'L\.T(?:Log)?\(') { continue }
+
+                $m = [regex]::Match($line, '"((?:[^"\\]|\\.)*)"')
+                if (!$m.Success) { continue }
+                $message = Unescape-Yaml $m.Groups[1].Value
+                $words = @($message -split '\s+' | Where-Object { $_ -match '^[A-Za-z]{3,}' })
+                if ($words.Count -lt 2) { continue }
+                if (!$references[$i].Entries.Contains($message)) {
+                    $allErrors += "缺少词条（运行时消息）：$message（$($file.FullName):$($n + 1)）"
                 }
             }
         }

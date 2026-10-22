@@ -235,6 +235,45 @@ public class LocalizationTests
             Localization.Culture = saved;
         }
     }
+
+    [Theory(DisplayName = "多语言：带占位符的模板在全部语言中均可格式化")]
+    [MemberData(nameof(LocaleData))]
+    public void Translate_placeholders_all_locales(String name)
+    {
+        var saved = Localization.Culture;
+        try
+        {
+            Localization.Culture = CultureInfo.GetCultureInfo(name);
+
+            var text = Localization.Translate("Cannot find service named [{0}]!", "Api/Info");
+            Assert.Contains("Api/Info", text);
+            Assert.DoesNotContain("{0}", text);
+        }
+        finally
+        {
+            Localization.Culture = saved;
+        }
+    }
+    #endregion
+
+    #region 异常
+    [Theory(DisplayName = "多语言：异常消息在全部语言中按词表翻译")]
+    [MemberData(nameof(LocaleData))]
+    public void Exception_translates_all_locales(String name)
+    {
+        var saved = Localization.Culture;
+        try
+        {
+            Localization.Culture = CultureInfo.GetCultureInfo(name);
+
+            var ex = new XException("Update succeeded!");
+            Assert.NotEqual("Update succeeded!", ex.Message);
+        }
+        finally
+        {
+            Localization.Culture = saved;
+        }
+    }
     #endregion
 
     #region 日志
@@ -272,6 +311,33 @@ public class LocalizationTests
             var pool = new ClientPoolCluster<String> { Name = "Test", Log = log5 };
             pool.WriteLog("Cluster balancing: {0}", "svc");
             Assert.Equal("[Test]集群均衡：svc", log5.Message);
+        }
+        finally
+        {
+            Localization.Culture = saved;
+            Localization.LogCulture = savedLog;
+        }
+    }
+
+    [Theory(DisplayName = "多语言：全部内置语言的日志模板均按日志语言翻译")]
+    [MemberData(nameof(LocaleData))]
+    public void WriteLog_translates_all_locales(String name)
+    {
+        var saved = Localization.Culture;
+        var savedLog = Localization.LogCulture;
+        try
+        {
+            var culture = CultureInfo.GetCultureInfo(name);
+            Localization.Culture = culture;
+            Localization.LogCulture = culture;
+
+            var log = new CaptureLog();
+            var host = new TestHost { Name = "Test", Log = log };
+            host.WriteLog("Update succeeded!");
+
+            Assert.NotNull(log.Message);
+            Assert.StartsWith("[Test]", log.Message);
+            Assert.DoesNotContain("Update succeeded!", log.Message);
         }
         finally
         {
