@@ -15,11 +15,19 @@ public class MainActivity : Activity
     {
         base.OnCreate(savedInstanceState);
 
-        var (pass, fail, _) = Smoke.Run();
-        if (fail == 0)
-            Log.Info("MobileSmoke", $"SMOKE_OK pass={pass}");
-        else
-            Log.Error("MobileSmoke", $"SMOKE_FAIL pass={pass} fail={fail}");
+        Log.Info("MobileSmoke", "SMOKE_START");
+        try
+        {
+            var (pass, fail, _) = Smoke.Run();
+            if (fail == 0)
+                Log.Info("MobileSmoke", $"SMOKE_OK pass={pass}");
+            else
+                Log.Error("MobileSmoke", $"SMOKE_FAIL pass={pass} fail={fail}");
+        }
+        catch (Exception ex)
+        {
+            Log.Error("MobileSmoke", $"SMOKE_FAIL {ex}");
+        }
     }
 }
 #endif

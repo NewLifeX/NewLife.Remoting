@@ -35,9 +35,6 @@ public static class Smoke
             if (CountTypes(asm) == 0) throw new Exception("no exported types");
         });
         Check("ApiClient ctor", () => { using var client = new NewLife.Remoting.ApiClient("http://127.0.0.1:5000"); });
-        var dir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        Directory.CreateDirectory(dir);
-        var file = System.IO.Path.Combine(dir, "smoke.json");
         var json = JsonSerializer.Serialize(new
         {
             pass,
@@ -46,7 +43,23 @@ public static class Smoke
             os = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
             log,
         });
-        File.WriteAllText(file, json);
+
+        // 结果文件写入失败不应吞掉冒烟结论；记录失败原因后照常返回，Android 仍可通过 logcat 判定
+        var file = String.Empty;
+        try
+        {
+            var dir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (String.IsNullOrEmpty(dir)) dir = System.IO.Path.GetTempPath();
+            Directory.CreateDirectory(dir);
+            file = System.IO.Path.Combine(dir, "smoke.json");
+            File.WriteAllText(file, json);
+        }
+        catch (Exception ex)
+        {
+            log.Add($"FAIL write smoke.json: {ex.GetType().Name}: {ex.Message}");
+            fail++;
+        }
+
         return (pass, fail, file);
     }
 

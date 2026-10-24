@@ -22,8 +22,16 @@ public class AppDelegate : UIApplicationDelegate
     /// <returns>是否继续启动</returns>
     public override Boolean FinishedLaunching(UIApplication application, NSDictionary? launchOptions)
     {
-        var (pass, fail, _) = Smoke.Run();
-        Console.WriteLine(fail == 0 ? $"SMOKE_OK pass={pass}" : $"SMOKE_FAIL pass={pass} fail={fail}");
+        Console.WriteLine("SMOKE_START");
+        try
+        {
+            var (pass, fail, _) = Smoke.Run();
+            Console.WriteLine(fail == 0 ? $"SMOKE_OK pass={pass}" : $"SMOKE_FAIL pass={pass} fail={fail}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SMOKE_FAIL {ex}");
+        }
         return true;
     }
 }

@@ -50,7 +50,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: mobile-android
-        path: Bin/MobileSmoke/**/*.apk
+        path: |
+          Bin/MobileSmoke/**/*.apk
+          Bin/MobileSmoke/artifacts/**
         if-no-files-found: ignore
 
   # iOS 模拟器：构建 .app 并安装运行，读取应用容器内的 smoke.json。
@@ -65,12 +67,13 @@ jobs:
     - name: Setup dotNET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 10.0.x
+        # macos-26 默认 Xcode 26.6；固定 10.0.100 并使用 SDK 自带 iOS workload（26.5），
+        # 避免更新到 27.1 后要求尚未提供的 Xcode 27.1
+        dotnet-version: 10.0.100
     - name: Show Xcode
-      # 不再硬切到指定 Xcode：iOS workload 与镜像默认 Xcode 是配套的，强行切换容易版本不匹配导致构建失败
       run: xcodebuild -version
     - name: Install iOS workload
-      run: dotnet workload install ios
+      run: dotnet workload install ios --skip-manifest-update
     - name: Run iOS smoke
       run: bash ./Samples/MobileSmoke/run-ios.sh
     - name: Upload iOS artifacts

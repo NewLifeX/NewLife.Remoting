@@ -8,6 +8,8 @@ $ErrorActionPreference = "Stop"
 $root = Resolve-Path "$PSScriptRoot/../.."
 $project = Join-Path $PSScriptRoot "MobileSmoke.csproj"
 $package = "com.newlife.smoke.remoting"
+$artifacts = Join-Path $root "Bin/MobileSmoke/artifacts"
+New-Item -ItemType Directory -Force -Path $artifacts | Out-Null
 
 # 项目是 android+ios 双目标，必须把目标框架收窄到单一平台；
 # 否则在 Linux/macOS 上只跑一端时，还原期仍会解析另一平台的 workload，缺失时直接 NETSDK1178
@@ -33,11 +35,14 @@ while ((Get-Date) -lt $deadline) {
     if ($hit) {
         Write-Host $hit.Line
         if ($hit.Line -match "SMOKE_OK") { exit 0 }
+        adb logcat -d | Out-File (Join-Path $artifacts "android-logcat.txt") -Encoding utf8
         adb logcat -d -s MobileSmoke:* | Out-Host
         exit 1
     }
     Start-Sleep -Seconds 2
 }
 
+# 超时多为应用启动失败或崩溃；完整 logcat 比过滤标签更能定位根因
+adb logcat -d | Out-File (Join-Path $artifacts "android-logcat.txt") -Encoding utf8
 adb logcat -d -s MobileSmoke:* | Out-Host
 throw "Android smoke timed out"
