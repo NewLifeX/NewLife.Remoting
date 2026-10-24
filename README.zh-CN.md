@@ -113,6 +113,18 @@ client.Headers["TenantId"] = "tenant-01";
 | 单次 RPC 延迟 | ~41 μs | — |
 | 框架兼容 | net45 / net461 / netstandard2.0 / netstandard2.1 / net6.0 / net8.0 / net10.0（跟随 NewLife.Core v12，net8.0+ 支持 NativeAOT） |
 
+## 升级到 v4
+
+v4 对齐 NewLife.Core v12 并调整网络分层，升级前请注意：
+
+- **双端口**：主端口仅承载 SRMP；HTTP 需显式设置 `HttpPort`（默认关闭）。
+- **不再支持 SRMP-over-WS**：`ws://`/`wss://` 地址会抛 `NotSupportedException`；SRMP 请用 `tcp://`/`udp://`，HTTP 调用请用 `http(s)://`。
+- **移除自研编解码类型**：`WsClient`、`HttpCodec`、`WebSocketClientCodec`、`WebSocketServerCodec` 与 `HttpMessage` 帧方法已删除；HTTP 由 Core `HttpServer` 承载，自定义帧协议请实现 `IMessageCodec`。
+- **运行时消息英文键**：异常与日志以英文原文作为词表键，请改用 `ApiCode` 或错误码判断，不再匹配本地化文案。
+- **目标框架**：不再提供 net5.0/net7.0/net9.0 资产，NuGet 会自动回退到最接近的受支持框架。
+
+完整清单见 [ChangeLog.md](ChangeLog.md)。
+
 ---
 ## 与其它 NewLife 组件协同
 

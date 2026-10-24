@@ -7,7 +7,7 @@
     <Description>Unified RPC, HTTP, WebSocket and SRMP communication for client-server and IoT applications.</Description>
     <Company>新生命开发团队</Company>
     <Copyright>©2002-2026 新生命开发团队</Copyright>
-    <VersionPrefix>3.9</VersionPrefix>
+    <VersionPrefix>4.0</VersionPrefix>
     <VersionSuffix>$([System.DateTime]::Now.ToString(`yyyy.MMdd`))</VersionSuffix>
     <Version>$(VersionPrefix).$(VersionSuffix)</Version>
     <FileVersion>$(Version)</FileVersion>
@@ -33,9 +33,9 @@
     <PackageIcon>leaf.png</PackageIcon>
     <RepositoryUrl>https://github.com/NewLifeX/NewLife.Remoting</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageTags>新生命团队;X组件;NewLife;$(AssemblyName)</PackageTags>
+    <PackageTags>新生命团队;X组件;NewLife;RPC;HTTP;WebSocket;SRMP;IoT;NativeAOT;AOT;$(AssemblyName)</PackageTags>
     <PackageDescription>Unified RPC, HTTP, WebSocket and SRMP communication for client-server and IoT applications. 提供 RPC、HTTP、WebSocket 与 SRMP 统一通信能力。</PackageDescription>
-    <PackageReleaseNotes>登录失败自动重试，配合滚动登录超时设计，服务端冷启动时自动恢复；ZeroServer/IoTZero 示例客户端改用 Open 规范用法，响应总线自测恢复执行；消除编译警告；升级 NewLife.Core 依赖</PackageReleaseNotes>
+    <PackageReleaseNotes>v4 大版本：对齐 NewLife.Core v12 网络层，主端口仅跑 SRMP、HTTP 需显式 HttpPort，移除 ws:// 承载 SRMP 与自研 HTTP/WS 帧栈；支持 NativeAOT 并内置源生成器，动作静态表消除路由反射；新增令牌吊销与访问/刷新令牌分离，GetUserHost 支持可信代理防伪造；Extensions 新增最小 API 端点宿主；运行时词表扩展至 31 种语言；升级 NewLife.Core 12.0.2026.1024</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
@@ -71,7 +71,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="NewLife.Core" Version="12.0.2026.1021-beta0321" />
+    <PackageReference Include="NewLife.Core" Version="12.0.2026.1024" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)'=='net45' or '$(TargetFramework)'=='net461'">

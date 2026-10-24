@@ -13,8 +13,14 @@ on:
         - 'NewLife.Remoting.Extensions/**'
   workflow_dispatch:
 
+# GitHub Packages 推送需要 packages: write
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build-publish:
+    # 打包不依赖 Windows 目标包：net45/net461 由 SDK 自动引入 ReferenceAssemblies（已在 Linux 实测全 TFM 打包）
     runs-on: ubuntu-latest
 
     steps:
@@ -23,11 +29,10 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: |
-          6.x
-          7.x
           8.x
-          9.x
           10.x
+        cache: true
+        cache-dependency-path: '**/*.csproj'
     - name: Get Version
       run: echo "VERSION=$(date '+%Y.%m%d-beta%H%M')" >> $GITHUB_ENV
     - name: Build

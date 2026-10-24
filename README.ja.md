@@ -114,6 +114,18 @@ client.Headers["TenantId"] = "tenant-01";
 | RPC あたりの遅延 | 約 41 μs | — |
 | 対応フレームワーク | net45 / net461 / netstandard2.0 / netstandard2.1 / net6.0 / net8.0 / net10.0（NewLife.Core v12 に追随、net8.0+ で NativeAOT） |
 
+## v4 へのアップグレード
+
+v4 は NewLife.Core v12 に追随し、ネットワーク層を変更します。アップグレード前にご確認ください：
+
+- **デュアルポート**：メインポートは SRMP 専用です。HTTP を有効にするには `HttpPort` を明示的に設定してください（既定では無効）。
+- **WebSocket 上の SRMP を廃止**：`ws://`/`wss://` アドレスは `NotSupportedException` をスローします。SRMP には `tcp://`/`udp://`、HTTP 呼び出しには `http(s)://` を使用してください。
+- **独自コーデック型を削除**：`WsClient`、`HttpCodec`、`WebSocketClientCodec`、`WebSocketServerCodec`、`HttpMessage` のフレームメソッドは削除されました。HTTP は Core の `HttpServer` が処理し、独自フレーミングは `IMessageCodec` を実装してください。
+- **英語のメッセージキー**：実行時メッセージは英語原文をキーにします。ローカライズ済み文字列ではなく `ApiCode` またはエラーコードで判定してください。
+- **ターゲットフレームワーク**：net5.0/net7.0/net9.0 のアセットは提供されなくなり、NuGet は最も近いサポート対象フレームワークへ自動的にフォールバックします。
+
+完全な一覧は [ChangeLog.md](ChangeLog.md) を参照してください。
+
 ---
 ## 他の NewLife コンポーネントとの連携
 

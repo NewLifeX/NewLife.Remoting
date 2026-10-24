@@ -112,6 +112,18 @@ client.Headers["TenantId"] = "tenant-01";
 | Single RPC latency | ~41 μs | — |
 | Framework support | net45 / net461 / netstandard2.0 / netstandard2.1 / net6.0 / net8.0 / net10.0 (aligned with NewLife.Core v12; NativeAOT on net8.0+) |
 
+## Upgrading to v4
+
+v4 aligns with NewLife.Core v12 and changes the network layering. Before upgrading:
+
+- **Dual ports**: the main port serves SRMP only; set `HttpPort` explicitly to enable HTTP (disabled by default).
+- **No SRMP over WebSocket**: `ws://`/`wss://` addresses now throw `NotSupportedException`; use `tcp://`/`udp://` for SRMP and `http(s)://` for HTTP calls.
+- **Codec types removed**: `WsClient`, `HttpCodec`, `WebSocketClientCodec`, `WebSocketServerCodec` and the `HttpMessage` frame methods are gone; HTTP is handled by Core `HttpServer`, and custom framing should implement `IMessageCodec`.
+- **English message keys**: runtime messages use English source text as locale keys; match `ApiCode` or error codes instead of localized text.
+- **Target frameworks**: net5.0/net7.0/net9.0 assets are no longer shipped; NuGet automatically falls back to the nearest supported framework.
+
+See [ChangeLog.md](ChangeLog.md) for the complete list.
+
 ---
 ## Working with Other NewLife Components
 
@@ -178,7 +190,7 @@ NewLife is a layered ecosystem of independently versioned open-source projects. 
 | [GitCandy](https://github.com/NewLifeX/GitCandy) | Self-hosted Git source code management system. | — |
 | [LuckyClover](https://github.com/NewLifeX/LuckyClover) | Installs the matching .NET runtime automatically when launched from an older host. | — |
 
-> Badges show the primary package of each project; theme, extension and satellite packages are listed on their NuGet pages.The 30+ packages not listed here (FTP, LoRa, Office extensions, protocol drivers and more) are available under the [NewLifeX organization](https://github.com/NewLifeX) and on [newlifex.com](https://newlifex.com).
+> Badges show the primary package of each project; theme, extension and satellite packages are listed on their NuGet pages. The 30+ packages not listed here (FTP, LoRa, Office extensions, protocol drivers and more) are available under the [NewLifeX organization](https://github.com/NewLifeX) and on [newlifex.com](https://newlifex.com).
 
 ---
 ## Team

@@ -1,5 +1,59 @@
 # 新生命远程通信库（NewLife.Remoting）变更日志
 
+## v4.0.2026.1024 (2026-10-24)
+
+> 本次为对齐 NewLife.Core v12 网络层重构的大版本升级，包含端口模型、协议入口与运行时消息键的破坏性变更，升级前请阅读下方「破坏性变更」。
+
+### NativeAOT 与源生成器
+- **NativeAOT 支持**：net8.0+ 常驻 AOT 兼容分析，库自身告警清零；新增动作静态表与流式泵，AOT 下零反射调用
+- **内置源生成器**：新增 NewLife.Remoting.SourceGenerator，扫描 `Register<T>()` 调用点生成强类型委托、流式泵与签名类型保留，随主包 analyzers 分发，未命中自动回退反射
+- **单方法注册**：源生成器支持 `Register(controller, "Method")` 实例入口，并保留按名查找所需的可反射元数据
+- **AOT 冒烟矩阵**：新增 AotSmoke、AotSmoke.Web、AotSmoke.XCode 三个冒烟工程，覆盖核心链路、最小 API 宿主与 XCode 设备链路
+
+### NewLife.Core v12 适配
+- **消息泵与 HttpServer**：SRMP 封包改由 Core 消息泵编解码器承载，HTTP 入口改用 Core HttpServer，SRMP 与 HTTP 端口拆分，`HttpPort` 默认关闭
+- **UDP 请求响应匹配**：改用 Core 内置 ResponseMatcher，删除自建配对表
+- **移除 SRMP-over-WS**：删除自研 HTTP/WS 帧栈，`ws://` 地址明确抛 `NotSupportedException`，WebSocket 握手返回 501
+
+### 安全增强
+- **令牌吊销**：`TokenService.RevokeToken` 支持令牌黑名单，设备注销自动吊销当前访问令牌；访问令牌与刷新令牌分离，旧令牌平滑兼容
+- **可信代理**：`GetUserHost` 支持单一 IP 折叠，并按 `TrustedProxies` 解析 `X-Forwarded-For`，防止客户端伪造来源地址
+
+### 最小 API 端点
+- **MapRemoting**：Extensions 新增最小 API 端点宿主，登录、注销、心跳、升级、WebSocket、SSE 通知、命令回执与事件上报端点与 MVC 控制器镜像实现同一协议
+- **AddRemotingCore**：拆出不含 MVC 配置的注册入口，供 NativeAOT 宿主使用
+
+### 多语言本地化
+- **31 种语言**：核心库与扩展库词表扩展至 31 种语言，语言集合与 NewLife.Core 对齐；词表门禁强制逐条覆盖，仅 `MD5` 等专有名词保留原文
+- **请求语言协商**：支持按 `Accept-Language` 选择请求语言，宿主启用 `RequestLocalization` 时优先让位宿主
+- **元数据与门禁**：程序集标题与描述英文化并纳入词表；词表门禁拦截未翻译的句子级词条
+
+### 测试与质量
+- **测试覆盖**：补充 AOT、最小 API、令牌吊销、可信代理、请求语言与本地化回归测试，测试端口改为跨进程独占分片
+- **CI 矩阵**：新增 Android/iOS 移动端与 riscv64/s390x 指令集冒烟，重写多 RID 测试矩阵并纳入龙芯 LA64 观察期
+- **示例修复**：Samples 夹具预热服务端并按时间预算重试登录，修复 IoTZero 预置产品与实体缓存的竞争
+
+### 依赖更新
+- **NewLife 组件**：升级 NewLife.Core 至 12.0.2026.1024，XCode、Redis、IoT、MQTT、Stardust 至最新 beta
+
+### 破坏性变更
+- **`WsClient` 删除**：`ws://` 承载 SRMP 的能力取消；SRMP 请改用 `ApiClient` 的 `tcp://`/`udp://`，HTTP 调用请改用 `ApiHttpClient` 的 `http(s)://`
+- **自研 HTTP/WS 帧栈删除**：`Http.HttpCodec`、`WebSocketClientCodec`、`WebSocketServerCodec` 移除，HTTP 入口改由 NewLife.Core `HttpServer` 承载；自定义帧协议请实现 `IMessageCodec`
+- **`HttpMessage` 帧层方法删除**：`TryParse`/`WriteHeader`/`Read`/`ToPacket` 等移除，该类仅保留动作分发所需的头部与负载
+- **同端口三协议取消**：`ApiServer` 主端口只跑 SRMP，HTTP 需显式设置 `HttpPort`（默认关闭）；原单端口同时承载 RPC/HTTP/WS 的部署需改为双端口
+- **`IApiHost.GetMessageCodec()` 返回类型变更**：由 `IPipelineHandler` 改为 `IMessageCodec`，重载该方法的子类需同步调整（返回 `SrmpCodec` 即保持原协议）
+- **`RemotingServiceResolver` 不再解析 ws/wss**：配置中的 `ws://`/`wss://` 地址会抛 `NotSupportedException`，请改为 `tcp://`/`udp://` 或 `http(s)://`
+- **目标框架由 10 个收敛为 7 个**：不再直接提供 net5.0/net7.0/net9.0 资产（net5.0→netstandard2.1、net7.0→net6.0、net9.0→net8.0），NuGet 自动回退，消费方无需改框架
+- **运行时消息改为英文原文**：异常与日志文案以英文原文作为词表键；按中文文案做字符串匹配的调用方需改用 `ApiCode` 或错误码判断
+
+### Bug 修复
+- **[fix]** 修复简单类型返回值未按目标类型解码导致调用失败
+- **[fix]** 修复请求取消时底层空响应被误判为“服务端返回空”，改为抛出超时异常
+- **[fix]** 修复带前缀日志包装器导致本地化失效
+- **[fix]** 修正令牌密钥格式提示中的词内空格
+
+---
+
 ## v3.9.2026.0901 (2026-09-01)
 
 ### 客户端健壮性

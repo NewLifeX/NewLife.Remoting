@@ -114,6 +114,18 @@ client.Headers["TenantId"] = "tenant-01";
 | Latencia por RPC | ~41 μs | — |
 | Frameworks | net45 / net461 / netstandard2.0 / netstandard2.1 / net6.0 / net8.0 / net10.0 (alineado con NewLife.Core v12; NativeAOT desde net8.0) |
 
+## Actualización a v4
+
+v4 se alinea con NewLife.Core v12 y cambia la capa de red. Antes de actualizar:
+
+- **Dos puertos**: el puerto principal solo sirve SRMP; configure `HttpPort` explícitamente para habilitar HTTP (desactivado por defecto).
+- **Sin SRMP sobre WebSocket**: las direcciones `ws://`/`wss://` ahora lanzan `NotSupportedException`; use `tcp://`/`udp://` para SRMP y `http(s)://` para llamadas HTTP.
+- **Tipos de códec eliminados**: `WsClient`, `HttpCodec`, `WebSocketClientCodec`, `WebSocketServerCodec` y los métodos de trama de `HttpMessage` ya no existen; HTTP lo gestiona el `HttpServer` de Core y el framing personalizado debe implementar `IMessageCodec`.
+- **Claves de mensajes en inglés**: los mensajes en tiempo de ejecución usan el texto inglés como clave; compare `ApiCode` o códigos de error en lugar del texto localizado.
+- **Frameworks de destino**: ya no se publican los activos net5.0/net7.0/net9.0; NuGet recurre automáticamente al framework compatible más cercano.
+
+Consulte [ChangeLog.md](ChangeLog.md) para la lista completa.
+
 ---
 ## Integración con otros componentes NewLife
 

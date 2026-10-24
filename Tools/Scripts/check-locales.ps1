@@ -1,7 +1,7 @@
 # 多语言词表一致性校验：语言清单、键集合、占位符、格式说明符、未翻译、孤儿键、L.T 引用覆盖
 # 以基准语言文件（默认 zh-Hans.yml）为准，同一目录下所有语言必须提供完全相同的键集合
 # 语言清单见 locales.json（与 NewLife.Core 对齐），各词表目录的语言文件必须与之完全一致
-# 本仓要求**全部语言全量覆盖**：不使用上游的可选键豁免，任何键缺失或仅回退英文都会失败
+# 本仓要求**全部语言全量覆盖**：不使用上游的可选键豁免，任何键缺失、空译文或回退英文都会失败（仅 MD5 等专有名词白名单例外）
 #
 # 用法：
 #   pwsh -File Tools/Scripts/check-locales.ps1                     # 本仓默认目录
@@ -21,6 +21,8 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $pattern = '^\s*"((?:[^"\\]|\\.)*)"\s*:\s*"((?:[^"\\]|\\.)*)"\s*$'
 $placeholder = '\{(\d+)(?:,-?\d+)?(:[^}]*)?\}'
+# 允许译文与英文原文相同的纯技术标识：MD5 是哈希算法专有名词，不可翻译
+$untranslatedAllowed = @('MD5: {0}')
 
 function Unescape-Yaml([string]$text) {
     # 与源生成器保持一致：还原 \\ \" \n \r \t \uXXXX
@@ -184,11 +186,9 @@ foreach ($item in $LocaleDir) {
                 }
             }
 
-            # 未翻译：句子级词条（3 个及以上空白分隔片段，或 2 个片段且以句末标点结尾）的译文不得与英文原文完全相同。
-            # 单词型技术词（MD5、Encoder、Handler 等）在部分语言中就是本地通行写法，不在此列。
-            $words = @($key -split '\s+' | Where-Object { $_ })
-            $isSentence = $words.Count -ge 3 -or ($words.Count -ge 2 -and $key -match '[.!?。！？]$')
-            if ($value -ceq $key -and $isSentence) {
+            # 未翻译：除白名单中的专有名词外，任何译文都不得与英文原文完全相同。
+            # 单词型技术词（Encoder、Handler、Failover 等）也必须给出本族语写法。
+            if ($value -ceq $key -and $untranslatedAllowed -notcontains $key) {
                 $allErrors += "$($file.FullName): 未翻译（译文与英文原文相同）→ $key"
             }
         }

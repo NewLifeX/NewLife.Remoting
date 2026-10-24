@@ -114,6 +114,18 @@ client.Headers["TenantId"] = "tenant-01";
 | زمن استدعاء RPC واحد | ~41 ميكروثانية | — |
 | الأطر المدعومة | net45 / net461 / netstandard2.0 / netstandard2.1 / net6.0 / net8.0 / net10.0 (متوافق مع NewLife.Core v12، وNativeAOT من net8.0) |
 
+## الترقية إلى v4
+
+يتوافق v4 مع NewLife.Core v12 ويغيّر طبقة الشبكة. قبل الترقية:
+
+- **منفذان**: المنفذ الرئيسي يخدم SRMP فقط؛ عيّن `HttpPort` صراحةً لتمكين HTTP (معطّل افتراضيًا).
+- **لا SRMP عبر WebSocket**: عناوين `ws://`/`wss://` أصبحت ترمي `NotSupportedException`؛ استخدم `tcp://`/`udp://` لـ SRMP و`http(s)://` لاستدعاءات HTTP.
+- **إزالة أنواع الترميز المخصصة**: حُذفت `WsClient` و`HttpCodec` و`WebSocketClientCodec` و`WebSocketServerCodec` وطرق الإطار في `HttpMessage`؛ يتولى `HttpServer` من Core معالجة HTTP، ويجب تنفيذ `IMessageCodec` للتأطير المخصص.
+- **مفاتيح الرسائل بالإنجليزية**: تستخدم رسائل وقت التشغيل النص الإنجليزي كمفتاح؛ قارن `ApiCode` أو رموز الأخطاء بدلًا من النص المترجم.
+- **أطر العمل المستهدفة**: لم تعد أصول net5.0/net7.0/net9.0 تُشحن؛ يعود NuGet تلقائيًا إلى أقرب إطار مدعوم.
+
+راجع [ChangeLog.md](ChangeLog.md) للقائمة الكاملة.
+
 ---
 ## التعاون مع مكوّنات NewLife الأخرى
 

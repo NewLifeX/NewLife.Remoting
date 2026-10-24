@@ -6,7 +6,7 @@
     <Description>Source generator of NewLife.Remoting for NativeAOT-friendly compile-time code generation. NewLife.Remoting 源生成器：随主包分发，为 ApiServer.Register&lt;T&gt;() 注册的控制器生成静态动作调用委托与流式泵（生成物为纯静态代码，天然 AOT 安全）。</Description>
     <Company>新生命开发团队</Company>
     <Copyright>©2002-2026 NewLife</Copyright>
-    <VersionPrefix>3.9</VersionPrefix>
+    <VersionPrefix>4.0</VersionPrefix>
     <VersionSuffix>$([System.DateTime]::Now.ToString(`yyyy.MMdd`))</VersionSuffix>
     <Version>$(VersionPrefix).$(VersionSuffix)</Version>
     <LangVersion>latest</LangVersion>
