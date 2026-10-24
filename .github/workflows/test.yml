@@ -102,16 +102,20 @@ jobs:
               8.x
               10.x
           # ============ Windows arm64（观察期） ============
+          # System.Data.SQLite 无 win-arm64 构建，跳过标有 Requires=Sqlite 的 RPC 链路用例
           - name: win-arm64-net10.0
             os: windows-11-arm
             framework: net10.0
             dotnet: 10.x
+            filter: '--filter "Requires!=Sqlite"'
             experimental: true
           # ============ macOS Apple Silicon（观察期） ============
+          # System.Data.SQLite 无 osx-arm64 构建，跳过标有 Requires=Sqlite 的 RPC 链路用例
           - name: osx-arm64-net10.0
             os: macos-latest
             framework: net10.0
             dotnet: 10.x
+            filter: '--filter "Requires!=Sqlite"'
             experimental: true
           # ============ macOS Intel（观察期） ============
           - name: osx-x64-net10.0
@@ -135,7 +139,7 @@ jobs:
     - name: Test (XUnitTest)
       # blame-hang：用例挂起时超时转储，便于事后定位（正常单 job 约 1 分钟，远小于 15 分钟阈值）；
       # dump-type 取值 full/mini/none 区分大小写，写 Mini 会让 dotnet test 直接报参数错误、整个 job 秒退
-      run: dotnet test XUnitTest -c Release -f ${{ matrix.framework }} --blame-hang-timeout 15m --blame-hang-dump-type mini --logger "trx;LogFileName=XUnitTest-${{ matrix.name }}.trx" --results-directory TestResults
+      run: dotnet test XUnitTest -c Release -f ${{ matrix.framework }} --blame-hang-timeout 15m --blame-hang-dump-type mini ${{ matrix.filter }} --logger "trx;LogFileName=XUnitTest-${{ matrix.name }}.trx" --results-directory TestResults
     - name: Upload Test Results
       if: always()
       uses: actions/upload-artifact@v4
@@ -215,8 +219,10 @@ jobs:
         include:
           - arch: x64
             os: ubuntu-latest
+          # System.Data.SQLite 无 linux-musl-arm64 构建，跳过标有 Requires=Sqlite 的 RPC 链路用例
           - arch: arm64
             os: ubuntu-24.04-arm
+            filter: '--filter "Requires!=Sqlite"'
 
     steps:
     - uses: actions/checkout@v4
@@ -235,7 +241,7 @@ jobs:
           bash /tmp/dotnet-install.sh --channel 10.0 --install-dir /usr/share/dotnet >/dev/null
           ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet
           export DOTNET_CLI_TELEMETRY_OPTOUT=1
-          dotnet test XUnitTest -f net10.0 -c Release --nologo
+          dotnet test XUnitTest -f net10.0 -c Release --nologo ${{ matrix.filter }}
         '
 
   # 龙芯 LA64（linux-loongarch64）：无官方 runner / runtime pack / NativeAOT，QEMU 用户态仿真执行（观察期）。
