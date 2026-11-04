@@ -37,8 +37,12 @@ public class Upgrade
     /// <summary>更新模式</summary>
     public UpdateModes Mode { get; set; } = UpdateModes.Standard;
 
-    /// <summary>下载超时时间（秒）。默认30秒</summary>
-    public Int32 DownloadTimeoutSeconds { get; set; } = 30;
+    /// <summary>下载超时时间（秒）。默认120秒</summary>
+    /// <remarks>
+    /// 升级包只有几 MB，但边缘节点常见弱网（高延迟、丢包、NAT 空闲断链），30 秒默认值容易在下载阶段超时，
+    /// 表现为节点历史里的 “HttpClient.Timeout of 30 seconds elapsing”，反复重试仍然升不上去。
+    /// </remarks>
+    public Int32 DownloadTimeoutSeconds { get; set; } = 120;
 
     /// <summary>落盘等待延迟（毫秒）。sync 后等待存储设备完成回写。Linux ARM64 慢速存储（eMMC/SD）默认 800ms，x86 默认 0</summary>
     public Int32 StorageFlushDelay { get; set; } = GetDefaultFlushDelay();
@@ -96,7 +100,7 @@ public class Upgrade
                 file = await DownloadFileAsync(web, url, file, cancellationToken).ConfigureAwait(false);
                 break;
             }
-            catch (Exception ex) when (ex is IOException || ex is HttpRequestException)
+            catch (Exception ex) when (ex is IOException || ex is HttpRequestException || (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
             {
                 if (retry-- <= 0) throw;
                 WriteLog("Download failed, retrying in 2 seconds: {0}", ex.Message);
