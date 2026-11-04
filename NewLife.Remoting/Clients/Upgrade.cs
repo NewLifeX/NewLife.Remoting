@@ -742,6 +742,9 @@ public class Upgrade
 
         var src = source.AsDirectory();
 
+        // 记录拷贝失败的文件，最后统一抛出，避免升级“看似成功”却留下残缺文件
+        var errors = new List<Exception>();
+
         // 来源目录根，用于截断
         var root = src.FullName.EnsureEnd(Path.DirectorySeparatorChar.ToString());
         foreach (var item in src.GetAllFiles(null, true))
@@ -777,15 +780,28 @@ public class Upgrade
                     //catch
                     //{
                     // 直接Move文件，不要删除，否则Linux上可能导致当前进程退出
-                    WriteLog("Move {0}", item);
-                    var del = $"{dst}.del";
-                    //if (File.Exists(del)) File.Delete(del);
-                    // 如果.del文件已存在，不能直接删，因为进程可能正在使用（上次升级未完成）。
-                    if (File.Exists(del)) del = $"{dst}_{DateTime.Now:yyMMddHHmmss}.del";
-                    File.Move(dst, del);
-                    //}
+                    try
+                    {
+                        WriteLog("Move {0}", item);
+                        var del = $"{dst}.del";
+                        //if (File.Exists(del)) File.Delete(del);
+                        // 如果.del文件已存在，不能直接删，因为进程可能正在使用（上次升级未完成）。
+                        if (File.Exists(del)) del = $"{dst}_{DateTime.Now:yyMMddHHmmss}.del";
+                        File.Move(dst, del);
+                        //}
 
-                    item.CopyTo(dst, true);
+                        item.CopyTo(dst, true);
+                    }
+                    catch (Exception ex2)
+                    {
+                        WriteLog(ex2.Message);
+                        errors.Add(ex2);
+                    }
+                }
+                else
+                {
+                    // 目标文件不存在时无法改名绕开占用，只能记录失败
+                    errors.Add(ex);
                 }
             }
         }
@@ -793,6 +809,8 @@ public class Upgrade
         // 删除临时目录
         WriteLog("Delete {0}", src.FullName);
         src.Delete(true);
+
+        if (errors.Count > 0) throw new AggregateException($"Failed to update {errors.Count} file(s)", errors);
     }
     #endregion
 

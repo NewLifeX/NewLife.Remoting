@@ -994,20 +994,75 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     private async Task<String?> ReceiveUpgrade(String? arguments)
     {
-        // 参数作为通道
-        var channel = arguments;
-        var rs = await Upgrade(channel).ConfigureAwait(false);
+        // 参数支持三种形式：纯通道名（旧版）、channel=x&version=y、UpgradeInfo 的JSON（旧版控制台）
+        var (channel, version) = ParseUpgradeArguments(arguments);
+        var rs = version.IsNullOrEmpty()
+            ? await Upgrade(channel).ConfigureAwait(false)
+            : await Upgrade(channel, version).ConfigureAwait(false);
         if (rs == null) return L.T("No update available!");
 
         return L.T("Successfully updated to [{0}]", rs.Version);
     }
 
-    private String? _lastVersion;
+    /// <summary>解析升级指令参数</summary>
+    /// <param name="arguments">指令参数</param>
+    /// <returns>通道与指定版本</returns>
+    private static (String? channel, String? version) ParseUpgradeArguments(String? arguments)
+    {
+        if (arguments.IsNullOrEmpty()) return (null, null);
+
+        var args = arguments.Trim();
+
+        // 兼容旧版控制台下发的 UpgradeInfo JSON，其中最重要的是版本号
+        if (args[0] == '{')
+        {
+            try
+            {
+                var info = args.ToJsonEntity<UpgradeInfo>();
+                return (null, info?.Version);
+            }
+            catch
+            {
+                return (null, null);
+            }
+        }
+
+        // channel=Release&version=x.y.z
+        if (args.Contains('='))
+        {
+            String? channel = null;
+            String? version = null;
+            foreach (var item in args.Split('&', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var p = item.IndexOf('=');
+                if (p <= 0) continue;
+
+                var name = item[..p].Trim();
+                var value = item[(p + 1)..].Trim();
+                if (name.EqualIgnoreCase("channel")) channel = value;
+                else if (name.EqualIgnoreCase("version")) version = value;
+            }
+
+            return (channel, version);
+        }
+
+        // 纯通道名
+        return (args, null);
+    }
+
+    private String? _lastUpgradeKey;
     /// <summary>获取更新信息。如有更新，则下载解压覆盖并重启应用</summary>
     /// <param name="channel">更新通道</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>更新信息</returns>
-    public virtual async Task<IUpgradeInfo?> Upgrade(String? channel, CancellationToken cancellationToken = default)
+    public virtual Task<IUpgradeInfo?> Upgrade(String? channel, CancellationToken cancellationToken = default) => Upgrade(channel, null, cancellationToken);
+
+    /// <summary>获取更新信息。如有更新，则下载解压覆盖并重启应用</summary>
+    /// <param name="channel">更新通道</param>
+    /// <param name="version">指定版本。用于手工升级到指定版本，为空时按通道策略匹配</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>更新信息</returns>
+    public virtual async Task<IUpgradeInfo?> Upgrade(String? channel, String? version, CancellationToken cancellationToken = default)
     {
         using var span = Tracer?.NewSpan(nameof(Upgrade));
         WriteLog("Checking for updates");
@@ -1017,12 +1072,17 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         ug.DeleteBackup(".");
 
         // 调用接口查询思否存在更新信息
-        var info = await UpgradeAsync(channel, cancellationToken).ConfigureAwait(false);
-        if (info == null || info.Version == _lastVersion) return info;
+        var info = version.IsNullOrEmpty()
+            ? await UpgradeAsync(channel, cancellationToken).ConfigureAwait(false)
+            : await UpgradeAsync(channel, version, cancellationToken).ConfigureAwait(false);
+        if (info == null) return info;
 
-        // _lastVersion避免频繁更新同一个版本
+        // 版本号可能不变而包内文件已经更新，使用版本+文件哈希作为去重标识，允许同版本号重新打包后再次安装
+        var key = $"{info.Version}:{info.FileHash}";
+        if (key == _lastUpgradeKey) return info;
+
         WriteLog("Update found: {0}", info.ToJson(true));
-        this.WriteInfoEvent("Upgrade", L.T("Preparing to update from [{1}] to [{2}], downloading {0}", info.Source, _lastVersion, info.Version));
+        this.WriteInfoEvent("Upgrade", L.T("Preparing to update from [{1}] to [{2}], downloading {0}", info.Source, _lastUpgradeKey, info.Version));
 
         try
         {
@@ -1033,14 +1093,14 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             // 检查文件完整性
             if (!info.FileHash.IsNullOrEmpty() && !ug.CheckFileHash(info.FileHash))
             {
-                this.WriteInfoEvent("Upgrade", L.T("Download completed, hash verification failed"));
+                this.WriteErrorEvent("Upgrade", L.T("Download completed, hash verification failed"));
             }
             else
             {
                 this.WriteInfoEvent("Upgrade", L.T("Download completed, preparing to extract files"));
                 if (!ug.Extract())
                 {
-                    this.WriteInfoEvent("Upgrade", L.T("Extraction failed"));
+                    this.WriteErrorEvent("Upgrade", L.T("Extraction failed"));
                 }
                 else
                 {
@@ -1056,10 +1116,17 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
                     // 执行更新，解压缩覆盖文件
                     var rs = ug.Update();
+                    if (!rs) this.WriteErrorEvent("Upgrade", L.T("Update failed! {0}", "Failed to overwrite files"));
 
                     // 执行更新后命令
                     if (rs && info2 != null && !info2.Executor.IsNullOrEmpty()) ug.Run(info2.Executor);
-                    _lastVersion = info.Version;
+
+                    // 只有覆盖成功才记下去重标识，失败时留待下一轮重试
+                    if (rs)
+                    {
+                        _lastUpgradeKey = key;
+                        this.WriteEvent("success", "Upgrade", L.T("Successfully updated to [{0}]", info.Version));
+                    }
 
                     // 强制更新时，马上重启
                     if (rs && info2 != null && info2.Force) Restart(ug);
@@ -1144,10 +1211,18 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <param name="channel">更新通道</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>更新信息</returns>
-    protected virtual async Task<IUpgradeInfo?> UpgradeAsync(String? channel, CancellationToken cancellationToken)
+    protected virtual Task<IUpgradeInfo?> UpgradeAsync(String? channel, CancellationToken cancellationToken) => UpgradeAsync(channel, null, cancellationToken);
+
+    /// <summary>放弃更新异步请求。由Upgrade内部调用</summary>
+    /// <param name="channel">更新通道</param>
+    /// <param name="version">指定版本。为空时由服务端按通道策略匹配</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>更新信息</returns>
+    protected virtual async Task<IUpgradeInfo?> UpgradeAsync(String? channel, String? version, CancellationToken cancellationToken)
     {
         // 参数用字典而非匿名类型：NativeAOT 下匿名类型成员会被裁剪，服务端将收到空参数
         var args = new Dictionary<String, Object?> { ["channel"] = channel };
+        if (!version.IsNullOrEmpty()) args["version"] = version;
 
         if (_client is ApiHttpClient)
             return await GetAsync<IUpgradeInfo>(Actions[Features.Upgrade], args, cancellationToken).ConfigureAwait(false);

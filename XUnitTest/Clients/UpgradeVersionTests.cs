@@ -12,7 +12,7 @@ using Xunit;
 
 namespace XUnitTest.Clients;
 
-/// <summary>升级版本去重测试（M6-2 _lastVersion）</summary>
+/// <summary>升级去重测试。去重标识为版本+文件哈希，允许同版本号重新打包后再次安装</summary>
 public class UpgradeVersionTests
 {
     /// <summary>可控制 UpgradeAsync 返回结果的 ClientBase 子类</summary>
@@ -45,16 +45,36 @@ public class UpgradeVersionTests
             FileHash = "abc123"
         };
 
-        // 使用反射设置 _lastVersion，模拟已升级过的版本
-        var field = typeof(ClientBase).GetField("_lastVersion", BindingFlags.Instance | BindingFlags.NonPublic);
+        // 使用反射设置 _lastUpgradeKey，模拟已升级过的同一份安装包
+        var field = typeof(ClientBase).GetField("_lastUpgradeKey", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(field);
-        field.SetValue(client, "1.0.0");
+        field.SetValue(client, "1.0.0:abc123");
 
-        // 调用 Upgrade：_lastVersion == info.Version，应跳过下载直接返回 info
+        // 调用 Upgrade：去重标识一致，应跳过下载直接返回 info
         var info = await client.Upgrade(null);
         Assert.NotNull(info);
         Assert.Equal("1.0.0", info.Version);
         // 验证未抛出异常（未尝试真实下载）
+    }
+
+    [Fact]
+    [DisplayName("Upgrade_同版本号新安装包_重新下载")]
+    public async Task Upgrade_SameVersionNewPackage_AttemptsUpgrade()
+    {
+        using var client = new TestClientBase();
+        client.MockUpgradeInfo = new UpgradeInfo
+        {
+            Version = "1.0.0",
+            Source = "http://localhost:1/nonexistent.zip",
+            FileHash = "new456"
+        };
+
+        // 版本号相同但安装包哈希不同，应视为新包重新下载
+        var field = typeof(ClientBase).GetField("_lastUpgradeKey", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        field.SetValue(client, "1.0.0:old123");
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.Upgrade(null));
     }
 
     [Fact]
@@ -69,12 +89,12 @@ public class UpgradeVersionTests
     }
 
     [Fact]
-    [DisplayName("_lastVersion_Null初始值")]
-    public void LastVersion_InitiallyNull()
+    [DisplayName("_lastUpgradeKey_Null初始值")]
+    public void LastUpgradeKey_InitiallyNull()
     {
         using var client = new TestClientBase();
 
-        var field = typeof(ClientBase).GetField("_lastVersion", BindingFlags.Instance | BindingFlags.NonPublic);
+        var field = typeof(ClientBase).GetField("_lastUpgradeKey", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(field);
         var val = field.GetValue(client);
         Assert.Null(val);
@@ -92,10 +112,10 @@ public class UpgradeVersionTests
             FileHash = "def456"
         };
 
-        // 使用反射设置 _lastVersion 为旧版本
-        var field = typeof(ClientBase).GetField("_lastVersion", BindingFlags.Instance | BindingFlags.NonPublic);
+        // 使用反射设置 _lastUpgradeKey 为旧版本的安装包
+        var field = typeof(ClientBase).GetField("_lastUpgradeKey", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.NotNull(field);
-        field.SetValue(client, "1.0.0");
+        field.SetValue(client, "1.0.0:def456");
 
         // 不同版本时，Upgrade 会尝试下载，但由于 Source 不可达，预期抛出 HttpRequestException
         // 这验证了版本去重逻辑允许不同版本通过（不因版本匹配而阻塞）
