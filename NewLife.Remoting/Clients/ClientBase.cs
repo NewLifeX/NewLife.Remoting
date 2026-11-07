@@ -1068,7 +1068,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         WriteLog("Checking for updates");
 
         // 清理旧版备份文件
-        var ug = new Upgrade { Log = Log };
+        var ug = CreateUpgrade();
         ug.DeleteBackup(".");
 
         // 调用接口查询思否存在更新信息
@@ -1121,8 +1121,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     // 执行更新后命令
                     if (rs && info2 != null && !info2.Executor.IsNullOrEmpty()) ug.Run(info2.Executor);
 
-                    // 只有覆盖成功才记下去重标识，失败时留待下一轮重试
-                    if (rs)
+                    // 只有覆盖成功才记下去重标识，失败时留待下一轮重试。
+                    // 强制更新需要重启进程后才算完成，重启失败会回滚旧版文件，此时不能记去重标识，
+                    // 否则还在运行的旧进程会拒绝同一份包的后续下发，服务端再怎么重推都不会有反应
+                    if (rs && (info2 == null || !info2.Force))
                     {
                         _lastUpgradeKey = key;
                         this.WriteEvent("success", "Upgrade", L.T("Successfully updated to [{0}]", info.Version));
@@ -1143,6 +1145,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
         return info;
     }
+
+    /// <summary>创建升级对象。派生类可重载以定制下载、解压与覆盖行为</summary>
+    /// <returns></returns>
+    protected virtual Upgrade CreateUpgrade() => new() { Log = Log };
 
     /// <summary>更新完成，重启自己</summary>
     /// <remarks>

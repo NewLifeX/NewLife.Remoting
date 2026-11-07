@@ -121,4 +121,86 @@ public class UpgradeVersionTests
         // 这验证了版本去重逻辑允许不同版本通过（不因版本匹配而阻塞）
         await Assert.ThrowsAsync<HttpRequestException>(() => client.Upgrade(null));
     }
+
+    /// <summary>假升级对象：跳过真实下载、解压与文件覆盖</summary>
+    private class FakeUpgrade : Upgrade
+    {
+        public override Task<Boolean> Download(CancellationToken cancellationToken = default) => Task.FromResult(true);
+
+        public override Boolean Extract() => true;
+
+        public override Boolean Update() => true;
+    }
+
+    /// <summary>可控制升级信息与重启行为的 ClientBase 子类</summary>
+    private class ForceTestClient : ClientBase
+    {
+        public IUpgradeInfo? MockUpgradeInfo { get; set; }
+
+        /// <summary>重启次数。强制更新会调用 Restart</summary>
+        public Int32 RestartCount { get; private set; }
+
+        public ForceTestClient()
+        {
+            Name = "Test";
+            Server = "http://localhost:12345";
+            Log = XTrace.Log;
+        }
+
+        protected override Task<IUpgradeInfo?> UpgradeAsync(String? channel, CancellationToken cancellationToken)
+            => Task.FromResult(MockUpgradeInfo);
+
+        protected override Upgrade CreateUpgrade() => new FakeUpgrade { Log = Log };
+
+        protected override void Restart(Upgrade upgrade) => RestartCount++;
+    }
+
+    [Fact]
+    [DisplayName("Upgrade_强制更新_不记去重标识")]
+    public async Task Upgrade_Force_DoesNotRememberKey()
+    {
+        using var client = new ForceTestClient();
+        client.MockUpgradeInfo = new UpgradeInfo
+        {
+            Version = "stone80-1105",
+            Source = "http://127.0.0.1/files/agent.zip",
+            FileHash = "",
+            Force = true,
+        };
+
+        var info = await client.Upgrade(null);
+
+        Assert.NotNull(info);
+        Assert.Equal(1, client.RestartCount);
+
+        // 强制更新要重启进程后才算完成，重启失败会回滚，此时不能记去重标识，
+        // 否则旧进程会拒绝服务端后续的同一份包重推
+        var field = typeof(ClientBase).GetField("_lastUpgradeKey", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        Assert.Null(field.GetValue(client));
+    }
+
+    [Fact]
+    [DisplayName("Upgrade_非强制更新_记录去重标识")]
+    public async Task Upgrade_NotForce_RemembersKey()
+    {
+        using var client = new ForceTestClient();
+        client.MockUpgradeInfo = new UpgradeInfo
+        {
+            Version = "stone80-1105",
+            Source = "http://127.0.0.1/files/agent.zip",
+            FileHash = "",
+            Force = false,
+        };
+
+        var info = await client.Upgrade(null);
+
+        Assert.NotNull(info);
+        Assert.Equal(0, client.RestartCount);
+
+        // 非强制更新为就地生效，必须记下去重标识，避免同一份包被重复下载覆盖
+        var field = typeof(ClientBase).GetField("_lastUpgradeKey", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+        Assert.Equal("stone80-1105:", field.GetValue(client));
+    }
 }

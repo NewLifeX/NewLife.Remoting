@@ -24,7 +24,7 @@ public class UpgradeTests
         Assert.Null(upgrade.SourceFile);
         Assert.Null(upgrade.TempPath);
         Assert.Equal(UpdateModes.Standard, upgrade.Mode);
-        Assert.Equal(30, upgrade.DownloadTimeoutSeconds);
+        Assert.Equal(120, upgrade.DownloadTimeoutSeconds);
         // StorageFlushDelay 在不同平台上值不同，仅验证 >=0
         Assert.True(upgrade.StorageFlushDelay >= 0);
     }
@@ -156,11 +156,11 @@ public class UpgradeTests
     }
 
     [Fact]
-    [DisplayName("DownloadTimeoutSeconds默认值30")]
+    [DisplayName("DownloadTimeoutSeconds默认值120")]
     public void DownloadTimeoutSeconds_Default()
     {
         var upgrade = new Upgrade();
-        Assert.Equal(30, upgrade.DownloadTimeoutSeconds);
+        Assert.Equal(120, upgrade.DownloadTimeoutSeconds);
     }
 
     [Fact]
