@@ -199,6 +199,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     [MemberNotNull(nameof(_client))]
     protected void Init()
     {
+        // NativeAOT 下内置消息模型必须显式保留成员，否则接口声明的响应类型反序列化为空对象
+        AotRoots.Ensure();
+
         if (_client != null)
         {
             // 如果配置中的服务端地址与当前不一致，则需要同步修改客户端的服务地址
