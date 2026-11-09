@@ -47,6 +47,10 @@ public class LoginResponse : ILoginResponse
 
     /// <summary>服务器时间。客户端用于计算时间差，Unix毫秒（UTC）</summary>
     public Int64 ServerTime { get; set; }
+
+    /// <summary>默认语言。平台下发后客户端保存并作为本机默认语言，留空表示不改动</summary>
+    /// <remarks>语言名称由客户端核心库归一化，无法识别时忽略</remarks>
+    public String? DefaultLanguage { get; set; }
     #endregion
 
     /// <summary>已重载。</summary>

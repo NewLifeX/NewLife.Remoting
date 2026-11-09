@@ -48,6 +48,10 @@ public class PingResponse : IPingResponse2
     /// <summary>新服务器地址。用于服务器迁移</summary>
     public String? NewServer { get; set; }
 
+    /// <summary>默认语言。平台下发后客户端保存并作为本机默认语言，留空表示不改动</summary>
+    /// <remarks>登录响应已下发时通常无需重复，仅用于在线动态调整</remarks>
+    public String? DefaultLanguage { get; set; }
+
     /// <summary>下发命令</summary>
     public CommandModel[]? Commands { get; set; }
 }

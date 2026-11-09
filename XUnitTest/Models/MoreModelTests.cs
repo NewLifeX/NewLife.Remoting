@@ -80,6 +80,7 @@ public class MoreModelTests
         Assert.Equal(0, res.Expire);
         Assert.Equal(0L, res.Time);
         Assert.Equal(0L, res.ServerTime);
+        Assert.Null(res.DefaultLanguage);
     }
 
     [Fact]
@@ -94,7 +95,8 @@ public class MoreModelTests
             Token = "jwt.token.here",
             Expire = 7200,
             Time = 1750000000000,
-            ServerTime = 1750000001000
+            ServerTime = 1750000001000,
+            DefaultLanguage = "zh-Hans",
         };
 
         Assert.Equal("device001", res.Code);
@@ -104,6 +106,7 @@ public class MoreModelTests
         Assert.Equal(7200, res.Expire);
         Assert.Equal(1750000000000, res.Time);
         Assert.Equal(1750000001000, res.ServerTime);
+        Assert.Equal("zh-Hans", res.DefaultLanguage);
     }
 
     [Fact]
@@ -217,6 +220,7 @@ public class MoreModelTests
         Assert.Equal(0, res.Period);
         Assert.Null(res.Token);
         Assert.Null(res.NewServer);
+        Assert.Null(res.DefaultLanguage);
         Assert.Null(res.Commands);
     }
 
@@ -232,6 +236,7 @@ public class MoreModelTests
             Period = 60,
             Token = "new_token",
             NewServer = "http://new-server:8080",
+            DefaultLanguage = "zh-Hans",
             Commands = cmds
         };
 
@@ -240,6 +245,7 @@ public class MoreModelTests
         Assert.Equal(60, res.Period);
         Assert.Equal("new_token", res.Token);
         Assert.Equal("http://new-server:8080", res.NewServer);
+        Assert.Equal("zh-Hans", res.DefaultLanguage);
         Assert.Single(res.Commands!);
         Assert.Equal("restart", res.Commands![0].Command);
     }

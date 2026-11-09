@@ -145,6 +145,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         Server = setting.Server;
         Code = setting.Code;
         Secret = setting.Secret;
+
+        // 启动时先应用上次保存的平台默认语言，早于首次登录
+        UseDefaultLanguage(NewLife.Setting.Current.DefaultLanguage);
     }
 
     /// <summary>销毁资源</summary>
@@ -640,6 +643,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             response = await LoginAsync(request, ts.Token).ConfigureAwait(false);
             if (response == null) return null;
 
+            // 应用平台下发的默认语言。旧服务端未下发时保持本地配置
+            if (response is LoginResponse login && !login.DefaultLanguage.IsNullOrWhiteSpace()) ApplyDefaultLanguage(login.DefaultLanguage);
+
             Log?.WritePrefixed(level, "[" + Name + "]", "Login succeeded: {0}, Sequence: {1}, Source: {2}", response, times, source);
 
             // 登录后设置用于用户认证的token
@@ -699,6 +705,68 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         }
 
         return response;
+    }
+
+    /// <summary>应用平台下发的默认语言</summary>
+    /// <remarks>
+    /// 优先级：本地锁定语言（Setting.Language 或环境变量）&gt; 平台默认语言 &gt; 系统语言。
+    /// 平台默认语言会保存到核心配置 <see cref="NewLife.Setting.DefaultLanguage"/>，下次启动时提前应用。
+    /// </remarks>
+    /// <param name="language">语言名称。为空时不改动</param>
+    /// <param name="save">是否保存到核心配置</param>
+    protected virtual void ApplyDefaultLanguage(String? language, Boolean save = true)
+    {
+        if (language.IsNullOrWhiteSpace()) return;
+
+        var old = Localization.DefaultCulture?.Name;
+        var name = UseDefaultLanguage(language);
+        if (name == null)
+        {
+            Log?.WritePrefixed(LogLevel.Debug, "[" + Name + "]", "Unsupported default language: {0}", language);
+            return;
+        }
+
+        if (save)
+        {
+            var core = NewLife.Setting.Current;
+            if (!name.EqualIgnoreCase(core.DefaultLanguage))
+            {
+                var oldLanguage = core.DefaultLanguage;
+                core.DefaultLanguage = name;
+                try
+                {
+                    core.Save();
+                }
+                catch (Exception ex)
+                {
+                    // 保存失败时回滚，下一次登录/心跳继续尝试
+                    core.DefaultLanguage = oldLanguage;
+                    Log?.WritePrefixed(LogLevel.Warn, "[" + Name + "]", "Save default language failed: {0}", ex.Message);
+                }
+            }
+        }
+
+        if (!name.EqualIgnoreCase(old)) WriteLog("Default language: {0}", name);
+    }
+
+    /// <summary>应用默认语言到进程，返回归一化后的语言名称</summary>
+    private static String? UseDefaultLanguage(String? language)
+    {
+        if (language.IsNullOrWhiteSpace()) return null;
+
+        var name = Localization.NormalizeCulture(language);
+        if (name == null) return null;
+
+        var changed = !name.EqualIgnoreCase(Localization.DefaultCulture?.Name);
+        Localization.SetDefaultLanguage(name);
+
+        // 日志语言优先取 LogCulture。启动阶段可能已把 LogCulture 固定为系统语言，
+        // 默认语言变化时需要让它重新跟随默认语言；默认语言未变化且宿主自定义了日志语言时保持不动。
+        if (Localization.ForcedLanguage == null &&
+            (changed || Localization.LogCulture == null || Localization.LogCulture.Name.EqualIgnoreCase(Localization.SystemCulture.Name)))
+            Localization.LogCulture = Localization.DefaultCulture;
+
+        return name;
     }
 
     /// <summary>计算客户端到服务端的网络延迟，以及相对时间差。支持GetNow()返回基于服务器的当前时间</summary>
@@ -860,6 +928,10 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
                     // 更新令牌。即将过期时，服务端会返回新令牌
                     if (!response.Token.IsNullOrEmpty()) SetToken(response.Token);
+
+                    // 平台可在线调整默认语言，登录响应已下发时通常不会重复
+                    if (response is PingResponse pong && !pong.DefaultLanguage.IsNullOrWhiteSpace())
+                        ApplyDefaultLanguage(pong.DefaultLanguage);
 
                     // 心跳响应携带的命令，推送到队列
                     var commands = (response as PingResponse)?.Commands;

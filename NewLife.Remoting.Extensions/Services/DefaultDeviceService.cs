@@ -118,7 +118,8 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
 
         var rs = new LoginResponse
         {
-            Name = device.Name
+            Name = device.Name,
+            DefaultLanguage = Localization.DefaultCulture?.Name ?? Localization.ForcedLanguage,
         };
 
         // 动态注册，下发节点证书
@@ -339,6 +340,10 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
             response.Period = device.Period;
             if (rs != null) rs.NewServer = device.NewServer;
         }
+
+        // 默认语言随内置响应模型下发，服务端注入的自定义实现自行处理
+        if (response is PingResponse ping)
+            ping.DefaultLanguage = Localization.DefaultCulture?.Name ?? Localization.ForcedLanguage;
 
         if (rs != null) rs.Commands = AcquireCommands(context);
 
