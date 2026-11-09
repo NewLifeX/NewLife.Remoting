@@ -86,7 +86,7 @@
     <AdditionalFiles Include="$(MSBuildProjectDirectory)/Locales/*.yml" />
   </ItemGroup>
   <ItemGroup Condition="'$(UseLocalNewLifeSource)' != 'true'">
-    <PackageReference Include="NewLife.Core" Version="12.0.2026.1024" />
+    <PackageReference Include="NewLife.Core" Version="12.0.2026.1109-beta0553" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)'=='net45' or '$(TargetFramework)'=='net461'">
