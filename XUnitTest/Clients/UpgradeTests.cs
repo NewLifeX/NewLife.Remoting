@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using System.IO;
 using System.Threading.Tasks;
+using NewLife.Http;
 using NewLife.Remoting;
 using NewLife.Remoting.Clients;
 using NewLife.Remoting.Models;
@@ -11,6 +12,11 @@ namespace XUnitTest.Clients;
 
 public class UpgradeTests
 {
+    private sealed class OptionsUpgrade : Upgrade
+    {
+        public HttpDownloadOptions GetDownloadOptions() => CreateDownloadOptions();
+    }
+
     [Fact]
     [DisplayName("默认属性")]
     public void DefaultProperties()
@@ -24,7 +30,6 @@ public class UpgradeTests
         Assert.Null(upgrade.SourceFile);
         Assert.Null(upgrade.TempPath);
         Assert.Equal(UpdateModes.Standard, upgrade.Mode);
-        Assert.Equal(120, upgrade.DownloadTimeoutSeconds);
         // StorageFlushDelay 在不同平台上值不同，仅验证 >=0
         Assert.True(upgrade.StorageFlushDelay >= 0);
     }
@@ -42,7 +47,6 @@ public class UpgradeTests
             SourceFile = "/tmp/update.zip",
             TempPath = "/tmp/extract",
             Mode = UpdateModes.Full,
-            DownloadTimeoutSeconds = 600,
             StorageFlushDelay = 1000,
         };
 
@@ -53,7 +57,6 @@ public class UpgradeTests
         Assert.Equal("/tmp/update.zip", upgrade.SourceFile);
         Assert.Equal("/tmp/extract", upgrade.TempPath);
         Assert.Equal(UpdateModes.Full, upgrade.Mode);
-        Assert.Equal(600, upgrade.DownloadTimeoutSeconds);
         Assert.Equal(1000, upgrade.StorageFlushDelay);
     }
 
@@ -156,11 +159,15 @@ public class UpgradeTests
     }
 
     [Fact]
-    [DisplayName("DownloadTimeoutSeconds默认值120")]
-    public void DownloadTimeoutSeconds_Default()
+    [DisplayName("下载选项默认值")]
+    public void DownloadOptions_Default()
     {
-        var upgrade = new Upgrade();
-        Assert.Equal(120, upgrade.DownloadTimeoutSeconds);
+        var options = new OptionsUpgrade().GetDownloadOptions();
+
+        Assert.Equal(TimeSpan.FromSeconds(15), options.HeaderTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(300), options.DownloadTimeout);
+        Assert.Equal(2, options.RetryCount);
+        Assert.Equal(TimeSpan.FromSeconds(2), options.RetryDelay);
     }
 
     [Fact]

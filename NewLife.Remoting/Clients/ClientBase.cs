@@ -1151,7 +1151,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
 
     /// <summary>创建升级对象。派生类可重载以定制下载、解压与覆盖行为</summary>
     /// <returns></returns>
-    protected virtual Upgrade CreateUpgrade() => new() { Log = Log };
+    protected virtual Upgrade CreateUpgrade() => new() { Log = Log, Tracer = Tracer };
 
     /// <summary>更新完成，重启自己</summary>
     /// <remarks>

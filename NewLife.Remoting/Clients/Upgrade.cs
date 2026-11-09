@@ -1,11 +1,9 @@
 ﻿using System.Diagnostics;
 using System.Net.Http;
 using System.Reflection;
+using NewLife.Http;
 using NewLife.Log;
 using NewLife.Remoting.Models;
-#if !NET40
-using TaskEx = System.Threading.Tasks.Task;
-#endif
 
 namespace NewLife.Remoting.Clients;
 
@@ -37,12 +35,8 @@ public class Upgrade
     /// <summary>更新模式</summary>
     public UpdateModes Mode { get; set; } = UpdateModes.Standard;
 
-    /// <summary>下载超时时间（秒）。默认120秒</summary>
-    /// <remarks>
-    /// 升级包只有几 MB，但边缘节点常见弱网（高延迟、丢包、NAT 空闲断链），30 秒默认值容易在下载阶段超时，
-    /// 表现为节点历史里的 “HttpClient.Timeout of 30 seconds elapsing”，反复重试仍然升不上去。
-    /// </remarks>
-    public Int32 DownloadTimeoutSeconds { get; set; } = 120;
+    /// <summary>追踪器，用于记录下载耗时与速率</summary>
+    public ITracer? Tracer { get; set; }
 
     /// <summary>落盘等待延迟（毫秒）。sync 后等待存储设备完成回写。Linux ARM64 慢速存储（eMMC/SD）默认 800ms，x86 默认 0</summary>
     public Int32 StorageFlushDelay { get; set; } = GetDefaultFlushDelay();
@@ -72,7 +66,12 @@ public class Upgrade
     #endregion
 
     #region 方法
-    /// <summary>下载更新包，支持超时与瞬时失败重试</summary>
+    /// <summary>下载更新包，支持分阶段超时与瞬时失败重试</summary>
+    /// <remarks>
+    /// 超时分为两段：响应头 15 秒内未到达视为服务器不可达；收到响应头后，响应体允许 300 秒。
+    /// 失败自动重试 2 次，每次重试会通过 <see cref="HttpDownloadOptions.ClientFactory"/> 重建 HttpClient，
+    /// 避免复用已路由到异常上游（如附件尚未同步完成的节点）的连接。
+    /// </remarks>
     public virtual async Task<Boolean> Download(CancellationToken cancellationToken = default)
     {
         var url = Url;
@@ -87,29 +86,34 @@ public class Upgrade
 
         WriteLog("Preparing to download {0} to {1}", url, file);
 
+        using var span = Tracer?.NewSpan("Upgrade:Download", url);
+
         var sw = Stopwatch.StartNew();
+        var options = CreateDownloadOptions();
+        options.ClientFactory ??= CreateClient;
+        if (options.BufferSize <= 0) options.BufferSize = 81920;
+        options.UseContentDispositionFileName = true;
+        span?.AppendTag($"headerTimeout={options.HeaderTimeout.TotalSeconds}s; downloadTimeout={options.DownloadTimeout.TotalSeconds}s; retry={options.RetryCount}");
 
-        var web = CreateClient();
-
-        // 瞬时网络故障重试两次（共三次尝试）
-        var retry = 2;
-        while (true)
+        try
         {
-            try
-            {
-                file = await DownloadFileAsync(web, url, file, cancellationToken).ConfigureAwait(false);
-                break;
-            }
-            catch (Exception ex) when (ex is IOException || ex is HttpRequestException || (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
-            {
-                if (retry-- <= 0) throw;
-                WriteLog("Download failed, retrying in 2 seconds: {0}", ex.Message);
-                await TaskEx.Delay(2_000, cancellationToken).ConfigureAwait(false);
-            }
+            // 首次尝试使用独立客户端，重试由 ClientFactory 创建新客户端
+            using var web = CreateClient();
+            file = await web.DownloadFileAsync(url, file, options, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            span?.SetError(ex, null);
+            throw;
         }
 
         sw.Stop();
-        WriteLog("Download completed! {2} size {0:n0} bytes, elapsed {1:n0}ms", file.AsFile().Length, sw.ElapsedMilliseconds, file);
+
+        var size = file.AsFile().Length;
+        var speed2 = sw.ElapsedMilliseconds > 0 ? size * 1000L / sw.ElapsedMilliseconds : 0;
+        WriteLog("Download completed! {2} size {0:n0} bytes, elapsed {1:n0}ms, {3:n0} KB/s", size, sw.ElapsedMilliseconds, file, speed2 / 1024);
+        span?.Value = size;
+        span?.AppendTag($"size={size}; elapsed={sw.ElapsedMilliseconds}ms; speed={speed2 / 1024}KB/s");
 
         var md5 = file.AsFile().MD5().ToHex();
         WriteLog("MD5: {0}", md5);
@@ -118,6 +122,16 @@ public class Upgrade
 
         return true;
     }
+
+    /// <summary>创建下载选项。默认响应头 15 秒、响应体 300 秒、重试 2 次、重试间隔 2 秒</summary>
+    /// <returns>下载选项</returns>
+    protected virtual HttpDownloadOptions CreateDownloadOptions() => new()
+    {
+        HeaderTimeout = TimeSpan.FromSeconds(15),
+        DownloadTimeout = TimeSpan.FromSeconds(300),
+        RetryCount = 2,
+        RetryDelay = TimeSpan.FromSeconds(2),
+    };
 
     /// <summary>
     /// 检查文件散列，避免文件损坏
@@ -666,51 +680,11 @@ public class Upgrade
     #endregion
 
     #region 辅助
-    private HttpClient? _Client;
-    private HttpClient CreateClient()
+    private static HttpClient CreateClient() => new()
     {
-        if (_Client != null) return _Client;
-
-        return _Client = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(DownloadTimeoutSeconds),
-        };
-    }
-
-    /// <summary>下载文件</summary>
-    /// <param name="client">客户端</param>
-    /// <param name="address">地址</param>
-    /// <param name="fileName">文件名</param>
-    /// <param name="cancellationToken">取消令牌</param>
-    public static async Task<String> DownloadFileAsync(HttpClient client, String address, String fileName, CancellationToken cancellationToken = default)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Get, address);
-        using var rs = await client.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        rs.EnsureSuccessStatusCode();
-
-        // 从Http响应头中获取文件名
-        var file2 = rs.Content.Headers?.ContentDisposition?.FileName;
-        if (!file2.IsNullOrEmpty()) fileName = Path.GetDirectoryName(fileName).CombinePath(file2);
-        fileName.EnsureDirectory(true);
-
-        // 删除已存在文件，否则新文件比旧文件小时，写入的文件后面有冗余数据，导致解压缩失败
-        if (File.Exists(fileName))
-            try
-            {
-                File.Delete(fileName);
-            }
-            catch { }
-
-        var ms = rs.Content;
-        using var fs = new FileStream(fileName, FileMode.OpenOrCreate, FileAccess.ReadWrite);
-        await ms.CopyToAsync(fs).ConfigureAwait(false);
-        await fs.FlushAsync(cancellationToken).ConfigureAwait(false);
-
-        // 截断文件，如果前面删除失败，这里就可能使用旧文件，需要把多余部分截断
-        fs.SetLength(fs.Position);
-
-        return fileName;
-    }
+        // 超时按阶段控制，整体超时由 HttpDownloadOptions 的响应头/响应体超时负责
+        Timeout = System.Threading.Timeout.InfiniteTimeSpan,
+    };
 
     /// <summary>删除备份文件</summary>
     /// <param name="dest">目标目录</param>
