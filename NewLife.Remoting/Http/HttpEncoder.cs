@@ -212,12 +212,20 @@ public class HttpEncoder : EncoderBase, IEncoder
     /// <param name="value">响应值</param>
     /// <returns>响应封套。键名即报文键名</returns>
     /// <remarks>使用字典而非匿名类型：NativeAOT 下匿名类型的公开成员会被裁剪，序列化将得到空对象</remarks>
-    private static Dictionary<String, Object?> CreateEnvelope(String action, Int32 code, Object? value) => new()
+    private static Dictionary<String, Object?> CreateEnvelope(String action, Int32 code, Object? value)
     {
-        ["action"] = action,
-        ["code"] = code,
-        ["data"] = value,
-    };
+        var rs = new Dictionary<String, Object?>
+        {
+            ["action"] = action,
+            ["code"] = code,
+            ["data"] = value,
+        };
+
+        // 错误响应附带服务端时间，客户端可据此校准时间差后立即重试（时间盐、签名等场景）
+        if (code > 0) rs["serverTime"] = DateTime.UtcNow.ToLong();
+
+        return rs;
+    }
 
     #region 编码/解码
     /// <summary>创建请求</summary>

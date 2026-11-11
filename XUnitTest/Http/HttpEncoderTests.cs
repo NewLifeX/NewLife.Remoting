@@ -200,6 +200,10 @@ public class HttpEncoderTests
         Assert.NotNull(msg);
         var http = (HttpMessage)msg;
         Assert.Equal(MessageKinds.Error, http.Kind);
+
+        // 错误响应附带服务端时间，客户端可据此校准时间差后重试
+        Assert.NotNull(http.Payload);
+        Assert.Contains("serverTime", http.Payload!.ToStr());
     }
 
     [Fact]

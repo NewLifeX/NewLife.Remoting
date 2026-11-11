@@ -660,6 +660,9 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             Status = LoginStatus.Ready;
             span?.SetError(ex, null);
 
+            // 服务端在错误信封里附带时间，先用它校准时间差，下一次重试即可用对齐的时间重新签名
+            TryFixTimeFromError(ex);
+
             // 滚动登录超时设计的配套机制：首次登录失败（如服务端冷启动响应慢）后，
             // 若调用方未显式调用Open()，则自动启动重试定时器，避免登录失败后不再重试。
             // 调用方主动取消时不启动，避免应用退出后仍有后台重试。
@@ -789,6 +792,29 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         // 时间偏移
         dt = serverTime.ToDateTime();
         if (dt.Year > 2000) _span = dt.AddMilliseconds(Delay / 2) - DateTime.UtcNow;
+    }
+
+    /// <summary>从登录失败信封中提取服务端时间并校准时间差</summary>
+    /// <remarks>
+    /// 时间盐、签名等场景下，本机时钟偏差过大时首次登录必然失败。
+    /// 服务端在错误响应信封中附带 serverTime，这里先校准时间差，调用方重试时即可用对齐的时间重新签名。
+    /// </remarks>
+    /// <param name="ex">登录异常</param>
+    private void TryFixTimeFromError(Exception ex)
+    {
+        if (ex is not ApiException aex) return;
+        if (aex.Data["response"] is not IDictionary<String, Object?> dic) return;
+
+        foreach (var item in dic)
+        {
+            if (item.Key.EqualIgnoreCase("serverTime"))
+            {
+                var time = item.Value.ToLong();
+                if (time > 0) FixTime(0, time);
+
+                break;
+            }
+        }
     }
 
     /// <summary>创建登录请求。支持重载后使用自定义的登录请求对象</summary>
