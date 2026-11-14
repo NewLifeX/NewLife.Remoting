@@ -6,6 +6,7 @@ using IoTZero::IoTEdge;
 using NewLife;
 using NewLife.Log;
 using NewLife.Remoting.Models;
+using NewLife.Remoting.Services;
 using NewLife.Security;
 using XCode;
 using Xunit;
@@ -122,7 +123,7 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
         XTrace.WriteLine("DeviceOnline 数量={0}", onlines.Count);
 
         // 验证 DeviceHistory 已记录登录（WriteHistory 使用 EntityQueue 异步写库，需轮询等待）
-        var logins = await WaitForDeviceHistory(device.Id, "Http登录").ConfigureAwait(false);
+        var logins = await WaitForDeviceHistory(device.Id, DeviceActions.DeviceLogin).ConfigureAwait(false);
         Assert.NotEmpty(logins);
         Assert.True(logins[0].Success, "第一次登录的 DeviceHistory 应为成功");
 
@@ -155,7 +156,7 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
         Assert.All(onlines, o => Assert.True(o.LoginTime.Year <= 2000, $"LoginTime应为MinValue，实际={o.LoginTime}"));
 
         // DeviceHistory 应有下线记录（WriteHistory 使用 EntityQueue 异步写库，需轮询等待）
-        var logouts = await WaitForDeviceHistory(deviceId, "Http设备下线").ConfigureAwait(false);
+        var logouts = await WaitForDeviceHistory(deviceId, DeviceActions.DeviceOffline).ConfigureAwait(false);
         Assert.NotEmpty(logouts);
 
         XTrace.WriteLine("注销成功，DeviceHistory 下线记录={0}", logouts.Count);
@@ -195,7 +196,7 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
         Assert.NotEmpty(onlines);
 
         // 登录历史应有 2 条记录（第一次自动注册 + 本次）；EntityQueue 异步写入，需轮询等待
-        var logins = await WaitForDeviceHistory(deviceId, "Http登录", 2).ConfigureAwait(false);
+        var logins = await WaitForDeviceHistory(deviceId, DeviceActions.DeviceLogin, 2).ConfigureAwait(false);
         Assert.True(logins.Count >= 2, $"应有至少 2 条登录历史，实际={logins.Count}");
 
         XTrace.WriteLine("重登成功，DeviceHistory 登录记录共={0}", logins.Count);

@@ -156,7 +156,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
 
         if (request.Secret.IsNullOrEmpty() || !passwordProvider.Verify(device.Secret, request.Secret))
         {
-            WriteHistory(context, Name + "鉴权", false, "密钥校验失败");
+            WriteHistory(context, DeviceActions.DeviceAuthentication, false, "Secret validation failed.");
             return false;
         }
 
@@ -167,7 +167,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
             var uuid2 = entity["uuid"] as String;
             if (!uuid.IsNullOrEmpty() && !uuid2.IsNullOrEmpty() && uuid != uuid2)
             {
-                WriteHistory(context, "登录校验", false, $"新旧唯一标识不一致！（新）{uuid}!={uuid2}（旧）");
+                WriteHistory(context, DeviceActions.LoginValidation, false, $"Unique identifier mismatch (new != old): {uuid} != {uuid2}");
             }
         }
 
@@ -209,13 +209,13 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
 
             OnRegister(context, request);
 
-            WriteHistory(context, "动态注册", true, request.ToJson(false, false, false));
+            WriteHistory(context, DeviceActions.DynamicRegistration, true, request.ToJson(false, false, false));
         }
         catch (Exception ex)
         {
             span?.SetError(ex, null);
 
-            WriteHistory(context, "动态注册", false, $"[{code}/{device}]注册失败！{ex.Message}");
+            WriteHistory(context, DeviceActions.DynamicRegistration, false, $"[{code}/{device}] registration failed: {ex.Message}");
 
             throw;
         }
@@ -254,10 +254,9 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         context.Online = online;
 
         var device = context.Device!;
-        var source = context["Source"] as String;
 
         // 登录历史
-        WriteHistory(context, source + "登录", true, $"[{device.Name}/{device.Code}]登录成功 " + request.ToJson(false, false, false));
+        WriteHistory(context, DeviceActions.DeviceLogin, true, $"[{device.Name}/{device.Code}] login successful " + request.ToJson(false, false, false));
     }
 
     /// <summary>设备注销</summary>
@@ -278,8 +277,12 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         {
             context.Online = online;
 
-            var msg = $"{reason} [{context.Device}/{online.SessionId}]]登录于{entity["CreateTime"]}，最后活跃于{entity["UpdateTime"]}";
-            WriteHistory(context, source + "设备下线", true, msg);
+            var name = context.Device?.Name;
+            if (name.IsNullOrEmpty()) name = context.Device?.Code;
+            if (name.IsNullOrEmpty()) name = context.Code;
+
+            var msg = DeviceActions.FormatOfflineRemark(reason, name, online.SessionId, entity["CreateTime"].ToDateTime(), entity["UpdateTime"].ToDateTime());
+            WriteHistory(context, DeviceActions.DeviceOffline, true, msg);
             //entity.Delete();
 
             // 结算本次会话在线时长，不清除数据库记录（留给超时清理）
@@ -514,7 +517,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         ArgumentNullException.ThrowIfNull(device);
         ArgumentNullException.ThrowIfNull(command);
 
-        var id = WriteHistory(device, "发送命令", true, command.ToJson(false, false, false));
+        var id = WriteHistory(device, DeviceActions.SendCommand, true, command.ToJson(false, false, false));
         if (command.Id == 0) command.Id = id;
 
         return sessionManager.PublishAsync(device.Code, command, null, timeout, cancellationToken);
@@ -583,7 +586,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         // 通过会话管理器内置的响应事件总线广播响应（fire-and-forget，跨实例广播不阻塞）
         _ = sessionManager.PublishResponseAsync(model, default);
 
-        WriteHistory(context, "命令响应", true, model.ToJson(false, false, false));
+        WriteHistory(context, DeviceActions.CommandResponse, true, model.ToJson(false, false, false));
 
         return 1;
     }
@@ -623,7 +626,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
             foreach (var model in events)
             {
                 var success = !model.Type.EqualIgnoreCase("error");
-                WriteHistory(context, model.Name ?? "事件", success, model.Remark!);
+                WriteHistory(context, model.Name ?? DeviceActions.Event, success, model.Remark!);
             }
 
             return events.Length;
@@ -642,7 +645,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         //    throw new InvalidDataException($"创建事件对象需要设备实体类{typeof(TDevice).FullName}实现IDeviceModel2");
 
         var success = !model.Type.EqualIgnoreCase("error");
-        var history = device.CreateHistory(model.Name ?? "事件", success, model.Remark!);
+        var history = device.CreateHistory(model.Name ?? DeviceActions.Event, success, model.Remark!);
         if (history is IEntity entity)
         {
             var time = model.Time.ToDateTime().ToLocalTime();
@@ -666,7 +669,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
 
     /// <summary>写设备历史。扩展调用IDeviceModel2.WriteLog</summary>
     /// <param name="context">设备上下文</param>
-    /// <param name="action">动作名称</param>
+    /// <param name="action">动作名称。使用 <see cref="DeviceActions"/> 的语言无关规范键，禁止写入随写入进程语言变化的文本</param>
     /// <param name="success">是否成功</param>
     /// <param name="remark">备注内容</param>
     public virtual void WriteHistory(DeviceContext context, String action, Boolean success, String remark)
@@ -686,7 +689,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
 
     /// <summary>写设备历史。扩展调用IDeviceModel2.WriteLog</summary>
     /// <param name="device">设备信息</param>
-    /// <param name="action">动作名称</param>
+    /// <param name="action">动作名称。使用 <see cref="DeviceActions"/> 的语言无关规范键，禁止写入随写入进程语言变化的文本</param>
     /// <param name="success">是否成功</param>
     /// <param name="remark">备注内容</param>
     /// <returns>历史记录ID</returns>

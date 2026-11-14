@@ -180,7 +180,7 @@ sequenceDiagram
     end
 
     DS->>Online: entity.Update()
-    DS->>DS: WriteHistory("Http设备下线", reason)
+    DS->>DS: WriteHistory(DeviceActions.DeviceOffline, reason)
 ```
 
 **要点**：注销不清除数据库记录（供后续登录复用），只结算时长 + 标记 `LoginTime=MinValue`。最终由超时清理机制通过 `Entity.ClearExpire()` 查找过期记录，调用 `IDeviceService2.RemoveOnline()` 删除。`LoginTime` 守卫防重复结算。

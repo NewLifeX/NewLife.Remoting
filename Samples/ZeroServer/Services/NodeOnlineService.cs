@@ -70,8 +70,8 @@ public class NodeOnlineService : IHostedService
         foreach (var olt in rs)
         {
             var node = olt?.Node;
-            var msg = $"[{node}/{olt?.SessionId}]登录于{olt.CreateTime.ToFullString()}，最后活跃于{olt.UpdateTime.ToFullString()}";
-            _nodeService.WriteHistory(node, "超时下线", true, msg, null, olt.CreateIP);
+            var msg = DeviceActions.FormatOfflineRemark(null, node?.Name ?? node?.Code, olt?.SessionId, olt.CreateTime, olt.UpdateTime);
+            _nodeService.WriteHistory(node, DeviceActions.TimedOutOffline, true, msg, null, olt.CreateIP);
 
             // RemoveOnline 内部已包含：结算在线时长（LoginTime 守卫防重复）→ 删除数据库 → 清除缓存
             if (_nodeService is IDeviceService2 ds2)

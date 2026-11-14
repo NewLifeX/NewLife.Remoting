@@ -4,6 +4,7 @@ using System.Text.Json;
 using NewLife;
 using NewLife.Log;
 using NewLife.Remoting.Models;
+using NewLife.Remoting.Services;
 using NewLife.Security;
 using XCode;
 using ZeroServer::Zero.Data.Nodes;
@@ -113,7 +114,7 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
         XTrace.WriteLine("NodeOnline 数量={0}", onlines.Count);
 
         // 验证 NodeHistory 已记录登录（WriteHistory 使用 EntityQueue 异步写库，需轮询等待）
-        var logins = await WaitForNodeHistory(node.Id, "Http登录");
+        var logins = await WaitForNodeHistory(node.Id, DeviceActions.DeviceLogin);
         Assert.NotEmpty(logins);
         Assert.True(logins[0].Success, "第一次登录的 NodeHistory 应为成功");
 
@@ -143,7 +144,7 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
         Assert.All(onlineRecords, o => Assert.True(o.LoginTime.Year <= 2000, $"LoginTime应为MinValue，实际={o.LoginTime}"));
 
         // NodeHistory 下线记录由 EntityQueue 异步写入，需轮询等待
-        var logouts = await WaitForNodeHistory(nodeId, "Http设备下线");
+        var logouts = await WaitForNodeHistory(nodeId, DeviceActions.DeviceOffline);
         Assert.NotEmpty(logouts);
 
         XTrace.WriteLine("注销成功，NodeHistory 注销记录={0}", logouts.Count);
@@ -180,7 +181,7 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
         Assert.NotEmpty(onlines);
 
         // 登录历史应有 2 条记录（第一次自动注册 + 本次）；EntityQueue 异步写入，需轮询等待
-        var logins = await WaitForNodeHistory(nodeId, "Http登录", 2);
+        var logins = await WaitForNodeHistory(nodeId, DeviceActions.DeviceLogin, 2);
         Assert.True(logins.Count >= 2, $"应有至少 2 条登录历史，实际={logins.Count}");
 
         XTrace.WriteLine("重登成功，NodeHistory 登录记录共={0}", logins.Count);

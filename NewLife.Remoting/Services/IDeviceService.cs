@@ -75,7 +75,7 @@ public interface IDeviceService
 
     /// <summary>写设备历史</summary>
     /// <param name="context">设备上下文</param>
-    /// <param name="action">动作名称</param>
+    /// <param name="action">动作名称。使用 <see cref="DeviceActions"/> 的语言无关规范键，禁止写入随写入进程语言变化的文本</param>
     /// <param name="success">是否成功</param>
     /// <param name="remark">备注内容</param>
     void WriteHistory(DeviceContext context, String action, Boolean success, String remark);
@@ -149,7 +149,7 @@ public static class DeviceServiceExtensions
     /// <summary>写设备历史</summary>
     /// <param name="deviceService">设备服务</param>
     /// <param name="device">设备信息</param>
-    /// <param name="action">动作名称</param>
+    /// <param name="action">动作名称。使用 <see cref="DeviceActions"/> 的语言无关规范键，禁止写入随写入进程语言变化的文本</param>
     /// <param name="success">是否成功</param>
     /// <param name="remark">备注内容</param>
     /// <param name="clientId">客户端标识</param>
