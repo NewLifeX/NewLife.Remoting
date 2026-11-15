@@ -8,6 +8,7 @@ using NewLife.IoT.Models;
 using NewLife.Log;
 using NewLife.Remoting;
 using NewLife.Remoting.Models;
+using NewLife.Remoting.Services;
 using XCode;
 using XCode.Cache;
 
@@ -247,7 +248,7 @@ public partial class Device : Entity<Device>, IDeviceModel2, ILogProvider
             dv.Update();
 
             if (!reason.IsNullOrEmpty())
-                DeviceHistory.WriteHistory(dv, "上线", true, $"设备上线。{reason}", ip);
+                DeviceHistory.WriteHistory(dv, DeviceActions.DeviceOnline, true, $"Device online: {reason}", ip);
         }
     }
 

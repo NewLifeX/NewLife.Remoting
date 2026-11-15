@@ -167,7 +167,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
             var uuid2 = entity["uuid"] as String;
             if (!uuid.IsNullOrEmpty() && !uuid2.IsNullOrEmpty() && uuid != uuid2)
             {
-                WriteHistory(context, DeviceActions.LoginValidation, false, $"Unique identifier mismatch (new != old): {uuid} != {uuid2}");
+                WriteHistory(context, DeviceActions.IdentityMismatch, false, $"Unique identifier mismatch (new != old): {uuid} != {uuid2}");
             }
         }
 
@@ -517,7 +517,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         ArgumentNullException.ThrowIfNull(device);
         ArgumentNullException.ThrowIfNull(command);
 
-        var id = WriteHistory(device, DeviceActions.SendCommand, true, command.ToJson(false, false, false));
+        var id = WriteHistory(device, DeviceActions.CommandSent, true, command.ToJson(false, false, false));
         if (command.Id == 0) command.Id = id;
 
         return sessionManager.PublishAsync(device.Code, command, null, timeout, cancellationToken);
@@ -586,7 +586,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         // 通过会话管理器内置的响应事件总线广播响应（fire-and-forget，跨实例广播不阻塞）
         _ = sessionManager.PublishResponseAsync(model, default);
 
-        WriteHistory(context, DeviceActions.CommandResponse, true, model.ToJson(false, false, false));
+        WriteHistory(context, DeviceActions.CommandReply, true, model.ToJson(false, false, false));
 
         return 1;
     }
@@ -626,7 +626,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
             foreach (var model in events)
             {
                 var success = !model.Type.EqualIgnoreCase("error");
-                WriteHistory(context, model.Name ?? DeviceActions.Event, success, model.Remark!);
+                WriteHistory(context, model.Name ?? DeviceActions.DeviceEvent, success, model.Remark!);
             }
 
             return events.Length;
@@ -645,7 +645,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         //    throw new InvalidDataException($"创建事件对象需要设备实体类{typeof(TDevice).FullName}实现IDeviceModel2");
 
         var success = !model.Type.EqualIgnoreCase("error");
-        var history = device.CreateHistory(model.Name ?? DeviceActions.Event, success, model.Remark!);
+        var history = device.CreateHistory(model.Name ?? DeviceActions.DeviceEvent, success, model.Remark!);
         if (history is IEntity entity)
         {
             var time = model.Time.ToDateTime().ToLocalTime();

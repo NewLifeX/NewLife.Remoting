@@ -33,7 +33,7 @@ public class NodeService : DefaultDeviceService<Node, NodeOnline>
         // 校验唯一编码，防止客户端拷贝配置
         var uuid = inf.UUID;
         if (!uuid.IsNullOrEmpty() && !dv.Uuid.IsNullOrEmpty() && uuid != dv.Uuid)
-            WriteHistory(context, "登录校验", false, $"新旧唯一标识不一致！（新）{uuid}!={dv.Uuid}（旧）");
+            WriteHistory(context, DeviceActions.IdentityMismatch, false, $"Unique identifier mismatch (new != old): {uuid} != {dv.Uuid}");
 
         return base.Authorize(context, request);
     }

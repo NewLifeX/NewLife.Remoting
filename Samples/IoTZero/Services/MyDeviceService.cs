@@ -97,7 +97,7 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
 
         // 自动上线
         var ip = context.UserHost;
-        if (dv != null && !dv.Online) dv.SetOnline(ip, "心跳");
+        if (dv != null && !dv.Online) dv.SetOnline(ip, "Heartbeat");
 
         dv.UpdateIP = ip;
         dv.SaveAsync();
