@@ -28,19 +28,6 @@ public class NodeService : DefaultDeviceService<Node, NodeOnline>
     }
 
     #region 登录注销
-    public override Boolean Authorize(DeviceContext context, ILoginRequest request)
-    {
-        var dv = context.Device as Node;
-        var inf = request as LoginInfo;
-
-        // 校验唯一编码，防止客户端拷贝配置
-        var uuid = inf.UUID;
-        if (!uuid.IsNullOrEmpty() && !dv.Uuid.IsNullOrEmpty() && uuid != dv.Uuid)
-            WriteHistory(context, DeviceActions.IdentityMismatch, false, $"Unique identifier mismatch (new != old): {uuid} != {dv.Uuid}");
-
-        return base.Authorize(context, request);
-    }
-
     protected override void OnRegister(DeviceContext context, ILoginRequest request)
     {
         // 全局开关，是否允许自动注册新产品

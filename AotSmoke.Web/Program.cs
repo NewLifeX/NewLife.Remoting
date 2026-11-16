@@ -222,9 +222,8 @@ internal static class Program
             using var msg = await client.PostAsync("SendCommand", content).ConfigureAwait(false);
             var text = await msg.Content.ReadAsStringAsync().ConfigureAwait(false);
 
-            // 参数校验由 ArgumentNullException 产生；断言业务码与参数名而不是本地化文案，
-            // 避免冒烟结果随当前 UI 语言变化（运行时消息以英文原文作为词表键）
-            if (!text.Contains("\"code\":500") || !text.Contains("Parameter 'Code'"))
+            // 参数校验由 ApiException(BadRequest) 产生；只断言业务码与错误信封，避免依赖本地化文案
+            if (!text.Contains("\"code\":400") || !text.Contains("\"message\""))
                 throw new Exception($"未返回参数校验错误：{text}");
         }
         finally

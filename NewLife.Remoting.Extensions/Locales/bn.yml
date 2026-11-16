@@ -38,3 +38,4 @@
 "Database SQL error": "SQL ডাটাবেস ত্রুটি"
 "NewLife Remoting Extensions": "NewLife Remoting এক্সটেনশন"
 "Device access controllers, token services and session management extensions for NewLife.Remoting.": "NewLife.Remoting-এর জন্য ডিভাইস অ্যাক্সেস কন্ট্রোলার, টোকেন পরিষেবা ও সেশন ব্যবস্থাপনা এক্সটেনশন।"
+"No permission to send command to device {0}": "ডিভাইস {0}-এ কমান্ড পাঠানোর অনুমতি নেই"

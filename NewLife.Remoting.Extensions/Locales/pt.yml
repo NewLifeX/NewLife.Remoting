@@ -38,3 +38,4 @@
 "Database SQL error": "Erro SQL do banco de dados"
 "NewLife Remoting Extensions": "Extensões do NewLife Remoting"
 "Device access controllers, token services and session management extensions for NewLife.Remoting.": "Controladores de acesso a dispositivos, serviços de token e extensões de gerenciamento de sessão para NewLife.Remoting."
+"No permission to send command to device {0}": "Sem permissão para enviar comando ao dispositivo {0}"

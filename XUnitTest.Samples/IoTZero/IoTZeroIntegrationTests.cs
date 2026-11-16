@@ -1,8 +1,9 @@
-﻿extern alias IoTZero;
+extern alias IoTZero;
 
 using System.Text.Json;
 using IoTZero::IoT.Data;
 using IoTZero::IoTEdge;
+using Microsoft.Extensions.DependencyInjection;
 using NewLife;
 using NewLife.Log;
 using NewLife.Remoting.Models;
@@ -281,12 +282,12 @@ public class IoTZeroIntegrationTests : IClassFixture<IoTZeroWebFactory>
                 tcs.TrySetResult(e);
         };
 
-        // 通过 HttpClient 调用 [AllowAnonymous] 的 Device/SendCommand 接口
-        // SendCommand 在 Service 层使用应用令牌验证，此处用已登录的设备令牌代替（测试环境 TokenService 不区分令牌来源）
+        // 通过 HttpClient 调用 [AllowAnonymous] 的 Device/SendCommand 接口。
+        // 设备自身令牌不具备下发命令权限，这里使用应用令牌
         using var http = new HttpClient();
-        var deviceToken = ((NewLife.Remoting.IApiClient)client).Token;
-        if (!deviceToken.IsNullOrEmpty())
-            http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {deviceToken}");
+        var tokenService = _factory.Services.GetRequiredService<ITokenService>();
+        var appToken = tokenService.IssueToken("integration-test-app").AccessToken;
+        http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {appToken}");
         var payload = JsonSerializer.Serialize(new
         {
             Code     = code,

@@ -14,10 +14,11 @@ using Xunit;
 
 namespace XUnitTest.Samples.IoTZero;
 
-/// <summary>设备密钥重置策略的端到端回归</summary>
+/// <summary>设备密钥重置与身份校验策略的端到端回归</summary>
 /// <remarks>
 /// 示例宿主显式开启 AllowSecretResetOnAuthFailure，密钥不匹配时清空设备并转入动态注册，
 /// 是否真正允许由全局 AutoRegister 决定；通用默认是拒绝重置。
+/// 唯一标识不一致属于身份冒用，直接拒绝且不得重置密钥。
 /// </remarks>
 [Collection("SamplesIntegration")]
 public class DeviceSecretResetTests : IClassFixture<IoTZeroWebFactory>
@@ -101,6 +102,38 @@ public class DeviceSecretResetTests : IClassFixture<IoTZeroWebFactory>
         }
 
         var device = Device.FindByCode(code);
+        Assert.NotNull(device);
+        Assert.Equal(secret, device!.Secret);
+    }
+
+    [Fact(DisplayName = "IoTZero_唯一标识不一致时拒绝登录且不重置密钥")]
+    public async Task UuidMismatch_RejectedWithoutReset()
+    {
+        Assert.False(_factory.BaseUrl.IsNullOrEmpty(), "BaseUrl 未初始化，Factory 启动失败");
+
+        var code = "UID" + Rand.NextString(8);
+        var setting = new ClientSetting { Server = _factory.BaseUrl, DeviceCode = code };
+        using (var owner = new HttpDevice(setting) { Log = XTrace.Log, Timeout = 60_000 })
+        {
+            var (ok, error) = await owner.LoginWithBudgetAsync("首次注册", 120);
+            Assert.True(ok, $"首次注册应成功（最后错误：{error}）");
+        }
+
+        var secret = setting.DeviceSecret;
+        Assert.False(secret.IsNullOrEmpty(), "服务端应下发密钥");
+
+        // 服务端改写唯一标识（缓存中的同一实例），模拟拷贝配置到另一台设备
+        var device = Device.FindByCode(code);
+        Assert.NotNull(device);
+        device!.Uuid = "other-" + Rand.NextString(8);
+        device.Update();
+
+        // 客户端仍使用原 UUID 与已下发密钥登录，必须被拒绝，且不得重置密钥
+        using var intruder = new HttpDevice(setting) { Log = XTrace.Log, Timeout = 20_000 };
+        var (badOk, _) = await intruder.LoginWithBudgetAsync("UUID不一致", 10);
+        Assert.False(badOk, "唯一标识不一致时必须拒绝登录");
+
+        device = Device.FindByCode(code);
         Assert.NotNull(device);
         Assert.Equal(secret, device!.Secret);
     }

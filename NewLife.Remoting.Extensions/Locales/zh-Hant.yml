@@ -38,3 +38,4 @@
 "Database SQL error": "資料庫SQL錯誤"
 "NewLife Remoting Extensions": "遠端通訊服務擴充"
 "Device access controllers, token services and session management extensions for NewLife.Remoting.": "提供裝置接入控制器、權杖服務與工作階段管理擴充"
+"No permission to send command to device {0}": "無權向裝置 {0} 下發命令"

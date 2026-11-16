@@ -14,6 +14,14 @@ namespace NewLife.Remoting.Extensions.Services;
 /// <remarks>
 /// 提供设备登录、注销、心跳、命令下发等核心功能的默认实现。
 /// 使用泛型约束支持不同的设备和在线实体类型。
+/// <para>安全策略默认从严，按需通过参数或继承扩展：</para>
+/// <list type="bullet">
+/// <item>密钥校验：重写 <see cref="Authorize"/>。</item>
+/// <item>唯一标识校验：重写 <see cref="ValidateIdentity"/>，或用 <see cref="AllowIdentityMismatch"/> 放宽。</item>
+/// <item>鉴权失败是否允许重置密钥：<see cref="AllowSecretResetOnAuthFailure"/>，默认 false。</item>
+/// <item>注册流程：重写 <see cref="Register"/> / <see cref="OnRegister"/>。</item>
+/// <item>命令下发归属：重写 <see cref="AuthorizeSendCommand"/>。</item>
+/// </list>
 /// </remarks>
 /// <typeparam name="TDevice">设备实体类型</typeparam>
 /// <typeparam name="TOnline">在线实体类型</typeparam>
@@ -24,7 +32,8 @@ namespace NewLife.Remoting.Extensions.Services;
 /// <remarks>
 /// 设备与在线实体类型需要保留公开方法：静态构造按名称查找 <c>FindByCode</c>/<c>FindByName</c>/<c>FindBySessionId</c>，
 /// 并编译为强类型委托。NativeAOT 与裁剪下若成员被移除，将退化为空实现（找不到设备）。
-/// 另需保留公开属性：<see cref="Entity{TEntity}"/> 的泛型注解要求 <c>PublicProperties</c>（XCode v12.2 AOT 基线）
+/// 另需保留公开属性：<see cref="Entity{TEntity}"/> 的泛型注解要求 <c>PublicProperties</c>（XCode v12.2 AOT 基线）。
+/// 防拷贝校验要求设备实体提供名为 <c>Uuid</c> 或 <c>UUID</c> 的公开字符串属性；缺失时跳过该校验
 /// </remarks>
 public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.PublicProperties)] TDevice, [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.PublicProperties)] TOnline>(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, IServiceProvider serviceProvider) : IDeviceService2
     where TDevice : Entity<TDevice>, IDeviceModel, new()
@@ -33,6 +42,13 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
     #region 属性
     /// <summary>服务名</summary>
     public String Name { get; set; } = "Device";
+
+    /// <summary>唯一标识不一致时是否仍允许登录。默认 false，防止拷贝配置文件后冒用设备身份</summary>
+    /// <remarks>
+    /// 设备首次注册时记录 UUID，后续登录必须一致。仅当同一份配置被合法共享（如同一设备多进程）时，
+    /// 才可显式置为 true 退回“只写历史告警”的旧行为。
+    /// </remarks>
+    public Boolean AllowIdentityMismatch { get; set; }
 
     /// <summary>鉴权失败时是否允许重新注册并重置设备密钥。默认 false</summary>
     /// <remarks>
@@ -45,6 +61,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
     private readonly ICache _cache = cacheProvider.InnerCache;
     private static Func<String, TDevice?>? _findDevice;
     private static Func<String, TOnline?>? _findOnline;
+    private static readonly PropertyInfo? _identityProperty;
     private readonly ITracer? _tracer = serviceProvider.GetService<ITracer>();
     #endregion
 
@@ -64,13 +81,20 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
             method ??= type.GetMethod("FindBySessionID", BindingFlags.Public | BindingFlags.Static, [typeof(String)]);
             _findOnline = method?.CreateDelegate<Func<String, TOnline?>>();
         }
+        {
+            // 唯一标识属性。不能用 IEntity 索引器：索引器只访问动态字段字典，不会落到数据库列
+            var pi = typeof(TDevice).GetProperty("Uuid") ?? typeof(TDevice).GetProperty("UUID");
+            if (pi != null && pi.PropertyType == typeof(String) && pi.CanRead && pi.CanWrite) _identityProperty = pi;
+        }
     }
     #endregion
 
     #region 登录注销
     /// <summary>设备登录验证。内部支持动态注册</summary>
     /// <remarks>
-    /// 内部流程：Authorize->Register(OnRegister)->OnLogin->GetOnline/CreateOnline
+    /// 内部流程：查设备 → <see cref="Authorize"/> 校验密钥 → <see cref="ValidateIdentity"/> 校验唯一标识 →
+    /// <see cref="Register"/>/<see cref="OnRegister"/>（首次注册或允许重置时）→ <see cref="OnLogin"/> → GetOnline/CreateOnline。
+    /// 密钥或唯一标识校验失败默认拒绝登录；允许重置或放宽不一致需显式设置对应开关。
     /// </remarks>
     /// <param name="context">设备上下文</param>
     /// <param name="request">登录请求</param>
@@ -98,14 +122,25 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         if (!request.ClientId.IsNullOrEmpty()) context.ClientId = request.ClientId;
         if (!source.IsNullOrEmpty()) context["Source"] = source;
 
-        // 密钥验证失败：默认直接拒绝；显式允许重置时清空设备，转入动态注册流程，
-        // 是否真正允许仍由下游 AutoRegister/OnRegister 决定。
-        if (device != null && !Authorize(context, request))
+        if (device != null)
         {
-            if (!AllowSecretResetOnAuthFailure) throw new ApiException(ApiCode.Unauthorized, L.T("Login failed"));
+            // 密钥验证失败：默认直接拒绝；显式允许重置时清空设备，转入动态注册流程，
+            // 是否真正允许仍由下游 AutoRegister/OnRegister 决定。
+            if (!Authorize(context, request))
+            {
+                if (!AllowSecretResetOnAuthFailure) throw new ApiException(ApiCode.Unauthorized, L.T("Login failed"));
 
-            device = null;
+                device = null;
+            }
+            // 密钥通过后再校验唯一标识：不一致属于身份冒用，直接拒绝，不能进入动态注册重置密钥
+            else if (!ValidateIdentity(context, device, request))
+            {
+                throw new ApiException(ApiCode.Unauthorized, L.T("Login failed"));
+            }
         }
+
+        // 历史设备缺少唯一标识时，在鉴权成功后补录；下次登录即可启用防拷贝校验
+        if (device != null) BindIdentity(device, request);
 
         var autoReg = false;
         if (device == null)
@@ -142,14 +177,44 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         return rs;
     }
 
+    /// <summary>校验设备唯一标识，防止客户端拷贝配置</summary>
+    /// <remarks>不一致时写历史并按 <see cref="AllowIdentityMismatch"/> 决定是否放行；子类可重写实现更细的归属校验</remarks>
+    /// <param name="context">设备上下文</param>
+    /// <param name="device">设备实体</param>
+    /// <param name="request">登录请求</param>
+    /// <returns>一致、未启用校验或允许不一致时返回 true</returns>
+    protected virtual Boolean ValidateIdentity(DeviceContext context, IDeviceModel device, ILoginRequest request)
+    {
+        if (request is not ILoginRequest2 request2 || _identityProperty == null) return true;
+
+        var uuid = request2.UUID;
+        var uuid2 = _identityProperty.GetValue(device) as String;
+        if (uuid.IsNullOrEmpty() || uuid2.IsNullOrEmpty() || uuid == uuid2) return true;
+
+        WriteHistory(context, DeviceActions.IdentityMismatch, false, $"Unique identifier mismatch (new != old): {uuid} != {uuid2}");
+
+        return AllowIdentityMismatch;
+    }
+
+    /// <summary>绑定设备唯一标识。仅首次登记或历史数据缺失时写入，避免客户端每次登录都能改写</summary>
+    /// <param name="device">设备实体</param>
+    /// <param name="request">登录请求</param>
+    private static void BindIdentity(IDeviceModel device, ILoginRequest request)
+    {
+        if (_identityProperty == null || request is not ILoginRequest2 request2 || request2.UUID.IsNullOrEmpty()) return;
+
+        var uuid = _identityProperty.GetValue(device) as String;
+        if (uuid.IsNullOrEmpty()) _identityProperty.SetValue(device, request2.UUID);
+    }
+
     /// <summary>验证设备合法性。验证密钥</summary>
     /// <remarks>
     /// 验证策略（按优先级）：
-    /// 1. 设备无密钥（Secret 为空）→ 直接放行（首次注册场景）
-    /// 2. 明文匹配（Secret 相等）→ 放行
-    /// 3. passwordProvider.Verify 验证 → 放行
+    /// 1. 设备无密钥（Secret 为空）→ 通过密钥校验
+    /// 2. 明文匹配（Secret 相等）→ 通过密钥校验
+    /// 3. passwordProvider.Verify 验证 → 通过密钥校验
     /// 4. 均不通过 → 记录鉴权失败历史，返回 false
-    /// 此外还会校验 UUID 一致性，防止客户端拷贝配置文件。
+    /// 唯一标识校验不在此处进行，由登录流程在密钥通过后单独校验。
     /// </remarks>
     /// <param name="context">设备上下文</param>
     /// <param name="request">登录请求</param>
@@ -160,25 +225,14 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
 
         using var span = _tracer?.NewSpan($"{Name}Authorize", new { request.Code, request.ClientId });
 
-        // 没有密码时无需验证
-        if (device.Secret.IsNullOrEmpty()) return true;
-        if (device.Secret.EqualIgnoreCase(request.Secret)) return true;
-
-        if (request.Secret.IsNullOrEmpty() || !passwordProvider.Verify(device.Secret, request.Secret))
+        // 密钥校验不要提前返回：明文匹配与散列验证都必须完整执行
+        var verified = device.Secret.IsNullOrEmpty()
+            || device.Secret.EqualIgnoreCase(request.Secret)
+            || (!request.Secret.IsNullOrEmpty() && passwordProvider.Verify(device.Secret, request.Secret));
+        if (!verified)
         {
             WriteHistory(context, DeviceActions.DeviceAuthentication, false, "Secret validation failed.");
             return false;
-        }
-
-        // 校验唯一编码，防止客户端拷贝配置
-        if (request is ILoginRequest2 request2 && device is IEntity entity)
-        {
-            var uuid = request2.UUID;
-            var uuid2 = entity["uuid"] as String;
-            if (!uuid.IsNullOrEmpty() && !uuid2.IsNullOrEmpty() && uuid != uuid2)
-            {
-                WriteHistory(context, DeviceActions.IdentityMismatch, false, $"Unique identifier mismatch (new != old): {uuid} != {uuid2}");
-            }
         }
 
         return true;
@@ -199,6 +253,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
 
         var device = context.Device;
         var backup = (device as IEntity)?.CloneEntity(false);
+        var oldUuid = device != null ? _identityProperty?.GetValue(device) as String : null;
         try
         {
             // 查询已有设备，或新建设备
@@ -218,14 +273,19 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
             if (device is IDeviceModel2 device2)
                 device2.Secret = Rand.NextString(16);
 
+            // 首次登记绑定唯一标识，后续登录据此识别配置拷贝
+            BindIdentity(device, request);
+
             OnRegister(context, request);
 
             WriteHistory(context, DeviceActions.DynamicRegistration, true, request.ToJson(false, false, false));
         }
         catch (Exception ex)
         {
-            // 注册失败时恢复到注册前状态，避免未保存的密钥等变更污染实体缓存
+            // 注册失败时恢复到注册前状态，避免未保存的密钥/标识等变更污染实体缓存。
+            // CloneEntity 只覆盖数据库字段，唯一标识可能是非映射属性，需单独恢复。
             if (device is IEntity entity && backup != null) entity.CopyFrom(backup, true, false);
+            if (device != null && _identityProperty != null) _identityProperty.SetValue(device, oldUuid);
 
             span?.SetError(ex, null);
 
@@ -542,24 +602,34 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
     /// <param name="model">命令输入模型</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>命令响应</returns>
-    /// <exception cref="ArgumentNullException">设备编码为空或设备不存在时抛出</exception>
+    /// <exception cref="ApiException">令牌缺失/无效、刷新令牌误用、设备不存在或无权下发时抛出</exception>
     public virtual async Task<CommandReplyModel?> SendCommand(DeviceContext context, CommandInModel model, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(model);
+        if (model == null) throw new ApiException(ApiCode.BadRequest, L.T("[{0}] is invalid!", "model"));
+
+        // 鉴权：该接口标[AllowAnonymous]，网关层不拦，必须在这里自己保证。
+        // 令牌只证明“是谁”，不证明“能不能操作这台设备”，因此完整校验分两步：签名有效 + 归属获准。
+        // 先验令牌再查设备：未授权请求不应触达数据库，也避免通过“设备不存在”的差异探测设备编码。
+        var tokenService = serviceProvider.GetService<ITokenService>();
+        if (tokenService == null)
+            throw new ApiException(ApiCode.Unauthorized, L.T("SendCommand requires an application token"));
+
+        if (context.Token.IsNullOrEmpty())
+            throw new ApiException(ApiCode.Unauthorized, L.T("SendCommand requires an application token"));
+
+        var (jwt, ex) = tokenService.DecodeToken(context.Token);
+        if (ex != null) throw ex;
+
+        // 刷新令牌只能换取新的访问令牌，不能直接作为调用凭据
+        if ("refresh".EqualIgnoreCase(jwt["kind"] + ""))
+            throw new ApiException(ApiCode.Unauthorized, L.T("SendCommand requires an application token"));
 
         var target = GetDevice(model.Code!);
-        if (target == null) throw new ArgumentNullException(nameof(model.Code), L.T("Cannot find device {0}", model.Code));
+        if (target == null) throw new ApiException(ApiCode.NotFound, L.T("Cannot find device {0}", model.Code));
 
-        // 验证令牌。[AllowAnonymous] 接口（如 SendCommand）使用应用令牌而非设备令牌：
-        // 若未注册 ITokenService（测试环境），则跳过；注册了则必须携带合法令牌。
-        var tokenService = serviceProvider.GetService<ITokenService>();
-        if (tokenService != null)
-        {
-            if (context.Token.IsNullOrEmpty())
-                throw new ApiException(ApiCode.Unauthorized, L.T("SendCommand requires an application token"));
-            var (jwt, ex) = tokenService.DecodeToken(context.Token);
-            if (ex != null) throw ex;
-        }
+        // 令牌只证明“是谁”，不证明“能不能操作这台设备”，归属规则交给扩展点
+        if (!AuthorizeSendCommand(context, jwt.Subject, target))
+            throw new ApiException(ApiCode.Forbidden, L.T("No permission to send command to device {0}", model.Code));
 
         // 构建指令
         var now = DateTime.Now;
@@ -587,6 +657,25 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         }
 
         return null;
+    }
+
+    /// <summary>校验调用方是否有权向目标设备下发命令</summary>
+    /// <remarks>
+    /// 令牌只证明调用方身份，不证明其对目标设备的权限。默认拒绝设备自身令牌（subject 命中设备编码），
+    /// 避免任一设备登录后横向控制其它设备；应用令牌默认放行，保证单应用部署开箱可用。
+    /// 多应用、多租户或按产品授权的部署必须覆写本方法，校验调用方（如应用 AppId、所属产品）
+    /// 与目标设备的归属关系，也可直接抛异常给出具体原因。
+    /// </remarks>
+    /// <param name="context">设备上下文，其中 Token 的签名已校验</param>
+    /// <param name="subject">令牌主体，已验签</param>
+    /// <param name="target">目标设备</param>
+    /// <returns>是否允许下发，false 时按无权限拒绝</returns>
+    protected virtual Boolean AuthorizeSendCommand(DeviceContext context, String? subject, IDeviceModel target)
+    {
+        if (subject.IsNullOrEmpty()) return true;
+
+        // subject 命中设备编码，说明这是设备登录签发的令牌，不具备下发命令权限
+        return GetDevice(subject) == null;
     }
 
     /// <summary>命令响应</summary>

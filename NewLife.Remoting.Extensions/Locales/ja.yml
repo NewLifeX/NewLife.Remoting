@@ -38,3 +38,4 @@
 "Database SQL error": "データベース SQL エラー"
 "NewLife Remoting Extensions": "NewLife Remoting 拡張機能"
 "Device access controllers, token services and session management extensions for NewLife.Remoting.": "NewLife.Remoting 向けのデバイスアクセスコントローラー、トークンサービス、セッション管理拡張。"
+"No permission to send command to device {0}": "デバイス {0} にコマンドを送信する権限がありません"

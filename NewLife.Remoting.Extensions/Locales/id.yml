@@ -38,3 +38,4 @@
 "Database SQL error": "Kesalahan SQL basis data"
 "NewLife Remoting Extensions": "Ekstensi NewLife Remoting"
 "Device access controllers, token services and session management extensions for NewLife.Remoting.": "Pengontrol akses perangkat, layanan token, dan ekstensi manajemen sesi untuk NewLife.Remoting."
+"No permission to send command to device {0}": "Tidak ada izin untuk mengirim perintah ke perangkat {0}"

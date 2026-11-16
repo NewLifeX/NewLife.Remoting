@@ -1,6 +1,7 @@
 ﻿extern alias ZeroServer;
 
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using NewLife;
 using NewLife.Log;
 using NewLife.Remoting.Models;
@@ -162,14 +163,16 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
         var code    = _factory.TestCode;
         var nodeId  = _factory.TestNodeId;
 
-        // 在服务端直接修改 Node.Secret（模拟运维修改密钥场景）
-        var node = Node.FindByCodeWithCache(code, false)!;
+        // 在服务端修改 Node.Secret（模拟运维修改密钥场景）。
+        // 必须使用缓存中的同一实例，否则服务端仍从实体缓存读到旧密钥
+        var node = Node.FindByCode(code)!;
         var newSecret = Rand.NextString(16);
         node.Secret = newSecret;
         node.Update();
 
-        // 客户端同步使用新密钥
+        // 客户端同步使用新密钥。ClientBase 构造时已复制 setting 的值，必须同时改客户端属性
         setting.Secret = newSecret;
+        client.Secret = newSecret;
 
         // 重新登录
         var (ok, error) = await client.LoginWithBudgetAsync("重登测试", 60);
@@ -265,10 +268,11 @@ public class ZeroServerIntegrationTests : IClassFixture<ZeroServerWebFactory>
                 tcs.TrySetResult(e);
         };
 
+        // 设备自身令牌不具备下发命令权限，这里使用应用令牌
         using var http = new HttpClient();
-        var deviceToken = ((NewLife.Remoting.IApiClient)client).Token;
-        if (!deviceToken.IsNullOrEmpty())
-            http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {deviceToken}");
+        var tokenService = _factory.Services.GetRequiredService<ITokenService>();
+        var appToken = tokenService.IssueToken("integration-test-app").AccessToken;
+        http.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", $"Bearer {appToken}");
         var payload = JsonSerializer.Serialize(new
         {
             Code     = code,

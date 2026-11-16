@@ -38,3 +38,4 @@
 "Database SQL error": "SQL veritabanı hatası"
 "NewLife Remoting Extensions": "NewLife Remoting Uzantıları"
 "Device access controllers, token services and session management extensions for NewLife.Remoting.": "NewLife.Remoting için cihaz erişim denetleyicileri, belirteç hizmetleri ve oturum yönetimi uzantıları."
+"No permission to send command to device {0}": "{0} cihazına komut gönderme izni yok"
