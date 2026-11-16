@@ -1,6 +1,6 @@
 # NewLife.Remoting AOT 兼容性现状与边界
 
-> 基线：NewLife.Core 12.0.2026.1018-beta1517 + NewLife.XCode 12.2.2026.1017-beta1246｜更新：2026-10-19｜评估方式：**NativeAOT 真实编译 + 运行实测**（win-x64，.NET 10）｜冒烟工程：`AotSmoke/`、`AotSmoke.Web/`、`AotSmoke.XCode/`
+> 基线：NewLife.Core 12.0.2026.1115-beta2355 + NewLife.XCode 12.3.2026.1115-beta0353｜更新：2026-11-16｜评估方式：**NativeAOT 真实编译 + 运行实测**（win-x64，.NET 10，23/23 通过）｜冒烟工程：`AotSmoke/`、`AotSmoke.Web/`、`AotSmoke.XCode/`
 > 范围：核心库 `NewLife.Remoting` 全量；`NewLife.Remoting.Extensions` 的最小 API 宿主（§7）与 XCode 依赖边界（§8）。
 
 ---

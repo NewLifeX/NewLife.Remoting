@@ -14,7 +14,8 @@ var services = builder.Services;
 InitConfig();
 
 // 配置星尘。借助StarAgent，或者读取配置文件 config/star.config 中的服务器地址、应用标识、密钥
-var star = services.AddStardust(null);
+// 显式转换为 String? 消除 AddStardust(String?) 与 AddStardust(StarOptions) 的二义性
+var star = services.AddStardust((String?)null);
 
 // 系统设置
 var set = IoTSetting.Current;
