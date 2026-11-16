@@ -10,12 +10,25 @@ using NewLife.Security;
 namespace IoTZero.Services;
 
 /// <summary>设备服务</summary>
-/// <param name="passwordProvider"></param>
-/// <param name="cacheProvider"></param>
-/// <param name="setting"></param>
-/// <param name="serviceProvider"></param>
-public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting, IServiceProvider serviceProvider) : DefaultDeviceService<Device, DeviceOnline>(sessionManager, passwordProvider, cacheProvider, serviceProvider)
+public class MyDeviceService : DefaultDeviceService<Device, DeviceOnline>
 {
+    private readonly ITokenSetting _setting;
+
+    /// <summary>构造设备服务</summary>
+    /// <param name="sessionManager">会话管理器</param>
+    /// <param name="passwordProvider">密码提供者</param>
+    /// <param name="cacheProvider">缓存提供者</param>
+    /// <param name="setting">令牌设置</param>
+    /// <param name="serviceProvider">服务提供者</param>
+    public MyDeviceService(ISessionManager sessionManager, IPasswordProvider passwordProvider, ICacheProvider cacheProvider, ITokenSetting setting, IServiceProvider serviceProvider)
+        : base(sessionManager, passwordProvider, cacheProvider, serviceProvider)
+    {
+        _setting = setting;
+
+        // 示例宿主保留“密钥丢失后自动恢复”的产品行为；通用默认是拒绝
+        AllowSecretResetOnAuthFailure = true;
+    }
+
     #region 登录注销
     /// <summary>设置设备在线，同时检查在线表</summary>
     /// <param name="context"></param>
@@ -40,7 +53,7 @@ public class MyDeviceService(ISessionManager sessionManager, IPasswordProvider p
     protected override void OnRegister(DeviceContext context, ILoginRequest request)
     {
         // 全局开关，是否允许自动注册新产品
-        if (!setting.AutoRegister) throw new ApiException(ApiCode.Forbidden, "禁止自动注册");
+        if (!_setting.AutoRegister) throw new ApiException(ApiCode.Forbidden, "禁止自动注册");
 
         var inf = request as LoginInfo;
 

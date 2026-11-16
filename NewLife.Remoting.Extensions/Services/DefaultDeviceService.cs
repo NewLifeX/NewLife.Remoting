@@ -34,6 +34,14 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
     /// <summary>服务名</summary>
     public String Name { get; set; } = "Device";
 
+    /// <summary>鉴权失败时是否允许重新注册并重置设备密钥。默认 false</summary>
+    /// <remarks>
+    /// 默认拒绝。设备编码是公开信息（IMEI、序列号等），凭编码重置密钥等同于允许设备被接管。
+    /// 需要“配置丢失/固件重刷后自动恢复”的产品宿主，可显式置为 true；
+    /// 是否真正允许仍由下游 <c>AutoRegister</c>/<see cref="OnRegister"/> 决定。
+    /// </remarks>
+    public Boolean AllowSecretResetOnAuthFailure { get; set; }
+
     private readonly ICache _cache = cacheProvider.InnerCache;
     private static Func<String, TDevice?>? _findDevice;
     private static Func<String, TOnline?>? _findOnline;
@@ -90,10 +98,12 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         if (!request.ClientId.IsNullOrEmpty()) context.ClientId = request.ClientId;
         if (!source.IsNullOrEmpty()) context["Source"] = source;
 
-        // 设备存在但密钥验证失败（可能配置被重置或密钥被改），
-        // 将 device 置 null 以触发下方的自动注册流程，重新分配密钥。
+        // 密钥验证失败：默认直接拒绝；显式允许重置时清空设备，转入动态注册流程，
+        // 是否真正允许仍由下游 AutoRegister/OnRegister 决定。
         if (device != null && !Authorize(context, request))
         {
+            if (!AllowSecretResetOnAuthFailure) throw new ApiException(ApiCode.Unauthorized, L.T("Login failed"));
+
             device = null;
         }
 
@@ -188,6 +198,7 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         using var span = _tracer?.NewSpan($"{Name}Register", new { code });
 
         var device = context.Device;
+        var backup = (device as IEntity)?.CloneEntity(false);
         try
         {
             // 查询已有设备，或新建设备
@@ -213,6 +224,9 @@ public abstract class DefaultDeviceService<[DynamicallyAccessedMembers(Dynamical
         }
         catch (Exception ex)
         {
+            // 注册失败时恢复到注册前状态，避免未保存的密钥等变更污染实体缓存
+            if (device is IEntity entity && backup != null) entity.CopyFrom(backup, true, false);
+
             span?.SetError(ex, null);
 
             WriteHistory(context, DeviceActions.DynamicRegistration, false, $"[{code}/{device}] registration failed: {ex.Message}");

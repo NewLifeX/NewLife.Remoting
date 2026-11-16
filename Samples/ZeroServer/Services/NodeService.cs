@@ -22,6 +22,9 @@ public class NodeService : DefaultDeviceService<Node, NodeOnline>
     {
         Name = "Node";
         _setting = setting;
+
+        // 示例宿主保留“节点密钥丢失后自动恢复”的产品行为；通用默认是拒绝
+        AllowSecretResetOnAuthFailure = true;
     }
 
     #region 登录注销
