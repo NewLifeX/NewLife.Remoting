@@ -680,7 +680,8 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
         // 登录成果。服务端执行自动注册时，可能有下发编码和密钥
         if (!response.Code.IsNullOrEmpty() && !response.Secret.IsNullOrEmpty())
         {
-            WriteLog("Issued secret: {0}/{1}", response.Code, response.Secret);
+            // 密钥是凭据，日志里只留掩码，避免被日志采集平台收集后直接可用
+            WriteLog("Issued secret: {0}/{1}", response.Code, MaskSecret(response.Secret));
             Code = response.Code;
             Secret = response.Secret;
 
@@ -1730,6 +1731,16 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     public virtual T? GetService<T>() where T : class => ServiceProvider?.GetService<T>() ?? ObjectContainer.Current.GetService<T>();
+
+    /// <summary>密钥掩码。只保留末 4 位，长度不足时全部打码</summary>
+    /// <param name="secret">密钥</param>
+    /// <returns>掩码后的字符串</returns>
+    public static String MaskSecret(String? secret)
+    {
+        if (secret.IsNullOrEmpty()) return "";
+
+        return secret.Length <= 4 ? new String('*', secret.Length) : new String('*', secret.Length - 4) + secret[^4..];
+    }
     #endregion
 
     #region 日志

@@ -52,6 +52,16 @@ public class ClientBaseTests
     }
 
     [Fact]
+    [DisplayName("密钥掩码只保留末四位")]
+    public void MaskSecret_KeepsTail()
+    {
+        Assert.Equal("", ClientBase.MaskSecret(null));
+        Assert.Equal("", ClientBase.MaskSecret(""));
+        Assert.Equal("****", ClientBase.MaskSecret("abcd"));
+        Assert.Equal("*****wxyz", ClientBase.MaskSecret("12345wxyz"));
+    }
+
+    [Fact]
     [DisplayName("属性读写")]
     public void Properties_SetAndGet()
     {
