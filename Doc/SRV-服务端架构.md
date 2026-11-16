@@ -91,7 +91,10 @@ sequenceDiagram
 
 **要点**：
 - `DeviceContext` 从对象池获取（容量 256），用后归还，避免高频请求下的 GC 压力
-- 鉴权失败不抛原始异常：`ApiException` 保留业务 code，`XSqlException` 屏蔽 SQL 细节，其余统一 500
+- 异常回包：`ApiException` 保留业务 code/message；其余异常统一 500 + `Internal Server Error` + `traceId`，完整异常写日志与设备历史
+- 令牌默认只从 `Authorization: Bearer` 读取；Query/Cookie/`X-Token` 需显式开启 `ApiFilterAttribute.AllowTokenInQuery/AllowTokenInCookie/AllowTokenInHeader`
+- 设备 IP 默认取连接远端地址；只有直连来源命中 `WebHelper.TrustedProxies` 时才解析 `X-Forwarded-For` 等转发头
+- 注销按令牌中的 `sid` 同时吊销访问令牌与刷新令牌，防止注销后仍能刷新
 - 鉴权成功后将 JWT 内容映射为 `ClaimsPrincipal`（身份类型 `ApiToken`），方便下游 `[Authorize]` 使用
 
 ---
@@ -118,7 +121,7 @@ sequenceDiagram
     Svc->>Svc: Authorize(ctx, request)
     Note over Svc: 验证密钥(明文→passwordProvider)
 
-    alt 鉴权失败或设备不存在
+    alt 设备不存在，或允许重置时鉴权失败
         Svc->>Svc: Register(ctx, request)
         Note over Svc: 查库/新建 → 设Enable → 生成Secret → Save
     end
@@ -138,18 +141,18 @@ sequenceDiagram
 
 **串联要点**：
 - 登录是唯一 `[AllowAnonymous]` 的端点，先查设备做登录前准备
-- `Authorize` 先明文对比再 `passwordProvider.Verify`，全部失败→触发 `Register` 自动注册
+- `Authorize` 先明文对比再 `passwordProvider.Verify`；验证失败默认**拒绝登录**，仅 `AllowSecretResetOnAuthFailure=true` 时才触发 `Register` 自动注册（避免凭公开的设备编码接管设备）
 - `Register` 自动分配编码（UUID.Crc→随机8位），生成密钥，保存后返回
 - `OnLogin` 复用已有在线记录（刷新LoginTime）或新建
 - 登录成功颁发JWT，动态注册时额外下发Code+Secret
 
 ### 4.2 自动注册流程（Register）
 
-**触发条件**：`Login` 中 `device == null` 或 `Authorize` 返回 `false`
+**触发条件**：`Login` 中 `device == null`（首次注册），或 `AllowSecretResetOnAuthFailure=true` 且 `Authorize` 返回 `false`
 
 ```mermaid
 flowchart TD
-    A[Authorize 失败 或 device==null] --> B{code 是否为空?}
+    A[device==null<br/>或允许重置时 Authorize 失败] --> B{code 是否为空?}
     B -->|是| C[UUID.Crc → 8 位编码 / 随机8位]
     B -->|否| D[使用 request.Code]
     C --> E[查库 QueryDevice / 新建实体]
