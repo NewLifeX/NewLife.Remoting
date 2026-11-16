@@ -37,7 +37,7 @@ internal static class RemotingEndpoints
     public static Task LoginAsync(HttpContext http) => InvokeAsync(http, true, async (ctx, sp) =>
     {
         var request = await ReadModelAsync<ILoginRequest>(http).ConfigureAwait(false);
-        if (request == null) throw new ArgumentNullException(nameof(ILoginRequest));
+        if (request == null) throw new ApiException(ApiCode.BadRequest, L.T("[{0}] is invalid!", "request"));
 
         var deviceService = sp.GetRequiredService<IDeviceService>();
         var tokenService = sp.GetRequiredService<ITokenService>();
@@ -198,7 +198,7 @@ internal static class RemotingEndpoints
     public static Task CommandReplyAsync(HttpContext http) => InvokeAsync(http, false, async (ctx, sp) =>
     {
         var model = await ReadModelAsync<CommandReplyModel>(http).ConfigureAwait(false);
-        if (model == null) throw new ArgumentNullException(nameof(CommandReplyModel));
+        if (model == null) throw new ApiException(ApiCode.BadRequest, L.T("[{0}] is invalid!", "model"));
 
         var deviceService = sp.GetRequiredService<IDeviceService>();
 
@@ -212,9 +212,9 @@ internal static class RemotingEndpoints
     public static Task SendCommandAsync(HttpContext http) => InvokeAsync(http, true, async (ctx, sp) =>
     {
         var model = await ReadModelAsync<CommandInModel>(http).ConfigureAwait(false);
-        if (model == null) throw new ArgumentNullException(nameof(CommandInModel));
-        if (model.Code.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Code), L.T("Code must be specified"));
-        if (model.Command.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Command), L.T("Command must be specified"));
+        if (model == null) throw new ApiException(ApiCode.BadRequest, L.T("[{0}] is invalid!", "model"));
+        if (model.Code.IsNullOrEmpty()) throw new ApiException(ApiCode.BadRequest, L.T("Code must be specified"));
+        if (model.Command.IsNullOrEmpty()) throw new ApiException(ApiCode.BadRequest, L.T("Command must be specified"));
 
         var deviceService = sp.GetRequiredService<IDeviceService>();
 
@@ -413,9 +413,13 @@ internal static class RemotingEndpoints
             {
                 deviceService?.WriteHistory(ctx, http.Request.Path + "", false, ex.GetTrue() + "");
 
-                // 长连接端点已写出响应头时不再封装错误，避免破坏已建立的 WebSocket/SSE 流
+                // 长连接端点已写出响应头时不再封装错误，避免破坏已建立的 WebSocket/SSE 流。
+                // 非业务异常不把原文回客户端，排障依赖 traceId 与设备历史中的完整异常
                 if (!http.Response.HasStarted)
-                    await WriteResultAsync(http, ex is ApiException aex ? aex.Code : ApiCode.InternalServerError, null, ex.GetTrue().Message).ConfigureAwait(false);
+                {
+                    var aex = ex as ApiException;
+                    await WriteResultAsync(http, aex?.Code ?? ApiCode.InternalServerError, null, aex?.Message ?? "Internal Server Error").ConfigureAwait(false);
+                }
             }
         }
         finally

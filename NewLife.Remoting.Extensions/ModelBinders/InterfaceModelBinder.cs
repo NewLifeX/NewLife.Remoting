@@ -29,6 +29,15 @@ public class InterfaceModelBinder : IModelBinder
         try
         {
             var req = bindingContext.HttpContext.Request;
+
+            // 空请求体按 null 绑定，交给动作自行校验并返回统一错误信封；
+            // 不能直接反序列化，否则 JsonException 会被 [ApiController] 转成 ProblemDetails 400
+            if (req.ContentLength == 0)
+            {
+                bindingContext.Result = ModelBindingResult.Success(null);
+                return;
+            }
+
             var entityBody = await req.ReadFromJsonAsync(implType).ConfigureAwait(false);
 
             bindingContext.Result = ModelBindingResult.Success(entityBody);

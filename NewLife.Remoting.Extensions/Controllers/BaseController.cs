@@ -1,8 +1,10 @@
-﻿using System.Security.Claims;
+﻿using System.Collections;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
+using NewLife.Data;
 using NewLife.Log;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
@@ -92,17 +94,13 @@ public abstract class BaseController(IDeviceService? deviceService, ITokenServic
         }
         catch (Exception ex)
         {
-            var msg = ex.Message;
             span?.SetError(ex, null);
 
-            // 特殊处理数据库异常，避免泄漏SQL语句
-            if (ex.GetType().FullName == "XCode.Exceptions.XSqlException")
-                msg = L.T("Database SQL error");
-
             var traceId = DefaultSpan.Current?.TraceId;
+            // 非业务异常不把原文回客户端（数据库语句、文件路径、内部类型），排障依赖 traceId 与日志
             context.Result = ex is ApiException aex
-                ? new JsonResult(new { code = aex.Code, message = msg, traceId })
-                : new JsonResult(new { code = 500, message = msg, traceId });
+                ? new JsonResult(new { code = aex.Code, message = aex.Message, traceId })
+                : new JsonResult(new { code = 500, message = "Internal Server Error", traceId });
 
             WriteError(ex, context);
         }
@@ -202,7 +200,88 @@ public abstract class BaseController(IDeviceService? deviceService, ITokenServic
         var action = context.HttpContext.Request.Path + "";
         if (context.ActionDescriptor is ControllerActionDescriptor act) action = $"{act.ControllerName}/{act.ActionName}";
 
-        OnWriteError(action, ex?.GetTrue() + Environment.NewLine + _args?.ToJson(true));
+        OnWriteError(action, ex?.GetTrue() + Environment.NewLine + BuildErrorLogArgs());
+    }
+
+    /// <summary>序列化动作参数用于错误日志，对凭据类字段脱敏</summary>
+    /// <remarks>登录/鉴权失败时参数里往往就是明文口令与密钥，直接落库落日志等于把凭据外流</remarks>
+    /// <returns>脱敏后的参数 JSON，无参数时返回 null</returns>
+    protected virtual String? BuildErrorLogArgs()
+    {
+        if (_args == null || _args.Count == 0) return null;
+
+        var dic = new Dictionary<String, Object?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in _args)
+            dic[item.Key] = IsSensitiveArgument(item.Key) ? "***" : SanitizeArgument(item.Value, 0);
+
+        return dic.ToJson(true);
+    }
+
+    /// <summary>递归脱敏参数值中的凭据字段</summary>
+    /// <remarks>动作参数常常是请求模型对象（如登录请求），密钥在对象属性而不是动作参数名上，只掩盖顶层键名挡不住</remarks>
+    /// <param name="value">参数值</param>
+    /// <param name="depth">当前递归深度，限制层数避免环路与超大对象</param>
+    /// <returns>脱敏后的值</returns>
+    private static Object? SanitizeArgument(Object? value, Int32 depth)
+    {
+        if (value == null || value is String or ValueType or Byte[]) return value;
+        if (value is IPacket pk) return $"<packet:{pk.Total}>";
+        if (depth >= 3) return value;
+
+        if (value is IDictionary<String, Object?> dic)
+        {
+            var rs = new Dictionary<String, Object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in dic)
+                rs[item.Key] = IsSensitiveArgument(item.Key) ? "***" : SanitizeArgument(item.Value, depth + 1);
+            return rs;
+        }
+        if (value is System.Collections.IDictionary dic2)
+        {
+            var rs = new Dictionary<String, Object?>(StringComparer.OrdinalIgnoreCase);
+            foreach (DictionaryEntry item in dic2)
+            {
+                var key = item.Key + "";
+                rs[key] = IsSensitiveArgument(key) ? "***" : SanitizeArgument(item.Value, depth + 1);
+            }
+            return rs;
+        }
+        if (value is IEnumerable list)
+        {
+            var rs = new List<Object?>();
+            foreach (var item in list) rs.Add(SanitizeArgument(item, depth + 1));
+            return rs;
+        }
+
+        // POCO 先转名值字典再递归，属性名同样检查；转换失败时原样输出，日志不能因脱敏而失败
+        try
+        {
+            return SanitizeArgument(value.ToDictionary(), depth + 1);
+        }
+        catch
+        {
+            return value;
+        }
+    }
+
+    /// <summary>判断参数名是否为凭据类字段（密钥、口令、令牌）</summary>
+    /// <param name="name">参数名</param>
+    /// <returns>需要脱敏时返回 true</returns>
+    public static Boolean IsSensitiveArgument(String? name)
+    {
+        if (name.IsNullOrEmpty()) return false;
+
+        // 归一化分隔符，让 api_key/api-key 一类命名也能命中
+        var key = name.Replace("_", "").Replace("-", "");
+
+        return key.Contains("secret", StringComparison.OrdinalIgnoreCase)
+            || key.Contains("password", StringComparison.OrdinalIgnoreCase)
+            || key.Contains("passwd", StringComparison.OrdinalIgnoreCase)
+            || key.Contains("pwd", StringComparison.OrdinalIgnoreCase)
+            || key.Contains("token", StringComparison.OrdinalIgnoreCase)
+            || key.Contains("authorization", StringComparison.OrdinalIgnoreCase)
+            || key.Contains("apikey", StringComparison.OrdinalIgnoreCase)
+            || key.Contains("accesskey", StringComparison.OrdinalIgnoreCase)
+            || key.Contains("privatekey", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>输出错误日志</summary>

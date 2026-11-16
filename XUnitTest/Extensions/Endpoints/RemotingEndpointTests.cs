@@ -254,6 +254,31 @@ public class RemotingEndpointTests : IAsyncLifetime
         Assert.Equal(1, rs!.Id);
     }
 
+    [Fact, DisplayName("最小API空登录体返回400信封")]
+    public async Task Login_EmptyBody_Returns400()
+    {
+        using var content = new StringContent("", Encoding.UTF8, "application/json");
+        using var msg = await _client.PostAsync("Login", content);
+        var text = await msg.Content.ReadAsStringAsync();
+
+        Assert.Contains("\"code\":400", text);
+        Assert.Contains("request", text);
+    }
+
+    [Fact, DisplayName("最小API普通异常不返回原文")]
+    public async Task GenericException_ReturnsGenericMessage()
+    {
+        await LoginAsync();
+
+        _deviceService.Setup(e => e.Ping(It.IsAny<DeviceContext>(), It.IsAny<IPingRequest>(), null))
+            .Throws(new InvalidOperationException("secret path /etc/passwd"));
+
+        var text = await PostTextAsync("Ping", new { State = "x" });
+
+        Assert.Contains("Internal Server Error", text);
+        Assert.DoesNotContain("/etc/passwd", text);
+    }
+
     [Fact, DisplayName("最小API指令下发缺少编码时报错")]
     public async Task SendCommand_WithoutCode_ReturnsError()
     {

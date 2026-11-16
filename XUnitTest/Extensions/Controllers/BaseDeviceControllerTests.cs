@@ -167,7 +167,8 @@ public class BaseDeviceControllerTests
         var controller = new TestDeviceController(sp);
         SetupControllerContext(controller);
 
-        var ex = Assert.Throws<ArgumentNullException>(() => controller.Login(null!));
+        var ex = Assert.Throws<ApiException>(() => controller.Login(null!));
+        Assert.Equal(ApiCode.BadRequest, ex.Code);
         Assert.Contains("request", ex.Message);
     }
 
@@ -460,7 +461,8 @@ public class BaseDeviceControllerTests
         var controller = new TestDeviceController(sp);
         SetupControllerContext(controller);
 
-        Assert.Throws<ArgumentNullException>(() => controller.CommandReply(null!));
+        var ex = Assert.Throws<ApiException>(() => controller.CommandReply(null!));
+        Assert.Equal(ApiCode.BadRequest, ex.Code);
     }
 
     [Fact]
@@ -509,7 +511,8 @@ public class BaseDeviceControllerTests
         var controller = new TestDeviceController(sp);
         SetupControllerContext(controller);
 
-        await Assert.ThrowsAsync<ArgumentNullException>(() => controller.SendCommand(null!));
+        var ex0 = await Assert.ThrowsAsync<ApiException>(() => controller.SendCommand(null!));
+        Assert.Equal(ApiCode.BadRequest, ex0.Code);
     }
 
     [Fact]
@@ -521,7 +524,8 @@ public class BaseDeviceControllerTests
         SetupControllerContext(controller);
 
         var model = new CommandInModel { Code = "", Command = "restart" };
-        var ex = await Assert.ThrowsAsync<ArgumentNullException>(() => controller.SendCommand(model));
+        var ex = await Assert.ThrowsAsync<ApiException>(() => controller.SendCommand(model));
+        Assert.Equal(ApiCode.BadRequest, ex.Code);
         Assert.Contains("Code must be specified", ex.Message);
     }
 
@@ -534,7 +538,8 @@ public class BaseDeviceControllerTests
         SetupControllerContext(controller);
 
         var model = new CommandInModel { Code = "dev-001", Command = "" };
-        var ex = await Assert.ThrowsAsync<ArgumentNullException>(() => controller.SendCommand(model));
+        var ex = await Assert.ThrowsAsync<ApiException>(() => controller.SendCommand(model));
+        Assert.Equal(ApiCode.BadRequest, ex.Code);
         Assert.Contains("Command must be specified", ex.Message);
     }
     #endregion

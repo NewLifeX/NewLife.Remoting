@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using NewLife.Log;
 using NewLife.Remoting.Extensions.Services;
 using NewLife.Remoting.Models;
@@ -42,9 +43,10 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     // 与 Endpoints/RemotingEndpoints.LoginAsync 互为镜像，修改须同步
     [AllowAnonymous]
     [HttpPost(nameof(Login))]
-    public virtual ILoginResponse Login([FromBody] ILoginRequest request)
+    public virtual ILoginResponse Login([FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] ILoginRequest? request)
     {
-        ArgumentNullException.ThrowIfNull(request);
+        // 空体与最小 API 保持一致，按客户端参数错误返回 400，而不是 MVC 的 ProblemDetails
+        if (request == null) throw new ApiException(ApiCode.BadRequest, L.T("[{0}] is invalid!", nameof(request)));
 
         // 先查一次，后续即使登录失败，也可以写设备历史
         if (!request.Code.IsNullOrEmpty()) Context.Device = _deviceService.QueryDevice(request.Code);
@@ -252,7 +254,7 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     [HttpPost(nameof(CommandReply))]
     public virtual Int32 CommandReply(CommandReplyModel model)
     {
-        ArgumentNullException.ThrowIfNull(model);
+        if (model == null) throw new ApiException(ApiCode.BadRequest, L.T("[{0}] is invalid!", nameof(model)));
         return _deviceService.CommandReply(Context, model);
     }
 
@@ -265,9 +267,9 @@ public abstract class BaseDeviceController(IDeviceService? deviceService, IToken
     [HttpPost(nameof(SendCommand))]
     public virtual Task<CommandReplyModel?> SendCommand(CommandInModel model)
     {
-        ArgumentNullException.ThrowIfNull(model);
-        if (model.Code.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Code), L.T("Code must be specified"));
-        if (model.Command.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.Command), L.T("Command must be specified"));
+        if (model == null) throw new ApiException(ApiCode.BadRequest, L.T("[{0}] is invalid!", nameof(model)));
+        if (model.Code.IsNullOrEmpty()) throw new ApiException(ApiCode.BadRequest, L.T("Code must be specified"));
+        if (model.Command.IsNullOrEmpty()) throw new ApiException(ApiCode.BadRequest, L.T("Command must be specified"));
 
         return _deviceService.SendCommand(Context, model, HttpContext.RequestAborted);
     }

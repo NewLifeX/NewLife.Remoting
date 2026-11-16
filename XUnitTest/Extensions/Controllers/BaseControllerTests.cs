@@ -51,6 +51,9 @@ public class BaseControllerTests
         /// <summary>公开 OnAuthorize 用于测试</summary>
         public new Boolean OnAuthorize(String token, DeviceContext context) => base.OnAuthorize(token, context);
 
+        /// <summary>公开错误日志参数序列化用于测试</summary>
+        public String? BuildArgs() => BuildErrorLogArgs();
+
         /// <summary>需要鉴权的动作</summary>
         public void Ping() { }
 
@@ -86,7 +89,7 @@ public class BaseControllerTests
     }
 
     /// <summary>创建动作执行上下文</summary>
-    private static ActionExecutingContext CreateActionContext(TestController ctrl, String? token, Boolean allowAnonymous)
+    private static ActionExecutingContext CreateActionContext(TestController ctrl, String? token, Boolean allowAnonymous, IDictionary<String, Object?>? args = null)
     {
         var http = ctrl.HttpContext;
         if (!token.IsNullOrEmpty()) http.Request.Headers.Authorization = "Bearer " + token;
@@ -106,13 +109,13 @@ public class BaseControllerTests
 
         var actionContext = new ActionContext(http, new RouteData(), descriptor);
 
-        return new ActionExecutingContext(actionContext, [], new Dictionary<String, Object?>(), ctrl);
+        return new ActionExecutingContext(actionContext, [], args ?? new Dictionary<String, Object?>(), ctrl);
     }
 
     /// <summary>执行前置过滤器</summary>
-    private static ActionExecutingContext ExecuteFilter(TestController ctrl, String? token, Boolean allowAnonymous = false)
+    private static ActionExecutingContext ExecuteFilter(TestController ctrl, String? token, Boolean allowAnonymous = false, IDictionary<String, Object?>? args = null)
     {
-        var context = CreateActionContext(ctrl, token, allowAnonymous);
+        var context = CreateActionContext(ctrl, token, allowAnonymous, args);
         ((MvcActionFilter)ctrl).OnActionExecuting(context);
 
         return context;
@@ -125,6 +128,44 @@ public class BaseControllerTests
         var (ctrl, _) = Create();
 
         Assert.False(ctrl.OnAuthorize("", new DeviceContext()));
+    }
+
+    [Fact, DisplayName("凭据类参数名识别为敏感字段")]
+    public void IsSensitiveArgument_DetectsCredentials()
+    {
+        Assert.True(BaseController.IsSensitiveArgument("Secret"));
+        Assert.True(BaseController.IsSensitiveArgument("deviceSecret"));
+        Assert.True(BaseController.IsSensitiveArgument("Password"));
+        Assert.True(BaseController.IsSensitiveArgument("pwd"));
+        Assert.True(BaseController.IsSensitiveArgument("refresh_token"));
+        Assert.True(BaseController.IsSensitiveArgument("AccessToken"));
+
+        Assert.False(BaseController.IsSensitiveArgument("Code"));
+        Assert.False(BaseController.IsSensitiveArgument("Name"));
+        Assert.False(BaseController.IsSensitiveArgument(null));
+    }
+
+    [Fact, DisplayName("错误日志递归脱敏嵌套模型中的凭据")]
+    public void BuildErrorLogArgs_MasksNestedCredentials()
+    {
+        var (ctrl, _) = Create();
+        var args = new Dictionary<String, Object?>
+        {
+            ["request"] = new
+            {
+                Code = "dev-nested",
+                Secret = "PLAINTEXT-SECRET-VALUE",
+                Nested = new Dictionary<String, Object?> { ["AccessToken"] = "NESTED-TOKEN-VALUE" },
+            },
+        };
+        ExecuteFilter(ctrl, null, true, args);
+
+        var json = ctrl.BuildArgs();
+
+        Assert.NotNull(json);
+        Assert.Contains("dev-nested", json);
+        Assert.DoesNotContain("PLAINTEXT-SECRET-VALUE", json);
+        Assert.DoesNotContain("NESTED-TOKEN-VALUE", json);
     }
 
     [Fact, DisplayName("非法令牌鉴权不通过")]

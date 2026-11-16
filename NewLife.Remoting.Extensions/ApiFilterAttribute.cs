@@ -94,7 +94,8 @@ public sealed class ApiFilterAttribute : ActionFilterAttribute
                     context.Result = new JsonResult(new { code = aex.Code, message = aex.Message });
                 else
                 {
-                    context.Result = new JsonResult(new { code = 500, message = ex.Message });
+                    // 非业务异常不把原文回客户端，避免数据库语句、文件路径、内部类型外泄
+                    context.Result = new JsonResult(new { code = 500, message = "Internal Server Error", traceId = DefaultSpan.Current?.TraceId });
 
                     // 埋点拦截业务异常
                     var action = context.HttpContext.Request.Path + "";
