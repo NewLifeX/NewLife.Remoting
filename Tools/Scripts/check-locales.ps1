@@ -255,7 +255,7 @@ if (!$SkipOrphan) {
 # 纯格式串（{0}=>{1}、rpc:、cmd:）与单词型技术标签不含自然语言，跳过
 if (!$SkipOrphan -and $LocaleDir.Count -eq $SourceDir.Count) {
     # 埋点标签（AppendTag/NewSpan）与开发断言保持稳定英文，不要求翻译，故不纳入覆盖校验
-    $callPattern = 'Log\??\.(Write|Error|Info|Debug|Warn|Fatal)\(|WriteLog\(|XTrace\.|Console\.Write(Line)?\(|WriteInfoEvent\(|WriteErrorEvent\(|NewError\(|OnWrite\(|BadRequest\(|throw new (?:XException|ApiException)\('
+    $callPattern = 'Log\??\.(Write|Error|Info|Debug|Warn|Fatal)\(|WriteLog\(|WritePrefixed\(|XTrace\.|Console\.Write(Line)?\(|WriteInfoEvent\(|WriteErrorEvent\(|NewError\(|OnWrite\(|BadRequest\(|throw new (?:XException|ApiException)\('
     for ($i = 0; $i -lt $LocaleDir.Count; $i++) {
         $srcDir = if ([IO.Path]::IsPathRooted($SourceDir[$i])) { $SourceDir[$i] } else { Join-Path $root $SourceDir[$i] }
         if (!(Test-Path $srcDir)) { continue }
@@ -269,7 +269,14 @@ if (!$SkipOrphan -and $LocaleDir.Count -eq $SourceDir.Count) {
                 if ($line -notmatch $callPattern) { continue }
                 if ($line -match '\$"' -or $line -match 'L\.T(?:Log)?\(') { continue }
 
-                $m = [regex]::Match($line, '"((?:[^"\\]|\\.)*)"')
+                # 带前缀日志（WritePrefixed）：第一个参数是 "["+Name+"]" 形式的短标签，正文在其后的参数上，
+                # 取正文而不是标签，否则标签只有一两个字符、永远被下面的词数判断跳过
+                $m = if ($line -match 'WritePrefixed\s*\(') {
+                    [regex]::Match($line, 'WritePrefixed\s*\(\s*[^,]+,\s*(?:"(?:[^"\\]|\\.)*"(?:\s*\+\s*[\w\.]+(?:\s*\+\s*"(?:[^"\\]|\\.)*")*)?)\s*,\s*"((?:[^"\\]|\\.)*)"')
+                }
+                else {
+                    [regex]::Match($line, '"((?:[^"\\]|\\.)*)"')
+                }
                 if (!$m.Success) { continue }
                 $message = Unescape-Yaml $m.Groups[1].Value
                 $words = @($message -split '\s+' | Where-Object { $_ -match '^[A-Za-z]{3,}' })
