@@ -401,7 +401,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     }
                 }
 
-                throw new ApiException(aex.Code, $"[{action}]{aex.Message}");
+                throw WrapApiException(aex, action);
             }
 
             if (Log != null && Log.Enable && Log.Level <= LogLevel.Debug)
@@ -463,7 +463,7 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
                     }
                 }
 
-                throw new ApiException(aex.Code, $"[{action}]{aex.Message}");
+                throw WrapApiException(aex, action);
             }
 
             if (Log != null && Log.Enable && Log.Level <= LogLevel.Debug)
@@ -471,6 +471,23 @@ public abstract class ClientBase : DisposeBase, IApiClient, ICommandClient, IEve
             else
                 throw new XException($"[{action}]{ex.Message}");
         }
+    }
+
+    /// <summary>包装ApiException，保留原始异常上的附加数据</summary>
+    /// <remarks>
+    /// 服务端业务错误信封由底层解析后挂在原始异常的 <c>Data["response"]</c> 上（含 serverTime 等字段）。
+    /// 这里为了带上动作名而重新包装，若不搬移 Data，登录失败校准时间差等依赖信封的逻辑会全部失效。
+    /// </remarks>
+    /// <param name="ex">原始异常</param>
+    /// <param name="action">动作名称</param>
+    /// <returns>带动作名前缀的异常</returns>
+    private static ApiException WrapApiException(ApiException ex, String action)
+    {
+        var ne = new ApiException(ex.Code, $"[{action}]{ex.Message}");
+        foreach (var key in ex.Data.Keys)
+            ne.Data[key] = ex.Data[key];
+
+        return ne;
     }
 
     /// <summary>同步调用</summary>
