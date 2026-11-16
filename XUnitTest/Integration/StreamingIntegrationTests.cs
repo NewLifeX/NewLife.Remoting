@@ -85,6 +85,30 @@ public class StreamingIntegrationTests : DisposeBase
         Assert.Empty(list);
     }
 
+    [Fact(DisplayName = "流式调用_同连接并发两条流互不串扰")]
+    public async Task StreamConcurrentIsolationTest()
+    {
+        using var client = new ApiClient($"tcp://127.0.0.1:{_Port}");
+        client.Open();
+
+        async Task<Int32[]> ReadAsync(Int32 count)
+        {
+            var items = new List<Int32>();
+            await foreach (var item in client.InvokeStreamAsync<Int32>("Streaming/Range", new { count }))
+            {
+                items.Add(item);
+            }
+
+            return [.. items];
+        }
+
+        // 同一个客户端只有一条连接，两条流同时跑；若按“所有回复帧”收流，两边会互相抢到对方的帧
+        var rs = await Task.WhenAll(ReadAsync(5), ReadAsync(7));
+
+        Assert.Equal(new[] { 0, 1, 2, 3, 4 }, rs[0]);
+        Assert.Equal(new[] { 0, 1, 2, 3, 4, 5, 6 }, rs[1]);
+    }
+
     [Fact(DisplayName = "流式调用_中途取消")]
     public async Task StreamCancellationTest()
     {

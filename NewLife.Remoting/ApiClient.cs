@@ -748,7 +748,8 @@ public class ApiClient : ApiHost, IApiClient
         if (args != null && span != null) args = span.Attach(args);
 
         using var msg = enc.CreateRequest(action, args);
-        if (msg is DefaultMessage streamDm) streamDm.Sequence = NextSequence();
+        var sequence = 0;
+        if (msg is DefaultMessage streamDm) streamDm.Sequence = sequence = NextSequence();
 
         // 提前注册 Received 处理器，确保首帧不会因竞态丢失
         var signal = new SemaphoreSlim(0);
@@ -761,6 +762,9 @@ public class ApiClient : ApiHost, IApiClient
             // 流式帧需要跨回调异步消费，属于“逃逸”。统一克隆为独立负载入队：负载与原消息、接收缓冲完全解耦，
             // 跨回调安全；Kind 一并复制，错误帧的方向位（Error）得以保留。
             if (e.Message is not IMessage chunkMsg || !chunkMsg.Reply || chunkMsg.Payload == null) return;
+
+            // 同一条连接上可能同时跑多条流或多个普通调用，只接收本次请求序号的帧
+            if (chunkMsg is DefaultMessage chunkDm && sequence != 0 && chunkDm.Sequence != sequence) return;
 
             var dm = new DefaultMessage { Kind = chunkMsg.Kind };
             dm.SetBody(chunkMsg.Payload.Clone());
