@@ -25,13 +25,15 @@ public class TokenService(ITokenSetting tokenSetting, ITracer tracer, ICacheProv
     /// <summary>令牌配置</summary>
     protected virtual JwtBuilder GetJwt()
     {
-        var ss = tokenSetting.TokenSecret.Split(':');
+        // 只按首个冒号切分：密钥本身可能含冒号（Base64、URL、随机串都常见），
+        // 用 Split(':') 取第二段会把密钥静默截短，等于弱化签名强度且与其它系统不兼容
+        var ss = (tokenSetting.TokenSecret + "").Split([':'], 2);
         if (ss.Length < 2 || ss[0].IsNullOrEmpty() || ss[1].IsNullOrEmpty())
             throw new InvalidOperationException(L.T("Invalid token secret format; expected algorithm:secret, for example HS256:xxxx"));
 
         return new JwtBuilder
         {
-            Algorithm = ss[0],
+            Algorithm = ss[0].Trim(),
             Secret = ss[1],
         };
     }

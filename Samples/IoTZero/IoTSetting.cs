@@ -60,7 +60,9 @@ public class IoTSetting : Config<IoTSetting>, ITokenSetting, IAuthenticationSett
     /// <summary>加载时触发</summary>
     protected override void OnLoaded()
     {
-        if (TokenSecret.IsNullOrEmpty() || TokenSecret.Split(':').Length != 2) TokenSecret = $"HS256:{Rand.NextString(16)}";
+        // 只要求“算法:密钥”，密钥本身允许含冒号
+        var ss = (TokenSecret + "").Split([':'], 2);
+        if (ss.Length < 2 || ss[0].IsNullOrEmpty() || ss[1].IsNullOrEmpty()) TokenSecret = $"HS256:{Rand.NextString(16)}";
 
         base.OnLoaded();
     }

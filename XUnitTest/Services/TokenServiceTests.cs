@@ -190,6 +190,30 @@ public class TokenServiceTests
     }
 
     [Fact]
+    [DisplayName("密钥含冒号时只按首个冒号切分")]
+    public void GetJwt_SecretWithColon_KeepsRest()
+    {
+        var setting = new TestTokenSetting
+        {
+            TokenSecret = "HS256:abc:def:ghi",
+            TokenExpire = 3600,
+            AutoRegister = false
+        };
+        var jwt = new ProbeTokenService(setting).Probe();
+
+        Assert.Equal("HS256", jwt.Algorithm);
+
+        // 密钥本身含冒号时必须完整保留，否则签名强度被静默削弱
+        Assert.Equal("abc:def:ghi", jwt.Secret);
+    }
+
+    /// <summary>暴露受保护的 GetJwt 以便断言密钥切分</summary>
+    private class ProbeTokenService(ITokenSetting setting) : TokenService(setting, null!)
+    {
+        public JwtBuilder Probe() => GetJwt();
+    }
+
+    [Fact]
     [DisplayName("吊销令牌后解码返回已吊销")]
     public void RevokeToken_Decode_Revoked()
     {
