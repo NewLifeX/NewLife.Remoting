@@ -20,7 +20,10 @@ public static class WebHelper
             uri = new Uri(url);
         }
 
-        return GetRawUrl(uri, k => request.Headers[k] + "");
+        // 转发头可能被任意客户端伪造，只有直连来源在可信代理列表内才采信
+        var trustHeaders = IsTrustedRequest(request);
+
+        return GetRawUrl(uri, trustHeaders ? k => request.Headers[k] + "" : _ => "");
     }
 
     private static Uri GetRawUrl(Uri uri, Func<String, String> headers)
@@ -55,12 +58,16 @@ public static class WebHelper
         return uri;
     }
 
-    /// <summary>可信代理列表。来自这些代理的转发头才被信任，支持精确地址、*通配和IPv4 CIDR网段；为空时兼容旧行为信任全部转发头</summary>
+    /// <summary>可信代理列表。来自这些代理的转发头才被信任，支持精确地址、*通配和IPv4 CIDR网段；为空时不信任任何转发头</summary>
+    /// <remarks>
+    /// 默认不信任 <c>X-Forwarded-For</c>/<c>X-Real-IP</c> 等转发头，避免客户端伪造设备 IP 与审计记录。
+    /// 反向代理部署需显式配置代理地址；确需信任全部来源时设置 <c>"*"</c>。
+    /// </remarks>
     public static String?[]? TrustedProxies { get; set; }
 
-    /// <summary>获取用户主机。优先从转发头解析；配置可信代理后按代理链解析并防伪造，最终返回单一IP地址</summary>
+    /// <summary>获取用户主机。仅在直连来源为可信代理时解析转发头，最终返回单一IP地址</summary>
     /// <param name="context"></param>
-    /// <returns></returns>
+    /// <returns>客户端 IP，无法获取时返回空字符串</returns>
     public static String GetUserHost(this HttpContext context)
     {
         var request = context.Request;
@@ -70,48 +77,38 @@ public static class WebHelper
         if (remote != null && remote.IsIPv4MappedToIPv6) remote = remote.MapToIPv4();
         var remoteIp = remote + "";
 
-        var str = "";
-        if (str.IsNullOrEmpty()) str = request.Headers["X-Remote-Ip"];
+        var trusted = TrustedProxies;
+        if (trusted == null || trusted.Length == 0 || !IsTrustedProxy(remoteIp, trusted)) return remoteIp;
+
+        var str = request.Headers["X-Remote-Ip"] + "";
         if (str.IsNullOrEmpty()) str = request.Headers["HTTP_X_FORWARDED_FOR"];
         if (str.IsNullOrEmpty()) str = request.Headers["X-Real-IP"];
         if (str.IsNullOrEmpty()) str = request.Headers["X-Forwarded-For"];
         if (str.IsNullOrEmpty()) str = request.Headers["REMOTE_ADDR"];
+        if (str.IsNullOrEmpty()) return remoteIp;
 
-        if (!str.IsNullOrEmpty())
+        // 从链尾向左跳过可信代理，取第一个不可信地址作为客户端地址
+        var ips = str.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(e => e.Trim()).Where(e => e.Length > 0).ToList();
+        for (var i = ips.Count - 1; i >= 0; i--)
         {
-            var trusted = TrustedProxies;
-            if (trusted == null || trusted.Length == 0)
-            {
-                // 未配置可信代理，兼容旧行为信任全部转发头；多层反代时取链首地址，并折叠为单一IP
-                var first = str.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(e => e.Trim()).FirstOrDefault(e => e.Length > 0);
-                if (!first.IsNullOrEmpty()) str = first;
-            }
-            else if (remoteIp.IsNullOrEmpty() || !IsTrustedProxy(remoteIp, trusted))
-            {
-                // 配置了可信代理但直连来源不可信，转发头可被伪造，直接使用直连地址
-                str = remoteIp;
-            }
-            else
-            {
-                // 从链尾向左跳过可信代理，取第一个不可信地址作为客户端地址
-                var ips = str.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(e => e.Trim()).Where(e => e.Length > 0).ToList();
-                var found = (String?)null;
-                for (var i = ips.Count - 1; i >= 0; i--)
-                {
-                    if (!IsTrustedProxy(ips[i], trusted))
-                    {
-                        found = ips[i];
-                        break;
-                    }
-                }
-                str = found ?? (ips.Count > 0 ? ips[0] : remoteIp);
-            }
+            if (!IsTrustedProxy(ips[i], trusted)) return ips[i];
         }
 
-        //if (str.IsNullOrEmpty()) str = request.Headers["Host"];
-        if (str.IsNullOrEmpty()) str = remoteIp;
+        return ips.Count > 0 ? ips[0] : remoteIp;
+    }
 
-        return str + "";
+    /// <summary>判断当前请求的直连来源是否为可信代理</summary>
+    /// <param name="request">HTTP 请求</param>
+    /// <returns>可信时返回 true</returns>
+    private static Boolean IsTrustedRequest(HttpRequest request)
+    {
+        var trusted = TrustedProxies;
+        if (trusted == null || trusted.Length == 0) return false;
+
+        var remote = request.HttpContext.Connection?.RemoteIpAddress;
+        if (remote != null && remote.IsIPv4MappedToIPv6) remote = remote.MapToIPv4();
+
+        return IsTrustedProxy(remote + "", trusted);
     }
 
     /// <summary>判断地址是否在可信代理列表内。列表项支持精确IP、*通配和IPv4 CIDR网段</summary>
@@ -120,14 +117,17 @@ public static class WebHelper
     /// <returns>是否可信</returns>
     private static Boolean IsTrustedProxy(String? ip, String?[] trusted)
     {
+        foreach (var item in trusted)
+        {
+            if (item?.Trim() == "*") return true;
+        }
+
         if (ip.IsNullOrEmpty()) return false;
 
         foreach (var item in trusted)
         {
             var t = item?.Trim();
             if (t.IsNullOrEmpty()) continue;
-
-            if (t == "*") return true;
 
             if (t.Contains('/'))
             {

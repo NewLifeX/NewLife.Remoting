@@ -7,57 +7,126 @@ using Xunit;
 
 namespace XUnitTest;
 
+/// <summary>可信代理是进程级静态状态，相关用例串行执行，避免并行测试互相影响</summary>
+[CollectionDefinition("TrustedProxies", DisableParallelization = true)]
+public class TrustedProxiesCollection { }
+
 /// <summary>WebHelper单元测试</summary>
+[Collection("TrustedProxies")]
 public class WebHelperTests
 {
+    private static String?[]? SetTrustAll()
+    {
+        var old = WebHelper.TrustedProxies;
+        WebHelper.TrustedProxies = ["*"];
+
+        return old;
+    }
+
+    [Fact]
+    [DisplayName("默认忽略X-Real-IP等转发头")]
+    public void GetUserHost_TrustedHeaders_IgnoredByDefault()
+    {
+        var old = WebHelper.TrustedProxies;
+        try
+        {
+            WebHelper.TrustedProxies = null;
+
+            var context = new DefaultHttpContext();
+            context.Connection.RemoteIpAddress = IPAddress.Parse("8.8.8.8");
+            context.Request.Headers["X-Real-IP"] = "10.0.0.1";
+            context.Request.Headers["X-Forwarded-For"] = "1.2.3.4";
+
+            var host = context.GetUserHost();
+
+            Assert.Equal("8.8.8.8", host);
+        }
+        finally
+        {
+            WebHelper.TrustedProxies = old;
+        }
+    }
+
     [Fact]
     [DisplayName("GetUserHost从X-Real-IP获取")]
     public void GetUserHost_XRealIP()
     {
-        var context = new DefaultHttpContext();
-        context.Request.Headers["X-Real-IP"] = "10.0.0.1";
+        var old = SetTrustAll();
+        try
+        {
+            var context = new DefaultHttpContext();
+            context.Request.Headers["X-Real-IP"] = "10.0.0.1";
 
-        var host = context.GetUserHost();
+            var host = context.GetUserHost();
 
-        Assert.Equal("10.0.0.1", host);
+            Assert.Equal("10.0.0.1", host);
+        }
+        finally
+        {
+            WebHelper.TrustedProxies = old;
+        }
     }
 
     [Fact]
     [DisplayName("GetUserHost从X-Forwarded-For获取")]
     public void GetUserHost_XForwardedFor()
     {
-        var context = new DefaultHttpContext();
-        context.Request.Headers["X-Forwarded-For"] = "192.168.1.100";
+        var old = SetTrustAll();
+        try
+        {
+            var context = new DefaultHttpContext();
+            context.Request.Headers["X-Forwarded-For"] = "192.168.1.100";
 
-        var host = context.GetUserHost();
+            var host = context.GetUserHost();
 
-        Assert.Equal("192.168.1.100", host);
+            Assert.Equal("192.168.1.100", host);
+        }
+        finally
+        {
+            WebHelper.TrustedProxies = old;
+        }
     }
 
     [Fact]
     [DisplayName("GetUserHost从X-Remote-Ip获取")]
     public void GetUserHost_XRemoteIp()
     {
-        var context = new DefaultHttpContext();
-        context.Request.Headers["X-Remote-Ip"] = "172.16.0.1";
+        var old = SetTrustAll();
+        try
+        {
+            var context = new DefaultHttpContext();
+            context.Request.Headers["X-Remote-Ip"] = "172.16.0.1";
 
-        var host = context.GetUserHost();
+            var host = context.GetUserHost();
 
-        Assert.Equal("172.16.0.1", host);
+            Assert.Equal("172.16.0.1", host);
+        }
+        finally
+        {
+            WebHelper.TrustedProxies = old;
+        }
     }
 
     [Fact]
     [DisplayName("GetUserHost优先X-Remote-Ip")]
     public void GetUserHost_Priority()
     {
-        var context = new DefaultHttpContext();
-        context.Request.Headers["X-Remote-Ip"] = "10.0.0.1";
-        context.Request.Headers["X-Real-IP"] = "10.0.0.2";
-        context.Request.Headers["X-Forwarded-For"] = "10.0.0.3";
+        var old = SetTrustAll();
+        try
+        {
+            var context = new DefaultHttpContext();
+            context.Request.Headers["X-Remote-Ip"] = "10.0.0.1";
+            context.Request.Headers["X-Real-IP"] = "10.0.0.2";
+            context.Request.Headers["X-Forwarded-For"] = "10.0.0.3";
 
-        var host = context.GetUserHost();
+            var host = context.GetUserHost();
 
-        Assert.Equal("10.0.0.1", host);
+            Assert.Equal("10.0.0.1", host);
+        }
+        finally
+        {
+            WebHelper.TrustedProxies = old;
+        }
     }
 
     [Fact]
@@ -99,12 +168,20 @@ public class WebHelperTests
     [DisplayName("GetUserHost多值折叠为单一IP")]
     public void GetUserHost_MultiValue_Folds()
     {
-        var context = new DefaultHttpContext();
-        context.Request.Headers["X-Forwarded-For"] = "1.2.3.4, 10.0.0.1";
+        var old = SetTrustAll();
+        try
+        {
+            var context = new DefaultHttpContext();
+            context.Request.Headers["X-Forwarded-For"] = "1.2.3.4, 10.0.0.1";
 
-        var host = context.GetUserHost();
+            var host = context.GetUserHost();
 
-        Assert.Equal("1.2.3.4", host);
+            Assert.Equal("1.2.3.4", host);
+        }
+        finally
+        {
+            WebHelper.TrustedProxies = old;
+        }
     }
 
     [Fact]
@@ -172,14 +249,47 @@ public class WebHelperTests
     [DisplayName("GetRawUrl带Scheme转换")]
     public void GetRawUrl_WithSchemeOverride()
     {
-        var context = new DefaultHttpContext();
-        context.Request.Scheme = "http";
-        context.Request.Host = new HostString("localhost");
-        context.Request.Path = "/api/test";
-        context.Request.Headers["X-Forwarded-Proto"] = "https";
+        var old = SetTrustAll();
+        try
+        {
+            var context = new DefaultHttpContext();
+            context.Request.Scheme = "http";
+            context.Request.Host = new HostString("localhost");
+            context.Request.Path = "/api/test";
+            context.Request.Headers["X-Forwarded-Proto"] = "https";
 
-        var uri = context.Request.GetRawUrl();
+            var uri = context.Request.GetRawUrl();
 
-        Assert.StartsWith("https://", uri.ToString());
+            Assert.StartsWith("https://", uri.ToString());
+        }
+        finally
+        {
+            WebHelper.TrustedProxies = old;
+        }
+    }
+
+    [Fact]
+    [DisplayName("GetRawUrl默认忽略转发协议头")]
+    public void GetRawUrl_ForwardedProto_IgnoredByDefault()
+    {
+        var old = WebHelper.TrustedProxies;
+        try
+        {
+            WebHelper.TrustedProxies = null;
+
+            var context = new DefaultHttpContext();
+            context.Request.Scheme = "http";
+            context.Request.Host = new HostString("localhost");
+            context.Request.Path = "/api/test";
+            context.Request.Headers["X-Forwarded-Proto"] = "https";
+
+            var uri = context.Request.GetRawUrl();
+
+            Assert.StartsWith("http://", uri.ToString());
+        }
+        finally
+        {
+            WebHelper.TrustedProxies = old;
+        }
     }
 }
