@@ -38,6 +38,15 @@ public class Upgrade
     /// <summary>追踪器，用于记录下载耗时与速率</summary>
     public ITracer? Tracer { get; set; }
 
+    /// <summary>下载超时时间（秒）。默认0表示使用分段超时，大于0时覆盖响应体超时</summary>
+    /// <remarks>
+    /// 新版按阶段控制超时：响应头由 <c>HttpDownloadOptions.HeaderTimeout</c>（默认15秒），
+    /// 响应体由 <c>HttpDownloadOptions.DownloadTimeout</c>（默认300秒）。
+    /// 保留本属性仅为兼容旧版调用方，设置后覆盖响应体超时。
+    /// </remarks>
+    [Obsolete("请重载 CreateDownloadOptions() 设置 HttpDownloadOptions 的分段超时")]
+    public Int32 DownloadTimeoutSeconds { get; set; }
+
     /// <summary>落盘等待延迟（毫秒）。sync 后等待存储设备完成回写。Linux ARM64 慢速存储（eMMC/SD）默认 800ms，x86 默认 0</summary>
     public Int32 StorageFlushDelay { get; set; } = GetDefaultFlushDelay();
 
@@ -125,13 +134,24 @@ public class Upgrade
 
     /// <summary>创建下载选项。默认响应头 15 秒、响应体 300 秒、重试 2 次、重试间隔 2 秒</summary>
     /// <returns>下载选项</returns>
-    protected virtual HttpDownloadOptions CreateDownloadOptions() => new()
+    protected virtual HttpDownloadOptions CreateDownloadOptions()
     {
-        HeaderTimeout = TimeSpan.FromSeconds(15),
-        DownloadTimeout = TimeSpan.FromSeconds(300),
-        RetryCount = 2,
-        RetryDelay = TimeSpan.FromSeconds(2),
-    };
+        var options = new HttpDownloadOptions
+        {
+            HeaderTimeout = TimeSpan.FromSeconds(15),
+            DownloadTimeout = TimeSpan.FromSeconds(300),
+            RetryCount = 2,
+            RetryDelay = TimeSpan.FromSeconds(2),
+        };
+
+        // 兼容旧版 DownloadTimeoutSeconds：显式设置时覆盖响应体超时
+#pragma warning disable CS0618
+        var seconds = DownloadTimeoutSeconds;
+#pragma warning restore CS0618
+        if (seconds > 0) options.DownloadTimeout = TimeSpan.FromSeconds(seconds);
+
+        return options;
+    }
 
     /// <summary>
     /// 检查文件散列，避免文件损坏
@@ -685,6 +705,17 @@ public class Upgrade
         // 超时按阶段控制，整体超时由 HttpDownloadOptions 的响应头/响应体超时负责
         Timeout = System.Threading.Timeout.InfiniteTimeSpan,
     };
+
+    /// <summary>下载文件</summary>
+    /// <remarks>保留用于兼容旧版调用方，内部改用 <see cref="NewLife.Http.HttpHelper.DownloadFileAsync(HttpClient, String, String, HttpDownloadOptions, CancellationToken)"/> 的分段超时实现</remarks>
+    /// <param name="client">客户端</param>
+    /// <param name="address">地址</param>
+    /// <param name="fileName">文件名</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    /// <returns>实际落盘的文件名</returns>
+    [Obsolete("请改用 NewLife.Http.HttpHelper.DownloadFileAsync(HttpClient, String, String, HttpDownloadOptions, CancellationToken)")]
+    public static Task<String> DownloadFileAsync(HttpClient client, String address, String fileName, CancellationToken cancellationToken = default)
+        => client.DownloadFileAsync(address, fileName, new HttpDownloadOptions { UseContentDispositionFileName = true }, cancellationToken);
 
     /// <summary>删除备份文件</summary>
     /// <param name="dest">目标目录</param>

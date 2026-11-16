@@ -282,6 +282,57 @@ public class UpgradeDownloadTests
         }
     }
 
+    [Fact]
+    [DisplayName("旧版 DownloadTimeoutSeconds 覆盖响应体超时")]
+    public async Task Download_LegacyTimeoutSeconds_OverridesBodyTimeout()
+    {
+        var body = new Byte[1024 * 1024];
+        using var server = new StubHttpServer(body: body, bodyDelay: TimeSpan.FromSeconds(5));
+        var dir = NewTempDir();
+        try
+        {
+#pragma warning disable CS0618
+            var upgrade = new Upgrade
+            {
+                Url = server.Url,
+                UpdatePath = dir,
+                DownloadTimeoutSeconds = 1,
+            };
+#pragma warning restore CS0618
+
+            await Assert.ThrowsAsync<TimeoutException>(() => upgrade.Download());
+        }
+        finally
+        {
+            DeleteDir(dir);
+        }
+    }
+
+    [Fact]
+    [DisplayName("旧版 DownloadFileAsync 兼容入口仍可下载")]
+    public async Task DownloadFileAsync_LegacyEntry_Works()
+    {
+        var body = new Byte[] { 9, 8, 7 };
+        using var server = new StubHttpServer(body: body);
+        var dir = NewTempDir();
+        try
+        {
+            var file = Path.Combine(dir, "pkg.zip");
+            using var client = new HttpClient();
+
+#pragma warning disable CS0618
+            var rs = await Upgrade.DownloadFileAsync(client, server.Url, file);
+#pragma warning restore CS0618
+
+            Assert.True(File.Exists(rs));
+            Assert.Equal(body, File.ReadAllBytes(rs));
+        }
+        finally
+        {
+            DeleteDir(dir);
+        }
+    }
+
     private sealed class TestUpgrade : Upgrade
     {
         public TimeSpan HeaderTimeout { get; set; } = TimeSpan.FromSeconds(15);
