@@ -59,8 +59,14 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
     /// <summary>WebSocket接收缓冲区大小。默认64k</summary>
     public Int32 BufferSize { get; set; } = 64 * 1024;
 
+    /// <summary>单条消息最大字节数。默认16M，超过后断开连接，避免分片聚合被用于耗尽内存；0 表示不限制</summary>
+    public Int32 MaxMessageSize { get; set; } = 16 * 1024 * 1024;
+
     /// <summary>取消令牌源。用于取消 WebSocket 等待循环</summary>
     private CancellationTokenSource? _source;
+
+    /// <summary>发送闸门。System.Net.WebSockets 不允许同一连接并发 SendAsync</summary>
+    private readonly SemaphoreSlim _sendLock = new(1, 1);
     #endregion
 
     #region 销毁
@@ -84,6 +90,9 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
         {
             // 释放 WebSocket。使用安全销毁，因为WebSocket关闭时经常会抛出异常
             socket.TryDispose();
+
+            // 不释放 _sendLock：SemaphoreSlim 未使用 WaitHandle 时无需释放，
+            // 而在发送进行中释放会让 finally 里的 Release 抛 ObjectDisposedException
         }
     }
     #endregion
@@ -103,7 +112,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
             message = jsonHost != null ? jsonHost.Write(command) : command.ToJson();
         }
 
-        return socket.SendAsync(message.GetBytes(), WebSocketMessageType.Text, true, cancellationToken);
+        return SendCoreAsync(message.GetBytes(), WebSocketMessageType.Text, cancellationToken);
     }
     #endregion
 
@@ -116,7 +125,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
     {
         if (!Active) return Task.CompletedTask;
 
-        return socket.SendAsync(message.GetBytes(), WebSocketMessageType.Text, true, cancellationToken);
+        return SendCoreAsync(message.GetBytes(), WebSocketMessageType.Text, cancellationToken);
     }
 
     /// <summary>向客户端发送数据包</summary>
@@ -127,7 +136,21 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
     {
         if (!Active) return Task.CompletedTask;
 
-        return socket.SendAsync(data.ToSegment(), WebSocketMessageType.Binary, true, cancellationToken);
+        return SendCoreAsync(data.ToSegment(), WebSocketMessageType.Binary, cancellationToken);
+    }
+
+    /// <summary>串行发送。命令下发、事件广播与心跳可能同时触发，同一连接不允许并发 SendAsync</summary>
+    private async Task SendCoreAsync(ArraySegment<Byte> data, WebSocketMessageType messageType, CancellationToken cancellationToken)
+    {
+        await _sendLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await socket.SendAsync(data, messageType, true, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
     }
     #endregion
 
@@ -165,8 +188,8 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
         using var span = Tracer?.NewSpan("cmd:Ws.Dispatch", Code, data.Total);
         try
         {
-            // 通过 WebSocket 发送给客户端
-            await socket.SendAsync(data.ToSegment(), WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
+            // 通过 WebSocket 发送给客户端。与命令下发共用发送闸门，事件广播同样不允许并发 SendAsync
+            await SendCoreAsync(data.ToSegment(), WebSocketMessageType.Text, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
@@ -258,7 +281,10 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
                     {
                         using var span = Tracer?.NewSpan("cmd:Ws.Receive", $"[{data.MessageType}]{remote}", data.Count);
 
-                        var pk = new ArrayPacket(buf, 0, data.Count);
+                        // 一条消息可能被拆成多片，必须拼到 EndOfMessage 才能当完整消息解析
+                        var pk = await ReadMessageAsync(socket, buf, data, source.Token).ConfigureAwait(false);
+                        if (pk == null) break;
+
                         await OnReceive(pk, source.Token).ConfigureAwait(false);
                     }
                 }
@@ -286,6 +312,40 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
             if (!source.IsCancellationRequested) source.Cancel();
         }
         catch (ObjectDisposedException) { }
+    }
+
+    /// <summary>读取一条完整消息，必要时聚合分片</summary>
+    /// <remarks>
+    /// 一条逻辑消息可能被拆成多帧（对端缓冲小、中间设备分片、文本含多字节字符等），
+    /// 只取第一帧会得到截断数据，JSON 解析随之失败；这里一直读到 EndOfMessage 为止。
+    /// </remarks>
+    private async Task<IPacket?> ReadMessageAsync(WebSocket socket, Byte[] buf, WebSocketReceiveResult first, CancellationToken cancellationToken)
+    {
+        if (first.MessageType == WebSocketMessageType.Close) return null;
+        if (first.EndOfMessage) return new ArrayPacket(buf, 0, first.Count);
+
+        using var ms = new MemoryStream(first.Count * 2);
+        ms.Write(buf, 0, first.Count);
+
+        var total = first.Count;
+        var data = first;
+        while (!data.EndOfMessage)
+        {
+            data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), cancellationToken).ConfigureAwait(false);
+            if (data.MessageType == WebSocketMessageType.Close) return null;
+
+            total += data.Count;
+            if (MaxMessageSize > 0 && total > MaxMessageSize)
+            {
+                // 单 token 技术标签，避免进入多语言词表；明细放在参数里
+                Log?.WriteLog("WS_MSG_TOO_LARGE", false, $"{total}/{MaxMessageSize}");
+                return null;
+            }
+
+            ms.Write(buf, 0, data.Count);
+        }
+
+        return new ArrayPacket(ms.ToArray());
     }
     #endregion
 
@@ -315,7 +375,7 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
                 // 刷新在线状态。可能客户端心跳已经停了，WS 还在，这里重新上线
                 SetOnline?.Invoke(true);
 
-                await socket.SendAsync("Pong".GetBytes(), WebSocketMessageType.Text, true, cancellationToken).ConfigureAwait(false);
+                await SendCoreAsync("Pong".GetBytes(), WebSocketMessageType.Text, cancellationToken).ConfigureAwait(false);
                 return;
             }
         }
@@ -327,8 +387,9 @@ public class WsCommandSession(WebSocket socket) : CommandSession, IEventHandler<
             var context = new EventContext();
             context["Handler"] = this;
 
-            // Raw记录原始数据包，分发给其它ws处理器时，可以原封不动转发给客户端
-            context["Raw"] = data;
+            // Raw记录原始数据包，分发给其它ws处理器时，可以原封不动转发给客户端。
+            // 单帧消息的 data 指向接收缓冲池，事件总线可能缓存 Raw 到本轮之后，必须拷贝为独立内存
+            context["Raw"] = new ArrayPacket(data.ToArray());
 
             await Dispatcher.HandleAsync(data, context, cancellationToken).ConfigureAwait(false);
         }

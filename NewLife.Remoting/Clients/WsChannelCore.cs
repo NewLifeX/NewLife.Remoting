@@ -22,6 +22,9 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
     /// <summary>WebSocket接收缓冲区大小。默认64k</summary>
     public Int32 BufferSize { get; set; } = 64 * 1024;
 
+    /// <summary>单条消息最大字节数。默认16M，超过后断开连接，避免分片聚合被用于耗尽内存；0 表示不限制</summary>
+    public Int32 MaxMessageSize { get; set; } = 16 * 1024 * 1024;
+
     private readonly ClientBase _client = client;
 
     /// <summary>是否已连接</summary>
@@ -160,9 +163,12 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
                     }
                     if (data.MessageType is WebSocketMessageType.Text or WebSocketMessageType.Binary)
                     {
-                        var pk = new ArrayPacket(buf, 0, data.Count);
+                        // 一条消息可能被拆成多片，必须拼到 EndOfMessage 才能当完整消息解析
+                        var pk = await ReadMessageAsync(socket, buf, data, source.Token).ConfigureAwait(false);
+                        if (pk == null) break;
+
                         // 检查是否为WebSocket文本心跳 Ping/Pong
-                        if (data.Count == 4)
+                        if (pk.Total == 4)
                         {
                             var msg = pk.ToStr();
                             if (msg == "Ping")
@@ -224,6 +230,39 @@ class WsChannelCore(ClientBase client) : WsChannel(client)
 
         if (socket.State == WebSocketState.Open)
             await socket.CloseAsync(closeStatus ?? WebSocketCloseStatus.NormalClosure, closeReason ?? "finish", default).ConfigureAwait(false);
+    }
+
+    /// <summary>读取一条完整消息，必要时聚合分片</summary>
+    /// <remarks>
+    /// 一条逻辑消息可能被拆成多帧（对端缓冲小、中间设备分片、文本含多字节字符等），
+    /// 只取第一帧会得到截断数据，反序列化随之失败；这里一直读到 EndOfMessage 为止。
+    /// </remarks>
+    private async Task<IPacket?> ReadMessageAsync(WebSocket socket, Byte[] buf, WebSocketReceiveResult first, CancellationToken cancellationToken)
+    {
+        if (first.MessageType == WebSocketMessageType.Close) return null;
+        if (first.EndOfMessage) return new ArrayPacket(buf, 0, first.Count);
+
+        using var ms = new MemoryStream(first.Count * 2);
+        ms.Write(buf, 0, first.Count);
+
+        var total = first.Count;
+        var data = first;
+        while (!data.EndOfMessage)
+        {
+            data = await socket.ReceiveAsync(new ArraySegment<Byte>(buf), cancellationToken).ConfigureAwait(false);
+            if (data.MessageType == WebSocketMessageType.Close) return null;
+
+            total += data.Count;
+            if (MaxMessageSize > 0 && total > MaxMessageSize)
+            {
+                _client.Log?.WritePrefixed(LogLevel.Error, "[" + _client.Name + "]", "WS_MSG_TOO_LARGE {0}/{1}", total, MaxMessageSize);
+                return null;
+            }
+
+            ms.Write(buf, 0, data.Count);
+        }
+
+        return new ArrayPacket(ms.ToArray());
     }
 
     /// <summary>发送文本消息</summary>
