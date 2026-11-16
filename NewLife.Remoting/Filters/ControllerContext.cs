@@ -51,10 +51,19 @@ public class ControllerContext
     //    Parameters = context.Parameters;
     //}
 
+#if NET45
+    // .NET Framework 4.5 没有 AsyncLocal，只能退回线程静态；异步动作续体切线程时可能读不到上下文
     [ThreadStatic]
     private static ControllerContext? _Current;
     /// <summary>当前线程上下文</summary>
     public static ControllerContext? Current { get => _Current; set => _Current = value; }
+#else
+    // 动作可能是异步的，续体会切线程；线程静态会导致 A 请求的上下文被 B 请求读到或被覆盖，
+    // 因此按异步流程存放，await 前后与并行请求互不干扰
+    private static readonly AsyncLocal<ControllerContext?> _Current = new();
+    /// <summary>当前异步流程上下文</summary>
+    public static ControllerContext? Current { get => _Current.Value; set => _Current.Value = value; }
+#endif
 
     /// <summary>重置为默认状态</summary>
     public void Reset()
@@ -69,5 +78,8 @@ public class ControllerContext
         Result = null;
         Exception = null;
         ExceptionHandled = false;
+
+        // 上下文对象会被重用，上一次请求留下的扩展数据不能带给下一次请求
+        Items.Clear();
     }
 }
