@@ -233,6 +233,30 @@ public class BoundaryAndStressIntegrationTests : DisposeBase
     #endregion
 
     #region 连接抖动
+    [Fact(DisplayName = "压力_在途上限触发背压后请求仍全部完成")]
+    public async Task PendingLimit_Backpressure()
+    {
+        // 单连接与全局上限都压到很小，远超上限的并发请求会退化为同步处理，不能丢请求或死锁
+        _Server.MaxPendingRequests = 2;
+        _Server.MaxConcurrentRequests = 4;
+
+        using var client = new ApiClient($"tcp://127.0.0.1:{_Port}");
+
+        var tasks = new List<Task<String>>();
+        for (var i = 0; i < 40; i++)
+        {
+            var text = i.ToString();
+            tasks.Add(client.InvokeAsync<String>("Boundary/Echo", new { msg = text }));
+        }
+
+        var rs = await Task.WhenAll(tasks);
+
+        for (var i = 0; i < rs.Length; i++)
+        {
+            Assert.Equal(i.ToString(), rs[i]);
+        }
+    }
+
     [Fact(DisplayName = "抖动_快速创建销毁客户端")]
     public async Task RapidConnectDisconnectTest()
     {

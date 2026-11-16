@@ -42,6 +42,35 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// <summary>连接复用。默认true，单个Tcp连接在处理某个请求未完成时，可以接收并处理新的请求</summary>
     public Boolean Multiplex { get; set; } = true;
 
+    /// <summary>单连接最大在途请求数。默认64，超过后退化为同步处理形成背压；0 表示不限制</summary>
+    /// <remarks>连接复用会把请求投递线程池，若不限制在途数量，对端灌包会让内存与线程池排队无限增长</remarks>
+    public Int32 MaxPendingRequests { get; set; } = 64;
+
+    /// <summary>全部连接合计最大在途请求数。默认1024，超过后退化为同步处理形成背压；0 表示不限制</summary>
+    /// <remarks>单连接上限挡不住大量连接同时灌包，需要一个进程级总量约束</remarks>
+    public Int32 MaxConcurrentRequests { get; set; } = 1024;
+
+    private Int32 _activeRequests;
+    /// <summary>尝试占用一个全局在途名额</summary>
+    /// <returns>成功返回 true，达到上限返回 false</returns>
+    internal Boolean TryEnterDispatch()
+    {
+        var max = MaxConcurrentRequests;
+        if (max <= 0) return true;
+
+        if (Interlocked.Increment(ref _activeRequests) <= max) return true;
+
+        Interlocked.Decrement(ref _activeRequests);
+        return false;
+    }
+
+    /// <summary>释放全局在途名额</summary>
+    internal void ExitDispatch() => Interlocked.Decrement(ref _activeRequests);
+
+    /// <summary>读取完整请求体的超时时间（毫秒）。默认30000，0 表示不限制</summary>
+    /// <remarks>大帧或流式体在接收回调内同步物化，超时后中止本次处理，避免慢速分片长期占住接收线程</remarks>
+    public Int32 BodyReadTimeout { get; set; } = 30_000;
+
     /// <summary>地址重用，主要应用于网络服务器重启交替。默认false</summary>
     /// <remarks>
     /// 一个端口释放后会等待两分钟之后才能再被使用，SO_REUSEADDR是让端口释放后立即就可以被再次使用。

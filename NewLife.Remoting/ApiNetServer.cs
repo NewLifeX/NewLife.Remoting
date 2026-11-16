@@ -40,6 +40,7 @@ class ApiNetServer : NetServer<ApiNetSession>, IApiServer
 class ApiNetSession : NetSession<ApiNetServer>, IApiSession
 {
     private ApiServer _Host = null!;
+    private Int32 _pending;
     /// <summary>主机</summary>
     IApiHost IApiSession.Host => _Host;
 
@@ -66,9 +67,27 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
 
         // 大帧未到齐时消息泵在头部到齐即交付，体为流式（数据随管道到达）。后续克隆负载、解码都要求完整内存包，
         // 按 Core 的官方指引在同步事件处理器内先物化（ReadAllAsync 等待数据到齐；串行语义下一次只有一帧在途，等待不会与下一帧冲突）。
-        // 服务端会话未发过等待请求（无匹配队列），Core 不会替我们物化流式体
+        // 服务端会话未发过等待请求（无匹配队列），Core 不会替我们物化流式体。
+        // 物化必须有超时，否则慢速分片可长期占住接收线程
         if (e.Message is IMessage m && m.Body is { IsStreaming: true } body)
-            m.SetBody(body.ReadAllAsync().AsTask().GetAwaiter().GetResult());
+        {
+            var timeout = _Host.BodyReadTimeout;
+            if (timeout > 0)
+            {
+                // 超时必须取消读取并等它结束，避免后台读取与帧泵的 drain 抢同一个 PipeReader
+                using var cts = new CancellationTokenSource(timeout);
+                try
+                {
+                    m.SetBody(body.ReadAllAsync(cts.Token).AsTask().GetAwaiter().GetResult());
+                }
+                catch (OperationCanceledException)
+                {
+                    throw new TimeoutException("Timeout reading request body");
+                }
+            }
+            else
+                m.SetBody(body.ReadAllAsync().AsTask().GetAwaiter().GetResult());
+        }
 
         // 解码得到请求消息，忽略响应消息
         if (e.Message is not IMessage msg || msg.Reply) return;
@@ -91,14 +110,59 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
                 return;
             }
 
-            // 帧泵缓冲随本轮处理结束即回收，投递线程池前克隆独立负载（连同 HTTP 头部等元数据）
-            var clone = CloneMessage(msg);
-
-            // 不要捕获上下文，避免多次请求串到一起
-            ThreadPool.UnsafeQueueUserWorkItem(m =>
+            // 全局在途上限：大量连接同时灌包时，单连接上限挡不住
+            var globalEntered = false;
+            if (svr.MaxConcurrentRequests > 0)
             {
-                _ = ProcessMessageAsync(m);
-            }, clone);
+                if (!svr.TryEnterDispatch())
+                {
+                    ProcessSync(msg);
+                    return;
+                }
+                globalEntered = true;
+            }
+
+            // 单连接在途上限：超过后不再投递线程池，改为同步处理形成背压，避免对端灌包耗尽内存与线程池
+            var max = svr.MaxPendingRequests;
+            var pendingEntered = false;
+            if (max > 0)
+            {
+                if (Interlocked.Increment(ref _pending) > max)
+                {
+                    Interlocked.Decrement(ref _pending);
+                    if (globalEntered) svr.ExitDispatch();
+                    ProcessSync(msg);
+                    return;
+                }
+                pendingEntered = true;
+            }
+
+            // 帧泵缓冲随本轮处理结束即回收，投递线程池前克隆独立负载（连同 HTTP 头部等元数据）
+            IMessage? clone = null;
+            try
+            {
+                clone = CloneMessage(msg);
+
+                // 不要捕获上下文，避免多次请求串到一起
+                var queued = ThreadPool.UnsafeQueueUserWorkItem(m =>
+                {
+                    _ = ProcessMessageAsync(m);
+                }, clone);
+                if (!queued)
+                {
+                    if (pendingEntered) Interlocked.Decrement(ref _pending);
+                    if (globalEntered) svr.ExitDispatch();
+                    clone.TryDispose();
+                    ProcessSync(msg);
+                }
+            }
+            catch
+            {
+                if (pendingEntered) Interlocked.Decrement(ref _pending);
+                if (globalEntered) svr.ExitDispatch();
+                clone.TryDispose();
+                throw;
+            }
 
             // 本地异步函数：异步处理请求并发送响应，不阻塞线程池线程
             async Task ProcessMessageAsync(Object? m)
@@ -125,6 +189,9 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
                 }
                 finally
                 {
+                    if (pendingEntered) Interlocked.Decrement(ref _pending);
+                    if (globalEntered) svr.ExitDispatch();
+
                     // 归还克隆消息持有的负载
                     (m as IMessage).TryDispose();
                 }
@@ -132,10 +199,17 @@ class ApiNetSession : NetSession<ApiNetServer>, IApiSession
         }
         else
         {
-            // 同步路径：using 释放响应消息，级联归还 Payload 链中的 IOwnerPacket 缓冲区
-            using var rs = _Host.Process(this, msg, this);
-            if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
+            ProcessSync(msg);
         }
+    }
+
+    /// <summary>同步处理请求。作为在途上限达到后的背压路径，阻塞接收循环</summary>
+    /// <param name="msg">请求消息</param>
+    private void ProcessSync(IMessage msg)
+    {
+        // 同步路径：using 释放响应消息，级联归还 Payload 链中的 IOwnerPacket 缓冲区
+        using var rs = _Host.Process(this, msg, this);
+        if (rs != null && Session != null && !Session.Disposed) Session.SendMessage(rs);
     }
 
     /// <summary>克隆消息。复制负载使消息独立持有内存，可安全跨线程处理</summary>
