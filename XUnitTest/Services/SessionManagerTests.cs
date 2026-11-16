@@ -188,6 +188,29 @@ public class SessionManagerTests
         Assert.Equal("ok", r2?.Data);
     }
 
+    [Fact(DisplayName = "重复CommandId超时后两个等待都能结束")]
+    public async Task WaitResponse_DuplicateId_BothCompleteOnTimeout()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<ICacheProvider>(new MemoryCacheProvider());
+        var sp = services.BuildServiceProvider();
+
+        using var manager = new TestSessionManager(sp);
+
+        // 先登记的等待方持有回调，后一个复用它的任务；若复用方在 finally 里把登记项删掉，
+        // 持有方超时后取不回自己的回调，只能永远等下去
+        var t1 = manager.WaitResponseAsync(103, 1, CancellationToken.None);
+        await Task.Delay(100);
+        var t2 = manager.WaitResponseAsync(103, 1, CancellationToken.None);
+
+        var all = Task.WhenAll(t1, t2);
+        var done = await Task.WhenAny(all, Task.Delay(TimeSpan.FromSeconds(5)));
+
+        Assert.Same(all, done);
+        Assert.Null(await t1);
+        Assert.Null(await t2);
+    }
+
     [Fact(DisplayName = "响应等待超时返回null")]
     public async Task WaitResponse_Timeout_ReturnsNull()
     {

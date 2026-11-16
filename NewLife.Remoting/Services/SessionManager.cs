@@ -258,6 +258,9 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         InitResponse();
 
         using var span = _tracer?.NewSpan($"cmd:{ResponseTopic}:Wait", commandId);
+
+        // 只有抢到登记权的等待方才能清理该键；复用方清理会把持有者的回调删掉，双方都收不到结果
+        var owned = false;
         try
         {
 #if NET45
@@ -279,7 +282,11 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
                 span?.AppendTag($"duplicate commandId={commandId}, reuse existing callback");
                 if (_callbacks.TryGetValue(commandId, out var old))
                     return await old.Tcs.Task.ConfigureAwait(false);
+
+                // 对方刚好在两步之间被清理，抢回登记后继续自己等待；仍抢不到则按超时返回
+                if (!_callbacks.TryAdd(commandId, entry)) return null;
             }
+            owned = true;
 
             // 使用取消令牌注册清理
             using var ctr = cancellationToken.Register(() =>
@@ -320,7 +327,7 @@ public class SessionManager(IServiceProvider serviceProvider) : DisposeBase, ISe
         }
         finally
         {
-            _callbacks.TryRemove(commandId, out _);
+            if (owned) _callbacks.TryRemove(commandId, out _);
         }
     }
 
