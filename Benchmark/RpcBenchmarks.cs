@@ -38,8 +38,8 @@ public class RpcBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        // 创建服务端，使用随机端口，禁用日志避免IO干扰
-        _server = new ApiServer(0);
+        // 创建服务端，使用随机端口，禁用日志避免IO干扰；基准要实测 Api/All 完整列表的序列化
+        _server = new ApiServer(0) { EnableDiagnostics = true };
         _server.Register<BenchController>();
         _server.Start();
 

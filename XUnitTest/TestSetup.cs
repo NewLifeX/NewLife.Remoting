@@ -15,6 +15,9 @@ internal static class TestSetup
     [ModuleInitializer]
     internal static void Init()
     {
+        // 集成测试大量依赖 Api/All 与完整 Api/Info，进程级开启诊断；生产默认仍为 false
+        NewLife.Remoting.ApiServer.DiagnosticsDefault = true;
+
         // 区域不可用时（icu 缺失且运行在 globalization-invariant 模式）不能让模块初始化器抛异常：
         // 那会让整个测试程序集在发现阶段失败，表现为全量用例无声消失。此时保持进程区域不变，
         // 依赖固定区域文案的断言在那种环境下本就不该成立，交由对应用例自行失败。

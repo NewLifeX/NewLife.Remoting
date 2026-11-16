@@ -35,9 +35,9 @@ public class ApiControllerTests
     }
 
     /// <summary>创建挂载了诊断控制器的服务端</summary>
-    private static ApiServer CreateServer()
+    private static ApiServer CreateServer(Boolean enableDiagnostics = true)
     {
-        var server = new ApiServer();
+        var server = new ApiServer { EnableDiagnostics = enableDiagnostics };
         server.Register<DiagController>();
 
         return server;
@@ -64,12 +64,35 @@ public class ApiControllerTests
         Assert.Same(ctrl.All(), ctrl.All());
     }
 
-    [Fact, DisplayName("Api/Info返回服务端状态")]
-    public void Info_ReturnsState()
+    [Fact, DisplayName("Api/Info默认只返回最小健康检查")]
+    public void Info_Default_ReturnsMinimal()
     {
         var state = Rand.NextString(8);
 
         var dic = new ApiController().Info(state) as IDictionary<String, Object?>;
+
+        Assert.NotNull(dic);
+        Assert.Equal(state, dic!["State"]);
+        Assert.True(dic.ContainsKey("Time"));
+        Assert.False(dic.ContainsKey("MachineName"));
+        Assert.False(dic.ContainsKey("LocalIP"));
+        Assert.False(dic.ContainsKey("Token"));
+    }
+
+    [Fact, DisplayName("Api/All默认不返回服务清单")]
+    public void All_Default_ReturnsEmpty()
+    {
+        var ctrl = new ApiController { Host = CreateServer(false) };
+
+        Assert.Empty(ctrl.All());
+    }
+
+    [Fact, DisplayName("Api/Info启用诊断后返回服务端状态")]
+    public void Info_Enabled_ReturnsState()
+    {
+        var state = Rand.NextString(8);
+
+        var dic = new ApiController { Host = CreateServer() }.Info(state) as IDictionary<String, Object?>;
 
         Assert.NotNull(dic);
         Assert.Equal(state, dic!["State"]);
@@ -89,7 +112,7 @@ public class ApiControllerTests
         {
             ControllerContext.Current = new ControllerContext { Session = session.Object };
 
-            var ctrl = new ApiController { Session = session.Object };
+            var ctrl = new ApiController { Host = CreateServer(), Session = session.Object };
 
             var dic = ctrl.Info("running") as IDictionary<String, Object?>;
 

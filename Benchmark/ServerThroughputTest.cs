@@ -32,6 +32,7 @@ public class ServerThroughputTest
             Log = Logger.Null,
             EncoderLog = Logger.Null,
             StatPeriod = 0,
+            EnableDiagnostics = true,
         };
         server.Register<BenchController>();
         server.Start();
@@ -84,6 +85,7 @@ public class ServerThroughputTest
             Log = Logger.Null,
             EncoderLog = Logger.Null,
             StatPeriod = 0,
+            EnableDiagnostics = true,
         };
         server.Register<BenchController>();
         server.Start();

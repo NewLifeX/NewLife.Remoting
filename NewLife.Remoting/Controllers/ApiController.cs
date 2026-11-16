@@ -10,6 +10,7 @@ using NewLife.Reflection;
 namespace NewLife.Remoting;
 
 /// <summary>API控制器</summary>
+/// <remarks>内置诊断端点默认只返回最小健康检查；<see cref="ApiServer.EnableDiagnostics"/> 为 true 时才返回完整机器与统计信息</remarks>
 public class ApiController : IApi
 {
     /// <summary>主机</summary>
@@ -48,13 +49,18 @@ public class ApiController : IApi
         }
     }
 
+    /// <summary>是否启用完整诊断信息。默认关闭，只保留最小健康检查，避免机器名/IP/版本/令牌泄露</summary>
+    private Boolean EnableDiagnostics => Host is ApiServer { EnableDiagnostics: true };
+
     private String[]? _all;
     /// <summary>获取所有接口</summary>
-    /// <returns></returns>
+    /// <returns>诊断未启用时返回空数组</returns>
     public String[] All()
     {
         // 加上10ms延迟来模拟业务损耗，测试消耗占95.63%。没加睡眠时，Json损耗占55.5%
         //System.Threading.Thread.Sleep(1000);
+        if (!EnableDiagnostics) return [];
+
         if (_all != null) return _all;
 
         var svc = Host as ApiServer;
@@ -97,6 +103,18 @@ public class ApiController : IApi
     /// <returns></returns>
     public Object Info(String state)
     {
+        // 诊断未启用时只返回最小健康检查字段，不暴露机器名/IP/版本/令牌
+        if (!EnableDiagnostics)
+        {
+            if (Session != null) Session["State"] = state;
+
+            return new Dictionary<String, Object?>
+            {
+                ["State"] = state,
+                ["Time"] = DateTime.Now,
+            };
+        }
+
         var ctx = ControllerContext.Current;
         var ps = ctx?.Parameters;
         var ns = ctx?.Session as INetSession;

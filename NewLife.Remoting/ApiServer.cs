@@ -71,6 +71,13 @@ public class ApiServer : ApiHost, IServer, IServiceProvider
     /// <remarks>大帧或流式体在接收回调内同步物化，超时后中止本次处理，避免慢速分片长期占住接收线程</remarks>
     public Int32 BodyReadTimeout { get; set; } = 30_000;
 
+    /// <summary>诊断端点（Api/Info、Api/All）是否返回完整信息。默认 false，只返回最小健康检查字段</summary>
+    /// <remarks>完整信息包含机器名、内网 IP、程序集版本、会话令牌与统计，默认关闭避免信息泄露</remarks>
+    public Boolean EnableDiagnostics { get; set; } = DiagnosticsDefault;
+
+    /// <summary>诊断默认开关。仅测试宿主在进程级开启，生产环境保持 false</summary>
+    internal static Boolean DiagnosticsDefault { get; set; }
+
     /// <summary>地址重用，主要应用于网络服务器重启交替。默认false</summary>
     /// <remarks>
     /// 一个端口释放后会等待两分钟之后才能再被使用，SO_REUSEADDR是让端口释放后立即就可以被再次使用。

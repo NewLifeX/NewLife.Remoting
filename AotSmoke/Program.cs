@@ -176,6 +176,8 @@ internal static class Program
         using var server = new ApiServer(new NetUri(NetType.Http, "*", 0))
         {
             ShowError = true,
+            // 冒烟用例要验证 Api/All 的响应封套，进程内显式开启完整诊断
+            EnableDiagnostics = true,
         };
         server.Register<SmokeController>();
         server.Start();

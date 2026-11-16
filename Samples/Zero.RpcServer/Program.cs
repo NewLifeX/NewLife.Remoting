@@ -40,6 +40,9 @@ using var server = new ApiServer(port)
 
     // HTTP 入口需显式开启（默认关闭），0 表示自动取 SRMP 端口+1
     HttpPort = 0,
+
+    // 示例开启完整诊断（Api/Info、Api/All）；生产环境默认关闭，只保留最小健康检查
+    EnableDiagnostics = true,
 };
 
 // 注册服务控制器，其中提供各种接口服务
