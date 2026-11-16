@@ -76,9 +76,11 @@ class SseChannel(ClientBase client) : DisposeBase
         var uri = new Uri(new Uri(svc.Address.ToString()), sseAction);
 
         using var span = _client.Tracer?.NewSpan("SseConnect", uri + "");
+        HttpResponseMessage? response = null;
+        var source = new CancellationTokenSource();
+        _source = source;
         try
         {
-            _source = new CancellationTokenSource();
             // 复用 HttpClient，避免每次重连新建导致连接句柄抖动
             _httpClient ??= CreateClient();
 
@@ -86,7 +88,7 @@ class SseChannel(ClientBase client) : DisposeBase
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
 
-            var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, _source.Token).ConfigureAwait(false);
+            response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, source.Token).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
 
             // 记录响应，连接断开时释放以归还连接池
@@ -94,7 +96,7 @@ class SseChannel(ClientBase client) : DisposeBase
 
             // ReadAsStreamAsync() 不带 CancellationToken 以确保 netstandard2.0 兼容
             var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-            _ = Task.Factory.StartNew(() => DoPull(stream, _source.Token), TaskCreationOptions.LongRunning);
+            _ = Task.Factory.StartNew(() => DoPull(stream, source), TaskCreationOptions.LongRunning);
 
             _client.WriteLog("SSE connected: {0}", uri);
         }
@@ -103,10 +105,13 @@ class SseChannel(ClientBase client) : DisposeBase
             span?.SetError(ex, null);
             _client.WriteLog("SSE connection failed: {0}", ex.Message);
 
-            // 失败时释放未纳入管理的响应对象
-            _response.TryDispose();
-            _response = null;
-            StopSse();
+            // 失败时释放本次连接的响应对象，字段仍指向它时一并清空
+            if (_response == response) _response = null;
+            response.TryDispose();
+            response = null;
+
+            // 只收尾本次连接；并发重连时 _source 可能已指向新连接，不能误杀
+            if (_source == source) StopSse();
         }
     }
 
@@ -137,10 +142,22 @@ class SseChannel(ClientBase client) : DisposeBase
     #region SSE 接收循环
     /// <summary>SSE 事件接收循环。后台线程读取流，解析 SSE 格式并分派</summary>
     /// <param name="stream">HTTP 响应流</param>
-    /// <param name="cancellationToken">取消令牌</param>
+    /// <param name="source">本次连接自己的取消源。不可用字段 _source 代替，否则旧连接收尾时会把新连接取消掉</param>
     /// <returns></returns>
-    private async Task DoPull(Stream stream, CancellationToken cancellationToken)
+    private async Task DoPull(Stream stream, CancellationTokenSource source)
     {
+        // 连接建立后可能被 StopSse 抢先释放，取 Token 会抛 ObjectDisposedException，此时直接收尾
+        CancellationToken cancellationToken;
+        try
+        {
+            cancellationToken = source.Token;
+        }
+        catch (ObjectDisposedException)
+        {
+            stream.TryDispose();
+            return;
+        }
+
         DefaultSpan.Current = null;
         using var reader = new StreamReader(stream);
         var eventType = "";
@@ -197,7 +214,12 @@ class SseChannel(ClientBase client) : DisposeBase
         }
         finally
         {
-            _source?.Cancel();
+            // 只结束自己占用的连接：重连场景下字段 _source 已经指向新连接
+            try
+            {
+                if (!source.IsCancellationRequested) source.Cancel();
+            }
+            catch (ObjectDisposedException) { }
         }
     }
 
