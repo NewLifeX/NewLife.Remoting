@@ -24,9 +24,9 @@ jobs:
     timeout-minutes: 30
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Setup dotNET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v6
       with:
         # net8.0 目标需要 8.x SDK 提供对应目标包（runner 镜像已不再预装旧版 SDK）
         dotnet-version: |
@@ -75,9 +75,9 @@ jobs:
             experimental: true
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Setup dotNET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: 10.x
     - name: Install NativeAOT Prerequisites (Linux)
@@ -118,7 +118,7 @@ jobs:
             os: ubuntu-24.04-arm
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Publish & Run NativeAOT Smoke (alpine)
       run: |
         docker run --rm -v "$PWD:/src" -w /src alpine:3.20 sh -c '
@@ -150,7 +150,7 @@ jobs:
     continue-on-error: true
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Initialize binfmt_misc (QEMU 10.2.3)
       run: docker run --rm --privileged tonistiigi/binfmt:qemu-v10.2.3-68 --install all
     - name: Build LoongArch64 SDK image

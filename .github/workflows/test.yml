@@ -23,9 +23,9 @@ jobs:
     timeout-minutes: 30
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Setup dotNET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v6
       with:
         # 解决方案含 net10.0-windows（Samples/Zero.Desktop），需对应 SDK 提供 WindowsDesktop 目标包
         dotnet-version: |
@@ -125,9 +125,9 @@ jobs:
             experimental: true
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Setup dotNET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: ${{ matrix.dotnet }}
         cache: true
@@ -142,7 +142,7 @@ jobs:
       run: dotnet test XUnitTest -c Release -f ${{ matrix.framework }} --blame-hang-timeout 15m --blame-hang-dump-type mini ${{ matrix.filter }} --logger "trx;LogFileName=XUnitTest-${{ matrix.name }}.trx" --results-directory TestResults
     - name: Upload Test Results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: test-results-${{ matrix.name }}
         path: TestResults/*.trx
@@ -155,9 +155,9 @@ jobs:
     timeout-minutes: 20
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Setup dotNET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: 10.x
         cache: true
@@ -166,7 +166,7 @@ jobs:
       run: dotnet test XUnitTest.SourceGenerator -c Release --logger "trx;LogFileName=SourceGenerator.trx" --results-directory TestResults
     - name: Upload Test Results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: test-results-source-generator
         path: TestResults/*.trx
@@ -189,9 +189,9 @@ jobs:
             os: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Setup dotNET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: 10.x
         cache: true
@@ -200,7 +200,7 @@ jobs:
       run: dotnet test XUnitTest.Samples -c Release --logger "trx;LogFileName=Samples-${{ matrix.name }}.trx" --results-directory TestResults
     - name: Upload Test Results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: samples-results-${{ matrix.name }}
         path: TestResults/*.trx
@@ -225,9 +225,9 @@ jobs:
             filter: '--filter "Requires!=Sqlite"'
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Setup dotNET (warm NuGet cache)
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v6
       with:
         dotnet-version: 10.x
         cache: true
@@ -258,7 +258,7 @@ jobs:
     continue-on-error: true
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: Initialize binfmt_misc (QEMU 10.2.3)
       run: docker run --rm --privileged tonistiigi/binfmt:qemu-v10.2.3-68 --install all
     - name: Build LoongArch64 SDK image
@@ -321,7 +321,7 @@ jobs:
         exit 1
     - name: Upload Test Results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: test-results-loongarch64
         path: TestResults/*
