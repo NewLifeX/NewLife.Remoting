@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using NewLife;
@@ -14,7 +15,25 @@ internal static class TestSetup
     [ModuleInitializer]
     internal static void Init()
     {
-        Localization.Culture = CultureInfo.GetCultureInfo("en-US");
-        Localization.LogCulture = CultureInfo.GetCultureInfo("en-US");
+        // 区域不可用时（icu 缺失且运行在 globalization-invariant 模式）不能让模块初始化器抛异常：
+        // 那会让整个测试程序集在发现阶段失败，表现为全量用例无声消失。此时保持进程区域不变，
+        // 依赖固定区域文案的断言在那种环境下本就不该成立，交由对应用例自行失败。
+        var culture = TryGetCulture("en-US");
+        if (culture == null) return;
+
+        Localization.Culture = culture;
+        Localization.LogCulture = culture;
+    }
+
+    private static CultureInfo? TryGetCulture(String name)
+    {
+        try
+        {
+            return CultureInfo.GetCultureInfo(name);
+        }
+        catch (CultureNotFoundException)
+        {
+            return null;
+        }
     }
 }
