@@ -77,12 +77,12 @@ public class HttpEncoder : EncoderBase, IEncoder
             if (obj is not IDictionary<String, Object?> dic)
                 return obj;
 
+            // JSON 体里的字符串是原始值，不能再做 URL 解码：否则 "a+b" 会变成 "a b"、"%41" 变成 "A"，
+            // 密码、路径、表达式等业务参数被静默改写
             var rs = new Dictionary<String, Object?>(StringComparer.OrdinalIgnoreCase);
             foreach (var item in dic)
-                if (item.Value is String str2)
-                    rs[item.Key] = HttpUtility.UrlDecode(str2);
-                else
-                    rs[item.Key] = item.Value;
+                rs[item.Key] = item.Value;
+
             return rs;
         }
         else
@@ -346,24 +346,30 @@ public class HttpEncoder : EncoderBase, IEncoder
         if (!uri.IsAbsoluteUri)
         {
             var url = ss[1];
+            // 请求行目标不一定以 / 开头，只有带了前导 / 才裁掉
+            var start = url.Length > 0 && url[0] == '/' ? 1 : 0;
             p = url.IndexOf('?');
-            if (p > 0)
+            if (p > start)
             {
-                message.Action = url.Substring(1, p - 1);
+                message.Action = url.Substring(start, p - start);
                 message.Data = (ArrayPacket)url.Substring(p + 1).GetBytes();
             }
             else
             {
-                message.Action = url.Substring(1);
+                message.Action = url.Substring(start);
                 message.Data = http.Payload;
             }
         }
         else
         {
-            if (!uri.Query.IsNullOrEmpty())
+            // 绝对形式（代理/网关转发）的 Query 带前导 ?，去掉后再作为参数体，否则首个键名会变成 "?a"
+            var query = uri.Query;
+            if (!query.IsNullOrEmpty() && query[0] == '?') query = query.Substring(1);
+
+            if (!query.IsNullOrEmpty())
             {
                 message.Action = uri.AbsolutePath;
-                message.Data = (ArrayPacket)uri.Query.GetBytes();
+                message.Data = (ArrayPacket)query.GetBytes();
             }
             else
             {

@@ -285,6 +285,38 @@ public class HttpEncoderTests
     }
 
     [Fact]
+    [DisplayName("JSON参数保持原样不做URL解码")]
+    public void DecodeParameters_Json_KeepsRawString()
+    {
+        var encoder = new HttpEncoder();
+        var headerStr = "POST /api/test HTTP/1.1\r\nHost:localhost\r\nContent-type: application/json";
+        var http = new HttpMessage { Header = new ArrayPacket(System.Text.Encoding.UTF8.GetBytes(headerStr)) };
+
+        var json = "{\"pwd\":\"a+b%41\"}"u8.ToArray();
+        var rs = encoder.DecodeParameters("api/test", new ArrayPacket(json), http) as IDictionary<String, Object?>;
+
+        Assert.NotNull(rs);
+
+        // 密码、路径、表达式里的 + 与 %xx 不能被改写
+        Assert.Equal("a+b%41", rs!["pwd"]);
+    }
+
+    [Fact]
+    [DisplayName("绝对形式请求的查询串不带前导问号")]
+    public void Decode_AbsoluteForm_QueryWithoutQuestionMark()
+    {
+        var encoder = new HttpEncoder();
+        var headerStr = "GET http://host/api/info?x=1 HTTP/1.1\r\nHost:localhost";
+        var http = new HttpMessage { Header = new ArrayPacket(System.Text.Encoding.UTF8.GetBytes(headerStr)) };
+
+        var apiMsg = encoder.Decode(http);
+
+        Assert.NotNull(apiMsg);
+        Assert.Equal("api/info", apiMsg!.Action);
+        Assert.Equal("x=1", apiMsg.Data!.ToStr());
+    }
+
+    [Fact]
     [DisplayName("Convert转换")]
     public void Convert_Works()
     {
