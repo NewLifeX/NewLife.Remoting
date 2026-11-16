@@ -688,7 +688,11 @@ public class ApiClient : ApiHost, IApiClient
     public ILog SocketLog { get; set; } = Logger.Null;
 
     /// <summary>请求头。每次调用自动作为顶级参数注入到请求中，服务端可通过参数字典读取</summary>
-    public IDictionary<String, String?> Headers { get; set; } = new Dictionary<String, String?>();
+    /// <remarks>
+    /// 同一个客户端会被并发调用（含连接池与流式调用），注入 TraceId 与遍历注入参数都会同时发生，
+    /// 因此默认实例必须是并发字典；外部替换实现时同样要保证并发安全。
+    /// </remarks>
+    public IDictionary<String, String?> Headers { get; set; } = new ConcurrentDictionary<String, String?>();
     #endregion
 
     #region 流式调用
