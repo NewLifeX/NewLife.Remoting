@@ -96,7 +96,10 @@ public abstract class EncoderBase
         //var ms = new MemoryStream();
         //ms.Seek(8, SeekOrigin.Begin);
 
-        var len = 8 + 1 + Encoding.UTF8.GetByteCount(action) + 4;
+        // 预留：协议头 8 字节 + 动作名长度前缀（7 位变长最长 5 字节）+ 动作名字节数 + 数据长度字段 4 字节。
+        // 长度前缀随动作名长度变化（<128 为 1 字节，再长依次 2~5 字节），按 5 字节预留才不会被超长动作名写爆。
+        var actionBytes = Encoding.UTF8.GetByteCount(action);
+        var len = 8 + 5 + actionBytes + 4;
         if (code != null && code.Value is not ApiCode.Ok and not 200) len += 4;
         var pk = new OwnerPacket(len);
 
@@ -134,18 +137,37 @@ public abstract class EncoderBase
         //var ms = msg.Payload!.GetStream();
         var reader = new SpanReader(msg.Payload!.GetSpan());
 
-        message.Action = reader.ReadString();
-        // 空 action 视为无效帧（如流式结束标记），返回 null 让上层检测
-        if (message.Action.IsNullOrEmpty()) return null;
-
-        // 异常响应才有code
-        if (msg.Reply && msg.Kind == MessageKinds.Error) message.Code = reader.ReadInt32();
-
-        // 参数或结果
-        if (reader.Available > 0)
+        // 动作名长度前缀与整数字段都来自报文，截断帧会让 SpanReader 抛异常。
+        // 解码边界按“数据非法”返回 null，避免远端一条畸形帧把异常抛进接收循环
+        try
         {
-            var len = reader.ReadInt32();
-            if (len > 0) message.Data = msg.Payload.Slice(reader.Position, len);
+            message.Action = reader.ReadString();
+            // 空 action 视为无效帧（如流式结束标记），返回 null 让上层检测
+            if (message.Action.IsNullOrEmpty()) return null;
+
+            // 异常响应才有code
+            if (msg.Reply && msg.Kind == MessageKinds.Error)
+            {
+                if (reader.Available < sizeof(Int32)) return null;
+                message.Code = reader.ReadInt32();
+            }
+
+            // 参数或结果
+            if (reader.Available > 0)
+            {
+                if (reader.Available < sizeof(Int32)) return null;
+                var len = reader.ReadInt32();
+
+                // 长度字段来自报文，必须校验范围；越界切片会读到缓冲区外或抛异常。
+                // 数据体可能挂在 Payload 链的下一个节点上，因此用链总长度而不是当前节点剩余长度判断
+                if (len < 0 || len > msg.Payload.Total - reader.Position) return null;
+
+                if (len > 0) message.Data = msg.Payload.Slice(reader.Position, len);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or FormatException or ArgumentOutOfRangeException)
+        {
+            return null;
         }
 
         return message;
@@ -164,7 +186,7 @@ public abstract class EncoderBase
         if (isLast && value == null)
         {
             // 末帧空包：保留 action 名 + 无数据体，客户端通过 Data==null 检测结束
-            var endPk = new OwnerPacket(8 + 1 + Encoding.UTF8.GetByteCount(action));
+            var endPk = new OwnerPacket(8 + 5 + Encoding.UTF8.GetByteCount(action));
             var endWriter = new SpanWriter(endPk.GetSpan());
             endWriter.Advance(8);
             endWriter.Write(action);
@@ -175,7 +197,7 @@ public abstract class EncoderBase
             return endBody;
         }
 
-        var len = 8 + 1 + Encoding.UTF8.GetByteCount(action);
+        var len = 8 + 5 + Encoding.UTF8.GetByteCount(action);
         if (code != null && code.Value is not ApiCode.Ok and not 200) len += 4;
         if (value != null) len += 4; // 数据长度字段固定4字节
         var pk = new OwnerPacket(len);
