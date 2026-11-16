@@ -40,8 +40,8 @@ public sealed class ApiActionTableGenerator : IIncrementalGenerator
     {
         var candidates = context.SyntaxProvider
             .CreateSyntaxProvider(IsCandidate, Extract)
-            .Where(static x => x != null)
-            .SelectMany(static (x, _) => x!);
+            .Where(static x => !x.IsDefaultOrEmpty)
+            .SelectMany(static (x, _) => x);
 
         var combined = context.CompilationProvider.Combine(candidates.Collect());
 
@@ -69,31 +69,32 @@ public sealed class ApiActionTableGenerator : IIncrementalGenerator
     }
 
     // 语义提取：确认是 NewLife.Remoting 的控制器注册入口，取控制器/方法并生成注册行
+    // 未命中时返回空数组而不是 default：default(ImmutableArray) 一被枚举就抛异常，会让整次编译零产物
     private static ImmutableArray<String> Extract(GeneratorSyntaxContext context, CancellationToken token)
     {
         var inv = (InvocationExpressionSyntax)context.Node;
         var model = context.SemanticModel;
-        if (model.GetSymbolInfo(inv, token).Symbol is not IMethodSymbol method) return default;
-        if (method.Name != RegisterMethodName) return default;
-        if (!IsRegisterEntry(method.ContainingType)) return default;
+        if (model.GetSymbolInfo(inv, token).Symbol is not IMethodSymbol method) return ImmutableArray<String>.Empty;
+        if (method.Name != RegisterMethodName) return ImmutableArray<String>.Empty;
+        if (!IsRegisterEntry(method.ContainingType)) return ImmutableArray<String>.Empty;
 
         // 泛型入口 Register<TService>()：注册控制器全部动作
         if (method.TypeArguments.Length == 1)
         {
-            if (method.TypeArguments[0] is not INamedTypeSymbol controller) return default;
+            if (method.TypeArguments[0] is not INamedTypeSymbol controller) return ImmutableArray<String>.Empty;
 
             return BuildFragment(controller, model.Compilation);
         }
 
         // 实例入口 Register(controller, "Method")：只注册指定方法。
         // 该方法签名通常无法静态保留（宽面入口），生成器在此静态引用目标方法，使其在裁剪与 AOT 下不被移除
-        if (method.Parameters.Length != 2 || inv.ArgumentList.Arguments.Count != 2) return default;
+        if (method.Parameters.Length != 2 || inv.ArgumentList.Arguments.Count != 2) return ImmutableArray<String>.Empty;
 
         var nameValue = model.GetConstantValue(inv.ArgumentList.Arguments[1].Expression);
-        if (!nameValue.HasValue || nameValue.Value is not String methodName || methodName.Length == 0) return default;
+        if (!nameValue.HasValue || nameValue.Value is not String methodName || methodName.Length == 0) return ImmutableArray<String>.Empty;
 
         var controllerType = ResolveControllerType(inv.ArgumentList.Arguments[0].Expression, model);
-        if (controllerType == null) return default;
+        if (controllerType == null) return ImmutableArray<String>.Empty;
 
         return BuildSingleMethod(controllerType, methodName, model.Compilation);
     }
