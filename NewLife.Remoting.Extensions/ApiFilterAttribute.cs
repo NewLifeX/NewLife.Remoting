@@ -14,16 +14,30 @@ namespace NewLife.Remoting.Extensions;
 /// </remarks>
 public sealed class ApiFilterAttribute : ActionFilterAttribute
 {
+    /// <summary>是否允许从查询字符串读取令牌。默认 false，避免令牌进入 URL 日志与 Referer</summary>
+    public static Boolean AllowTokenInQuery { get; set; }
+
+    /// <summary>是否允许从 Cookie 读取令牌。默认 false，避免 GET 接口出现 CSRF 面</summary>
+    public static Boolean AllowTokenInCookie { get; set; }
+
+    /// <summary>是否允许从 X-Token 请求头读取令牌。默认 false，仅保留标准 Authorization 头</summary>
+    public static Boolean AllowTokenInHeader { get; set; }
+
     /// <summary>从请求头中获取令牌</summary>
+    /// <remarks>
+    /// 默认只认标准的 <c>Authorization: Bearer</c> 头；查询字符串、Cookie 与 X-Token 头必须显式开启，
+    /// 否则令牌会进入 URL 日志/Referer，或让 GET 接口暴露 CSRF 面。
+    /// 浏览器 WebSocket 无法自定义请求头，确有需要时再开启查询字符串方式。
+    /// </remarks>
     /// <param name="httpContext"></param>
-    /// <returns></returns>
+    /// <returns>令牌字符串，未携带时返回空字符串</returns>
     public static String GetToken(HttpContext httpContext)
     {
         var request = httpContext.Request;
-        var token = request.Query["Token"] + "";
-        if (token.IsNullOrEmpty()) token = (request.Headers.Authorization + "").TrimPrefix("Bearer ");
-        if (token.IsNullOrEmpty()) token = request.Headers["X-Token"] + "";
-        if (token.IsNullOrEmpty()) token = request.Cookies["Token"] + "";
+        var token = (request.Headers.Authorization + "").TrimPrefix("Bearer ");
+        if (token.IsNullOrEmpty() && AllowTokenInHeader) token = request.Headers["X-Token"] + "";
+        if (token.IsNullOrEmpty() && AllowTokenInQuery) token = request.Query["Token"] + "";
+        if (token.IsNullOrEmpty() && AllowTokenInCookie) token = request.Cookies["Token"] + "";
 
         return token;
     }

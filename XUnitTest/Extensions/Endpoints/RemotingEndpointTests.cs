@@ -284,7 +284,9 @@ public class RemotingEndpointTests : IAsyncLifetime
         using var ws = new ClientWebSocket();
         using var source = new CancellationTokenSource(15_000);
 
-        await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{_port}/Notify?Token={_token}"), source.Token);
+        // 令牌默认只走 Authorization 头，不再放在查询字符串里
+        ws.Options.SetRequestHeader("Authorization", "Bearer " + _token);
+        await ws.ConnectAsync(new Uri($"ws://127.0.0.1:{_port}/Notify"), source.Token);
 
         // 等待会话注册到会话管理器
         var manager = _app.Services.GetRequiredService<ISessionManager>();

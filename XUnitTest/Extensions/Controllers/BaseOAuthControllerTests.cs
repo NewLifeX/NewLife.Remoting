@@ -174,7 +174,8 @@ public class BaseOAuthControllerTests
     {
         var (ctrl, _) = Create();
 
-        Assert.Throws<NotSupportedException>(() => ctrl.Token(new TokenInModel { grant_type = "unknown" }));
+        var ex = Assert.Throws<ApiException>(() => ctrl.Token(new TokenInModel { grant_type = "unknown" }));
+        Assert.Equal(ApiCode.BadRequest, ex.Code);
     }
 
     [Fact, DisplayName("缺少用户名抛出参数异常")]
@@ -182,7 +183,8 @@ public class BaseOAuthControllerTests
     {
         var (ctrl, _) = Create();
 
-        Assert.Throws<ArgumentNullException>(() => ctrl.Token(new TokenInModel { grant_type = "password" }));
+        var ex = Assert.Throws<ApiException>(() => ctrl.Token(new TokenInModel { grant_type = "password" }));
+        Assert.Equal(ApiCode.BadRequest, ex.Code);
     }
 
     [Fact, DisplayName("Info按令牌主体返回应用")]

@@ -32,7 +32,7 @@ public abstract class BaseOAuthController(ITokenService tokenService, ITokenSett
             // 密码模式
             if (model.grant_type == "password")
             {
-                if (model.UserName.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.UserName));
+                if (model.UserName.IsNullOrEmpty()) throw new ApiException(ApiCode.BadRequest, L.T("[{0}] is invalid!", nameof(model.UserName)));
 
                 var app = Authorize(model.UserName, model.Password, set.AutoRegister, ip);
 
@@ -45,7 +45,7 @@ public abstract class BaseOAuthController(ITokenService tokenService, ITokenSett
             // 刷新令牌
             else if (model.grant_type == "refresh_token")
             {
-                if (model.refresh_token.IsNullOrEmpty()) throw new ArgumentNullException(nameof(model.refresh_token));
+                if (model.refresh_token.IsNullOrEmpty()) throw new ApiException(ApiCode.BadRequest, L.T("[{0}] is invalid!", nameof(model.refresh_token)));
 
                 var (jwt, ex) = tokenService.DecodeToken(model.refresh_token);
 
@@ -71,12 +71,15 @@ public abstract class BaseOAuthController(ITokenService tokenService, ITokenSett
 
                 var tokenModel = tokenService.IssueToken(app!.Name, clientId);
 
+                // 刷新令牌一次性使用：新令牌签发后立即吊销旧会话，降低刷新令牌被截获后重放的风险
+                tokenService.RevokeToken(model.refresh_token);
+
                 //app.WriteHistory("RefreshToken", true, model.refresh_token, ip, clientId);
 
                 return tokenModel;
             }
             else
-                throw new NotSupportedException(L.T("Unsupported grant_type={0}", model.grant_type));
+                throw new ApiException(ApiCode.BadRequest, L.T("Unsupported grant_type={0}", model.grant_type));
         }
         catch (Exception ex)
         {
@@ -95,7 +98,7 @@ public abstract class BaseOAuthController(ITokenService tokenService, ITokenSett
     /// <returns></returns>
     protected IAppModel Authorize(String username, String? password, Boolean autoRegister, String? ip = null)
     {
-        if (username.IsNullOrEmpty()) throw new ArgumentNullException(nameof(username));
+        if (username.IsNullOrEmpty()) throw new ApiException(ApiCode.BadRequest, L.T("[{0}] is invalid!", nameof(username)));
         //if (password.IsNullOrEmpty()) throw new ArgumentNullException(nameof(password));
 
         // 查找应用

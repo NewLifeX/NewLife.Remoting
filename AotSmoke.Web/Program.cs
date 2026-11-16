@@ -45,6 +45,9 @@ internal static class Program
         _port = FindFreePort();
         _device = new MemoryDeviceService();
 
+        // 浏览器 WebSocket 无法自定义 Authorization 头，冒烟沿用查询令牌；生产默认关闭
+        ApiFilterAttribute.AllowTokenInQuery = true;
+
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Production" });
         builder.WebHost.UseUrls($"http://127.0.0.1:{_port}");
         builder.Logging.ClearProviders();

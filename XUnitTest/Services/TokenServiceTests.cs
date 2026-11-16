@@ -232,6 +232,35 @@ public class TokenServiceTests
     }
 
     [Fact]
+    [DisplayName("注销访问令牌同时吊销同会话刷新令牌")]
+    public void RevokeToken_Access_AlsoRevokesRefresh()
+    {
+        var (service, _) = CreateServiceWithCache();
+
+        var token = service.IssueToken("testApp", "clientId123");
+        service.RevokeToken(token.AccessToken!);
+
+        var (jwt, ex) = service.DecodeToken(token.RefreshToken!);
+        Assert.NotNull(jwt);
+        Assert.NotNull(ex);
+        Assert.Equal(ApiCode.Unauthorized, Assert.IsType<ApiException>(ex).Code);
+    }
+
+    [Fact]
+    [DisplayName("注销后同一 jti 的新会话不受影响")]
+    public void RevokeToken_NewSessionSameJti_NotRevoked()
+    {
+        var (service, _) = CreateServiceWithCache();
+
+        // 客户端常把稳定的 ClientId 作为 jti，重新登录必须拿到新的会话标识
+        service.RevokeToken(service.IssueToken("testApp", "same-client").AccessToken!);
+
+        var token = service.IssueToken("testApp", "same-client");
+        var (_, ex) = service.DecodeToken(token.AccessToken!);
+        Assert.Null(ex);
+    }
+
+    [Fact]
     [DisplayName("吊销令牌不影响其他令牌")]
     public void RevokeToken_OtherToken_Unchanged()
     {

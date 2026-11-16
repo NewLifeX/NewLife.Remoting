@@ -16,19 +16,48 @@ using Xunit;
 
 namespace XUnitTest.Filters;
 
+/// <summary>令牌来源开关是进程级静态状态，相关用例串行执行，避免并行测试互相影响</summary>
+[CollectionDefinition("ApiTokenSources", DisableParallelization = true)]
+public class ApiTokenSourcesCollection { }
+
 /// <summary>ApiFilterAttribute单元测试</summary>
+[Collection("ApiTokenSources")]
 public class ApiFilterAttributeTests
 {
     [Fact]
-    [DisplayName("GetToken从Query获取")]
-    public void GetToken_FromQuery()
+    [DisplayName("默认不读取Query/X-Token/Cookie中的令牌")]
+    public void GetToken_NonHeaderSources_DisabledByDefault()
     {
         var context = new DefaultHttpContext();
-        context.Request.QueryString = new QueryString("?Token=test_token_123");
+        context.Request.QueryString = new QueryString("?Token=from_query");
+        context.Request.Headers["X-Token"] = "from_x_token";
+        context.Request.Headers["Cookie"] = "Token=from_cookie";
 
         var token = ApiFilterAttribute.GetToken(context);
 
-        Assert.Equal("test_token_123", token);
+        Assert.Equal("", token);
+    }
+
+    [Fact]
+    [DisplayName("GetToken从Query获取（显式开启）")]
+    public void GetToken_FromQuery()
+    {
+        var old = ApiFilterAttribute.AllowTokenInQuery;
+        try
+        {
+            ApiFilterAttribute.AllowTokenInQuery = true;
+
+            var context = new DefaultHttpContext();
+            context.Request.QueryString = new QueryString("?Token=test_token_123");
+
+            var token = ApiFilterAttribute.GetToken(context);
+
+            Assert.Equal("test_token_123", token);
+        }
+        finally
+        {
+            ApiFilterAttribute.AllowTokenInQuery = old;
+        }
     }
 
     [Fact]
@@ -44,40 +73,70 @@ public class ApiFilterAttributeTests
     }
 
     [Fact]
-    [DisplayName("GetToken从X-Token头获取")]
+    [DisplayName("GetToken从X-Token头获取（显式开启）")]
     public void GetToken_FromXTokenHeader()
     {
-        var context = new DefaultHttpContext();
-        context.Request.Headers["X-Token"] = "x_token_789";
+        var old = ApiFilterAttribute.AllowTokenInHeader;
+        try
+        {
+            ApiFilterAttribute.AllowTokenInHeader = true;
 
-        var token = ApiFilterAttribute.GetToken(context);
+            var context = new DefaultHttpContext();
+            context.Request.Headers["X-Token"] = "x_token_789";
 
-        Assert.Equal("x_token_789", token);
+            var token = ApiFilterAttribute.GetToken(context);
+
+            Assert.Equal("x_token_789", token);
+        }
+        finally
+        {
+            ApiFilterAttribute.AllowTokenInHeader = old;
+        }
     }
 
     [Fact]
-    [DisplayName("GetToken从Cookie获取")]
+    [DisplayName("GetToken从Cookie获取（显式开启）")]
     public void GetToken_FromCookie()
     {
-        var context = new DefaultHttpContext();
-        context.Request.Headers["Cookie"] = "Token=cookie_token_abc";
+        var old = ApiFilterAttribute.AllowTokenInCookie;
+        try
+        {
+            ApiFilterAttribute.AllowTokenInCookie = true;
 
-        var token = ApiFilterAttribute.GetToken(context);
+            var context = new DefaultHttpContext();
+            context.Request.Headers["Cookie"] = "Token=cookie_token_abc";
 
-        Assert.Equal("cookie_token_abc", token);
+            var token = ApiFilterAttribute.GetToken(context);
+
+            Assert.Equal("cookie_token_abc", token);
+        }
+        finally
+        {
+            ApiFilterAttribute.AllowTokenInCookie = old;
+        }
     }
 
     [Fact]
-    [DisplayName("GetToken优先级Query最高")]
-    public void GetToken_QueryTakesPrecedence()
+    [DisplayName("GetToken优先Authorization头")]
+    public void GetToken_HeaderTakesPrecedence()
     {
-        var context = new DefaultHttpContext();
-        context.Request.QueryString = new QueryString("?Token=from_query");
-        context.Request.Headers["Authorization"] = "Bearer from_header";
+        var old = ApiFilterAttribute.AllowTokenInQuery;
+        try
+        {
+            ApiFilterAttribute.AllowTokenInQuery = true;
 
-        var token = ApiFilterAttribute.GetToken(context);
+            var context = new DefaultHttpContext();
+            context.Request.QueryString = new QueryString("?Token=from_query");
+            context.Request.Headers["Authorization"] = "Bearer from_header";
 
-        Assert.Equal("from_query", token);
+            var token = ApiFilterAttribute.GetToken(context);
+
+            Assert.Equal("from_header", token);
+        }
+        finally
+        {
+            ApiFilterAttribute.AllowTokenInQuery = old;
+        }
     }
 
     [Fact]
@@ -107,27 +166,47 @@ public class ApiFilterAttributeTests
     [Fact(DisplayName = "OnActionExecuting注入Token到上下文与参数")]
     public void OnActionExecuting_InjectsToken()
     {
-        var http = new DefaultHttpContext();
-        http.Request.QueryString = new QueryString("?Token=abc");
-        var ctx = CreateExecutingContext(http, new Dictionary<String, Object?> { ["arg"] = 1 });
+        var old = ApiFilterAttribute.AllowTokenInQuery;
+        try
+        {
+            ApiFilterAttribute.AllowTokenInQuery = true;
 
-        new ApiFilterAttribute().OnActionExecuting(ctx);
+            var http = new DefaultHttpContext();
+            http.Request.QueryString = new QueryString("?Token=abc");
+            var ctx = CreateExecutingContext(http, new Dictionary<String, Object?> { ["arg"] = 1 });
 
-        Assert.Equal("abc", http.Items["Token"]);
-        Assert.Equal("abc", ctx.ActionArguments["token"]);
-        Assert.Equal(1, ctx.ActionArguments["arg"]);
+            new ApiFilterAttribute().OnActionExecuting(ctx);
+
+            Assert.Equal("abc", http.Items["Token"]);
+            Assert.Equal("abc", ctx.ActionArguments["token"]);
+            Assert.Equal(1, ctx.ActionArguments["arg"]);
+        }
+        finally
+        {
+            ApiFilterAttribute.AllowTokenInQuery = old;
+        }
     }
 
     [Fact(DisplayName = "OnActionExecuting不覆盖已有token参数")]
     public void OnActionExecuting_KeepsExplicitToken()
     {
-        var http = new DefaultHttpContext();
-        http.Request.QueryString = new QueryString("?Token=from_query");
-        var ctx = CreateExecutingContext(http, new Dictionary<String, Object?> { ["token"] = "explicit" });
+        var old = ApiFilterAttribute.AllowTokenInQuery;
+        try
+        {
+            ApiFilterAttribute.AllowTokenInQuery = true;
 
-        new ApiFilterAttribute().OnActionExecuting(ctx);
+            var http = new DefaultHttpContext();
+            http.Request.QueryString = new QueryString("?Token=from_query");
+            var ctx = CreateExecutingContext(http, new Dictionary<String, Object?> { ["token"] = "explicit" });
 
-        Assert.Equal("explicit", ctx.ActionArguments["token"]);
+            new ApiFilterAttribute().OnActionExecuting(ctx);
+
+            Assert.Equal("explicit", ctx.ActionArguments["token"]);
+        }
+        finally
+        {
+            ApiFilterAttribute.AllowTokenInQuery = old;
+        }
     }
 
     [Fact(DisplayName = "OnActionExecuted包装ObjectResult")]
@@ -180,7 +259,7 @@ public class ApiFilterAttributeTests
 
         var json = Assert.IsType<JsonResult>(ctx.Result);
         Assert.Equal(500, GetProperty(json.Value, "code"));
-        Assert.Equal("boom", GetProperty(json.Value, "message"));
+        Assert.Equal("Internal Server Error", GetProperty(json.Value, "message"));
         Assert.True(ctx.ExceptionHandled);
     }
 

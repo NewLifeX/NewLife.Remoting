@@ -55,20 +55,28 @@ public class TokenService(ITokenSetting tokenSetting, ITracer tracer, ICacheProv
 
         var now = DateTime.Now;
 
+        // 会话标识。访问令牌与刷新令牌成对签发，注销时按会话一并吊销。
+        // 不能用 jti：客户端常把稳定的 ClientId 作为 jti，跨登录复用会导致旧会话吊销误伤新令牌
+        var sid = Rand.NextString(8);
+
+        // 刷新令牌绝对过期时间（Unix 秒）。吊销缓存的存活期据此计算，
+        // 避免运行期修改 TokenExpire/RefreshExpire 后吊销标记提前失效
+        var refreshExpire = tokenSetting is ITokenSetting2 ts2 && ts2.RefreshExpire > 0
+            ? ts2.RefreshExpire
+            : tokenSetting.TokenExpire * 12;
+        var rexp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() + refreshExpire;
+
         // 访问令牌：短有效期，只能调用业务接口
         var jwt = GetJwt();
         jwt.Issuer = Assembly.GetEntryAssembly()?.GetName().Name;
         jwt.Subject = name;
         jwt.Id = id;
         jwt.Expire = now.AddSeconds(tokenSetting.TokenExpire);
-        var access = jwt.Encode(new { kind = "access" });
+        var access = jwt.Encode(new { kind = "access", sid, rexp });
 
         // 刷新令牌：长有效期，只能用于刷新，不能作为访问令牌
-        var refreshExpire = tokenSetting is ITokenSetting2 ts2 && ts2.RefreshExpire > 0
-            ? ts2.RefreshExpire
-            : tokenSetting.TokenExpire * 12;
         jwt.Expire = now.AddSeconds(refreshExpire);
-        var refresh = jwt.Encode(new { kind = "refresh" });
+        var refresh = jwt.Encode(new { kind = "refresh", sid, rexp });
 
         return new TokenModel
         {
@@ -111,7 +119,7 @@ public class TokenService(ITokenSetting tokenSetting, ITracer tracer, ICacheProv
         Exception? ex = null;
         if (!jwt.TryDecode(token, out var message))
             ex = new ApiException(ApiCode.Unauthorized, L.T("Illegal access [{0}] {1}", jwt.Subject, message));
-        else if (IsRevoked(token))
+        else if (IsRevoked(token) || IsSessionRevoked(jwt["sid"] + ""))
             ex = new ApiException(ApiCode.Unauthorized, L.T("The token has been revoked!"));
 
         return (jwt, ex);
@@ -122,7 +130,7 @@ public class TokenService(ITokenSetting tokenSetting, ITracer tracer, ICacheProv
     /// 缓存键采用令牌 MD5，缓存值保存令牌原文；校验时取出原文比对，
     /// 避免两个不同令牌 MD5 碰撞时误伤未吊销令牌。
     /// </remarks>
-    /// <param name="token">要吊销的令牌。访问令牌与刷新令牌各自独立吊销</param>
+    /// <param name="token">要吊销的令牌。注销访问令牌时会同时吊销同 sid 的刷新令牌</param>
     /// <returns>吊销缓存生效秒数（含缓冲），0 表示未吊销（令牌无效、已过期或未配置缓存）</returns>
     public virtual Int32 RevokeToken(String token)
     {
@@ -140,6 +148,29 @@ public class TokenService(ITokenSetting tokenSetting, ITracer tracer, ICacheProv
         var remain = (Int32)(jwt.Expire - DateTime.Now).TotalSeconds + RevokeExpire;
         cache.Set(RevokeKey(token), token, remain);
 
+        // 访问令牌与刷新令牌共享 sid，按会话成对吊销；缓存存活到刷新令牌过期，避免注销后仍能换新访问令牌
+        var sid = jwt["sid"] + "";
+        if (!sid.IsNullOrEmpty())
+        {
+            // 新令牌带 rexp（刷新令牌绝对过期时间）；旧令牌回退到当前配置
+            var ttl = remain;
+            var rexp = jwt["rexp"].ToLong();
+            if (rexp > 0)
+            {
+                var refreshRemain = (Int32)(rexp - DateTimeOffset.UtcNow.ToUnixTimeSeconds()) + RevokeExpire;
+                if (refreshRemain > ttl) ttl = refreshRemain;
+            }
+            else
+            {
+                var refreshExpire = tokenSetting is ITokenSetting2 ts2 && ts2.RefreshExpire > 0
+                    ? ts2.RefreshExpire
+                    : tokenSetting.TokenExpire * 12;
+                ttl = Math.Max(ttl, refreshExpire + RevokeExpire);
+            }
+
+            cache.Set(SessionRevokeKey(sid), sid, ttl);
+        }
+
         return remain;
     }
 
@@ -154,8 +185,24 @@ public class TokenService(ITokenSetting tokenSetting, ITracer tracer, ICacheProv
         return cache.TryGetValue<String>(RevokeKey(token), out var old) && old == token;
     }
 
+    /// <summary>会话是否已吊销。注销时按 sid 同时吊销访问令牌与刷新令牌</summary>
+    /// <param name="sid">令牌中的会话标识</param>
+    /// <returns>是否已吊销</returns>
+    private Boolean IsSessionRevoked(String? sid)
+    {
+        var cache = Cache;
+        if (cache == null || sid.IsNullOrEmpty()) return false;
+
+        return cache.TryGetValue<String>(SessionRevokeKey(sid), out var old) && old == sid;
+    }
+
     /// <summary>吊销缓存键。采用令牌MD5缩短键长度</summary>
     /// <param name="token">令牌字符串</param>
     /// <returns>缓存键</returns>
     private static String RevokeKey(String token) => "TokenRevoke:" + token.MD5();
+
+    /// <summary>会话吊销缓存键</summary>
+    /// <param name="sid">会话标识</param>
+    /// <returns>缓存键</returns>
+    private static String SessionRevokeKey(String sid) => "TokenRevokeSid:" + sid;
 }
