@@ -1,7 +1,7 @@
 name: test
 
 # 单元测试矩阵（参考 NewLife.Core 的跨平台做法）：目标框架 × 操作系统/指令集
-#   TFM：net10.0（最新）与 net8.0（最低受支持运行时）；netstandard2.1/netstandard2.0/net45 由全解决方案编译校验承担
+#   TFM：net11.0（最新）、net10.0 与 net8.0（最低受支持运行时）；netstandard2.1/netstandard2.0/net45 由全解决方案编译校验承担
 #   OS/架构：win-x64、linux-x64、linux-arm64 为阻断门禁；win-arm64 / osx-arm64 / osx-x64 / musl 为观察期
 #   linux-loongarch64（LA64）→ ubuntu-latest + QEMU 仿真 + 龙芯 SDK（社区平台，无官方 runner；观察期）
 # 触发：push / PR / 手动（workflow_dispatch）；不采用夜间定时——GitHub 为镜像仓库，同步推送即触发。
@@ -31,6 +31,7 @@ jobs:
         dotnet-version: |
           8.x
           10.x
+          11.x
         cache: true
         cache-dependency-path: '**/*.csproj'
     - name: Build
@@ -69,6 +70,10 @@ jobs:
             dotnet: |
               8.x
               10.x
+          - name: win-x64-net11.0
+            os: windows-latest
+            framework: net11.0
+            dotnet: 11.x
           - name: win-x64-net8.0
             os: windows-latest
             framework: net8.0
@@ -82,6 +87,10 @@ jobs:
             dotnet: |
               8.x
               10.x
+          - name: linux-x64-net11.0
+            os: ubuntu-latest
+            framework: net11.0
+            dotnet: 11.x
           - name: linux-x64-net8.0
             os: ubuntu-latest
             framework: net8.0
@@ -95,6 +104,10 @@ jobs:
             dotnet: |
               8.x
               10.x
+          - name: linux-arm64-net11.0
+            os: ubuntu-24.04-arm
+            framework: net11.0
+            dotnet: 11.x
           - name: linux-arm64-net8.0
             os: ubuntu-24.04-arm
             framework: net8.0

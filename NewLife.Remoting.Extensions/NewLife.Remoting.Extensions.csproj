@@ -4,7 +4,7 @@
     <OutputType>Library</OutputType>
     <!-- 目标框架对齐 NewLife.Core v12：net7.0/net9.0 已由上游合并（net7.0→net6.0，net9.0→net8.0），
          保留会被 NuGet 回退到 netstandard2.1 资产，与 Core 内嵌的 CodeAnalysis 补齐类型冲突（CS0433） -->
-    <TargetFrameworks>net6.0;net8.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>net6.0;net8.0;net10.0;net11.0</TargetFrameworks>
     <AssemblyTitle>NewLife Remoting Extensions</AssemblyTitle>
     <Description>Device access controllers, token services and session management extensions for NewLife.Remoting.</Description>
     <Company>新生命开发团队</Company>

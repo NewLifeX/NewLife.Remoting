@@ -11,7 +11,7 @@
 [![test](https://github.com/NewLifeX/NewLife.Remoting/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/NewLifeX/NewLife.Remoting/actions/workflows/test.yml)
 <!-- metrics:start -->
 [![AOT smoke](https://img.shields.io/badge/AOT%20smoke-23%2F23-brightgreen?logo=dotnet)](Doc/AOT兼容性分析.md)
-[![TFM](https://img.shields.io/badge/TFM-7%20%28net45%20%E2%86%92%20net10.0%29-512BD4?logo=dotnet)](https://www.nuget.org/packages/NewLife.Remoting)
+[![TFM](https://img.shields.io/badge/TFM-8%20%28net45%20%E2%86%92%20net11.0%29-512BD4?logo=dotnet)](https://www.nuget.org/packages/NewLife.Remoting)
 [![locales](https://img.shields.io/badge/locales-31-2ea44f?logo=dotnet)](Doc/多语言本地化接入.md)
 <!-- metrics:end -->
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS%20%7C%20Android%20%7C%20iOS-blue)
@@ -112,7 +112,7 @@ client.Headers["TenantId"] = "tenant-01";
 | TCP 장기 연결 수 | 10,000 | 4,000,000 |
 | RPC 처리량 | 100,000 TPS | 455,000 msg/s |
 | RPC 1회 지연 | 약 41 μs | — |
-| 프레임워크 지원 | net45 / net461 / netstandard2.0 / netstandard2.1 / net6.0 / net8.0 / net10.0 (NewLife.Core v12 기준, net8.0+ NativeAOT) |
+| 프레임워크 지원 | net45 / net461 / netstandard2.0 / netstandard2.1 / net6.0 / net8.0 / net10.0 / net11.0 (NewLife.Core v12 기준, net8.0+ NativeAOT) |
 
 ## v4 업그레이드
 

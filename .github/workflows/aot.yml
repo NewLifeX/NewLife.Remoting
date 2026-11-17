@@ -32,12 +32,15 @@ jobs:
         dotnet-version: |
           8.x
           10.x
+          11.x
     - name: 分析器零告警构建（-warnaserror 阻断新增告警）
       run: |
         dotnet build NewLife.Remoting/NewLife.Remoting.csproj -f net8.0 -c Release --nologo -warnaserror
         dotnet build NewLife.Remoting/NewLife.Remoting.csproj -f net10.0 -c Release --nologo -warnaserror
+        dotnet build NewLife.Remoting/NewLife.Remoting.csproj -f net11.0 -c Release --nologo -warnaserror
         dotnet build NewLife.Remoting.Extensions/NewLife.Remoting.Extensions.csproj -f net8.0 -c Release --nologo -warnaserror
         dotnet build NewLife.Remoting.Extensions/NewLife.Remoting.Extensions.csproj -f net10.0 -c Release --nologo -warnaserror
+        dotnet build NewLife.Remoting.Extensions/NewLife.Remoting.Extensions.csproj -f net11.0 -c Release --nologo -warnaserror
     - name: 源生成器单元测试
       run: dotnet test XUnitTest.SourceGenerator -c Release --nologo
 

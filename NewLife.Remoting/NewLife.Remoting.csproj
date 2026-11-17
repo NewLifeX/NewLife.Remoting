@@ -2,7 +2,7 @@
   <PropertyGroup>
     <!-- 目标框架对齐 NewLife.Core v12：net5.0/net7.0/net9.0 已由 Core 侧合并（net5.0→netstandard2.1，net7.0→net6.0，net9.0→net8.0），
          保留会被 NuGet 回退到 netstandard2.1 资产，与 Core 内嵌的 CodeAnalysis 补齐类型冲突（CS0433） -->
-    <TargetFrameworks>net45;net461;netstandard2.0;netstandard2.1;net6.0;net8.0;net10.0</TargetFrameworks>
+    <TargetFrameworks>net45;net461;netstandard2.0;netstandard2.1;net6.0;net8.0;net10.0;net11.0</TargetFrameworks>
     <AssemblyTitle>NewLife Remoting Library</AssemblyTitle>
     <Description>Unified RPC, HTTP, WebSocket and SRMP communication for client-server and IoT applications.</Description>
     <Company>新生命开发团队</Company>
